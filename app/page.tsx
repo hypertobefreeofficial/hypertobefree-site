@@ -1,4 +1,15 @@
-import { Globe2, HeartHandshake, MessageCircleHeart, Play, Search, Send, ShieldCheck, Sparkles } from "lucide-react";
+import React from "react";
+import Link from "next/link";
+import {
+  Play,
+  HeartHandshake,
+  Globe2,
+  MessageCircleHeart,
+  ShieldCheck,
+  Sparkles,
+  Send,
+  Search,
+} from "lucide-react";
 
 export default function Home() {
   const stories = [
@@ -67,9 +78,18 @@ export default function Home() {
             </a>
           </nav>
 
-          <button className="rounded-full bg-[#0b63ce] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#084f9f]">
-            Share Your Story
-          </button>
+          <div className="flex items-center gap-3">
+            <button className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block">
+              Sign In
+            </button>
+
+            <Link
+              href="/share-your-story"
+              className="rounded-full bg-[#0b63ce] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#084f9f]"
+            >
+              Share Your Story
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -96,9 +116,13 @@ export default function Home() {
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <button className="inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80]">
+                <Link
+                  href="/share-your-story"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80]"
+                >
                   Share Your Story <Send className="h-4 w-4" />
-                </button>
+                </Link>
+
                 <button className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50">
                   Explore Testimonies <Search className="h-4 w-4" />
                 </button>
@@ -109,6 +133,7 @@ export default function Home() {
               <div className="absolute right-0 top-2 h-[440px] w-full rounded-[2.5rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:w-[560px]">
                 <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_70%_28%,rgba(255,255,255,0.9),transparent_16%),radial-gradient(circle_at_72%_75%,rgba(255,176,56,0.65),transparent_18%)]" />
                 <div className="absolute bottom-0 left-0 right-0 h-36 rounded-b-[2.5rem] bg-gradient-to-t from-[#082f63]/25 to-transparent" />
+                <div className="absolute bottom-9 right-10 h-20 w-96 rounded-full bg-[#082f63]/15 blur-2xl" />
                 <GirlSilhouette />
               </div>
 
@@ -139,6 +164,29 @@ export default function Home() {
                   <span className="rounded-full bg-slate-100 px-3 py-1">
                     Encouraged
                   </span>
+                </div>
+              </div>
+
+              <div className="absolute bottom-2 left-10 w-[300px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-sm font-black text-slate-900">
+                    From Around the World
+                  </div>
+                  <Globe2 className="h-4 w-4 text-[#0b63ce]" />
+                </div>
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <span>USA</span>
+                    <span>Praise Report</span>
+                  </div>
+                  <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <span>Nigeria</span>
+                    <span>Testimony</span>
+                  </div>
+                  <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <span>Philippines</span>
+                    <span>Prayer</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -174,17 +222,21 @@ export default function Home() {
                     {story.tag}
                   </span>
                 </div>
+
                 <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
                   <div className="flex h-full items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
                     <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
                   </div>
                 </div>
+
                 <h3 className="text-xl font-black leading-tight text-slate-900">
                   {story.title}
                 </h3>
+
                 <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
                   <Globe2 className="h-4 w-4" /> {story.location}
                 </div>
+
                 <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
                   <span className="rounded-full bg-slate-100 px-3 py-1.5">
                     Amen
@@ -220,9 +272,15 @@ export default function Home() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 {[
-                  ["Answered Prayer", "God made a way when I could not see one."],
+                  [
+                    "Answered Prayer",
+                    "God made a way when I could not see one.",
+                  ],
                   ["Healing", "Thankful for renewed strength and peace today."],
-                  ["Restoration", "God is restoring something I thought was lost."],
+                  [
+                    "Restoration",
+                    "God is restoring something I thought was lost.",
+                  ],
                   ["Peace", "I woke up today with a calm heart."],
                 ].map(([title, body]) => (
                   <div
@@ -250,11 +308,13 @@ export default function Home() {
               title="Encouraging responses"
               text="Simple response options keep the focus on prayer, praise, and encouragement."
             />
+
             <InfoCard
               icon={<MessageCircleHeart className="h-9 w-9 text-[#0b63ce]" />}
               title="Prayer support"
               text="A quiet place for people to share prayer needs and receive encouragement."
             />
+
             <InfoCard
               icon={<ShieldCheck className="h-9 w-9 text-[#0b63ce]" />}
               title="Protected space"
@@ -265,14 +325,17 @@ export default function Home() {
 
         <section className="mx-auto max-w-7xl px-6 py-14">
           <div className="rounded-[2.5rem] border border-slate-200 bg-white p-8 shadow-sm md:p-12">
-            <div className="mb-7">
-              <div className="text-sm font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
-                Browse
+            <div className="mb-7 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
+                  Browse
+                </div>
+                <h2 className="mt-2 text-3xl font-black tracking-tight text-[#062a57]">
+                  Find stories by category
+                </h2>
               </div>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#062a57]">
-                Find stories by category
-              </h2>
             </div>
+
             <div className="flex flex-wrap gap-3">
               {categories.map((cat) => (
                 <button
@@ -292,15 +355,20 @@ export default function Home() {
               <h2 className="text-4xl font-black tracking-tight text-[#062a57]">
                 Your story may be the encouragement someone else needs today.
               </h2>
+
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
                 Whether your story is big or small, recent or years in the
                 making, it matters. Share what God has done, read stories from
                 others, and be part of a community centered on freedom, hope,
                 prayer, and encouragement.
               </p>
-              <button className="mt-8 rounded-full bg-[#0b63ce] px-6 py-3.5 text-base font-bold text-white shadow-sm hover:bg-[#084f9f]">
+
+              <Link
+                href="/share-your-story"
+                className="mt-8 inline-flex rounded-full bg-[#0b63ce] px-6 py-3.5 text-base font-bold text-white shadow-sm hover:bg-[#084f9f]"
+              >
                 Join Hyper to Be Free
-              </button>
+              </Link>
             </div>
 
             <div className="rounded-[2rem] bg-white/70 p-6 shadow-sm ring-1 ring-white">
@@ -315,6 +383,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
               <p className="leading-7 text-slate-600">
                 Inspired by a dream of a place filled with people from all over
                 the world sharing the good things God has done in their lives.
