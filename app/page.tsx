@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Play,
   HeartHandshake,
@@ -47,9 +48,15 @@ export default function Home() {
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#082f63] text-white shadow-sm">
-              <DoveMark />
-            </div>
+            <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+  <Image
+    src="/images/htbf-logo.png"
+    alt="Hyper to Be Free logo"
+    fill
+    className="object-contain p-1"
+    priority
+  />
+</div>
             <div>
               <div className="text-xl font-black tracking-tight text-[#082f63]">
                 HTBF
@@ -130,11 +137,17 @@ export default function Home() {
             </div>
 
             <div className="relative min-h-[470px]">
-              <div className="absolute right-0 top-2 h-[440px] w-full rounded-[2.5rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:w-[560px]">
+              <div className="absolute right-0 top-2 h-[440px] w-full overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:w-[560px]">
                 <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_70%_28%,rgba(255,255,255,0.9),transparent_16%),radial-gradient(circle_at_72%_75%,rgba(255,176,56,0.65),transparent_18%)]" />
                 <div className="absolute bottom-0 left-0 right-0 h-36 rounded-b-[2.5rem] bg-gradient-to-t from-[#082f63]/25 to-transparent" />
                 <div className="absolute bottom-9 right-10 h-20 w-96 rounded-full bg-[#082f63]/15 blur-2xl" />
-                <GirlSilhouette />
+              <Image
+  src="/images/hero-freedom.png"
+  alt="Silhouette of a girl jumping in freedom"
+  fill
+  className="rounded-[2.5rem] object-cover"
+  priority
+/>
               </div>
 
               <div className="absolute left-0 top-12 w-[330px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
