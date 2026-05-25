@@ -73,9 +73,9 @@ export default function Home() {
             <a className="hover:text-[#0b63ce]" href="#prayer">
               Prayer
             </a>
-            <a className="hover:text-[#0b63ce]" href="#about">
-              About
-            </a>
+            <Link className="hover:text-[#0b63ce]" href="/about">
+  About
+</Link>
           </nav>
 
           <div className="flex items-center gap-3">
