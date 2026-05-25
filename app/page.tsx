@@ -390,9 +390,14 @@ export default function Home() {
 
             <div className="rounded-[2rem] bg-white/70 p-6 shadow-sm ring-1 ring-white">
               <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#082f63] text-white">
-                  <DoveMark />
-                </div>
+                <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+  <Image
+    src="/images/htbf-logo.png"
+    alt="HTBF logo"
+    fill
+    className="object-contain p-1"
+  />
+</div>
                 <div>
                   <div className="font-black text-[#062a57]">HTBF</div>
                   <div className="text-sm text-slate-500">
