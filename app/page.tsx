@@ -393,7 +393,7 @@ export default function Home() {
         </section>
       </main>
 
-     <footer className="border-t border-slate-200 bg-white px-6 py-8">
+     <<footer className="border-t border-slate-200 bg-white px-6 py-8">
   <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
     <div>© Hyper to Be Free. All rights reserved.</div>
 
@@ -406,10 +406,14 @@ export default function Home() {
         Privacy Policy
       </Link>
 
+      <Link href="/terms" className="hover:text-[#0b63ce]">
+        Terms of Use
+      </Link>
+
       <span>Contact: info@hypertobefree.com</span>
     </div>
   </div>
-</footer>
+</footer>>
     </div>
   );
 }
