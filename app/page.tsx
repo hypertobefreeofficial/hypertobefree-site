@@ -393,12 +393,18 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-slate-200 bg-white px-6 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
-          <div>© Hyper to Be Free. All rights reserved.</div>
-          <div>Contact: info@hypertobefree.com</div>
-        </div>
-      </footer>
+     <footer className="border-t border-slate-200 bg-white px-6 py-8">
+  <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
+    <div>© Hyper to Be Free. All rights reserved.</div>
+
+    <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-5">
+      <Link href="/community-guidelines" className="hover:text-[#0b63ce]">
+        Community Guidelines
+      </Link>
+      <span>Contact: info@hypertobefree.com</span>
+    </div>
+  </div>
+</footer>
     </div>
   );
 }
