@@ -396,7 +396,7 @@ export default function Home() {
       <footer className="border-t border-slate-200 bg-white px-6 py-8">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
           <div>© Hyper to Be Free. All rights reserved.</div>
-          <div>Contact: hello@hypertobefree.com</div>
+          <div>Contact: info@hypertobefree.com</div>
         </div>
       </footer>
     </div>
