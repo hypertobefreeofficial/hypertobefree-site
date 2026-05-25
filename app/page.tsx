@@ -151,9 +151,11 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+
                 <p className="mt-4 text-sm leading-6 text-slate-600">
                   “I woke up with peace after weeks of anxiety.”
                 </p>
+
                 <div className="mt-4 flex gap-2 text-xs font-bold text-slate-500">
                   <span className="rounded-full bg-slate-100 px-3 py-1">
                     Amen
@@ -174,6 +176,7 @@ export default function Home() {
                   </div>
                   <Globe2 className="h-4 w-4 text-[#0b63ce]" />
                 </div>
+
                 <div className="space-y-2 text-sm text-slate-600">
                   <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
                     <span>USA</span>
@@ -203,6 +206,7 @@ export default function Home() {
                 Stories being shared now
               </h2>
             </div>
+
             <button className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-[#082f63] shadow-sm hover:bg-slate-50">
               View More Stories
             </button>
@@ -393,27 +397,27 @@ export default function Home() {
         </section>
       </main>
 
-     <<footer className="border-t border-slate-200 bg-white px-6 py-8">
-  <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
-    <div>© Hyper to Be Free. All rights reserved.</div>
+      <footer className="border-t border-slate-200 bg-white px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
+          <div>© Hyper to Be Free. All rights reserved.</div>
 
-    <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-5">
-      <Link href="/community-guidelines" className="hover:text-[#0b63ce]">
-        Community Guidelines
-      </Link>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-5">
+            <Link href="/community-guidelines" className="hover:text-[#0b63ce]">
+              Community Guidelines
+            </Link>
 
-      <Link href="/privacy" className="hover:text-[#0b63ce]">
-        Privacy Policy
-      </Link>
+            <Link href="/privacy" className="hover:text-[#0b63ce]">
+              Privacy Policy
+            </Link>
 
-      <Link href="/terms" className="hover:text-[#0b63ce]">
-        Terms of Use
-      </Link>
+            <Link href="/terms" className="hover:text-[#0b63ce]">
+              Terms of Use
+            </Link>
 
-      <span>Contact: info@hypertobefree.com</span>
-    </div>
-  </div>
-</footer>>
+            <span>Contact: info@hypertobefree.com</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
