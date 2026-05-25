@@ -401,6 +401,11 @@ export default function Home() {
       <Link href="/community-guidelines" className="hover:text-[#0b63ce]">
         Community Guidelines
       </Link>
+
+      <Link href="/privacy" className="hover:text-[#0b63ce]">
+        Privacy Policy
+      </Link>
+
       <span>Contact: info@hypertobefree.com</span>
     </div>
   </div>
