@@ -17,7 +17,19 @@ import { supabase } from "../../lib/supabaseClient";
 
 export default function ShareYourStoryPage() {
   const [email, setEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [storyType, setStoryType] = useState("Testimony");
+  const [storyText, setStoryText] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [hasPermission, setHasPermission] = useState(false);
+  const [understandsReview, setUnderstandsReview] = useState(false);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     async function loadUser() {
@@ -26,11 +38,67 @@ export default function ShareYourStoryPage() {
       } = await supabase.auth.getUser();
 
       setEmail(user?.email ?? null);
+      setUserId(user?.id ?? null);
       setCheckingUser(false);
     }
 
     loadUser();
   }, []);
+
+  async function submitStory() {
+    setMessage("");
+
+    if (!userId || !email) {
+      setMessage("Please sign in before submitting your story.");
+      return;
+    }
+
+    if (!name.trim()) {
+      setMessage("Please enter your name or first name.");
+      return;
+    }
+
+    if (!storyText.trim()) {
+      setMessage("Please write your story before submitting.");
+      return;
+    }
+
+    if (!hasPermission || !understandsReview) {
+      setMessage("Please check both permission boxes before submitting.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const { error } = await supabase.from("stories").insert({
+      user_id: userId,
+      name: name.trim(),
+      email,
+      location: location.trim() || null,
+      story_type: storyType,
+      story_text: storyText.trim(),
+      video_url: null,
+      status: "pending",
+    });
+
+    if (error) {
+      setMessage(`Something went wrong: ${error.message}`);
+      setSubmitting(false);
+      return;
+    }
+
+    setMessage(
+      "Your story was submitted successfully. It is now pending review."
+    );
+
+    setName("");
+    setLocation("");
+    setStoryType("Testimony");
+    setStoryText("");
+    setHasPermission(false);
+    setUnderstandsReview(false);
+    setSubmitting(false);
+  }
 
   return (
     <main className="min-h-screen bg-[#f8fbff] text-slate-900">
@@ -71,11 +139,11 @@ export default function ShareYourStoryPage() {
             <div className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-5 text-sm leading-6 text-[#082f63]">
               <div className="mb-2 flex items-center gap-2 font-black">
                 <LogIn className="h-5 w-5" />
-                Want to save your info?
+                Sign in first
               </div>
               <p>
-                Create an account or sign in first so you do not have to enter
-                your email every time you share a story.
+                Create an account or sign in before submitting so your story can
+                be connected to your profile.
               </p>
               <Link
                 href="/login"
@@ -106,7 +174,7 @@ export default function ShareYourStoryPage() {
               <div>
                 <div className="font-black text-[#062a57]">Add video</div>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Upload a short testimony video.
+                  Video upload will be connected next.
                 </p>
               </div>
             </div>
@@ -130,6 +198,8 @@ export default function ShareYourStoryPage() {
                 Name or first name
               </label>
               <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
                 placeholder="Example: Ashley"
               />
@@ -142,6 +212,8 @@ export default function ShareYourStoryPage() {
                 </label>
                 <input
                   type="email"
+                  value={guestEmail}
+                  onChange={(event) => setGuestEmail(event.target.value)}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
                   placeholder="you@example.com"
                 />
@@ -164,6 +236,8 @@ export default function ShareYourStoryPage() {
                 Location, optional
               </label>
               <input
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
                 placeholder="City, State or Country"
               />
@@ -173,7 +247,11 @@ export default function ShareYourStoryPage() {
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Story type
               </label>
-              <select className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white">
+              <select
+                value={storyType}
+                onChange={(event) => setStoryType(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
+              >
                 <option>Testimony</option>
                 <option>Praise Report</option>
                 <option>Prayer Encouragement</option>
@@ -189,6 +267,8 @@ export default function ShareYourStoryPage() {
               </label>
               <textarea
                 rows={8}
+                value={storyText}
+                onChange={(event) => setStoryText(event.target.value)}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
                 placeholder="Share what God has done..."
               />
@@ -210,27 +290,32 @@ export default function ShareYourStoryPage() {
                   </h2>
 
                   <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                    Upload a short video sharing your testimony, praise report,
-                    or story of freedom. Videos will be reviewed before anything
-                    is shared publicly.
+                    Video upload is coming next. For now, written story
+                    submissions will save to your account as pending review.
                   </p>
 
                   <input
                     type="file"
                     accept="video/*"
-                    className="mt-5 w-full max-w-md rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm file:mr-4 file:rounded-full file:border-0 file:bg-[#0b63ce] file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
+                    disabled
+                    className="mt-5 w-full max-w-md rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 shadow-sm"
                   />
 
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Recommended: 60–90 seconds. Longer videos may require
-                    additional review.
+                    Video storage will be connected after written submissions
+                    are working.
                   </p>
                 </div>
               </div>
             </div>
 
             <label className="flex gap-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              <input type="checkbox" className="mt-1" />
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={hasPermission}
+                onChange={(event) => setHasPermission(event.target.checked)}
+              />
               <span>
                 I confirm that I own or have permission to share this story,
                 photo, or video, and I give Hyper to Be Free permission to
@@ -239,20 +324,32 @@ export default function ShareYourStoryPage() {
             </label>
 
             <label className="flex gap-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              <input type="checkbox" className="mt-1" />
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={understandsReview}
+                onChange={(event) =>
+                  setUnderstandsReview(event.target.checked)
+                }
+              />
               <span>
                 I understand that submitted stories and videos may be reviewed
                 before anything is posted publicly.
               </span>
             </label>
 
+            {message && (
+              <div className="rounded-2xl bg-blue-50 p-4 text-sm font-semibold leading-6 text-[#082f63]">
+                {message}
+              </div>
+            )}
+
             <div className="rounded-2xl bg-blue-50 p-4 text-sm leading-6 text-[#082f63]">
               <div className="mb-1 flex items-center gap-2 font-black">
                 <ShieldCheck className="h-4 w-4" />
                 Review before posting
               </div>
-              Stories and videos submitted here are intended to be reviewed
-              before anything is shared publicly.
+              Stories submitted here are saved as pending review.
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
@@ -267,8 +364,12 @@ export default function ShareYourStoryPage() {
               .
             </div>
 
-            <button className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-[#084f9f] sm:w-fit">
-              Submit Story
+            <button
+              onClick={submitStory}
+              disabled={submitting || !email}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
+            >
+              {submitting ? "Submitting..." : "Submit Story"}
               <Send className="h-4 w-4" />
             </button>
           </div>
