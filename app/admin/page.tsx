@@ -8,6 +8,9 @@ import {
   UserCircle,
   FileText,
   Lock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -31,42 +34,69 @@ export default function AdminPage() {
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [notAllowed, setNotAllowed] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadAdminPage() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
-
-      setEmail(user.email ?? null);
-
-      if (user.email !== ADMIN_EMAIL) {
-        setNotAllowed(true);
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("stories")
-        .select(
-          "id, user_id, name, email, location, story_type, story_text, video_url, status, created_at"
-        )
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setStories(data);
-      }
-
-      setLoading(false);
-    }
-
     loadAdminPage();
   }, []);
+
+  async function loadAdminPage() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    setEmail(user.email ?? null);
+
+    if (user.email !== ADMIN_EMAIL) {
+      setNotAllowed(true);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("stories")
+      .select(
+        "id, user_id, name, email, location, story_type, story_text, video_url, status, created_at"
+      )
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setStories(data);
+    }
+
+    if (error) {
+      setMessage(`Could not load stories: ${error.message}`);
+    }
+
+    setLoading(false);
+  }
+
+  async function updateStoryStatus(storyId: string, newStatus: string) {
+    setMessage("");
+
+    const { error } = await supabase
+      .from("stories")
+      .update({ status: newStatus })
+      .eq("id", storyId);
+
+    if (error) {
+      setMessage(`Could not update story: ${error.message}`);
+      return;
+    }
+
+    setStories((currentStories) =>
+      currentStories.map((story) =>
+        story.id === storyId ? { ...story, status: newStatus } : story
+      )
+    );
+
+    setMessage(`Story marked as ${newStatus.replace("_", " ")}.`);
+  }
 
   function formatDate(value: string | null) {
     if (!value) return "Date unavailable";
@@ -81,6 +111,22 @@ export default function AdminPage() {
   function statusLabel(status: string | null) {
     if (!status) return "pending";
     return status.replace("_", " ");
+  }
+
+  function statusStyle(status: string | null) {
+    if (status === "approved") {
+      return "bg-green-50 text-green-700";
+    }
+
+    if (status === "rejected") {
+      return "bg-red-50 text-red-700";
+    }
+
+    if (status === "needs_review") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    return "bg-amber-50 text-amber-700";
   }
 
   if (loading) {
@@ -151,6 +197,12 @@ export default function AdminPage() {
             <span className="font-bold text-[#0b63ce]">{email}</span>
           </p>
 
+          {message && (
+            <div className="mt-6 rounded-2xl bg-blue-50 p-4 text-sm font-semibold leading-6 text-[#082f63]">
+              {message}
+            </div>
+          )}
+
           <div className="mt-8 rounded-3xl bg-blue-50 p-5">
             <div className="flex items-center gap-2 font-black text-[#062a57]">
               <FileText className="h-5 w-5 text-[#0b63ce]" />
@@ -180,7 +232,11 @@ export default function AdminPage() {
                           {story.story_type || "Story"}
                         </span>
 
-                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-amber-700">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                            story.status
+                          )}`}
+                        >
                           {statusLabel(story.status)}
                         </span>
                       </div>
@@ -221,6 +277,34 @@ export default function AdminPage() {
                       Video: {story.video_url}
                     </div>
                   )}
+
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      onClick={() => updateStoryStatus(story.id, "approved")}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Approve
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        updateStoryStatus(story.id, "needs_review")
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      Needs Review
+                    </button>
+
+                    <button
+                      onClick={() => updateStoryStatus(story.id, "rejected")}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Reject
+                    </button>
+                  </div>
                 </article>
               ))
             )}
