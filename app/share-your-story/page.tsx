@@ -1,10 +1,40 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowLeft, Send, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  Send,
+  ShieldCheck,
+  Video,
+  Upload,
+  FileText,
+  Mail,
+  UserCircle,
+  LogIn,
+} from "lucide-react";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function ShareYourStoryPage() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [checkingUser, setCheckingUser] = useState(true);
+
+  useEffect(() => {
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setEmail(user?.email ?? null);
+      setCheckingUser(false);
+    }
+
+    loadUser();
+  }, []);
+
   return (
     <main className="min-h-screen bg-[#f8fbff] text-slate-900">
-      <section className="mx-auto max-w-4xl px-6 py-12">
+      <section className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
         <Link
           href="/"
           className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-[#0b63ce] hover:text-[#084f9f]"
@@ -13,21 +43,86 @@ export default function ShareYourStoryPage() {
           Back to Home
         </Link>
 
-        <div className="rounded-[2.5rem] border border-slate-200 bg-white p-8 shadow-sm md:p-12">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-[2.5rem] sm:p-8 md:p-12">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-[#0b63ce]">
             <Send className="h-4 w-4" />
             Share Your Story
           </div>
 
-          <h1 className="text-4xl font-black tracking-tight text-[#062a57] md:text-6xl">
+          <h1 className="text-4xl font-black tracking-tight text-[#062a57] sm:text-5xl md:text-6xl">
             Tell us what God has done in your life.
           </h1>
 
-          <p className="mt-5 text-lg leading-8 text-slate-600">
+          <p className="mt-5 text-base leading-8 text-slate-600 sm:text-lg">
             Share a testimony, praise report, prayer encouragement, or story of
-            freedom. This first version is a simple draft form while Hyper to Be
-            Free continues to grow.
+            freedom. You can write your story and include a video for review.
           </p>
+
+          {!checkingUser && email && (
+            <div className="mt-6 flex items-center gap-3 rounded-3xl bg-green-50 p-4 text-sm leading-6 text-green-900">
+              <UserCircle className="h-5 w-5 shrink-0" />
+              <div>
+                <span className="font-black">Signed in as:</span> {email}
+              </div>
+            </div>
+          )}
+
+          {!checkingUser && !email && (
+            <div className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-5 text-sm leading-6 text-[#082f63]">
+              <div className="mb-2 flex items-center gap-2 font-black">
+                <LogIn className="h-5 w-5" />
+                Want to save your info?
+              </div>
+              <p>
+                Create an account or sign in first so you do not have to enter
+                your email every time you share a story.
+              </p>
+              <Link
+                href="/login"
+                className="mt-4 inline-flex rounded-full bg-[#0b63ce] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#084f9f]"
+              >
+                Sign In or Create Account
+              </Link>
+            </div>
+          )}
+
+          <div className="mt-8 grid gap-4 rounded-3xl bg-blue-50 p-5 sm:grid-cols-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#0b63ce] shadow-sm">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-black text-[#062a57]">Write it</div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Share your story in your own words.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#0b63ce] shadow-sm">
+                <Video className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-black text-[#062a57]">Add video</div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Upload a short testimony video.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#0b63ce] shadow-sm">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-black text-[#062a57]">Reviewed first</div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Stories are reviewed before posting.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div className="mt-10 grid gap-6">
             <div>
@@ -40,16 +135,29 @@ export default function ShareYourStoryPage() {
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-700">
-                Email
-              </label>
-              <input
-                type="email"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
-                placeholder="you@example.com"
-              />
-            </div>
+            {!email && (
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
+                  placeholder="you@example.com"
+                />
+              </div>
+            )}
+
+            {email && (
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">
+                  Email
+                </label>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-600">
+                  {email}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -71,6 +179,7 @@ export default function ShareYourStoryPage() {
                 <option>Prayer Encouragement</option>
                 <option>Freedom Story</option>
                 <option>Answered Prayer</option>
+                <option>Video Testimony</option>
               </select>
             </div>
 
@@ -85,12 +194,55 @@ export default function ShareYourStoryPage() {
               />
             </div>
 
+            <div>
+              <label className="mb-3 block text-sm font-bold text-slate-700">
+                Upload video, optional
+              </label>
+
+              <div className="rounded-[2rem] border-2 border-dashed border-blue-200 bg-blue-50/60 p-5 sm:p-8">
+                <div className="flex flex-col items-center justify-center text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-[#0b63ce] shadow-sm">
+                    <Upload className="h-8 w-8" />
+                  </div>
+
+                  <h2 className="text-xl font-black text-[#062a57]">
+                    Add a testimony video
+                  </h2>
+
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                    Upload a short video sharing your testimony, praise report,
+                    or story of freedom. Videos will be reviewed before anything
+                    is shared publicly.
+                  </p>
+
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="mt-5 w-full max-w-md rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm file:mr-4 file:rounded-full file:border-0 file:bg-[#0b63ce] file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
+                  />
+
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    Recommended: 60–90 seconds. Longer videos may require
+                    additional review.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <label className="flex gap-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
               <input type="checkbox" className="mt-1" />
               <span>
-                I understand this is a draft submission form and give Hyper to
-                Be Free permission to review my story for possible sharing on
-                the website.
+                I confirm that I own or have permission to share this story,
+                photo, or video, and I give Hyper to Be Free permission to
+                review it for possible sharing on the website.
+              </span>
+            </label>
+
+            <label className="flex gap-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              <input type="checkbox" className="mt-1" />
+              <span>
+                I understand that submitted stories and videos may be reviewed
+                before anything is posted publicly.
               </span>
             </label>
 
@@ -99,11 +251,23 @@ export default function ShareYourStoryPage() {
                 <ShieldCheck className="h-4 w-4" />
                 Review before posting
               </div>
-              Stories submitted here are intended to be reviewed before anything
-              is shared publicly.
+              Stories and videos submitted here are intended to be reviewed
+              before anything is shared publicly.
             </div>
 
-            <button className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-[#084f9f] md:w-fit">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
+              <div className="mb-1 flex items-center gap-2 font-black text-[#062a57]">
+                <Mail className="h-4 w-4 text-[#0b63ce]" />
+                Questions?
+              </div>
+              You can contact the Hyper to Be Free team at{" "}
+              <span className="font-bold text-[#0b63ce]">
+                info@hypertobefree.com
+              </span>
+              .
+            </div>
+
+            <button className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-[#084f9f] sm:w-fit">
               Submit Story
               <Send className="h-4 w-4" />
             </button>
