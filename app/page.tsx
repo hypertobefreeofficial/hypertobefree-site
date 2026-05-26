@@ -21,6 +21,8 @@ type ApprovedStory = {
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  video_url: string | null;
+  signed_video_url?: string | null;
   status: string | null;
   created_at: string | null;
 };
@@ -32,14 +34,46 @@ export default function Home() {
     async function loadApprovedStories() {
       const { data, error } = await supabase
         .from("stories")
-        .select("id, name, location, story_type, story_text, status, created_at")
+        .select(
+          "id, name, location, story_type, story_text, video_url, status, created_at"
+        )
         .eq("status", "approved")
         .order("created_at", { ascending: false })
         .limit(6);
 
-      if (!error && data) {
-        setStories(data);
+      if (error || !data) {
+        return;
       }
+
+      const storiesWithSignedVideos = await Promise.all(
+        data.map(async (story) => {
+          if (!story.video_url) {
+            return {
+              ...story,
+              signed_video_url: null,
+            };
+          }
+
+          const { data: signedData, error: signedError } =
+            await supabase.storage
+              .from("story-videos")
+              .createSignedUrl(story.video_url, 60 * 60);
+
+          if (signedError || !signedData?.signedUrl) {
+            return {
+              ...story,
+              signed_video_url: null,
+            };
+          }
+
+          return {
+            ...story,
+            signed_video_url: signedData.signedUrl,
+          };
+        })
+      );
+
+      setStories(storiesWithSignedVideos);
     }
 
     loadApprovedStories();
@@ -236,10 +270,10 @@ export default function Home() {
             </div>
 
             <Link
-              href="/share-your-story"
+              href="/stories"
               className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
             >
-              Share a Story
+              View More Stories
             </Link>
           </div>
 
@@ -265,10 +299,20 @@ export default function Home() {
                     </span>
                   </div>
 
-                  <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
-                    <div className="flex h-full items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
-                      <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
-                    </div>
+                  <div className="mb-4 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
+                    {story.signed_video_url ? (
+                      <video
+                        controls
+                        className="h-44 w-full rounded-[1.2rem] bg-black object-cover"
+                        src={story.signed_video_url}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    ) : (
+                      <div className="flex h-44 items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
+                        <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
+                      </div>
+                    )}
                   </div>
 
                   <h3 className="text-xl font-black leading-tight text-slate-900">
