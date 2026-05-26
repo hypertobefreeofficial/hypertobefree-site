@@ -10,7 +10,7 @@ import {
   Sparkles,
   Send,
 } from "lucide-react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "import { supabase } from "../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged";
 
