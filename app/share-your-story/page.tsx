@@ -366,7 +366,7 @@ export default function ShareYourStoryPage() {
 
             <button
               onClick={submitStory}
-              disabled={submitting || !email}
+            disabled={submitting}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
             >
               {submitting ? "Submitting..." : "Submit Story"}
