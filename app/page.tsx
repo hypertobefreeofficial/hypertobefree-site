@@ -14,6 +14,12 @@ import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged";
 
+type ReactionRow = {
+  story_id: string | null;
+  user_id: string | null;
+  reaction_type: string | null;
+};
+
 type ApprovedStory = {
   id: string;
   name: string | null;
@@ -21,7 +27,7 @@ type ApprovedStory = {
   story_type: string | null;
   story_text: string | null;
   video_url: string | null;
-  signed_video_url?: string | null;
+  signed_video_url: string | null;
   status: string | null;
   created_at: string | null;
   reaction_counts: {
@@ -57,8 +63,9 @@ export default function StoriesPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      setUserId(user?.id ?? null);
-      await loadApprovedStories(user?.id ?? null);
+      const currentUserId = user?.id ?? null;
+      setUserId(currentUserId);
+      await loadApprovedStories(currentUserId);
     }
 
     loadPage();
@@ -103,11 +110,7 @@ export default function StoriesPage() {
 
     const storyIds = data.map((story) => story.id);
 
-    let reactions: {
-      story_id: string;
-      user_id: string;
-      reaction_type: string;
-    }[] = [];
+    let reactions: ReactionRow[] = [];
 
     if (storyIds.length > 0) {
       const { data: reactionData } = await supabase
@@ -115,10 +118,10 @@ export default function StoriesPage() {
         .select("story_id, user_id, reaction_type")
         .in("story_id", storyIds);
 
-      reactions = reactionData ?? [];
+      reactions = (reactionData as ReactionRow[]) ?? [];
     }
 
-    const storiesWithVideosAndReactions = await Promise.all(
+    const storiesWithVideosAndReactions: ApprovedStory[] = await Promise.all(
       data.map(async (story) => {
         let signedVideoUrl: string | null = null;
 
@@ -136,11 +139,24 @@ export default function StoriesPage() {
 
         const userReactions = storyReactions
           .filter((reaction) => reaction.user_id === currentUserId)
-          .map((reaction) => reaction.reaction_type as ReactionType);
+          .map((reaction) => reaction.reaction_type)
+          .filter(
+            (reaction): reaction is ReactionType =>
+              reaction === "amen" ||
+              reaction === "praise_god" ||
+              reaction === "encouraged"
+          );
 
         return {
-          ...story,
+          id: story.id,
+          name: story.name,
+          location: story.location,
+          story_type: story.story_type,
+          story_text: story.story_text,
+          video_url: story.video_url,
           signed_video_url: signedVideoUrl,
+          status: story.status,
+          created_at: story.created_at,
           reaction_counts: {
             amen: storyReactions.filter(
               (reaction) => reaction.reaction_type === "amen"
