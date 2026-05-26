@@ -15,10 +15,18 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
+type UserProfile = {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  location: string | null;
+};
+
 export default function ShareYourStoryPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -33,22 +41,67 @@ export default function ShareYourStoryPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadUser() {
+    async function loadUserAndProfile() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      setEmail(user?.email ?? null);
-      setUserId(user?.id ?? null);
+      if (!user) {
+        setEmail(null);
+        setUserId(null);
+        setCheckingUser(false);
+        return;
+      }
+
+      setEmail(user.email ?? null);
+      setUserId(user.id);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, email, display_name, location")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        const savedProfile = profile as UserProfile;
+
+        if (savedProfile.display_name) {
+          setName(savedProfile.display_name);
+        }
+
+        if (savedProfile.location) {
+          setLocation(savedProfile.location);
+        }
+      }
+
+      setProfileLoaded(true);
       setCheckingUser(false);
     }
 
-    loadUser();
+    loadUserAndProfile();
   }, []);
 
   function getFileExtension(fileName: string) {
     const parts = fileName.split(".");
     return parts.length > 1 ? parts.pop() : "mp4";
+  }
+
+  async function saveOrUpdateProfile() {
+    if (!userId || !email) {
+      return;
+    }
+
+    const { error } = await supabase.from("profiles").upsert({
+      id: userId,
+      email,
+      display_name: name.trim(),
+      location: location.trim() || null,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      throw new Error(`Profile could not be saved: ${error.message}`);
+    }
   }
 
   async function uploadVideoIfSelected() {
@@ -83,7 +136,7 @@ export default function ShareYourStoryPage() {
     }
 
     if (!name.trim()) {
-      setMessage("Please enter your name or first name.");
+      setMessage("Please enter your display name or first name.");
       return;
     }
 
@@ -105,6 +158,8 @@ export default function ShareYourStoryPage() {
     setSubmitting(true);
 
     try {
+      await saveOrUpdateProfile();
+
       const videoPath = await uploadVideoIfSelected();
 
       const { error } = await supabase.from("stories").insert({
@@ -124,12 +179,10 @@ export default function ShareYourStoryPage() {
 
       setMessage(
         videoPath
-          ? "Your story and video were submitted successfully. They are now pending review."
-          : "Your story was submitted successfully. It is now pending review."
+          ? "Your story and video were submitted successfully. They are now pending review. Your display name and location were saved for next time."
+          : "Your story was submitted successfully. It is now pending review. Your display name and location were saved for next time."
       );
 
-      setName("");
-      setLocation("");
       setStoryType("Testimony");
       setStoryText("");
       setGuestEmail("");
@@ -168,7 +221,8 @@ export default function ShareYourStoryPage() {
 
           <p className="mt-5 text-base leading-8 text-slate-600 sm:text-lg">
             Share a testimony, praise report, prayer encouragement, or story of
-            freedom. You can write your story and include a video for review.
+            freedom. Your display name and location can be saved for future
+            submissions.
           </p>
 
           {!checkingUser && email && (
@@ -176,6 +230,11 @@ export default function ShareYourStoryPage() {
               <UserCircle className="h-5 w-5 shrink-0" />
               <div>
                 <span className="font-black">Signed in as:</span> {email}
+                {profileLoaded && (
+                  <div className="text-xs text-green-800">
+                    Your saved profile info will auto-fill when available.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -240,7 +299,7 @@ export default function ShareYourStoryPage() {
           <div className="mt-10 grid gap-6">
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
-                Name or first name
+                Display name or first name
               </label>
               <input
                 value={name}
@@ -248,6 +307,10 @@ export default function ShareYourStoryPage() {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
                 placeholder="Example: Ashley"
               />
+              <p className="mt-2 text-xs text-slate-500">
+                This will be saved for future submissions. You can change it
+                anytime before submitting.
+              </p>
             </div>
 
             {!email && (
@@ -286,6 +349,9 @@ export default function ShareYourStoryPage() {
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
                 placeholder="City, State or Country"
               />
+              <p className="mt-2 text-xs text-slate-500">
+                This will be saved for future submissions if provided.
+              </p>
             </div>
 
             <div>
