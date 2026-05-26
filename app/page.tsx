@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -11,28 +13,37 @@ import {
   Send,
   Search,
 } from "lucide-react";
+import { supabase } from "../lib/supabaseClient";
+
+type ApprovedStory = {
+  id: string;
+  name: string | null;
+  location: string | null;
+  story_type: string | null;
+  story_text: string | null;
+  status: string | null;
+  created_at: string | null;
+};
 
 export default function Home() {
-  const stories = [
-    {
-      type: "Praise Report",
-      title: "God gave me peace when I felt overwhelmed.",
-      location: "Phoenix, USA",
-      tag: "Peace",
-    },
-    {
-      type: "Testimony",
-      title: "Jesus restored hope in my family.",
-      location: "Lagos, Nigeria",
-      tag: "Restoration",
-    },
-    {
-      type: "Video Story",
-      title: "The Holy Spirit helped me forgive and move forward.",
-      location: "Manila, Philippines",
-      tag: "Freedom",
-    },
-  ];
+  const [stories, setStories] = useState<ApprovedStory[]>([]);
+
+  useEffect(() => {
+    async function loadApprovedStories() {
+      const { data, error } = await supabase
+        .from("stories")
+        .select("id, name, location, story_type, story_text, status, created_at")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (!error && data) {
+        setStories(data);
+      }
+    }
+
+    loadApprovedStories();
+  }, []);
 
   const categories = [
     "Freedom",
@@ -49,14 +60,15 @@ export default function Home() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-  <Image
-    src="/images/htbf-logo.png"
-    alt="Hyper to Be Free logo"
-    fill
-    className="object-contain p-1"
-    priority
-  />
-</div>
+              <Image
+                src="/images/htbf-logo.png"
+                alt="Hyper to Be Free logo"
+                fill
+                className="object-contain p-1"
+                priority
+              />
+            </div>
+
             <div>
               <div className="text-xl font-black tracking-tight text-[#082f63]">
                 HTBF
@@ -81,17 +93,17 @@ export default function Home() {
               Prayer
             </a>
             <Link className="hover:text-[#0b63ce]" href="/about">
-  About
-</Link>
+              About
+            </Link>
           </nav>
 
           <div className="flex items-center gap-3">
-           <Link
-  href="/login"
-  className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block"
->
-  Sign In
-</Link>
+            <Link
+              href="/login"
+              className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block"
+            >
+              Sign In
+            </Link>
 
             <Link
               href="/share-your-story"
@@ -115,7 +127,7 @@ export default function Home() {
                 Stories of freedom, hope, and praise
               </div>
 
-              <h1 className="text-5xl font-black leading-[1.02] tracking-tight text-[#062a57] md:text-7xl">
+              <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-[#062a57] sm:text-5xl md:text-7xl">
                 See what God is doing in lives around the world.
               </h1>
 
@@ -128,32 +140,32 @@ export default function Home() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/share-your-story"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80]"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80] sm:w-auto"
                 >
                   Share Your Story <Send className="h-4 w-4" />
                 </Link>
 
-                <button className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50">
+                <a
+                  href="#stories"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50 sm:w-auto"
+                >
                   Explore Testimonies <Search className="h-4 w-4" />
-                </button>
+                </a>
               </div>
             </div>
 
-            <div className="relative min-h-[470px]">
-              <div className="absolute right-0 top-2 h-[440px] w-full overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:w-[560px]">
-                <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_70%_28%,rgba(255,255,255,0.9),transparent_16%),radial-gradient(circle_at_72%_75%,rgba(255,176,56,0.65),transparent_18%)]" />
-                <div className="absolute bottom-0 left-0 right-0 h-36 rounded-b-[2.5rem] bg-gradient-to-t from-[#082f63]/25 to-transparent" />
-                <div className="absolute bottom-9 right-10 h-20 w-96 rounded-full bg-[#082f63]/15 blur-2xl" />
-              <Image
-  src="/images/hero-freedom.png"
-  alt="Silhouette of a girl jumping in freedom"
-  fill
-  className="rounded-[2.5rem] object-cover"
-  priority
-/>
+            <div className="relative min-h-[360px] md:min-h-[470px]">
+              <div className="relative h-[340px] w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:absolute md:right-0 md:top-2 md:h-[440px] md:w-[560px] md:rounded-[2.5rem]">
+                <Image
+                  src="/images/hero-freedom.png"
+                  alt="Silhouette of a girl jumping in freedom"
+                  fill
+                  className="rounded-[2.5rem] object-cover"
+                  priority
+                />
               </div>
 
-              <div className="absolute left-0 top-12 w-[330px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
+              <div className="absolute left-0 top-12 hidden w-[330px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl md:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
                     <Play className="h-5 w-5 fill-[#0b63ce]" />
@@ -185,7 +197,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="absolute bottom-2 left-10 w-[300px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
+              <div className="absolute bottom-2 left-10 hidden w-[300px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl md:block">
                 <div className="mb-3 flex items-center justify-between">
                   <div className="text-sm font-black text-slate-900">
                     From Around the World
@@ -223,53 +235,69 @@ export default function Home() {
               </h2>
             </div>
 
-            <button className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-[#082f63] shadow-sm hover:bg-slate-50">
-              View More Stories
-            </button>
+            <Link
+              href="/share-your-story"
+              className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
+            >
+              Share a Story
+            </Link>
           </div>
 
           <div className="grid gap-5 md:grid-cols-3">
-            {stories.map((story) => (
-              <article
-                key={story.title}
-                className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-950/5"
-              >
-                <div className="mb-5 flex items-center justify-between">
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce]">
-                    {story.type}
-                  </span>
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
-                    {story.tag}
-                  </span>
-                </div>
+            {stories.length === 0 ? (
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-600 shadow-sm md:col-span-3">
+                No approved stories are showing yet. Approved stories will
+                appear here after review.
+              </div>
+            ) : (
+              stories.map((story) => (
+                <article
+                  key={story.id}
+                  className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-950/5"
+                >
+                  <div className="mb-5 flex items-center justify-between">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce]">
+                      {story.story_type || "Story"}
+                    </span>
 
-                <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
-                  <div className="flex h-full items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
-                    <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
+                      Approved
+                    </span>
                   </div>
-                </div>
 
-                <h3 className="text-xl font-black leading-tight text-slate-900">
-                  {story.title}
-                </h3>
+                  <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
+                    <div className="flex h-full items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
+                      <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
+                    </div>
+                  </div>
 
-                <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <Globe2 className="h-4 w-4" /> {story.location}
-                </div>
+                  <h3 className="text-xl font-black leading-tight text-slate-900">
+                    {story.story_text
+                      ? story.story_text.length > 85
+                        ? `${story.story_text.slice(0, 85)}...`
+                        : story.story_text
+                      : "Story of freedom"}
+                  </h3>
 
-                <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5">
-                    Amen
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5">
-                    Praise God
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5">
-                    This encouraged me
-                  </span>
-                </div>
-              </article>
-            ))}
+                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
+                    <Globe2 className="h-4 w-4" />{" "}
+                    {story.location || "Location not shared"}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      Amen
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      Praise God
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      This encouraged me
+                    </span>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
         </section>
 
@@ -394,13 +422,14 @@ export default function Home() {
             <div className="rounded-[2rem] bg-white/70 p-6 shadow-sm ring-1 ring-white">
               <div className="mb-4 flex items-center gap-3">
                 <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-  <Image
-    src="/images/htbf-logo.png"
-    alt="HTBF logo"
-    fill
-    className="object-contain p-1"
-  />
-</div>
+                  <Image
+                    src="/images/htbf-logo.png"
+                    alt="HTBF logo"
+                    fill
+                    className="object-contain p-1"
+                  />
+                </div>
+
                 <div>
                   <div className="font-black text-[#062a57]">HTBF</div>
                   <div className="text-sm text-slate-500">
@@ -458,48 +487,5 @@ function InfoCard({
       <h3 className="text-2xl font-black text-[#062a57]">{title}</h3>
       <p className="mt-3 leading-7 text-slate-600">{text}</p>
     </div>
-  );
-}
-
-function DoveMark() {
-  return (
-    <svg
-      viewBox="0 0 64 64"
-      className="h-7 w-7"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path
-        d="M10 36c12 0 18-7 24-19 2 9 8 16 20 19-11 2-19 7-25 16-3-7-9-13-19-16Z"
-        fill="currentColor"
-      />
-      <path
-        d="M33 17c4 4 8 7 14 9-7 0-13-2-19-6 2-1 3-2 5-3Z"
-        fill="#3fa2ff"
-        opacity=".9"
-      />
-    </svg>
-  );
-}
-
-function GirlSilhouette() {
-  return (
-    <svg
-      className="absolute bottom-16 right-16 h-72 w-56 text-[#061a31]"
-      viewBox="0 0 220 300"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <circle cx="122" cy="54" r="21" />
-      <path d="M101 70c-13 12-22 31-28 55-6 26-6 45 0 56 7 13 27 13 39 3 7-6 10-21 13-40 3-19 10-39 24-60-12-18-31-27-48-14Z" />
-      <path d="M89 83C63 61 49 43 35 20c-5-8-15-3-11 6 10 26 27 51 52 75l13-18Z" />
-      <path d="M145 83c17-27 29-48 36-71 3-10 15-8 15 2-1 28-12 58-33 88l-18-19Z" />
-      <path d="M124 179c-10 26-9 43 9 54 17 11 31 27 37 48 3 10 17 8 17-3 0-29-12-54-37-75-8-7-8-13-3-24h-23Z" />
-      <path d="M78 172c-22 16-37 35-45 58-4 12 9 20 17 10 12-15 27-28 45-40 14-9 16-20 10-31l-27 3Z" />
-      <path d="M112 34c19-18 36-17 51-3-16-2-28 2-37 13l-14-10Z" />
-      <path d="M135 42c25-10 40-5 51 10-16-5-30-3-44 5l-7-15Z" />
-    </svg>
   );
 }
