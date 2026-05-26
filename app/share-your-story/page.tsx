@@ -25,6 +25,7 @@ export default function ShareYourStoryPage() {
   const [storyType, setStoryType] = useState("Testimony");
   const [storyText, setStoryText] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [understandsReview, setUnderstandsReview] = useState(false);
 
@@ -44,6 +45,34 @@ export default function ShareYourStoryPage() {
 
     loadUser();
   }, []);
+
+  function getFileExtension(fileName: string) {
+    const parts = fileName.split(".");
+    return parts.length > 1 ? parts.pop() : "mp4";
+  }
+
+  async function uploadVideoIfSelected() {
+    if (!videoFile || !userId) {
+      return null;
+    }
+
+    const fileExtension = getFileExtension(videoFile.name);
+    const safeFileName = `${Date.now()}-${crypto.randomUUID()}.${fileExtension}`;
+    const filePath = `${userId}/${safeFileName}`;
+
+    const { error } = await supabase.storage
+      .from("story-videos")
+      .upload(filePath, videoFile, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return filePath;
+  }
 
   async function submitStory() {
     setMessage("");
@@ -68,35 +97,51 @@ export default function ShareYourStoryPage() {
       return;
     }
 
-    setSubmitting(true);
-
-    const { error } = await supabase.from("stories").insert({
-      user_id: userId,
-      name: name.trim(),
-      email,
-      location: location.trim() || null,
-      story_type: storyType,
-      story_text: storyText.trim(),
-      video_url: null,
-      status: "pending",
-    });
-
-    if (error) {
-      setMessage(`Something went wrong: ${error.message}`);
-      setSubmitting(false);
+    if (videoFile && videoFile.size > 100 * 1024 * 1024) {
+      setMessage("Please upload a video smaller than 100 MB.");
       return;
     }
 
-    setMessage(
-      "Your story was submitted successfully. It is now pending review."
-    );
+    setSubmitting(true);
 
-    setName("");
-    setLocation("");
-    setStoryType("Testimony");
-    setStoryText("");
-    setHasPermission(false);
-    setUnderstandsReview(false);
+    try {
+      const videoPath = await uploadVideoIfSelected();
+
+      const { error } = await supabase.from("stories").insert({
+        user_id: userId,
+        name: name.trim(),
+        email,
+        location: location.trim() || null,
+        story_type: storyType,
+        story_text: storyText.trim(),
+        video_url: videoPath,
+        status: "pending",
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setMessage(
+        videoPath
+          ? "Your story and video were submitted successfully. They are now pending review."
+          : "Your story was submitted successfully. It is now pending review."
+      );
+
+      setName("");
+      setLocation("");
+      setStoryType("Testimony");
+      setStoryText("");
+      setGuestEmail("");
+      setVideoFile(null);
+      setHasPermission(false);
+      setUnderstandsReview(false);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Something went wrong.";
+      setMessage(`Something went wrong: ${errorMessage}`);
+    }
+
     setSubmitting(false);
   }
 
@@ -174,7 +219,7 @@ export default function ShareYourStoryPage() {
               <div>
                 <div className="font-black text-[#062a57]">Add video</div>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Video upload will be connected next.
+                  Upload a short testimony video.
                 </p>
               </div>
             </div>
@@ -186,7 +231,7 @@ export default function ShareYourStoryPage() {
               <div>
                 <div className="font-black text-[#062a57]">Reviewed first</div>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Stories are reviewed before posting.
+                  Stories and videos are reviewed before posting.
                 </p>
               </div>
             </div>
@@ -290,20 +335,27 @@ export default function ShareYourStoryPage() {
                   </h2>
 
                   <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                    Video upload is coming next. For now, written story
-                    submissions will save to your account as pending review.
+                    Upload a short video sharing your testimony, praise report,
+                    or story of freedom. Videos are private during review.
                   </p>
 
                   <input
                     type="file"
-                    accept="video/*"
-                    disabled
-                    className="mt-5 w-full max-w-md rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 shadow-sm"
+                    accept="video/mp4,video/quicktime,video/webm"
+                    onChange={(event) =>
+                      setVideoFile(event.target.files?.[0] ?? null)
+                    }
+                    className="mt-5 w-full max-w-md rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm file:mr-4 file:rounded-full file:border-0 file:bg-[#0b63ce] file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
                   />
 
+                  {videoFile && (
+                    <p className="mt-3 text-sm font-semibold text-[#082f63]">
+                      Selected video: {videoFile.name}
+                    </p>
+                  )}
+
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Video storage will be connected after written submissions
-                    are working.
+                    Maximum file size: 100 MB. Accepted formats: MP4, MOV, WEBM.
                   </p>
                 </div>
               </div>
@@ -349,7 +401,7 @@ export default function ShareYourStoryPage() {
                 <ShieldCheck className="h-4 w-4" />
                 Review before posting
               </div>
-              Stories submitted here are saved as pending review.
+              Stories and videos submitted here are saved as pending review.
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
@@ -366,10 +418,14 @@ export default function ShareYourStoryPage() {
 
             <button
               onClick={submitStory}
-            disabled={submitting}
+              disabled={submitting}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
             >
-              {submitting ? "Submitting..." : "Submit Story"}
+              {submitting
+                ? videoFile
+                  ? "Uploading video..."
+                  : "Submitting..."
+                : "Submit Story"}
               <Send className="h-4 w-4" />
             </button>
           </div>
