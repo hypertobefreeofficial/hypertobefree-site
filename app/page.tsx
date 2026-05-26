@@ -86,9 +86,12 @@ export default function Home() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <button className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block">
-              Sign In
-            </button>
+           <Link
+  href="/login"
+  className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block"
+>
+  Sign In
+</Link>
 
             <Link
               href="/share-your-story"
