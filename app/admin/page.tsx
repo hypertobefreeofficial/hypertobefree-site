@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  EyeOff,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -124,6 +125,10 @@ export default function AdminPage() {
 
     if (status === "needs_review") {
       return "bg-blue-50 text-blue-700";
+    }
+
+    if (status === "removed") {
+      return "bg-slate-100 text-slate-700";
     }
 
     return "bg-amber-50 text-amber-700";
@@ -252,12 +257,14 @@ export default function AdminPage() {
                             {story.email || "Not provided"}
                           </span>
                         </div>
+
                         <div>
                           Location:{" "}
                           <span className="font-semibold">
                             {story.location || "Not provided"}
                           </span>
                         </div>
+
                         <div>Submitted {formatDate(story.created_at)}</div>
                       </div>
                     </div>
@@ -278,7 +285,7 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                     <button
                       onClick={() => updateStoryStatus(story.id, "approved")}
                       className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700"
@@ -303,6 +310,14 @@ export default function AdminPage() {
                     >
                       <XCircle className="h-4 w-4" />
                       Reject
+                    </button>
+
+                    <button
+                      onClick={() => updateStoryStatus(story.id, "removed")}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800"
+                    >
+                      <EyeOff className="h-4 w-4" />
+                      Remove from Feed
                     </button>
                   </div>
                 </article>
