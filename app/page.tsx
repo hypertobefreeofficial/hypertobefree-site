@@ -1,4 +1,4 @@
-
+import FreedomFeed from "../components/FreedomFeed";
 
 "use client";
 
@@ -226,7 +226,11 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="stories" className="mx-auto max-w-7xl px-6 py-14">
+                </section>
+
+        <FreedomFeed />
+
+        <section id="praise" className="mx-auto max-w-7xl px-6 py-14">
           <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <div className="text-sm font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
