@@ -15,36 +15,35 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
-type ReactionType = "amen" | "praise_god" | "encouraged";
-
-type ReactionRow = {
-  story_id: string | null;
-  user_id: string | null;
-  reaction_type: string | null;
-};
-
 type ApprovedStory = {
   id: string;
   name: string | null;
   location: string | null;
   story_type: string | null;
   story_text: string | null;
-  video_url: string | null;
-  signed_video_url: string | null;
   status: string | null;
   created_at: string | null;
-  reaction_counts: {
-    amen: number;
-    praise_god: number;
-    encouraged: number;
-  };
-  user_reactions: ReactionType[];
 };
 
 export default function Home() {
   const [stories, setStories] = useState<ApprovedStory[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [reactionMessage, setReactionMessage] = useState("");
+
+  useEffect(() => {
+    async function loadApprovedStories() {
+      const { data, error } = await supabase
+        .from("stories")
+        .select("id, name, location, story_type, story_text, status, created_at")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (!error && data) {
+        setStories(data);
+      }
+    }
+
+    loadApprovedStories();
+  }, []);
 
   const categories = [
     "Freedom",
@@ -54,205 +53,6 @@ export default function Home() {
     "Peace",
     "Encouragement",
   ];
-
-  useEffect(() => {
-    async function loadPage() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const currentUserId = user?.id ?? null;
-      setUserId(currentUserId);
-      await loadApprovedStories(currentUserId);
-    }
-
-    loadPage();
-  }, []);
-
-  function getVideoStoragePath(videoUrl: string) {
-    if (!videoUrl) return null;
-
-    if (videoUrl.includes("story-videos/")) {
-      const afterBucket = videoUrl.split("story-videos/")[1];
-      const pathOnly = afterBucket.split("?")[0];
-      return decodeURIComponent(pathOnly);
-    }
-
-    if (videoUrl.startsWith("http")) {
-      return null;
-    }
-
-    return videoUrl;
-  }
-
-  async function loadApprovedStories(currentUserId: string | null) {
-    const { data, error } = await supabase
-      .from("stories")
-      .select(
-        "id, name, location, story_type, story_text, video_url, status, created_at"
-      )
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(6);
-
-    if (error || !data) {
-      console.error("Could not load approved stories:", error);
-      return;
-    }
-
-    const storyIds = data.map((story) => story.id);
-
-    let reactions: ReactionRow[] = [];
-
-    if (storyIds.length > 0) {
-      const { data: reactionData } = await supabase
-        .from("story_reactions")
-        .select("story_id, user_id, reaction_type")
-        .in("story_id", storyIds);
-
-      reactions = (reactionData as ReactionRow[]) ?? [];
-    }
-
-    const storiesWithVideosAndReactions: ApprovedStory[] = await Promise.all(
-      data.map(async (story) => {
-        let signedVideoUrl: string | null = null;
-
-        if (story.video_url) {
-          const storagePath = getVideoStoragePath(story.video_url);
-
-          if (storagePath) {
-            const { data: signedData, error: signedError } =
-              await supabase.storage
-                .from("story-videos")
-                .createSignedUrl(storagePath, 60 * 60);
-
-            if (signedError) {
-              console.error("Could not create signed video URL:", signedError);
-            }
-
-            signedVideoUrl = signedData?.signedUrl ?? null;
-          } else if (story.video_url.startsWith("http")) {
-            signedVideoUrl = story.video_url;
-          }
-        }
-
-        const storyReactions = reactions.filter(
-          (reaction) => reaction.story_id === story.id
-        );
-
-        const userReactions = storyReactions
-          .filter((reaction) => reaction.user_id === currentUserId)
-          .map((reaction) => reaction.reaction_type)
-          .filter(
-            (reaction): reaction is ReactionType =>
-              reaction === "amen" ||
-              reaction === "praise_god" ||
-              reaction === "encouraged"
-          );
-
-        return {
-          id: story.id,
-          name: story.name,
-          location: story.location,
-          story_type: story.story_type,
-          story_text: story.story_text,
-          video_url: story.video_url,
-          signed_video_url: signedVideoUrl,
-          status: story.status,
-          created_at: story.created_at,
-          reaction_counts: {
-            amen: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "amen"
-            ).length,
-            praise_god: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "praise_god"
-            ).length,
-            encouraged: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "encouraged"
-            ).length,
-          },
-          user_reactions: userReactions,
-        };
-      })
-    );
-
-    setStories(storiesWithVideosAndReactions);
-  }
-
-  async function toggleReaction(storyId: string, reactionType: ReactionType) {
-    setReactionMessage("");
-
-    if (!userId) {
-      setReactionMessage("Please sign in to react to stories.");
-      return;
-    }
-
-    const story = stories.find((item) => item.id === storyId);
-    const alreadyReacted = story?.user_reactions.includes(reactionType);
-
-    if (alreadyReacted) {
-      const { error } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("user_id", userId)
-        .eq("reaction_type", reactionType);
-
-      if (error) {
-        setReactionMessage(`Could not remove reaction: ${error.message}`);
-        return;
-      }
-
-      updateLocalReaction(storyId, reactionType, "remove");
-      return;
-    }
-
-    const { error } = await supabase.from("story_reactions").insert({
-      story_id: storyId,
-      user_id: userId,
-      reaction_type: reactionType,
-    });
-
-    if (error) {
-      setReactionMessage(`Could not add reaction: ${error.message}`);
-      return;
-    }
-
-    updateLocalReaction(storyId, reactionType, "add");
-  }
-
-  function updateLocalReaction(
-    storyId: string,
-    reactionType: ReactionType,
-    action: "add" | "remove"
-  ) {
-    setStories((currentStories) =>
-      currentStories.map((story) => {
-        if (story.id !== storyId) return story;
-
-        const nextCount =
-          action === "add"
-            ? story.reaction_counts[reactionType] + 1
-            : Math.max(story.reaction_counts[reactionType] - 1, 0);
-
-        const nextUserReactions =
-          action === "add"
-            ? [...story.user_reactions, reactionType]
-            : story.user_reactions.filter(
-                (reaction) => reaction !== reactionType
-              );
-
-        return {
-          ...story,
-          reaction_counts: {
-            ...story.reaction_counts,
-            [reactionType]: nextCount,
-          },
-          user_reactions: nextUserReactions,
-        };
-      })
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#f8fbff] text-slate-900">
@@ -292,17 +92,17 @@ export default function Home() {
             <a className="hover:text-[#0b63ce]" href="#prayer">
               Prayer
             </a>
-            <a className="hover:text-[#0b63ce]" href="#about">
+            <Link className="hover:text-[#0b63ce]" href="/about">
               About
-            </a>
+            </Link>
           </nav>
 
           <div className="flex items-center gap-3">
             <Link
-              href="/account"
+              href="/login"
               className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block"
             >
-              My Account
+              Sign In
             </Link>
 
             <Link
@@ -340,30 +140,260 @@ export default function Home() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/share-your-story"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80]"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80] sm:w-auto"
                 >
                   Share Your Story <Send className="h-4 w-4" />
                 </Link>
 
                 <a
                   href="#stories"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50 sm:w-auto"
                 >
                   Explore Testimonies <Search className="h-4 w-4" />
                 </a>
               </div>
             </div>
 
-  <div className="flex flex-wrap gap-3">
-  {categories.map((cat) => (
-    <button
-      key={cat}
-      className="rounded-full border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#0b63ce]"
-    >
-      {cat}
-    </button>
-  ))}
-</div>
+            <div className="relative min-h-[360px] md:min-h-[470px]">
+              <div className="relative h-[340px] w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:absolute md:right-0 md:top-2 md:h-[440px] md:w-[560px] md:rounded-[2.5rem]">
+                <Image
+                  src="/images/hero-freedom.png"
+                  alt="Silhouette of a girl jumping in freedom"
+                  fill
+                  className="rounded-[2.5rem] object-cover"
+                  priority
+                />
+              </div>
+
+              <div className="absolute left-0 top-12 hidden w-[330px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl md:block">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+                    <Play className="h-5 w-5 fill-[#0b63ce]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-slate-900">
+                      Latest Video Story
+                    </div>
+                    <div className="text-xs font-medium text-slate-500">
+                      Freedom • 1 min watch
+                    </div>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-slate-600">
+                  “I woke up with peace after weeks of anxiety.”
+                </p>
+
+                <div className="mt-4 flex gap-2 text-xs font-bold text-slate-500">
+                  <span className="rounded-full bg-slate-100 px-3 py-1">
+                    Amen
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1">
+                    Praying
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1">
+                    Encouraged
+                  </span>
+                </div>
+              </div>
+
+              <div className="absolute bottom-2 left-10 hidden w-[300px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl md:block">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-sm font-black text-slate-900">
+                    From Around the World
+                  </div>
+                  <Globe2 className="h-4 w-4 text-[#0b63ce]" />
+                </div>
+
+                <div className="space-y-2 text-sm text-slate-600">
+                  <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <span>USA</span>
+                    <span>Praise Report</span>
+                  </div>
+                  <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <span>Nigeria</span>
+                    <span>Testimony</span>
+                  </div>
+                  <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <span>Philippines</span>
+                    <span>Prayer</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="stories" className="mx-auto max-w-7xl px-6 py-14">
+          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <div className="text-sm font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
+                Freedom Feed
+              </div>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#062a57] md:text-4xl">
+                Stories being shared now
+              </h2>
+            </div>
+
+            <Link
+              href="/share-your-story"
+              className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
+            >
+              Share a Story
+            </Link>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-3">
+            {stories.length === 0 ? (
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-600 shadow-sm md:col-span-3">
+                No approved stories are showing yet. Approved stories will
+                appear here after review.
+              </div>
+            ) : (
+              stories.map((story) => (
+                <article
+                  key={story.id}
+                  className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-950/5"
+                >
+                  <div className="mb-5 flex items-center justify-between">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce]">
+                      {story.story_type || "Story"}
+                    </span>
+
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
+                      Approved
+                    </span>
+                  </div>
+
+                  <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
+                    <div className="flex h-full items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
+                      <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl font-black leading-tight text-slate-900">
+                    {story.story_text
+                      ? story.story_text.length > 85
+                        ? `${story.story_text.slice(0, 85)}...`
+                        : story.story_text
+                      : "Story of freedom"}
+                  </h3>
+
+                  <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
+                    <Globe2 className="h-4 w-4" />{" "}
+                    {story.location || "Location not shared"}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      Amen
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      Praise God
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      This encouraged me
+                    </span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section id="praise" className="mx-auto max-w-7xl px-6 py-14">
+          <div className="rounded-[2.5rem] bg-[#082f63] p-8 text-white shadow-2xl shadow-blue-950/10 md:p-12">
+            <div className="grid gap-10 md:grid-cols-[0.85fr_1.15fr] md:items-center">
+              <div>
+                <div className="mb-4 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-blue-100">
+                  Praise Reports
+                </div>
+                <h2 className="text-4xl font-black tracking-tight">
+                  Small reminders. Real hope.
+                </h2>
+                <p className="mt-5 text-lg leading-8 text-blue-100">
+                  Short posts that help people see encouragement throughout the
+                  day — answered prayer, renewed peace, a door opening, a heart
+                  restored.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  [
+                    "Answered Prayer",
+                    "God made a way when I could not see one.",
+                  ],
+                  ["Healing", "Thankful for renewed strength and peace today."],
+                  [
+                    "Restoration",
+                    "God is restoring something I thought was lost.",
+                  ],
+                  ["Peace", "I woke up today with a calm heart."],
+                ].map(([title, body]) => (
+                  <div
+                    key={title}
+                    className="rounded-3xl bg-white/10 p-5 ring-1 ring-white/10 backdrop-blur"
+                  >
+                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-[#0b63ce]">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div className="font-black">{title}</div>
+                    <p className="mt-2 text-sm leading-6 text-blue-100">
+                      {body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="prayer" className="mx-auto max-w-7xl px-6 py-14">
+          <div className="grid gap-6 md:grid-cols-3">
+            <InfoCard
+              icon={<HeartHandshake className="h-9 w-9 text-[#0b63ce]" />}
+              title="Encouraging responses"
+              text="Simple response options keep the focus on prayer, praise, and encouragement."
+            />
+
+            <InfoCard
+              icon={<MessageCircleHeart className="h-9 w-9 text-[#0b63ce]" />}
+              title="Prayer support"
+              text="A quiet place for people to share prayer needs and receive encouragement."
+            />
+
+            <InfoCard
+              icon={<ShieldCheck className="h-9 w-9 text-[#0b63ce]" />}
+              title="Protected space"
+              text="Reporting and review tools help keep the community focused and safe."
+            />
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-6 py-14">
+          <div className="rounded-[2.5rem] border border-slate-200 bg-white p-8 shadow-sm md:p-12">
+            <div className="mb-7 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
+                  Browse
+                </div>
+                <h2 className="mt-2 text-3xl font-black tracking-tight text-[#062a57]">
+                  Find stories by category
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -439,31 +469,6 @@ export default function Home() {
         </div>
       </footer>
     </div>
-  );
-}
-
-function ReactionButton({
-  active,
-  label,
-  count,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  count: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-        active
-          ? "bg-[#0b63ce] text-white"
-          : "bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-[#0b63ce]"
-      }`}
-    >
-      {label} {count}
-    </button>
   );
 }
 
