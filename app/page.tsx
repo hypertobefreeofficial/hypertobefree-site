@@ -2,20 +2,9 @@ import FreedomFeed from "../components/FreedomFeed";
 
 "use client";
 
-import React, { useEffect, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import {
-  Play,
-  HeartHandshake,
-  Globe2,
-  MessageCircleHeart,
-  ShieldCheck,
-  Sparkles,
-  Send,
-  Search,
-} from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
+import React from "react";
+import { Play, HeartHandshake, Globe2, MessageCircleHeart, ShieldCheck, Sparkles, Send, Search } from "lucide-react";
+import FreedomFeed from "../components/FreedomFeed";;
 
 type ApprovedStory = {
   id: string;
