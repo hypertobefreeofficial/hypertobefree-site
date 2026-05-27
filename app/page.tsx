@@ -260,9 +260,7 @@ export default function Home() {
                       {story.story_type || "Story"}
                     </span>
 
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
-                      Approved
-                    </span>
+                   
                   </div>
 
                   <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
