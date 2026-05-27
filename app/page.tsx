@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -15,36 +17,35 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
-type ReactionType = "amen" | "praise_god" | "encouraged";
-
-type ReactionRow = {
-  story_id: string | null;
-  user_id: string | null;
-  reaction_type: string | null;
-};
-
 type ApprovedStory = {
   id: string;
   name: string | null;
   location: string | null;
   story_type: string | null;
   story_text: string | null;
-  video_url: string | null;
-  signed_video_url: string | null;
   status: string | null;
   created_at: string | null;
-  reaction_counts: {
-    amen: number;
-    praise_god: number;
-    encouraged: number;
-  };
-  user_reactions: ReactionType[];
 };
 
 export default function Home() {
   const [stories, setStories] = useState<ApprovedStory[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [reactionMessage, setReactionMessage] = useState("");
+
+  useEffect(() => {
+    async function loadApprovedStories() {
+      const { data, error } = await supabase
+        .from("stories")
+        .select("id, name, location, story_type, story_text, status, created_at")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (!error && data) {
+        setStories(data);
+      }
+    }
+
+    loadApprovedStories();
+  }, []);
 
   const categories = [
     "Freedom",
@@ -55,219 +56,21 @@ export default function Home() {
     "Encouragement",
   ];
 
-  useEffect(() => {
-    async function loadPage() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const currentUserId = user?.id ?? null;
-      setUserId(currentUserId);
-      await loadApprovedStories(currentUserId);
-    }
-
-    loadPage();
-  }, []);
-
-  function getVideoStoragePath(videoUrl: string) {
-    if (!videoUrl) return null;
-
-    if (videoUrl.includes("story-videos/")) {
-      const afterBucket = videoUrl.split("story-videos/")[1];
-      const pathOnly = afterBucket.split("?")[0];
-      return decodeURIComponent(pathOnly);
-    }
-
-    if (videoUrl.startsWith("http")) {
-      return null;
-    }
-
-    return videoUrl;
-  }
-
-  async function loadApprovedStories(currentUserId: string | null) {
-    const { data, error } = await supabase
-      .from("stories")
-      .select(
-        "id, name, location, story_type, story_text, video_url, status, created_at"
-      )
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(6);
-
-    if (error || !data) {
-      console.error("Could not load approved stories:", error);
-      return;
-    }
-
-    const storyIds = data.map((story) => story.id);
-
-    let reactions: ReactionRow[] = [];
-
-    if (storyIds.length > 0) {
-      const { data: reactionData } = await supabase
-        .from("story_reactions")
-        .select("story_id, user_id, reaction_type")
-        .in("story_id", storyIds);
-
-      reactions = (reactionData as ReactionRow[]) ?? [];
-    }
-
-    const storiesWithVideosAndReactions: ApprovedStory[] = await Promise.all(
-      data.map(async (story) => {
-        let signedVideoUrl: string | null = null;
-
-        if (story.video_url) {
-          const storagePath = getVideoStoragePath(story.video_url);
-
-          if (storagePath) {
-            const { data: signedData, error: signedError } =
-              await supabase.storage
-                .from("story-videos")
-                .createSignedUrl(storagePath, 60 * 60);
-
-            if (signedError) {
-              console.error("Could not create signed video URL:", signedError);
-            }
-
-            signedVideoUrl = signedData?.signedUrl ?? null;
-          } else if (story.video_url.startsWith("http")) {
-            signedVideoUrl = story.video_url;
-          }
-        }
-
-        const storyReactions = reactions.filter(
-          (reaction) => reaction.story_id === story.id
-        );
-
-        const userReactions = storyReactions
-          .filter((reaction) => reaction.user_id === currentUserId)
-          .map((reaction) => reaction.reaction_type)
-          .filter(
-            (reaction): reaction is ReactionType =>
-              reaction === "amen" ||
-              reaction === "praise_god" ||
-              reaction === "encouraged"
-          );
-
-        return {
-          id: story.id,
-          name: story.name,
-          location: story.location,
-          story_type: story.story_type,
-          story_text: story.story_text,
-          video_url: story.video_url,
-          signed_video_url: signedVideoUrl,
-          status: story.status,
-          created_at: story.created_at,
-          reaction_counts: {
-            amen: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "amen"
-            ).length,
-            praise_god: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "praise_god"
-            ).length,
-            encouraged: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "encouraged"
-            ).length,
-          },
-          user_reactions: userReactions,
-        };
-      })
-    );
-
-    setStories(storiesWithVideosAndReactions);
-  }
-
-  async function toggleReaction(storyId: string, reactionType: ReactionType) {
-    setReactionMessage("");
-
-    if (!userId) {
-      setReactionMessage("Please sign in to react to stories.");
-      return;
-    }
-
-    const story = stories.find((item) => item.id === storyId);
-    const alreadyReacted = story?.user_reactions.includes(reactionType);
-
-    if (alreadyReacted) {
-      const { error } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("user_id", userId)
-        .eq("reaction_type", reactionType);
-
-      if (error) {
-        setReactionMessage(`Could not remove reaction: ${error.message}`);
-        return;
-      }
-
-      updateLocalReaction(storyId, reactionType, "remove");
-      return;
-    }
-
-    const { error } = await supabase.from("story_reactions").insert({
-      story_id: storyId,
-      user_id: userId,
-      reaction_type: reactionType,
-    });
-
-    if (error) {
-      setReactionMessage(`Could not add reaction: ${error.message}`);
-      return;
-    }
-
-    updateLocalReaction(storyId, reactionType, "add");
-  }
-
-  function updateLocalReaction(
-    storyId: string,
-    reactionType: ReactionType,
-    action: "add" | "remove"
-  ) {
-    setStories((currentStories) =>
-      currentStories.map((story) => {
-        if (story.id !== storyId) return story;
-
-        const nextCount =
-          action === "add"
-            ? story.reaction_counts[reactionType] + 1
-            : Math.max(story.reaction_counts[reactionType] - 1, 0);
-
-        const nextUserReactions =
-          action === "add"
-            ? [...story.user_reactions, reactionType]
-            : story.user_reactions.filter(
-                (reaction) => reaction !== reactionType
-              );
-
-        return {
-          ...story,
-          reaction_counts: {
-            ...story.reaction_counts,
-            [reactionType]: nextCount,
-          },
-          user_reactions: nextUserReactions,
-        };
-      })
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#f8fbff] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-  <Image
-    src="/images/htbf-logo.png"
-    alt="Hyper to Be Free logo"
-    fill
-    className="object-contain p-1"
-    priority
-  />
-</div>
+              <Image
+                src="/images/htbf-logo.png"
+                alt="Hyper to Be Free logo"
+                fill
+                className="object-contain p-1"
+                priority
+              />
+            </div>
+
             <div>
               <div className="text-xl font-black tracking-tight text-[#082f63]">
                 HTBF
@@ -291,17 +94,17 @@ export default function Home() {
             <a className="hover:text-[#0b63ce]" href="#prayer">
               Prayer
             </a>
-            <a className="hover:text-[#0b63ce]" href="#about">
+            <Link className="hover:text-[#0b63ce]" href="/about">
               About
-            </a>
+            </Link>
           </nav>
 
           <div className="flex items-center gap-3">
             <Link
-              href="/account"
+              href="/login"
               className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block"
             >
-              My Account
+              Sign In
             </Link>
 
             <Link
@@ -326,7 +129,7 @@ export default function Home() {
                 Stories of freedom, hope, and praise
               </div>
 
-              <h1 className="text-5xl font-black leading-[1.02] tracking-tight text-[#062a57] md:text-7xl">
+              <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-[#062a57] sm:text-5xl md:text-7xl">
                 See what God is doing in lives around the world.
               </h1>
 
@@ -339,31 +142,32 @@ export default function Home() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/share-your-story"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80]"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80] sm:w-auto"
                 >
                   Share Your Story <Send className="h-4 w-4" />
                 </Link>
 
                 <a
                   href="#stories"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50 sm:w-auto"
                 >
                   Explore Testimonies <Search className="h-4 w-4" />
                 </a>
               </div>
             </div>
 
-            <div className="absolute right-0 top-2 h-[440px] w-full overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:w-[560px]">
-  <Image
-    src="/images/hero-freedom.png"
-    alt="Silhouette of a girl jumping in freedom"
-    fill
-    className="object-cover"
-    priority
-  />
-</div>
+            <div className="relative min-h-[360px] md:min-h-[470px]">
+              <div className="relative h-[340px] w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:absolute md:right-0 md:top-2 md:h-[440px] md:w-[560px] md:rounded-[2.5rem]">
+                <Image
+                  src="/images/hero-freedom.png"
+                  alt="Silhouette of a girl jumping in freedom"
+                  fill
+                  className="rounded-[2.5rem] object-cover"
+                  priority
+                />
+              </div>
 
-              <div className="absolute left-0 top-12 w-[330px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
+              <div className="absolute left-0 top-12 hidden w-[330px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl md:block">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
                     <Play className="h-5 w-5 fill-[#0b63ce]" />
@@ -373,20 +177,21 @@ export default function Home() {
                       Latest Video Story
                     </div>
                     <div className="text-xs font-medium text-slate-500">
-                      Freedom • Testimony
+                      Freedom • 1 min watch
                     </div>
                   </div>
                 </div>
+
                 <p className="mt-4 text-sm leading-6 text-slate-600">
-                  “Your story may be the encouragement someone else needs
-                  today.”
+                  “I woke up with peace after weeks of anxiety.”
                 </p>
+
                 <div className="mt-4 flex gap-2 text-xs font-bold text-slate-500">
                   <span className="rounded-full bg-slate-100 px-3 py-1">
                     Amen
                   </span>
                   <span className="rounded-full bg-slate-100 px-3 py-1">
-                    Praise God
+                    Praying
                   </span>
                   <span className="rounded-full bg-slate-100 px-3 py-1">
                     Encouraged
@@ -394,13 +199,14 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="absolute bottom-2 left-10 w-[300px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
+              <div className="absolute bottom-2 left-10 hidden w-[300px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl md:block">
                 <div className="mb-3 flex items-center justify-between">
                   <div className="text-sm font-black text-slate-900">
                     From Around the World
                   </div>
                   <Globe2 className="h-4 w-4 text-[#0b63ce]" />
                 </div>
+
                 <div className="space-y-2 text-sm text-slate-600">
                   <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
                     <span>USA</span>
@@ -432,18 +238,12 @@ export default function Home() {
             </div>
 
             <Link
-              href="/stories"
+              href="/share-your-story"
               className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
             >
-              View More Stories
+              Share a Story
             </Link>
           </div>
-
-          {reactionMessage && (
-            <div className="mb-6 rounded-2xl bg-blue-50 p-4 text-sm font-semibold text-[#082f63]">
-              {reactionMessage}
-            </div>
-          )}
 
           <div className="grid gap-5 md:grid-cols-3">
             {stories.length === 0 ? (
@@ -461,24 +261,14 @@ export default function Home() {
                     <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce]">
                       {story.story_type || "Story"}
                     </span>
+
+                   
                   </div>
 
-                  <div className="mb-4 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
-                    {story.signed_video_url ? (
-                      <video
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="h-44 w-full rounded-[1.2rem] bg-black object-cover"
-                        src={story.signed_video_url}
-                      >
-                        Your browser does not support the video tag.
-                      </video>
-                    ) : (
-                      <div className="flex h-44 items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
-                        <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
-                      </div>
-                    )}
+                  <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4">
+                    <div className="flex h-full items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
+                      <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
+                    </div>
                   </div>
 
                   <h3 className="text-xl font-black leading-tight text-slate-900">
@@ -490,31 +280,20 @@ export default function Home() {
                   </h3>
 
                   <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
-                    <Globe2 className="h-4 w-4" />
+                    <Globe2 className="h-4 w-4" />{" "}
                     {story.location || "Location not shared"}
                   </div>
 
-                  <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold">
-                    <ReactionButton
-                      active={story.user_reactions.includes("amen")}
-                      label="Amen"
-                      count={story.reaction_counts.amen}
-                      onClick={() => toggleReaction(story.id, "amen")}
-                    />
-
-                    <ReactionButton
-                      active={story.user_reactions.includes("praise_god")}
-                      label="Praise God"
-                      count={story.reaction_counts.praise_god}
-                      onClick={() => toggleReaction(story.id, "praise_god")}
-                    />
-
-                    <ReactionButton
-                      active={story.user_reactions.includes("encouraged")}
-                      label="This encouraged me"
-                      count={story.reaction_counts.encouraged}
-                      onClick={() => toggleReaction(story.id, "encouraged")}
-                    />
+                  <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      Amen
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      Praise God
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                      This encouraged me
+                    </span>
                   </div>
                 </article>
               ))
@@ -604,6 +383,7 @@ export default function Home() {
                 </h2>
               </div>
             </div>
+
             <div className="flex flex-wrap gap-3">
               {categories.map((cat) => (
                 <button
@@ -623,12 +403,14 @@ export default function Home() {
               <h2 className="text-4xl font-black tracking-tight text-[#062a57]">
                 Your story may be the encouragement someone else needs today.
               </h2>
+
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
                 Whether your story is big or small, recent or years in the
                 making, it matters. Share what God has done, read stories from
                 others, and be part of a community centered on freedom, hope,
                 prayer, and encouragement.
               </p>
+
               <Link
                 href="/share-your-story"
                 className="mt-8 inline-flex rounded-full bg-[#0b63ce] px-6 py-3.5 text-base font-bold text-white shadow-sm hover:bg-[#084f9f]"
@@ -636,16 +418,18 @@ export default function Home() {
                 Join Hyper to Be Free
               </Link>
             </div>
+
             <div className="rounded-[2rem] bg-white/70 p-6 shadow-sm ring-1 ring-white">
               <div className="mb-4 flex items-center gap-3">
-               <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-  <Image
-    src="/images/htbf-logo.png"
-    alt="HTBF logo"
-    fill
-    className="object-contain p-1"
-  />
-</div>
+                <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                  <Image
+                    src="/images/htbf-logo.png"
+                    alt="HTBF logo"
+                    fill
+                    className="object-contain p-1"
+                  />
+                </div>
+
                 <div>
                   <div className="font-black text-[#062a57]">HTBF</div>
                   <div className="text-sm text-slate-500">
@@ -653,6 +437,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
               <p className="leading-7 text-slate-600">
                 Inspired by a dream of a place filled with people from all over
                 the world sharing the good things God has done in their lives.
@@ -661,32 +446,29 @@ export default function Home() {
           </div>
         </section>
       </main>
-    </div>
-  );
-}
 
-function ReactionButton({
-  active,
-  label,
-  count,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  count: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-        active
-          ? "bg-[#0b63ce] text-white"
-          : "bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-[#0b63ce]"
-      }`}
-    >
-      {label} {count}
-    </button>
+      <footer className="border-t border-slate-200 bg-white px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
+          <div>© Hyper to Be Free. All rights reserved.</div>
+
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-5">
+            <Link href="/community-guidelines" className="hover:text-[#0b63ce]">
+              Community Guidelines
+            </Link>
+
+            <Link href="/privacy" className="hover:text-[#0b63ce]">
+              Privacy Policy
+            </Link>
+
+            <Link href="/terms" className="hover:text-[#0b63ce]">
+              Terms of Use
+            </Link>
+
+            <span>Contact: info@hypertobefree.com</span>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
 
@@ -705,48 +487,5 @@ function InfoCard({
       <h3 className="text-2xl font-black text-[#062a57]">{title}</h3>
       <p className="mt-3 leading-7 text-slate-600">{text}</p>
     </div>
-  );
-}
-
-function DoveMark() {
-  return (
-    <svg
-      viewBox="0 0 64 64"
-      className="h-7 w-7"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path
-        d="M10 36c12 0 18-7 24-19 2 9 8 16 20 19-11 2-19 7-25 16-3-7-9-13-19-16Z"
-        fill="currentColor"
-      />
-      <path
-        d="M33 17c4 4 8 7 14 9-7 0-13-2-19-6 2-1 3-2 5-3Z"
-        fill="#3fa2ff"
-        opacity=".9"
-      />
-    </svg>
-  );
-}
-
-function GirlSilhouette() {
-  return (
-    <svg
-      className="absolute bottom-16 right-16 h-72 w-56 text-[#061a31]"
-      viewBox="0 0 220 300"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <circle cx="122" cy="54" r="21" />
-      <path d="M101 70c-13 12-22 31-28 55-6 26-6 45 0 56 7 13 27 13 39 3 7-6 10-21 13-40 3-19 10-39 24-60-12-18-31-27-48-14Z" />
-      <path d="M89 83C63 61 49 43 35 20c-5-8-15-3-11 6 10 26 27 51 52 75l13-18Z" />
-      <path d="M145 83c17-27 29-48 36-71 3-10 15-8 15 2-1 28-12 58-33 88l-18-19Z" />
-      <path d="M124 179c-10 26-9 43 9 54 17 11 31 27 37 48 3 10 17 8 17-3 0-29-12-54-37-75-8-7-8-13-3-24h-23Z" />
-      <path d="M78 172c-22 16-37 35-45 58-4 12 9 20 17 10 12-15 27-28 45-40 14-9 16-20 10-31l-27 3Z" />
-      <path d="M112 34c19-18 36-17 51-3-16-2-28 2-37 13l-14-10Z" />
-      <path d="M135 42c25-10 40-5 51 10-16-5-30-3-44 5l-7-15Z" />
-    </svg>
   );
 }
