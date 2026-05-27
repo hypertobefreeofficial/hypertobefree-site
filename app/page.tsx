@@ -27,8 +27,12 @@ export default function Home() {
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#082f63] text-white shadow-sm">
-              <DoveMark />
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+              <img
+                src="/images/htbf-logo.png"
+                alt="Hyper to Be Free logo"
+                className="h-full w-full object-contain p-1"
+              />
             </div>
 
             <div>
@@ -117,11 +121,12 @@ export default function Home() {
             </div>
 
             <div className="relative min-h-[470px]">
-              <div className="absolute right-0 top-2 h-[440px] w-full rounded-[2.5rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:w-[560px]">
-                <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle_at_70%_28%,rgba(255,255,255,0.9),transparent_16%),radial-gradient(circle_at_72%_75%,rgba(255,176,56,0.65),transparent_18%)]" />
-                <div className="absolute bottom-0 left-0 right-0 h-36 rounded-b-[2.5rem] bg-gradient-to-t from-[#082f63]/25 to-transparent" />
-                <div className="absolute bottom-9 right-10 h-20 w-96 rounded-full bg-[#082f63]/15 blur-2xl" />
-                <GirlSilhouette />
+              <div className="absolute right-0 top-2 h-[440px] w-full overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:w-[560px]">
+                <img
+                  src="/images/hero-freedom.png"
+                  alt="Silhouette of a girl jumping in freedom"
+                  className="h-full w-full object-cover"
+                />
               </div>
 
               <div className="absolute left-0 top-12 w-[330px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
@@ -300,8 +305,12 @@ export default function Home() {
 
             <div className="rounded-[2rem] bg-white/70 p-6 shadow-sm ring-1 ring-white">
               <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#082f63] text-white">
-                  <DoveMark />
+                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                  <img
+                    src="/images/htbf-logo.png"
+                    alt="HTBF logo"
+                    className="h-full w-full object-contain p-1"
+                  />
                 </div>
                 <div>
                   <div className="font-black text-[#062a57]">HTBF</div>
@@ -337,48 +346,5 @@ function InfoCard({
       <h3 className="text-2xl font-black text-[#062a57]">{title}</h3>
       <p className="mt-3 leading-7 text-slate-600">{text}</p>
     </div>
-  );
-}
-
-function DoveMark() {
-  return (
-    <svg
-      viewBox="0 0 64 64"
-      className="h-7 w-7"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path
-        d="M10 36c12 0 18-7 24-19 2 9 8 16 20 19-11 2-19 7-25 16-3-7-9-13-19-16Z"
-        fill="currentColor"
-      />
-      <path
-        d="M33 17c4 4 8 7 14 9-7 0-13-2-19-6 2-1 3-2 5-3Z"
-        fill="#3fa2ff"
-        opacity=".9"
-      />
-    </svg>
-  );
-}
-
-function GirlSilhouette() {
-  return (
-    <svg
-      className="absolute bottom-16 right-16 h-72 w-56 text-[#061a31]"
-      viewBox="0 0 220 300"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <circle cx="122" cy="54" r="21" />
-      <path d="M101 70c-13 12-22 31-28 55-6 26-6 45 0 56 7 13 27 13 39 3 7-6 10-21 13-40 3-19 10-39 24-60-12-18-31-27-48-14Z" />
-      <path d="M89 83C63 61 49 43 35 20c-5-8-15-3-11 6 10 26 27 51 52 75l13-18Z" />
-      <path d="M145 83c17-27 29-48 36-71 3-10 15-8 15 2-1 28-12 58-33 88l-18-19Z" />
-      <path d="M124 179c-10 26-9 43 9 54 17 11 31 27 37 48 3 10 17 8 17-3 0-29-12-54-37-75-8-7-8-13-3-24h-23Z" />
-      <path d="M78 172c-22 16-37 35-45 58-4 12 9 20 17 10 12-15 27-28 45-40 14-9 16-20 10-31l-27 3Z" />
-      <path d="M112 34c19-18 36-17 51-3-16-2-28 2-37 13l-14-10Z" />
-      <path d="M135 42c25-10 40-5 51 10-16-5-30-3-44 5l-7-15Z" />
-    </svg>
   );
 }
