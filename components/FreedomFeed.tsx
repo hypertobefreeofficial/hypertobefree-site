@@ -44,6 +44,7 @@ export default function FreedomFeed() {
 
       const currentUserId = user?.id ?? null;
       setUserId(currentUserId);
+
       await loadApprovedStories(currentUserId);
     }
 
