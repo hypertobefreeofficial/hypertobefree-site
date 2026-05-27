@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -11,6 +11,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    async function checkExistingSession() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      setCheckingSession(false);
+    }
+
+    checkExistingSession();
+  }, []);
 
   async function handleSubmit() {
     setLoading(true);
@@ -38,7 +56,7 @@ export default function LoginPage() {
         setMessage(error.message);
       } else {
         setMessage(
-          "Account created. Check your email if Supabase asks you to confirm your account."
+          "Account created. Check your email to confirm your account, then sign in."
         );
       }
     }
@@ -57,6 +75,16 @@ export default function LoginPage() {
     }
 
     setLoading(false);
+  }
+
+  if (checkingSession) {
+    return (
+      <main className="min-h-screen bg-[#f8fbff] px-6 py-12 text-slate-900">
+        <div className="mx-auto max-w-xl rounded-[2rem] bg-white p-8 shadow-sm">
+          Checking your sign-in status...
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -87,8 +115,8 @@ export default function LoginPage() {
           </h1>
 
           <p className="mt-4 leading-7 text-slate-600">
-            Your account will help save your email and make it easier to submit
-            future stories and videos.
+            Once your account is created, your browser can keep you signed in so
+            you can start posting without logging in every time.
           </p>
 
           <div className="mt-8 grid gap-5">
