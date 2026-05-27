@@ -1,10 +1,16 @@
 import FreedomFeed from "../components/FreedomFeed";
-
-"use client";
-
 import React from "react";
-import { Play, HeartHandshake, Globe2, MessageCircleHeart, ShieldCheck, Sparkles, Send, Search } from "lucide-react";
-import FreedomFeed from "../components/FreedomFeed";;
+import {
+  Play,
+  HeartHandshake,
+  Globe2,
+  MessageCircleHeart,
+  ShieldCheck,
+  Sparkles,
+  Send,
+  Search,
+} from "lucide-react";
+import FreedomFeed from "../components/FreedomFeed";
 
 type ApprovedStory = {
   id: string;
@@ -115,7 +121,7 @@ export default function Home() {
             <div className="max-w-2xl">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/80 px-4 py-2 text-sm font-semibold text-[#0b63ce] shadow-sm">
                 <Sparkles className="h-4 w-4" />
-                Stories of freedom, hope, and praise
+                Stories of , hope, and praise
               </div>
 
               <h1 className="text-4xl font-black leading-[1.05] tracking-tight text-[#062a57] sm:text-5xl md:text-7xl">
@@ -124,7 +130,7 @@ export default function Home() {
 
               <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600 md:text-xl">
                 A faith-centered space for testimonies, praise reports, prayer
-                encouragement, and stories of freedom through God, Jesus, and
+                encouragement, and stories of  through God, Jesus, and
                 the Holy Spirit.
               </p>
 
@@ -148,8 +154,8 @@ export default function Home() {
             <div className="relative min-h-[360px] md:min-h-[470px]">
               <div className="relative h-[340px] w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-sky-200 via-amber-100 to-orange-200 shadow-2xl shadow-blue-950/10 md:absolute md:right-0 md:top-2 md:h-[440px] md:w-[560px] md:rounded-[2.5rem]">
                 <Image
-                  src="/images/hero-freedom.png"
-                  alt="Silhouette of a girl jumping in freedom"
+                  src="/images/hero-.png"
+                  alt="Silhouette of a girl jumping in "
                   fill
                   className="rounded-[2.5rem] object-cover"
                   priority
@@ -217,16 +223,22 @@ export default function Home() {
 
         <FreedomFeed />
 
-        <section id="praise" className="mx-auto max-w-7xl px-6 py-14">
-          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-              <div className="text-sm font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
-                Freedom Feed
+               <section id="praise" className="mx-auto max-w-7xl px-6 py-14">
+          <div className="rounded-[2.5rem] bg-[#082f63] p-8 text-white shadow-2xl shadow-blue-950/10 md:p-12">
+            <div className="grid gap-10 md:grid-cols-[0.85fr_1.15fr] md:items-center">
+              <div>
+                <div className="mb-4 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-blue-100">
+                  Praise Reports
+                </div>
+                <h2 className="text-4xl font-black tracking-tight">
+                  Small reminders. Real hope.
+                </h2>
+                <p className="mt-5 text-lg leading-8 text-blue-100">
+                  Short posts that help people see encouragement throughout the
+                  day — answered prayer, renewed peace, a door opening, a heart
+                  restored.
+                </p>
               </div>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-[#062a57] md:text-4xl">
-                Stories being shared now
-              </h2>
-            </div>
 
             <Link
               href="/share-your-story"
