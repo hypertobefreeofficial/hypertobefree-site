@@ -321,7 +321,7 @@ export default function Home() {
   </div>
 </div>
                 </div>
-              </div>
+         
               <p className="leading-7 text-slate-600">
                 Inspired by a dream of a place filled with people from all over
                 the world sharing the good things God has done in their lives.
