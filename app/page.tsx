@@ -79,6 +79,7 @@ export default function Home() {
       .limit(6);
 
     if (error || !data) {
+      console.error("Could not load approved stories:", error);
       return;
     }
 
@@ -100,11 +101,20 @@ export default function Home() {
         let signedVideoUrl: string | null = null;
 
         if (story.video_url) {
-          const { data: signedData } = await supabase.storage
-            .from("story-videos")
-            .createSignedUrl(story.video_url, 60 * 60);
+          if (story.video_url.startsWith("http")) {
+            signedVideoUrl = story.video_url;
+          } else {
+            const { data: signedData, error: signedError } =
+              await supabase.storage
+                .from("story-videos")
+                .createSignedUrl(story.video_url, 60 * 60);
 
-          signedVideoUrl = signedData?.signedUrl ?? null;
+            if (signedError) {
+              console.error("Could not create signed video URL:", signedError);
+            }
+
+            signedVideoUrl = signedData?.signedUrl ?? null;
+          }
         }
 
         const storyReactions = reactions.filter(
@@ -439,11 +449,17 @@ export default function Home() {
                       <video
                         controls
                         playsInline
+                        preload="metadata"
                         className="h-44 w-full rounded-[1.2rem] bg-black object-cover"
                         src={story.signed_video_url}
                       >
                         Your browser does not support the video tag.
                       </video>
+                    ) : story.video_url ? (
+                      <div className="flex h-44 items-center justify-center rounded-[1.2rem] border border-red-100 bg-red-50 p-4 text-center text-sm font-bold text-red-700">
+                        Video found, but the secure video link could not be
+                        created.
+                      </div>
                     ) : (
                       <div className="flex h-44 items-center justify-center rounded-[1.2rem] border border-white bg-white/50">
                         <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
