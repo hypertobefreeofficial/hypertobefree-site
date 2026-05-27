@@ -364,3 +364,123 @@ export default function Home() {
     </button>
   ))}
 </div>
+          </div>
+        </section>
+
+        <section id="about" className="mx-auto max-w-7xl px-6 pb-20 pt-10">
+          <div className="grid gap-8 rounded-[2.5rem] bg-gradient-to-br from-[#fff7e6] to-[#eaf5ff] p-8 md:grid-cols-[1fr_0.85fr] md:p-12">
+            <div>
+              <h2 className="text-4xl font-black tracking-tight text-[#062a57]">
+                Your story may be the encouragement someone else needs today.
+              </h2>
+
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+                Whether your story is big or small, recent or years in the
+                making, it matters. Share what God has done, read stories from
+                others, and be part of a community centered on freedom, hope,
+                prayer, and encouragement.
+              </p>
+
+              <Link
+                href="/share-your-story"
+                className="mt-8 inline-flex rounded-full bg-[#0b63ce] px-6 py-3.5 text-base font-bold text-white shadow-sm hover:bg-[#084f9f]"
+              >
+                Join Hyper to Be Free
+              </Link>
+            </div>
+
+            <div className="rounded-[2rem] bg-white/70 p-6 shadow-sm ring-1 ring-white">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="relative h-12 w-12 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                  <Image
+                    src="/images/htbf-logo.png"
+                    alt="HTBF logo"
+                    fill
+                    className="object-contain p-1"
+                  />
+                </div>
+
+                <div>
+                  <div className="font-black text-[#062a57]">HTBF</div>
+                  <div className="text-sm text-slate-500">
+                    Hyper to Be Free
+                  </div>
+                </div>
+              </div>
+
+              <p className="leading-7 text-slate-600">
+                Inspired by a dream of a place filled with people from all over
+                the world sharing the good things God has done in their lives.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white px-6 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-slate-500 md:flex-row">
+          <div>© Hyper to Be Free. All rights reserved.</div>
+
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-5">
+            <Link href="/community-guidelines" className="hover:text-[#0b63ce]">
+              Community Guidelines
+            </Link>
+
+            <Link href="/privacy" className="hover:text-[#0b63ce]">
+              Privacy Policy
+            </Link>
+
+            <Link href="/terms" className="hover:text-[#0b63ce]">
+              Terms of Use
+            </Link>
+
+            <span>Contact: info@hypertobefree.com</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function ReactionButton({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+        active
+          ? "bg-[#0b63ce] text-white"
+          : "bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-[#0b63ce]"
+      }`}
+    >
+      {label} {count}
+    </button>
+  );
+}
+
+function InfoCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
+      <div className="mb-5">{icon}</div>
+      <h3 className="text-2xl font-black text-[#062a57]">{title}</h3>
+      <p className="mt-3 leading-7 text-slate-600">{text}</p>
+    </div>
+  );
+}
