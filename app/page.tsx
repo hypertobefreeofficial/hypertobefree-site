@@ -312,11 +312,14 @@ export default function Home() {
                     className="h-full w-full object-contain p-1"
                   />
                 </div>
-                <div>
-                  <div className="font-black text-[#062a57]">HTBF</div>
-                  <div className="text-sm text-slate-500">
-                    Hyper to Be Free
-                  </div>
+               <div>
+  <div className="text-xl font-black tracking-tight text-[#082f63]">
+    HTBF
+  </div>
+  <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+    HYPER TO BE FREE
+  </div>
+</div>
                 </div>
               </div>
               <p className="leading-7 text-slate-600">
