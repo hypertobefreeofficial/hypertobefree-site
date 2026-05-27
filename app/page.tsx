@@ -166,7 +166,7 @@ export default function Home() {
                       Latest Video Story
                     </div>
                     <div className="text-xs font-medium text-slate-500">
-                      Freedom • 1 min watch
+                       • 1 min watch
                     </div>
                   </div>
                 </div>
@@ -214,8 +214,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-
-                </section>
 
         <FreedomFeed />
 
