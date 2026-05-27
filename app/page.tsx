@@ -15,229 +15,32 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
-type ReactionType = "amen" | "praise_god" | "encouraged";
-
-type ReactionRow = {
-  story_id: string | null;
-  user_id: string | null;
-  reaction_type: string | null;
-};
-
 type ApprovedStory = {
   id: string;
   name: string | null;
   location: string | null;
   story_type: string | null;
   story_text: string | null;
-  video_url: string | null;
-  signed_video_url: string | null;
   status: string | null;
   created_at: string | null;
-  reaction_counts: {
-    amen: number;
-    praise_god: number;
-    encouraged: number;
-  };
-  user_reactions: ReactionType[];
 };
 
-const [stories, setStories] = useState<ApprovedStory[]>([]);
-const [userId, setUserId] = useState<string | null>(null);
-const [reactionMessage, setReactionMessage] = useState("");
+export default function Home() {
+  const [stories, setStories] = useState<ApprovedStory[]>([]);
 
-useEffect(() => {
-  async function loadPage() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  useEffect(() => {
+    async function loadApprovedStories() {
+      const { data, error } = await supabase
+        .from("stories")
+        .select("id, name, location, story_type, story_text, status, created_at")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(6);
 
-    const currentUserId = user?.id ?? null;
-    setUserId(currentUserId);
-    await loadApprovedStories(currentUserId);
-  }
-
-  loadPage();
-}, []);
-
-function getVideoStoragePath(videoUrl: string) {
-  if (!videoUrl) return null;
-
-  if (videoUrl.includes("story-videos/")) {
-    const afterBucket = videoUrl.split("story-videos/")[1];
-    const pathOnly = afterBucket.split("?")[0];
-    return decodeURIComponent(pathOnly);
-  }
-
-  if (videoUrl.startsWith("http")) {
-    return null;
-  }
-
-  return videoUrl;
-}
-
-async function loadApprovedStories(currentUserId: string | null) {
-  const { data, error } = await supabase
-    .from("stories")
-    .select(
-      "id, name, location, story_type, story_text, video_url, status, created_at"
-    )
-    .eq("status", "approved")
-    .order("created_at", { ascending: false })
-    .limit(6);
-
-  if (error || !data) {
-    console.error("Could not load approved stories:", error);
-    return;
-  }
-
-  const storyIds = data.map((story) => story.id);
-
-  let reactions: ReactionRow[] = [];
-
-  if (storyIds.length > 0) {
-    const { data: reactionData } = await supabase
-      .from("story_reactions")
-      .select("story_id, user_id, reaction_type")
-      .in("story_id", storyIds);
-
-    reactions = (reactionData as ReactionRow[]) ?? [];
-  }
-
-  const storiesWithVideosAndReactions: ApprovedStory[] = await Promise.all(
-    data.map(async (story) => {
-      let signedVideoUrl: string | null = null;
-
-      if (story.video_url) {
-        const storagePath = getVideoStoragePath(story.video_url);
-
-        if (storagePath) {
-          const { data: signedData } = await supabase.storage
-            .from("story-videos")
-            .createSignedUrl(storagePath, 60 * 60);
-
-          signedVideoUrl = signedData?.signedUrl ?? null;
-        } else if (story.video_url.startsWith("http")) {
-          signedVideoUrl = story.video_url;
-        }
+      if (!error && data) {
+        setStories(data);
       }
-
-      const storyReactions = reactions.filter(
-        (reaction) => reaction.story_id === story.id
-      );
-
-      const userReactions = storyReactions
-        .filter((reaction) => reaction.user_id === currentUserId)
-        .map((reaction) => reaction.reaction_type)
-        .filter(
-          (reaction): reaction is ReactionType =>
-            reaction === "amen" ||
-            reaction === "praise_god" ||
-            reaction === "encouraged"
-        );
-
-      return {
-        id: story.id,
-        name: story.name,
-        location: story.location,
-        story_type: story.story_type,
-        story_text: story.story_text,
-        video_url: story.video_url,
-        signed_video_url: signedVideoUrl,
-        status: story.status,
-        created_at: story.created_at,
-        reaction_counts: {
-          amen: storyReactions.filter(
-            (reaction) => reaction.reaction_type === "amen"
-          ).length,
-          praise_god: storyReactions.filter(
-            (reaction) => reaction.reaction_type === "praise_god"
-          ).length,
-          encouraged: storyReactions.filter(
-            (reaction) => reaction.reaction_type === "encouraged"
-          ).length,
-        },
-        user_reactions: userReactions,
-      };
-    })
-  );
-
-  setStories(storiesWithVideosAndReactions);
-}
-
-async function toggleReaction(storyId: string, reactionType: ReactionType) {
-  setReactionMessage("");
-
-  if (!userId) {
-    setReactionMessage("Please sign in to react to stories.");
-    return;
-  }
-
-  const story = stories.find((item) => item.id === storyId);
-  const alreadyReacted = story?.user_reactions.includes(reactionType);
-
-  if (alreadyReacted) {
-    const { error } = await supabase
-      .from("story_reactions")
-      .delete()
-      .eq("story_id", storyId)
-      .eq("user_id", userId)
-      .eq("reaction_type", reactionType);
-
-    if (error) {
-      setReactionMessage(`Could not remove reaction: ${error.message}`);
-      return;
     }
-
-    updateLocalReaction(storyId, reactionType, "remove");
-    return;
-  }
-
-  const { error } = await supabase.from("story_reactions").insert({
-    story_id: storyId,
-    user_id: userId,
-    reaction_type: reactionType,
-  });
-
-  if (error) {
-    setReactionMessage(`Could not add reaction: ${error.message}`);
-    return;
-  }
-
-  updateLocalReaction(storyId, reactionType, "add");
-}
-
-function updateLocalReaction(
-  storyId: string,
-  reactionType: ReactionType,
-  action: "add" | "remove"
-) {
-  setStories((currentStories) =>
-    currentStories.map((story) => {
-      if (story.id !== storyId) return story;
-
-      const nextCount =
-        action === "add"
-          ? story.reaction_counts[reactionType] + 1
-          : Math.max(story.reaction_counts[reactionType] - 1, 0);
-
-      const nextUserReactions =
-        action === "add"
-          ? [...story.user_reactions, reactionType]
-          : story.user_reactions.filter(
-              (reaction) => reaction !== reactionType
-            );
-
-      return {
-        ...story,
-        reaction_counts: {
-          ...story.reaction_counts,
-          [reactionType]: nextCount,
-        },
-        user_reactions: nextUserReactions,
-      };
-    })
-  );
-}
 
     loadApprovedStories();
   }, []);
