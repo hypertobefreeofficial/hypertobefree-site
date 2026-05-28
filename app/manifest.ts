@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "HTBF",
     description:
       "A faith-centered space for testimonies, praise reports, prayer encouragement, and stories of freedom.",
-    start_url: "/",
+ start_url: "/feed",
     scope: "/",
     display: "standalone",
     background_color: "#f8fbff",
