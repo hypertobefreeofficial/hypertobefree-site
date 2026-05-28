@@ -1,11 +1,10 @@
-const CACHE_NAME = "htbf-cache-v1";
+const CACHE_NAME = "htbf-cache-v2";
 
 const STATIC_ASSETS = [
-  "/",
-  "/share-your-story",
-  "/account",
   "/images/icons/icon-192.png",
   "/images/icons/icon-512.png",
+  "/images/htbf-logo.png",
+  "/images/hero-freedom.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -33,13 +32,41 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
+  const request = event.request;
+  const url = new URL(request.url);
+
+  if (request.method !== "GET") {
     return;
   }
 
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
-  );
+  // Do not intercept Supabase, auth, storage, or video/media requests.
+  if (
+    url.hostname.includes("supabase.co") ||
+    url.pathname.includes("story-videos") ||
+    request.destination === "video" ||
+    request.destination === "audio" ||
+    request.destination === "document"
+  ) {
+    return;
+  }
+
+  // Only cache basic static image/icon assets.
+  if (
+    request.destination === "image" ||
+    url.pathname.startsWith("/images/icons/")
+  ) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        return (
+          cachedResponse ||
+          fetch(request).then((networkResponse) => {
+            return caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, networkResponse.clone());
+              return networkResponse;
+            });
+          })
+        );
+      })
+    );
+  }
 });
