@@ -30,7 +30,7 @@ export default function LoginPage() {
 
       if (user) {
         await ensureProfileExists(user);
-        window.location.href = "/dashboard";
+        window.location.href = "/feed";
         return;
       }
 
@@ -157,7 +157,7 @@ export default function LoginPage() {
             privacy_accepted_at: now,
             guidelines_accepted_at: now,
           },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/feed`,
         },
       });
 
@@ -189,7 +189,7 @@ export default function LoginPage() {
         await ensureProfileExists(data.user);
       }
 
-      window.location.href = "/dashboard";
+      window.location.href = "/feed";
     }
 
     setLoading(false);
