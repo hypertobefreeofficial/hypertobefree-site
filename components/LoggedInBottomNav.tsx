@@ -36,10 +36,11 @@ export default function LoggedInBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-      <div className="mx-auto grid max-w-3xl grid-cols-5 px-2 pb-[env(safe-area-inset-bottom)] pt-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.10)]">
+      <div className="mx-auto grid max-w-3xl grid-cols-5 px-1 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2">
         {navItems.map((item) => {
           const Icon = item.icon;
+
           const active =
             pathname === item.href ||
             (item.href !== "/feed" && pathname.startsWith(item.href));
@@ -48,18 +49,27 @@ export default function LoggedInBottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-black transition ${
-                active
-                  ? "text-[#0b63ce]"
-                  : "text-slate-500 hover:bg-blue-50 hover:text-[#0b63ce]"
-              }`}
+              className="flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
             >
-              <Icon
-                className={`h-6 w-6 ${
-                  active ? "fill-[#0b63ce]/10" : ""
+              <div
+                className={`flex h-9 w-12 items-center justify-center rounded-2xl transition ${
+                  active ? "bg-blue-50" : "bg-transparent"
                 }`}
-              />
-              <span>{item.label}</span>
+              >
+                <Icon
+                  className={`h-6 w-6 stroke-[2.4] ${
+                    active ? "text-[#0b63ce]" : "text-slate-600"
+                  }`}
+                />
+              </div>
+
+              <span
+                className={`text-[11px] font-black leading-none ${
+                  active ? "text-[#0b63ce]" : "text-slate-600"
+                }`}
+              >
+                {item.label}
+              </span>
             </Link>
           );
         })}
