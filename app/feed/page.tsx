@@ -1,11 +1,10 @@
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 "use client";
-
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, LogOut, UserCircle } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import FreedomFeed from "../../components/FreedomFeed";
+import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 
 export default function FeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
