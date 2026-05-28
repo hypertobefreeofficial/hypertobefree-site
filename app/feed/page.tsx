@@ -1,3 +1,4 @@
+import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 "use client";
 
 import Link from "next/link";
@@ -81,7 +82,11 @@ export default function FeedPage() {
         )}
       </header>
 
-      <FreedomFeed />
+    <div className="pb-24">
+  <FreedomFeed />
+</div>
+
+<LoggedInBottomNav />
     </main>
   );
 }
