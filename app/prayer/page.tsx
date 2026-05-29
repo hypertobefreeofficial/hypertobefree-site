@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import FreedomFeed from "../../components/FreedomFeed";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 
 export default function PrayerPage() {
@@ -22,7 +23,7 @@ export default function PrayerPage() {
       </header>
 
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-6 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
             Prayer Support
           </div>
@@ -31,9 +32,9 @@ export default function PrayerPage() {
             Prayer requests
           </h1>
 
-          <p className="mt-4 leading-7 text-slate-600">
-            This section will be used for prayer requests and encouragement.
-            For now, users can share a prayer request through the story form.
+          <p className="mt-3 leading-7 text-slate-600">
+            Share prayer requests, read what others are asking prayer for, and
+            encourage the HTBF community through prayer and support.
           </p>
 
           <Link
@@ -43,6 +44,8 @@ export default function PrayerPage() {
             Share a Prayer Request
           </Link>
         </div>
+
+        <FreedomFeed defaultFilter="prayer" lockedFilter />
       </div>
 
       <LoggedInBottomNav />
