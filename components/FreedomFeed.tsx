@@ -407,6 +407,7 @@ export default function FreedomFeed({
                     <div className="mb-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce]">
                       <Play className="h-4 w-4 fill-[#0b63ce]" />
                     </div>
+
                     <div className="text-sm font-black leading-tight text-white">
                       {story.story_text
                         ? story.story_text.slice(0, 45)
