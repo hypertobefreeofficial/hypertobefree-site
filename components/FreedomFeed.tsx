@@ -58,52 +58,52 @@ export default function FreedomFeed({
   const [reactionMessage, setReactionMessage] = useState("");
   const [activeFilter, setActiveFilter] = useState<FeedFilter>(defaultFilter);
 
-useEffect(() => {
-  let currentUserId: string | null = null;
+  useEffect(() => {
+    let currentUserId: string | null = null;
 
-  async function loadPage() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    async function loadPage() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    currentUserId = user?.id ?? null;
-    setUserId(currentUserId);
+      currentUserId = user?.id ?? null;
+      setUserId(currentUserId);
 
-    await loadApprovedStories(currentUserId);
-  }
+      await loadApprovedStories(currentUserId);
+    }
 
-  loadPage();
+    loadPage();
 
-  const channel = supabase
-    .channel("freedom-feed-live-updates")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "story_reactions",
-      },
-      async () => {
-        await loadApprovedStories(currentUserId);
-      }
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "stories",
-      },
-      async () => {
-        await loadApprovedStories(currentUserId);
-      }
-    )
-    .subscribe();
+    const channel = supabase
+      .channel("freedom-feed-live-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "story_reactions",
+        },
+        async () => {
+          await loadApprovedStories(currentUserId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "stories",
+        },
+        async () => {
+          await loadApprovedStories(currentUserId);
+        }
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, []);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   function getVideoStoragePath(videoUrl: string) {
     if (!videoUrl) return null;
@@ -236,9 +236,7 @@ useEffect(() => {
   }, [stories]);
 
   const filteredStories = useMemo(() => {
-    if (activeFilter === "all") {
-      return stories;
-    }
+    if (activeFilter === "all") return stories;
 
     if (activeFilter === "videos") {
       return stories.filter((story) => story.signed_video_url || story.video_url);
@@ -314,9 +312,7 @@ useEffect(() => {
   ) {
     setStories((currentStories) =>
       currentStories.map((story) => {
-        if (story.id !== storyId) {
-          return story;
-        }
+        if (story.id !== storyId) return story;
 
         const nextCount =
           action === "add"
@@ -342,83 +338,70 @@ useEffect(() => {
     );
   }
 
-async function markPrayerAnswered(storyId: string) {
-  setReactionMessage("");
+  async function markPrayerAnswered(storyId: string) {
+    setReactionMessage("");
 
-  if (!userId) {
-    setReactionMessage("Please sign in to mark a prayer request answered.");
-    return;
-  }
+    if (!userId) {
+      setReactionMessage("Please sign in to mark a prayer request answered.");
+      return;
+    }
 
-  const story = stories.find((item) => item.id === storyId);
+    const story = stories.find((item) => item.id === storyId);
 
-  if (!story) {
-    setReactionMessage("Could not find this prayer request.");
-    return;
-  }
+    if (!story) {
+      setReactionMessage("Could not find this prayer request.");
+      return;
+    }
 
-  if (story.user_id !== userId) {
-    setReactionMessage("Only the person who shared this prayer request can mark it answered.");
-    return;
-  }
+    if (story.user_id !== userId) {
+      setReactionMessage(
+        "Only the person who shared this prayer request can mark it answered."
+      );
+      return;
+    }
 
-  const answeredText = window.prompt(
-    "God did it! What happened? Share a short update so others can be encouraged."
-  );
+    const answeredText = window.prompt(
+      "God did it! What happened? Share a short update so others can be encouraged."
+    );
 
-  if (answeredText === null) {
-    return;
-  }
+    if (answeredText === null) return;
 
-  const cleanAnsweredText = answeredText.trim();
+    const cleanAnsweredText = answeredText.trim();
 
-  if (!cleanAnsweredText) {
-    setReactionMessage("Please add a short answered prayer update before marking this answered.");
-    return;
-  }
+    if (!cleanAnsweredText) {
+      setReactionMessage(
+        "Please add a short answered prayer update before marking this answered."
+      );
+      return;
+    }
 
-  const answeredAt = new Date().toISOString();
+    const answeredAt = new Date().toISOString();
 
-  const { error } = await supabase
-    .from("stories")
-    .update({
-      prayer_status: "answered",
-      answered_at: answeredAt,
-      answered_text: cleanAnsweredText,
-    })
-    .eq("id", storyId)
-    .eq("user_id", userId);
+    const { error } = await supabase
+      .from("stories")
+      .update({
+        prayer_status: "answered",
+        answered_at: answeredAt,
+        answered_text: cleanAnsweredText,
+      })
+      .eq("id", storyId)
+      .eq("user_id", userId);
 
-  if (error) {
-    setReactionMessage(`Could not mark prayer answered: ${error.message}`);
-    return;
-  }
-
-  setStories((currentStories) =>
-    currentStories.map((currentStory) =>
-      currentStory.id === storyId
-        ? {
-            ...currentStory,
-            prayer_status: "answered",
-            answered_at: answeredAt,
-            answered_text: cleanAnsweredText,
-          }
-        : currentStory
-    )
-  );
-
-  setReactionMessage("Prayer request marked as answered. God did it.");
-}
+    if (error) {
+      setReactionMessage(`Could not mark prayer answered: ${error.message}`);
+      return;
+    }
 
     setStories((currentStories) =>
-      currentStories.map((story) =>
-        story.id === storyId
+      currentStories.map((currentStory) =>
+        currentStory.id === storyId
           ? {
-              ...story,
+              ...currentStory,
               prayer_status: "answered",
               answered_at: answeredAt,
+              answered_text: cleanAnsweredText,
             }
-          : story
+          : currentStory
       )
     );
 
@@ -713,10 +696,16 @@ async function markPrayerAnswered(storyId: string) {
                               God did it.
                             </div>
 
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                              This prayer request was marked answered by the
-                              person who shared it.
-                            </p>
+                            {story.answered_text ? (
+                              <div className="mt-3 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100">
+                                “{story.answered_text}”
+                              </div>
+                            ) : (
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                This prayer request was marked answered by the
+                                person who shared it.
+                              </p>
+                            )}
 
                             {story.reaction_counts.praying > 0 && (
                               <p className="mt-2 text-sm font-semibold text-slate-500">
