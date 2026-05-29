@@ -564,19 +564,37 @@ export default function FreedomFeed({
                   )}
 
                   <div className="border-t border-slate-100 px-5 py-3">
-                    {prayerStory ? (
-                      <>
-                        <div className="mb-3 text-sm font-semibold text-slate-500">
-                          {story.reaction_counts.praying} Praying
-                        </div>
+           {prayerStory ? (
+  <>
+    <div className="mb-3 rounded-2xl bg-blue-50 p-4">
+      <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+        Prayer Chain
+      </div>
 
-                        <ReactionButton
-                          active={story.user_reactions.includes("praying")}
-                          label="Praying"
-                          onClick={() => toggleReaction(story.id, "praying")}
-                        />
-                      </>
-                    ) : (
+      <div className="mt-1 text-base font-black text-[#062a57]">
+        {story.reaction_counts.praying === 0
+          ? "Be the first to pray"
+          : story.reaction_counts.praying === 1
+            ? "1 person is praying"
+            : `${story.reaction_counts.praying} people are praying`}
+      </div>
+
+      <p className="mt-2 text-sm leading-6 text-slate-600">
+        Stand with this prayer request and let them know they are not praying alone.
+      </p>
+    </div>
+
+    <ReactionButton
+      active={story.user_reactions.includes("praying")}
+      label={
+        story.user_reactions.includes("praying")
+          ? "Praying"
+          : "I’m Praying"
+      }
+      onClick={() => toggleReaction(story.id, "praying")}
+    />
+  </>
+) : (
                       <>
                         <div className="mb-3 flex items-center gap-4 text-sm font-semibold text-slate-500">
                           <span>{story.reaction_counts.amen} Amen</span>
