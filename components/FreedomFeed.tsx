@@ -6,7 +6,6 @@ import {
   Globe2,
   Play,
   Plus,
-  Search,
   Video,
   MessageCircleHeart,
   Sparkles,
@@ -41,11 +40,17 @@ type ApprovedStory = {
   user_reactions: ReactionType[];
 };
 
-export default function FreedomFeed() {
+export default function FreedomFeed({
+  defaultFilter = "all",
+  lockedFilter = false,
+}: {
+  defaultFilter?: FeedFilter;
+  lockedFilter?: boolean;
+}) {
   const [stories, setStories] = useState<ApprovedStory[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FeedFilter>("all");
+  const [activeFilter, setActiveFilter] = useState<FeedFilter>(defaultFilter);
 
   useEffect(() => {
     async function loadPage() {
@@ -281,164 +286,179 @@ export default function FreedomFeed() {
   }
 
   return (
-    <section id="stories" className="mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-14">
+    <section
+      id="stories"
+      className="mx-auto max-w-7xl px-4 py-10 sm:px-6 md:py-14"
+    >
       <div className="mx-auto max-w-3xl">
-        <div className="mb-5 rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#0b63ce]">
-              <Sparkles className="h-6 w-6" />
-            </div>
-
-            <Link
-              href="/share-your-story"
-              className="flex min-h-12 flex-1 items-center rounded-full bg-slate-100 px-5 text-left text-base font-semibold text-slate-500 hover:bg-slate-200"
-            >
-              What has God done?
-            </Link>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-sm font-bold text-slate-600">
-            <Link
-              href="/share-your-story"
-              className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
-            >
-              <Plus className="h-4 w-4" />
-              Story
-            </Link>
-
-            <button
-              onClick={() => setActiveFilter("videos")}
-              className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
-            >
-              <Video className="h-4 w-4" />
-              Videos
-            </button>
-
-            <button
-              onClick={() => setActiveFilter("prayer")}
-              className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
-            >
-              <MessageCircleHeart className="h-4 w-4" />
-              Prayer
-            </button>
-          </div>
-        </div>
-
-        <div className="mb-7">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                Video Testimonies
+        {!lockedFilter && (
+          <div className="mb-5 rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#0b63ce]">
+                <Sparkles className="h-6 w-6" />
               </div>
-              <h2 className="text-2xl font-black tracking-tight text-[#062a57]">
-                Reels of hope
-              </h2>
-            </div>
 
-            <button
-              onClick={() => setActiveFilter("videos")}
-              className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] shadow-sm ring-1 ring-slate-200"
-            >
-              See videos
-            </button>
-          </div>
-
-          <div className="flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Link
-              href="/share-your-story"
-              className="relative flex h-48 w-32 shrink-0 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-blue-50 to-amber-50 shadow-sm ring-1 ring-slate-200"
-            >
-              <div className="absolute inset-x-0 bottom-0 p-3 text-center">
-                <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-[#0b63ce] text-white shadow-lg">
-                  <Plus className="h-6 w-6" />
-                </div>
-                <div className="text-sm font-black text-[#082f63]">
-                  Create Video
-                </div>
-              </div>
-            </Link>
-
-            {videoStories.slice(0, 8).map((story) => (
-              <button
-                key={`reel-${story.id}`}
-                onClick={() => setActiveFilter("videos")}
-                className="relative h-48 w-32 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-900 text-left shadow-sm"
+              <Link
+                href="/share-your-story"
+                className="flex min-h-12 flex-1 items-center rounded-full bg-slate-100 px-5 text-left text-base font-semibold text-slate-500 hover:bg-slate-200"
               >
-                {story.signed_video_url ? (
-                  <video
-                    src={story.signed_video_url}
-                    muted
-                    playsInline
-                    preload="metadata"
-                    className="h-full w-full object-cover opacity-80"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#082f63] to-[#0b63ce]">
-                    <Play className="h-9 w-9 fill-white text-white" />
-                  </div>
-                )}
+                What has God done?
+              </Link>
+            </div>
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-sm font-bold text-slate-600">
+              <Link
+                href="/share-your-story"
+                className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
+              >
+                <Plus className="h-4 w-4" />
+                Story
+              </Link>
 
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <div className="mb-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce]">
-                    <Play className="h-4 w-4 fill-[#0b63ce]" />
+              <button
+                onClick={() => setActiveFilter("videos")}
+                className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
+              >
+                <Video className="h-4 w-4" />
+                Videos
+              </button>
+
+              <button
+                onClick={() => setActiveFilter("prayer")}
+                className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
+              >
+                <MessageCircleHeart className="h-4 w-4" />
+                Prayer
+              </button>
+            </div>
+          </div>
+        )}
+
+        {videoStories.length > 0 && !lockedFilter && (
+          <div className="mb-7">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                  Video Testimonies
+                </div>
+                <h2 className="text-2xl font-black tracking-tight text-[#062a57]">
+                  Reels of hope
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setActiveFilter("videos")}
+                className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] shadow-sm ring-1 ring-slate-200"
+              >
+                See videos
+              </button>
+            </div>
+
+            <div className="flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <Link
+                href="/share-your-story"
+                className="relative flex h-48 w-32 shrink-0 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-blue-50 to-amber-50 shadow-sm ring-1 ring-slate-200"
+              >
+                <div className="absolute inset-x-0 bottom-0 p-3 text-center">
+                  <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-[#0b63ce] text-white shadow-lg">
+                    <Plus className="h-6 w-6" />
                   </div>
-                  <div className="line-clamp-2 text-sm font-black leading-tight text-white">
-                    {story.story_text || "Video testimony"}
+                  <div className="text-sm font-black text-[#082f63]">
+                    Create Video
                   </div>
                 </div>
-              </button>
-            ))}
+              </Link>
+
+              {videoStories.slice(0, 8).map((story) => (
+                <button
+                  key={`reel-${story.id}`}
+                  onClick={() => setActiveFilter("videos")}
+                  className="relative h-48 w-32 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-900 text-left shadow-sm"
+                >
+                  {story.signed_video_url ? (
+                    <video
+                      src={story.signed_video_url}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover opacity-80"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#082f63] to-[#0b63ce]">
+                      <Play className="h-9 w-9 fill-white text-white" />
+                    </div>
+                  )}
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <div className="mb-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce]">
+                      <Play className="h-4 w-4 fill-[#0b63ce]" />
+                    </div>
+                    <div className="line-clamp-2 text-sm font-black leading-tight text-white">
+                      {story.story_text || "Video testimony"}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="mb-6">
           <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                Freedom Feed
+                {lockedFilter && defaultFilter === "videos"
+                  ? "Video Testimonies"
+                  : "Freedom Feed"}
               </div>
               <h2 className="mt-1 text-3xl font-black tracking-tight text-[#062a57] sm:text-4xl">
-                Stories being shared now
+                {lockedFilter && defaultFilter === "videos"
+                  ? "Videos being shared now"
+                  : "Stories being shared now"}
               </h2>
             </div>
 
-            <Link
-              href="/stories"
-              className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-[#082f63] shadow-sm hover:bg-slate-50"
-            >
-              View More Stories
-            </Link>
+            {!lockedFilter && (
+              <Link
+                href="/stories"
+                className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-[#082f63] shadow-sm hover:bg-slate-50"
+              >
+                View More Stories
+              </Link>
+            )}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <FilterButton
-              label="All"
-              active={activeFilter === "all"}
-              onClick={() => setActiveFilter("all")}
-            />
-            <FilterButton
-              label="Videos"
-              active={activeFilter === "videos"}
-              onClick={() => setActiveFilter("videos")}
-            />
-            <FilterButton
-              label="Testimonies"
-              active={activeFilter === "testimony"}
-              onClick={() => setActiveFilter("testimony")}
-            />
-            <FilterButton
-              label="Praise Reports"
-              active={activeFilter === "praise"}
-              onClick={() => setActiveFilter("praise")}
-            />
-            <FilterButton
-              label="Prayer"
-              active={activeFilter === "prayer"}
-              onClick={() => setActiveFilter("prayer")}
-            />
-          </div>
+          {!lockedFilter && (
+            <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <FilterButton
+                label="All"
+                active={activeFilter === "all"}
+                onClick={() => setActiveFilter("all")}
+              />
+              <FilterButton
+                label="Videos"
+                active={activeFilter === "videos"}
+                onClick={() => setActiveFilter("videos")}
+              />
+              <FilterButton
+                label="Testimonies"
+                active={activeFilter === "testimony"}
+                onClick={() => setActiveFilter("testimony")}
+              />
+              <FilterButton
+                label="Praise Reports"
+                active={activeFilter === "praise"}
+                onClick={() => setActiveFilter("praise")}
+              />
+              <FilterButton
+                label="Prayer"
+                active={activeFilter === "prayer"}
+                onClick={() => setActiveFilter("prayer")}
+              />
+            </div>
+          )}
         </div>
 
         {reactionMessage && (
@@ -450,8 +470,9 @@ export default function FreedomFeed() {
         <div className="space-y-5">
           {filteredStories.length === 0 ? (
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-              No approved stories are showing yet. Approved stories will appear
-              here after review.
+              {lockedFilter && defaultFilter === "videos"
+                ? "No approved videos are showing yet. Approved video testimonies will appear here after review."
+                : "No approved stories are showing yet. Approved stories will appear here after review."}
             </div>
           ) : (
             filteredStories.map((story) => (
