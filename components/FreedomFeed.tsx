@@ -1,11 +1,4 @@
 "use client";
-export default function FreedomFeed({
-  defaultFilter = "all",
-  lockedFilter = false,
-}: {
-  defaultFilter?: FeedFilter;
-  lockedFilter?: boolean;
-}) {
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -184,13 +177,14 @@ export default function FreedomFeed({
     setStories(updatedStories);
   }
 
-  const videoStories = useMemo(
-    () => stories.filter((story) => story.signed_video_url || story.video_url),
-    [stories]
-  );
+  const videoStories = useMemo(() => {
+    return stories.filter((story) => story.signed_video_url || story.video_url);
+  }, [stories]);
 
   const filteredStories = useMemo(() => {
-    if (activeFilter === "all") return stories;
+    if (activeFilter === "all") {
+      return stories;
+    }
 
     if (activeFilter === "videos") {
       return stories.filter((story) => story.signed_video_url || story.video_url);
@@ -266,7 +260,9 @@ export default function FreedomFeed({
   ) {
     setStories((currentStories) =>
       currentStories.map((story) => {
-        if (story.id !== storyId) return story;
+        if (story.id !== storyId) {
+          return story;
+        }
 
         const nextCount =
           action === "add"
@@ -402,8 +398,10 @@ export default function FreedomFeed({
                     <div className="mb-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce]">
                       <Play className="h-4 w-4 fill-[#0b63ce]" />
                     </div>
-                    <div className="line-clamp-2 text-sm font-black leading-tight text-white">
-                      {story.story_text || "Video testimony"}
+                    <div className="text-sm font-black leading-tight text-white">
+                      {story.story_text
+                        ? story.story_text.slice(0, 45)
+                        : "Video testimony"}
                     </div>
                   </div>
                 </button>
@@ -418,12 +416,17 @@ export default function FreedomFeed({
               <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
                 {lockedFilter && defaultFilter === "videos"
                   ? "Video Testimonies"
-                  : "Freedom Feed"}
+                  : lockedFilter && defaultFilter === "prayer"
+                    ? "Prayer Support"
+                    : "Freedom Feed"}
               </div>
+
               <h2 className="mt-1 text-3xl font-black tracking-tight text-[#062a57] sm:text-4xl">
                 {lockedFilter && defaultFilter === "videos"
                   ? "Videos being shared now"
-                  : "Stories being shared now"}
+                  : lockedFilter && defaultFilter === "prayer"
+                    ? "Prayer requests being shared now"
+                    : "Stories being shared now"}
               </h2>
             </div>
 
@@ -444,21 +447,25 @@ export default function FreedomFeed({
                 active={activeFilter === "all"}
                 onClick={() => setActiveFilter("all")}
               />
+
               <FilterButton
                 label="Videos"
                 active={activeFilter === "videos"}
                 onClick={() => setActiveFilter("videos")}
               />
+
               <FilterButton
                 label="Testimonies"
                 active={activeFilter === "testimony"}
                 onClick={() => setActiveFilter("testimony")}
               />
+
               <FilterButton
                 label="Praise Reports"
                 active={activeFilter === "praise"}
                 onClick={() => setActiveFilter("praise")}
               />
+
               <FilterButton
                 label="Prayer"
                 active={activeFilter === "prayer"}
@@ -479,7 +486,9 @@ export default function FreedomFeed({
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
               {lockedFilter && defaultFilter === "videos"
                 ? "No approved videos are showing yet. Approved video testimonies will appear here after review."
-                : "No approved stories are showing yet. Approved stories will appear here after review."}
+                : lockedFilter && defaultFilter === "prayer"
+                  ? "No approved prayer requests are showing yet. Approved prayer requests will appear here after review."
+                  : "No approved stories are showing yet. Approved stories will appear here after review."}
             </div>
           ) : (
             filteredStories.map((story) => (
@@ -498,7 +507,9 @@ export default function FreedomFeed({
                         <div className="font-black text-slate-900">
                           {story.name || "HTBF Community"}
                         </div>
+
                         <span className="text-sm text-slate-400">•</span>
+
                         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
                           {story.story_type || "Story"}
                         </span>
