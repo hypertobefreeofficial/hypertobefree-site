@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Video, PlusSquare, HeartHandshake, UserCircle } from "lucide-react";
+import {
+  Home,
+  Video,
+  PlusSquare,
+  HeartHandshake,
+  UserCircle,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const navItems = [
@@ -32,11 +38,27 @@ const navItems = [
   },
 ];
 
+const appRoutes = [
+  "/feed",
+  "/videos",
+  "/share-your-story",
+  "/prayer",
+  "/account",
+];
+
 export default function LoggedInBottomNav() {
   const pathname = usePathname();
 
+  const shouldShow = appRoutes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+
+  if (!shouldShow) {
+    return null;
+  }
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.10)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-slate-200 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.10)]">
       <div className="mx-auto grid max-w-3xl grid-cols-5 px-1 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2">
         {navItems.map((item) => {
           const Icon = item.icon;
