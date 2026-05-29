@@ -15,7 +15,13 @@ import { supabase } from "../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 
-type FeedFilter = "all" | "videos" | "testimony" | "praise" | "prayer";
+type FeedFilter =
+  | "all"
+  | "videos"
+  | "testimony"
+  | "praise"
+  | "prayer"
+  | "answered";
 
 type ReactionRow = {
   story_id: string | null;
@@ -260,6 +266,14 @@ export default function FreedomFeed({
       );
     }
 
+    if (activeFilter === "answered") {
+      return stories.filter(
+        (story) =>
+          story.story_type?.toLowerCase().includes("prayer") &&
+          story.prayer_status === "answered"
+      );
+    }
+
     return stories;
   }, [activeFilter, stories]);
 
@@ -408,6 +422,33 @@ export default function FreedomFeed({
     setReactionMessage("Prayer request marked as answered. God did it.");
   }
 
+  const feedLabel =
+    lockedFilter && defaultFilter === "videos"
+      ? "Video Testimonies"
+      : lockedFilter && defaultFilter === "prayer"
+        ? "Prayer Support"
+        : lockedFilter && defaultFilter === "answered"
+          ? "Answered Prayers"
+          : "Freedom Feed";
+
+  const feedHeading =
+    lockedFilter && defaultFilter === "videos"
+      ? "Videos being shared now"
+      : lockedFilter && defaultFilter === "prayer"
+        ? "Prayer requests being shared now"
+        : lockedFilter && defaultFilter === "answered"
+          ? "God Did It"
+          : "Stories being shared now";
+
+  const emptyMessage =
+    lockedFilter && defaultFilter === "videos"
+      ? "No approved videos are showing yet. Approved video testimonies will appear here after review."
+      : lockedFilter && defaultFilter === "prayer"
+        ? "No approved prayer requests are showing yet. Approved prayer requests will appear here after review."
+        : lockedFilter && defaultFilter === "answered"
+          ? "No answered prayers are showing yet. When someone marks a prayer request as answered, it will appear here."
+          : "No approved stories are showing yet. Approved stories will appear here after review.";
+
   return (
     <section
       id="stories"
@@ -535,19 +576,11 @@ export default function FreedomFeed({
           <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                {lockedFilter && defaultFilter === "videos"
-                  ? "Video Testimonies"
-                  : lockedFilter && defaultFilter === "prayer"
-                    ? "Prayer Support"
-                    : "Freedom Feed"}
+                {feedLabel}
               </div>
 
               <h2 className="mt-1 text-3xl font-black tracking-tight text-[#062a57] sm:text-4xl">
-                {lockedFilter && defaultFilter === "videos"
-                  ? "Videos being shared now"
-                  : lockedFilter && defaultFilter === "prayer"
-                    ? "Prayer requests being shared now"
-                    : "Stories being shared now"}
+                {feedHeading}
               </h2>
             </div>
 
@@ -592,6 +625,12 @@ export default function FreedomFeed({
                 active={activeFilter === "prayer"}
                 onClick={() => setActiveFilter("prayer")}
               />
+
+              <FilterButton
+                label="Answered"
+                active={activeFilter === "answered"}
+                onClick={() => setActiveFilter("answered")}
+              />
             </div>
           )}
         </div>
@@ -605,11 +644,7 @@ export default function FreedomFeed({
         <div className="space-y-5">
           {filteredStories.length === 0 ? (
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-              {lockedFilter && defaultFilter === "videos"
-                ? "No approved videos are showing yet. Approved video testimonies will appear here after review."
-                : lockedFilter && defaultFilter === "prayer"
-                  ? "No approved prayer requests are showing yet. Approved prayer requests will appear here after review."
-                  : "No approved stories are showing yet. Approved stories will appear here after review."}
+              {emptyMessage}
             </div>
           ) : (
             filteredStories.map((story) => {
