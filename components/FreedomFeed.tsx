@@ -342,29 +342,73 @@ useEffect(() => {
     );
   }
 
-  async function markPrayerAnswered(storyId: string) {
-    setReactionMessage("");
+async function markPrayerAnswered(storyId: string) {
+  setReactionMessage("");
 
-    if (!userId) {
-      setReactionMessage("Please sign in to mark a prayer request answered.");
-      return;
-    }
+  if (!userId) {
+    setReactionMessage("Please sign in to mark a prayer request answered.");
+    return;
+  }
 
-    const answeredAt = new Date().toISOString();
+  const story = stories.find((item) => item.id === storyId);
 
-    const { error } = await supabase
-      .from("stories")
-      .update({
-        prayer_status: "answered",
-        answered_at: answeredAt,
-      })
-      .eq("id", storyId)
-      .eq("user_id", userId);
+  if (!story) {
+    setReactionMessage("Could not find this prayer request.");
+    return;
+  }
 
-    if (error) {
-      setReactionMessage(`Could not mark prayer answered: ${error.message}`);
-      return;
-    }
+  if (story.user_id !== userId) {
+    setReactionMessage("Only the person who shared this prayer request can mark it answered.");
+    return;
+  }
+
+  const answeredText = window.prompt(
+    "God did it! What happened? Share a short update so others can be encouraged."
+  );
+
+  if (answeredText === null) {
+    return;
+  }
+
+  const cleanAnsweredText = answeredText.trim();
+
+  if (!cleanAnsweredText) {
+    setReactionMessage("Please add a short answered prayer update before marking this answered.");
+    return;
+  }
+
+  const answeredAt = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("stories")
+    .update({
+      prayer_status: "answered",
+      answered_at: answeredAt,
+      answered_text: cleanAnsweredText,
+    })
+    .eq("id", storyId)
+    .eq("user_id", userId);
+
+  if (error) {
+    setReactionMessage(`Could not mark prayer answered: ${error.message}`);
+    return;
+  }
+
+  setStories((currentStories) =>
+    currentStories.map((currentStory) =>
+      currentStory.id === storyId
+        ? {
+            ...currentStory,
+            prayer_status: "answered",
+            answered_at: answeredAt,
+            answered_text: cleanAnsweredText,
+          }
+        : currentStory
+    )
+  );
+
+  setReactionMessage("Prayer request marked as answered. God did it.");
+}
 
     setStories((currentStories) =>
       currentStories.map((story) =>
