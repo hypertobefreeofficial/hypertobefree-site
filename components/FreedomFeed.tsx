@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
-type ReactionType = "amen" | "praise_god" | "encouraged";
+type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 
 type FeedFilter = "all" | "videos" | "testimony" | "praise" | "prayer";
 
@@ -36,6 +36,7 @@ type ApprovedStory = {
     amen: number;
     praise_god: number;
     encouraged: number;
+    praying: number;
   };
   user_reactions: ReactionType[];
 };
@@ -81,6 +82,10 @@ export default function FreedomFeed({
     }
 
     return videoUrl;
+  }
+
+  function isPrayerStory(story: ApprovedStory) {
+    return story.story_type?.toLowerCase().includes("prayer") ?? false;
   }
 
   async function loadApprovedStories(currentUserId: string | null) {
@@ -145,7 +150,8 @@ export default function FreedomFeed({
             (reaction): reaction is ReactionType =>
               reaction === "amen" ||
               reaction === "praise_god" ||
-              reaction === "encouraged"
+              reaction === "encouraged" ||
+              reaction === "praying"
           );
 
         return {
@@ -167,6 +173,9 @@ export default function FreedomFeed({
             ).length,
             encouraged: storyReactions.filter(
               (reaction) => reaction.reaction_type === "encouraged"
+            ).length,
+            praying: storyReactions.filter(
+              (reaction) => reaction.reaction_type === "praying"
             ).length,
           },
           user_reactions: userReactions,
@@ -491,93 +500,122 @@ export default function FreedomFeed({
                   : "No approved stories are showing yet. Approved stories will appear here after review."}
             </div>
           ) : (
-            filteredStories.map((story) => (
-              <article
-                key={story.id}
-                className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
-              >
-                <div className="p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-black text-[#0b63ce]">
-                      {(story.name || "H").charAt(0).toUpperCase()}
-                    </div>
+            filteredStories.map((story) => {
+              const prayerStory = isPrayerStory(story);
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <div className="font-black text-slate-900">
-                          {story.name || "HTBF Community"}
+              return (
+                <article
+                  key={story.id}
+                  className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
+                >
+                  <div className="p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-black text-[#0b63ce]">
+                        {(story.name || "H").charAt(0).toUpperCase()}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <div className="font-black text-slate-900">
+                            {story.name || "HTBF Community"}
+                          </div>
+
+                          <span className="text-sm text-slate-400">•</span>
+
+                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
+                            {story.story_type || "Story"}
+                          </span>
                         </div>
 
-                        <span className="text-sm text-slate-400">•</span>
-
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
-                          {story.story_type || "Story"}
-                        </span>
-                      </div>
-
-                      <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-500">
-                        <Globe2 className="h-4 w-4" />
-                        {story.location || "Location not shared"}
+                        <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-500">
+                          <Globe2 className="h-4 w-4" />
+                          {story.location || "Location not shared"}
+                        </div>
                       </div>
                     </div>
+
+                    {story.story_text && (
+                      <p className="mt-4 whitespace-pre-line text-[17px] leading-7 text-slate-800">
+                        {story.story_text}
+                      </p>
+                    )}
                   </div>
 
-                  {story.story_text && (
-                    <p className="mt-4 whitespace-pre-line text-[17px] leading-7 text-slate-800">
-                      {story.story_text}
-                    </p>
+                  {story.signed_video_url && (
+                    <div className="bg-black">
+                      <video
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="max-h-[560px] w-full bg-black object-contain"
+                        src={story.signed_video_url}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
                   )}
-                </div>
 
-                {story.signed_video_url && (
-                  <div className="bg-black">
-                    <video
-                      controls
-                      playsInline
-                      preload="metadata"
-                      className="max-h-[560px] w-full bg-black object-contain"
-                      src={story.signed_video_url}
-                    >
-                      Your browser does not support the video tag.
-                    </video>
+                  {!story.signed_video_url && story.video_url && (
+                    <div className="mx-5 mb-5 flex h-48 items-center justify-center rounded-[1.5rem] border border-red-100 bg-red-50 p-4 text-center text-sm font-bold text-red-700">
+                      Video found, but the secure video link could not be
+                      created.
+                    </div>
+                  )}
+
+                  <div className="border-t border-slate-100 px-5 py-3">
+                    {prayerStory ? (
+                      <>
+                        <div className="mb-3 text-sm font-semibold text-slate-500">
+                          {story.reaction_counts.praying} Praying
+                        </div>
+
+                        <ReactionButton
+                          active={story.user_reactions.includes("praying")}
+                          label="Praying"
+                          onClick={() => toggleReaction(story.id, "praying")}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="mb-3 flex items-center gap-4 text-sm font-semibold text-slate-500">
+                          <span>{story.reaction_counts.amen} Amen</span>
+                          <span>
+                            {story.reaction_counts.praise_god} Praise God
+                          </span>
+                          <span>
+                            {story.reaction_counts.encouraged} Encouraged
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <ReactionButton
+                            active={story.user_reactions.includes("amen")}
+                            label="Amen"
+                            onClick={() => toggleReaction(story.id, "amen")}
+                          />
+
+                          <ReactionButton
+                            active={story.user_reactions.includes("praise_god")}
+                            label="Praise God"
+                            onClick={() =>
+                              toggleReaction(story.id, "praise_god")
+                            }
+                          />
+
+                          <ReactionButton
+                            active={story.user_reactions.includes("encouraged")}
+                            label="Encouraged"
+                            onClick={() =>
+                              toggleReaction(story.id, "encouraged")
+                            }
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
-                )}
-
-                {!story.signed_video_url && story.video_url && (
-                  <div className="mx-5 mb-5 flex h-48 items-center justify-center rounded-[1.5rem] border border-red-100 bg-red-50 p-4 text-center text-sm font-bold text-red-700">
-                    Video found, but the secure video link could not be created.
-                  </div>
-                )}
-
-                <div className="border-t border-slate-100 px-5 py-3">
-                  <div className="mb-3 flex items-center gap-4 text-sm font-semibold text-slate-500">
-                    <span>{story.reaction_counts.amen} Amen</span>
-                    <span>{story.reaction_counts.praise_god} Praise God</span>
-                    <span>{story.reaction_counts.encouraged} Encouraged</span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <ReactionButton
-                      active={story.user_reactions.includes("amen")}
-                      label="Amen"
-                      onClick={() => toggleReaction(story.id, "amen")}
-                    />
-
-                    <ReactionButton
-                      active={story.user_reactions.includes("praise_god")}
-                      label="Praise God"
-                      onClick={() => toggleReaction(story.id, "praise_god")}
-                    />
-
-                    <ReactionButton
-                      active={story.user_reactions.includes("encouraged")}
-                      label="Encouraged"
-                      onClick={() => toggleReaction(story.id, "encouraged")}
-                    />
-                  </div>
-                </div>
-              </article>
-            ))
+                </article>
+              );
+            })
           )}
         </div>
       </div>
@@ -620,7 +658,7 @@ function ReactionButton({
   return (
     <button
       onClick={onClick}
-      className={`rounded-2xl px-2 py-2.5 text-sm font-black transition ${
+      className={`rounded-2xl px-4 py-2.5 text-sm font-black transition ${
         active
           ? "bg-[#0b63ce] text-white"
           : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
