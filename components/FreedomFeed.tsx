@@ -1,4 +1,11 @@
 "use client";
+export default function FreedomFeed({
+  defaultFilter = "all",
+  lockedFilter = false,
+}: {
+  defaultFilter?: FeedFilter;
+  lockedFilter?: boolean;
+}) {
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
