@@ -27,16 +27,18 @@ export default function VideosPage() {
           <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
             Video Testimonies
           </div>
+
           <h1 className="mt-2 text-4xl font-black text-[#062a57]">
             Reels of hope
           </h1>
+
           <p className="mt-3 leading-7 text-slate-600">
             Watch video testimonies, praise reports, and stories shared by the
             HTBF community.
           </p>
         </div>
 
-        <FreedomFeed />
+        <FreedomFeed defaultFilter="videos" lockedFilter />
       </div>
 
       <LoggedInBottomNav />
