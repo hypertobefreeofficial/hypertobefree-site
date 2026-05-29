@@ -58,20 +58,52 @@ export default function FreedomFeed({
   const [reactionMessage, setReactionMessage] = useState("");
   const [activeFilter, setActiveFilter] = useState<FeedFilter>(defaultFilter);
 
-  useEffect(() => {
-    async function loadPage() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+useEffect(() => {
+  let currentUserId: string | null = null;
 
-      const currentUserId = user?.id ?? null;
-      setUserId(currentUserId);
+  async function loadPage() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      await loadApprovedStories(currentUserId);
-    }
+    currentUserId = user?.id ?? null;
+    setUserId(currentUserId);
 
-    loadPage();
-  }, []);
+    await loadApprovedStories(currentUserId);
+  }
+
+  loadPage();
+
+  const channel = supabase
+    .channel("freedom-feed-live-updates")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "story_reactions",
+      },
+      async () => {
+        await loadApprovedStories(currentUserId);
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "stories",
+      },
+      async () => {
+        await loadApprovedStories(currentUserId);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
 
   function getVideoStoragePath(videoUrl: string) {
     if (!videoUrl) return null;
