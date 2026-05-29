@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import RegisterServiceWorker from "../components/RegisterServiceWorker";
+import LoggedInBottomNav from "../components/LoggedInBottomNav";
 import "./globals.css";
 
 export const metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body>
         <RegisterServiceWorker />
         {children}
+        <LoggedInBottomNav />
       </body>
     </html>
   );
