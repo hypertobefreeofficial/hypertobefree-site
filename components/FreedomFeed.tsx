@@ -9,6 +9,7 @@ import {
   Video,
   MessageCircleHeart,
   Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -24,6 +25,7 @@ type ReactionRow = {
 
 type ApprovedStory = {
   id: string;
+  user_id: string | null;
   name: string | null;
   location: string | null;
   story_type: string | null;
@@ -32,6 +34,9 @@ type ApprovedStory = {
   signed_video_url: string | null;
   status: string | null;
   created_at: string | null;
+  prayer_status: string | null;
+  answered_at: string | null;
+  answered_text: string | null;
   reaction_counts: {
     amen: number;
     praise_god: number;
@@ -88,11 +93,15 @@ export default function FreedomFeed({
     return story.story_type?.toLowerCase().includes("prayer") ?? false;
   }
 
+  function isOriginalPoster(story: ApprovedStory) {
+    return Boolean(userId && story.user_id && story.user_id === userId);
+  }
+
   async function loadApprovedStories(currentUserId: string | null) {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, name, location, story_type, story_text, video_url, status, created_at"
+        "id, user_id, name, location, story_type, story_text, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -156,6 +165,7 @@ export default function FreedomFeed({
 
         return {
           id: story.id,
+          user_id: story.user_id,
           name: story.name,
           location: story.location,
           story_type: story.story_type,
@@ -164,6 +174,9 @@ export default function FreedomFeed({
           signed_video_url: signedVideoUrl,
           status: story.status,
           created_at: story.created_at,
+          prayer_status: story.prayer_status ?? "active",
+          answered_at: story.answered_at,
+          answered_text: story.answered_text,
           reaction_counts: {
             amen: storyReactions.filter(
               (reaction) => reaction.reaction_type === "amen"
@@ -295,6 +308,45 @@ export default function FreedomFeed({
         };
       })
     );
+  }
+
+  async function markPrayerAnswered(storyId: string) {
+    setReactionMessage("");
+
+    if (!userId) {
+      setReactionMessage("Please sign in to mark a prayer request answered.");
+      return;
+    }
+
+    const answeredAt = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("stories")
+      .update({
+        prayer_status: "answered",
+        answered_at: answeredAt,
+      })
+      .eq("id", storyId)
+      .eq("user_id", userId);
+
+    if (error) {
+      setReactionMessage(`Could not mark prayer answered: ${error.message}`);
+      return;
+    }
+
+    setStories((currentStories) =>
+      currentStories.map((story) =>
+        story.id === storyId
+          ? {
+              ...story,
+              prayer_status: "answered",
+              answered_at: answeredAt,
+            }
+          : story
+      )
+    );
+
+    setReactionMessage("Prayer request marked as answered. God did it.");
   }
 
   return (
@@ -503,6 +555,8 @@ export default function FreedomFeed({
           ) : (
             filteredStories.map((story) => {
               const prayerStory = isPrayerStory(story);
+              const originalPoster = isOriginalPoster(story);
+              const prayerAnswered = story.prayer_status === "answered";
 
               return (
                 <article
@@ -526,6 +580,12 @@ export default function FreedomFeed({
                           <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
                             {story.story_type || "Story"}
                           </span>
+
+                          {prayerStory && prayerAnswered && (
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700">
+                              Answered
+                            </span>
+                          )}
                         </div>
 
                         <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-500">
@@ -564,37 +624,79 @@ export default function FreedomFeed({
                   )}
 
                   <div className="border-t border-slate-100 px-5 py-3">
-           {prayerStory ? (
-  <>
-    <div className="mb-3 rounded-2xl bg-blue-50 p-4">
-      <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-        Prayer Chain
-      </div>
+                    {prayerStory ? (
+                      <>
+                        {prayerAnswered ? (
+                          <div className="mb-3 rounded-2xl bg-emerald-50 p-4">
+                            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+                              <CheckCircle2 className="h-4 w-4" />
+                              Answered Prayer
+                            </div>
 
-      <div className="mt-1 text-base font-black text-[#062a57]">
-        {story.reaction_counts.praying === 0
-          ? "Be the first to pray"
-          : story.reaction_counts.praying === 1
-            ? "1 person is praying"
-            : `${story.reaction_counts.praying} people are praying`}
-      </div>
+                            <div className="mt-2 text-base font-black text-emerald-900">
+                              God did it.
+                            </div>
 
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        Stand with this prayer request and let them know they are not praying alone.
-      </p>
-    </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                              This prayer request was marked answered by the
+                              person who shared it.
+                            </p>
 
-    <ReactionButton
-      active={story.user_reactions.includes("praying")}
-      label={
-        story.user_reactions.includes("praying")
-          ? "Praying"
-          : "I’m Praying"
-      }
-      onClick={() => toggleReaction(story.id, "praying")}
-    />
-  </>
-) : (
+                            {story.reaction_counts.praying > 0 && (
+                              <p className="mt-2 text-sm font-semibold text-slate-500">
+                                {story.reaction_counts.praying === 1
+                                  ? "1 person prayed with this request."
+                                  : `${story.reaction_counts.praying} people prayed with this request.`}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="mb-3 rounded-2xl bg-blue-50 p-4">
+                              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                                Prayer Chain
+                              </div>
+
+                              <div className="mt-1 text-base font-black text-[#062a57]">
+                                {story.reaction_counts.praying === 0
+                                  ? "Be the first to pray"
+                                  : story.reaction_counts.praying === 1
+                                    ? "1 person is praying"
+                                    : `${story.reaction_counts.praying} people are praying`}
+                              </div>
+
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                Stand with this prayer request and let them know
+                                they are not praying alone.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <ReactionButton
+                                active={story.user_reactions.includes("praying")}
+                                label={
+                                  story.user_reactions.includes("praying")
+                                    ? "Praying"
+                                    : "I’m Praying"
+                                }
+                                onClick={() =>
+                                  toggleReaction(story.id, "praying")
+                                }
+                              />
+
+                              {originalPoster && (
+                                <button
+                                  onClick={() => markPrayerAnswered(story.id)}
+                                  className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+                                >
+                                  God Did It
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : (
                       <>
                         <div className="mb-3 flex items-center gap-4 text-sm font-semibold text-slate-500">
                           <span>{story.reaction_counts.amen} Amen</span>
