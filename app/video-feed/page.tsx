@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Globe2,
@@ -44,9 +44,7 @@ export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryRow[]>([]);
-  const [reactionCounts, setReactionCounts] = useState<
-    Record<string, ReactionCounts>
-  >({});
+  const [reactionCounts, setReactionCounts] = useState<Record<string, ReactionCounts>>({});
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
 
@@ -102,6 +100,7 @@ export default function VideoFeedPage() {
       .in("story_id", storyIds);
 
     if (error) {
+      setMessage(error.message);
       return;
     }
 
@@ -296,17 +295,12 @@ export default function VideoFeedPage() {
                 key={story.id}
                 className="relative flex h-screen snap-start items-center justify-center bg-black"
               >
-                <video
-                  key={videoSource}
-                  src={videoSource}
-                  poster={story.thumbnail_url || undefined}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="h-full w-full object-contain"
+                <ReelVideoPlayer
+                  videoSource={videoSource}
+                  poster={story.thumbnail_url}
                 />
 
-                <div className="absolute right-1 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
+                <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
                   <VideoActionButton
                     label="Amen"
                     count={counts.amen}
@@ -365,6 +359,47 @@ export default function VideoFeedPage() {
   );
 }
 
+function ReelVideoPlayer({
+  videoSource,
+  poster,
+}: {
+  videoSource: string;
+  poster: string | null;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+
+    const playPromise = video.play();
+
+    if (playPromise) {
+      playPromise.catch(() => {
+        // Browser blocked autoplay. User can still press play with controls.
+      });
+    }
+  }, [videoSource]);
+
+  return (
+    <video
+      ref={videoRef}
+      key={videoSource}
+      src={videoSource}
+      poster={poster || undefined}
+      controls
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      className="h-full w-full object-contain"
+    />
+  );
+}
+
 function VideoActionButton({
   label,
   count,
@@ -384,12 +419,12 @@ function VideoActionButton({
       aria-label={label}
       title={label}
     >
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/12 text-white ring-1 ring-white/15 backdrop-blur-md transition group-hover:bg-white/25">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-md transition group-hover:bg-white/25">
         {icon}
       </span>
 
       {count !== null && (
-        <span className="rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 backdrop-blur">
+        <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 backdrop-blur">
           {count}
         </span>
       )}
