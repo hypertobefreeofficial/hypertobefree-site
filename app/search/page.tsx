@@ -257,6 +257,7 @@ export default function SearchPage() {
             {categories.map((category) => (
               <button
                 key={category}
+                type="button"
                 onClick={() => setActiveCategory(category)}
                 className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-black transition ${
                   activeCategory === category
@@ -393,7 +394,7 @@ function VideoExploreTile({
             try {
               event.currentTarget.currentTime = 0.4;
             } catch {
-              // keep the preview as-is
+              // keep preview as-is
             }
           }}
         />
