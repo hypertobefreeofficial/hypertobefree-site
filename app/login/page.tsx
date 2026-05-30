@@ -157,7 +157,7 @@ export default function LoginPage() {
             privacy_accepted_at: now,
             guidelines_accepted_at: now,
           },
-    emailRedirectTo: `https://hypertobefree-site.vercel.app/profile-setup`,
+   emailRedirectTo: `https://hypertobefree-site.vercel.app/profile-setup`,
         },
       });
 
