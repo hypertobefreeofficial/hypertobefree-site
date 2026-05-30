@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Globe2, Video } from "lucide-react";
+import {
+  ArrowLeft,
+  Globe2,
+  HeartHandshake,
+  MessageCircleHeart,
+  Share2,
+  Sparkles,
+  Video,
+} from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
 type StoryRow = {
@@ -18,9 +26,19 @@ type StoryRow = {
   created_at?: string | null;
 };
 
+type ReactionCounts = {
+  amen: number;
+  praise: number;
+  encouraged: number;
+};
+
 export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryRow[]>([]);
+  const [reactionCounts, setReactionCounts] = useState<
+    Record<string, ReactionCounts>
+  >({});
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
 
@@ -42,6 +60,8 @@ export default function VideoFeedPage() {
         return;
       }
 
+      setCurrentUserId(user.id);
+
       const { data, error } = await supabase
         .from("stories")
         .select("*")
@@ -54,12 +74,58 @@ export default function VideoFeedPage() {
         return;
       }
 
-      setStories((data as StoryRow[]) ?? []);
+      const videoStories = (data as StoryRow[]) ?? [];
+      setStories(videoStories);
+
+      await loadReactionCounts(videoStories.map((story) => story.id));
+
       setCheckingUser(false);
     }
 
     loadVideos();
   }, []);
+
+  async function loadReactionCounts(storyIds: string[]) {
+    if (storyIds.length === 0) return;
+
+    const { data, error } = await supabase
+      .from("story_reactions")
+      .select("story_id, reaction_type")
+      .in("story_id", storyIds);
+
+    if (error) {
+      return;
+    }
+
+    const nextCounts: Record<string, ReactionCounts> = {};
+
+    storyIds.forEach((storyId) => {
+      nextCounts[storyId] = {
+        amen: 0,
+        praise: 0,
+        encouraged: 0,
+      };
+    });
+
+    data?.forEach((reaction) => {
+      const storyId = reaction.story_id as string;
+      const reactionType = reaction.reaction_type as keyof ReactionCounts;
+
+      if (!nextCounts[storyId]) {
+        nextCounts[storyId] = {
+          amen: 0,
+          praise: 0,
+          encouraged: 0,
+        };
+      }
+
+      if (reactionType in nextCounts[storyId]) {
+        nextCounts[storyId][reactionType] += 1;
+      }
+    });
+
+    setReactionCounts(nextCounts);
+  }
 
   function getVideoStoragePath(videoUrl: string | null) {
     if (!videoUrl) return null;
@@ -108,6 +174,66 @@ export default function VideoFeedPage() {
     return story.story_text || "Video testimony";
   }
 
+  async function toggleReaction(
+    storyId: string,
+    reactionType: "amen" | "praise" | "encouraged"
+  ) {
+    if (!currentUserId) {
+      setMessage("Please sign in to react.");
+      return;
+    }
+
+    const { data: existing } = await supabase
+      .from("story_reactions")
+      .select("id")
+      .eq("story_id", storyId)
+      .eq("user_id", currentUserId)
+      .eq("reaction_type", reactionType)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from("story_reactions")
+        .delete()
+        .eq("id", existing.id);
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("story_reactions").insert({
+        story_id: storyId,
+        user_id: currentUserId,
+        reaction_type: reactionType,
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+    }
+
+    await loadReactionCounts(stories.map((story) => story.id));
+  }
+
+  async function shareVideo(story: StoryRow) {
+    const shareUrl = `${window.location.origin}/video-feed?story=${story.id}&from=share`;
+    const text = story.story_text || "Watch this HTBF video testimony.";
+
+    if (navigator.share) {
+      await navigator.share({
+        title: "HTBF Video Testimony",
+        text,
+        url: shareUrl,
+      });
+      return;
+    }
+
+    await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+    setMessage("Video link copied.");
+  }
+
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-black px-6 py-12 text-white">
@@ -131,7 +257,7 @@ export default function VideoFeedPage() {
       </div>
 
       {message && (
-        <div className="fixed left-4 right-4 top-20 z-50 rounded-2xl bg-red-500/90 p-4 text-sm font-bold text-white">
+        <div className="fixed left-4 right-4 top-20 z-50 rounded-2xl bg-white/90 p-4 text-sm font-bold text-slate-900">
           {message}
         </div>
       )}
@@ -150,6 +276,11 @@ export default function VideoFeedPage() {
         <section className="h-screen snap-y snap-mandatory overflow-y-scroll">
           {orderedStories.map((story) => {
             const videoSource = getVideoSource(story.video_url);
+            const counts = reactionCounts[story.id] || {
+              amen: 0,
+              praise: 0,
+              encouraged: 0,
+            };
 
             if (!videoSource) return null;
 
@@ -163,38 +294,10 @@ export default function VideoFeedPage() {
                   src={videoSource}
                   poster={story.thumbnail_url || undefined}
                   controls
-                  autoPlay
-                  muted
                   playsInline
-                  preload="auto"
+                  preload="metadata"
                   className="h-full w-full object-contain"
                 />
 
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-5 pb-10">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
-                    <Globe2 className="h-4 w-4" />
-                    {story.location || "HTBF Community"}
-                  </div>
-
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
-                    {story.story_type || "Video Testimony"}
-                  </div>
-
-                  <h1 className="mt-2 max-w-xl text-xl font-black leading-tight">
-                    {getTitle(story)}
-                  </h1>
-
-                  {story.name && (
-                    <p className="mt-2 text-sm font-bold text-white/70">
-                      Shared by {story.name}
-                    </p>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      )}
-    </main>
-  );
-}
+                <div className="absolute right-1 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3">
+                 
