@@ -76,6 +76,22 @@ export default function SearchPage() {
     loadSearch();
   }, []);
 
+  function getVideoStoragePath(videoUrl: string | null) {
+    if (!videoUrl) return null;
+
+    if (videoUrl.includes("story-videos/")) {
+      const afterBucket = videoUrl.split("story-videos/")[1];
+      const pathOnly = afterBucket.split("?")[0];
+      return decodeURIComponent(pathOnly);
+    }
+
+    if (videoUrl.startsWith("http")) {
+      return null;
+    }
+
+    return videoUrl;
+  }
+
   function getVideoSource(videoUrl: string | null) {
     if (!videoUrl) return null;
 
@@ -83,9 +99,13 @@ export default function SearchPage() {
       return videoUrl;
     }
 
+    const storagePath = getVideoStoragePath(videoUrl);
+
+    if (!storagePath) return null;
+
     const { data } = supabase.storage
       .from("story-videos")
-      .getPublicUrl(videoUrl);
+      .getPublicUrl(storagePath);
 
     return data.publicUrl;
   }
@@ -275,25 +295,34 @@ export default function SearchPage() {
                     }`}
                   >
                     {videoSource ? (
-                      <div className="relative h-full min-h-32 bg-slate-900">
+                      <div className="relative flex h-full min-h-32 items-center justify-center overflow-hidden bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#f5b84b]">
                         <video
                           src={videoSource}
                           preload="metadata"
                           muted
                           playsInline
                           controls={isLarge}
-                          className="h-full w-full object-cover"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none";
+                          }}
                         />
 
-                        {!isLarge && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white">
-                              <Play className="h-5 w-5 fill-white" />
-                            </div>
+                        <div className="relative z-10 flex flex-col items-center justify-center px-3 text-center text-white">
+                          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur">
+                            <Play className="h-6 w-6 fill-white" />
                           </div>
-                        )}
 
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 to-transparent p-3 text-white">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
+                            Video Testimony
+                          </div>
+
+                          <div className="mt-1 line-clamp-2 text-sm font-black leading-tight">
+                            {getCardTitle(story)}
+                          </div>
+                        </div>
+
+                        <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/75 to-transparent p-3 text-white">
                           <div className="flex items-center gap-1 text-[11px] font-bold">
                             <Video className="h-3.5 w-3.5" />
                             {story.location || "Video testimony"}
