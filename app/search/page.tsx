@@ -371,29 +371,97 @@ function VideoExploreTile({
   isLarge: boolean;
 }) {
   return (
-    <Link
-      href={`/video-feed?story=${storyId}&from=search`}
-      className={`relative block overflow-hidden bg-black shadow-sm ring-1 ring-slate-200 ${
-        isLarge ? "col-span-2 row-span-2 aspect-square" : "aspect-square"
-      }`}
+    <div
+      className={`${
+        isLarge ? "col-span-2 row-span-2" : ""
+      } flex flex-col gap-2`}
     >
-      {thumbnailUrl ? (
-        <img
-          src={thumbnailUrl}
-          alt={title}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : (
-        <video
-          src={videoSource}
-          muted
-          autoPlay
-          loop
-          playsInline
-          preload="auto"
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        />
-      )}
+      <Link
+        href={`/video-feed?story=${storyId}&from=search`}
+        className={`group relative block overflow-hidden rounded-[22px] bg-black shadow-sm ring-1 ring-slate-200 ${
+          isLarge ? "aspect-square" : "aspect-square"
+        }`}
+      >
+        {thumbnailUrl ? (
+          <img
+            src={thumbnailUrl}
+            alt={title}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <video
+            src={videoSource}
+            muted
+            playsInline
+            preload="metadata"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+
+        {/* subtle dark gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+
+        {/* small play button bottom right */}
+        <div className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm">
+          <Play className="h-4 w-4 fill-slate-900 text-slate-900" />
+        </div>
+
+        {/* location + title */}
+        <div className="absolute bottom-3 left-3 right-12 text-white">
+          {location ? (
+            <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-white/90">
+              <MapPin className="h-3 w-3" />
+              <span className="truncate">{location}</span>
+            </div>
+          ) : null}
+
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/85">
+            Video Testimony
+          </div>
+
+          <div className="line-clamp-2 text-sm font-semibold leading-tight text-white">
+            {title}
+          </div>
+        </div>
+      </Link>
+
+      {/* light action row */}
+      <div className="grid grid-cols-4 gap-2">
+        <button
+          type="button"
+          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          <Heart className="h-3.5 w-3.5" />
+          <span>Amen</span>
+        </button>
+
+        <button
+          type="button"
+          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          <span>Praise God</span>
+        </button>
+
+        <button
+          type="button"
+          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          <Smile className="h-3.5 w-3.5" />
+          <span>Encouraged</span>
+        </button>
+
+        <button
+          type="button"
+          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          <Share2 className="h-3.5 w-3.5" />
+          <span>Share</span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
 
