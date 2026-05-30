@@ -168,9 +168,7 @@ export default function VideoFeedPage() {
                   playsInline
                   preload="auto"
                   className="h-full w-full object-contain"
-                >
-                  <source src={videoSource} />
-                </video>
+                />
 
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-5 pb-10">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
