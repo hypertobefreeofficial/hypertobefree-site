@@ -1,0 +1,271 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Globe2,
+  HeartHandshake,
+  Play,
+  Search,
+  Sparkles,
+  Video,
+} from "lucide-react";
+import { supabase } from "../../lib/supabaseClient";
+import LoggedInBottomNav from "../../components/LoggedInBottomNav";
+
+type StoryRow = {
+  id: string;
+  user_id?: string | null;
+  name: string | null;
+  location: string | null;
+  story_type: string | null;
+  story_text: string | null;
+  video_url: string | null;
+  status: string | null;
+  created_at?: string | null;
+};
+
+const categories = [
+  "For you",
+  "Testimonies",
+  "Videos",
+  "Prayer",
+  "Praise",
+  "Answered",
+  "Healing",
+  "Freedom",
+  "Peace",
+];
+
+export default function SearchPage() {
+  const [checkingUser, setCheckingUser] = useState(true);
+  const [stories, setStories] = useState<StoryRow[]>([]);
+  const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("For you");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function loadSearch() {
+      setCheckingUser(true);
+      setMessage("");
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("stories")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setMessage(`Could not load search feed: ${error.message}`);
+        setCheckingUser(false);
+        return;
+      }
+
+      setStories((data as StoryRow[]) ?? []);
+      setCheckingUser(false);
+    }
+
+    loadSearch();
+  }, []);
+
+  const filteredStories = useMemo(() => {
+    const cleanQuery = query.trim().toLowerCase();
+
+    return stories.filter((story) => {
+      const type = story.story_type?.toLowerCase() ?? "";
+      const text = story.story_text?.toLowerCase() ?? "";
+      const name = story.name?.toLowerCase() ?? "";
+      const location = story.location?.toLowerCase() ?? "";
+      const status = story.status?.toLowerCase() ?? "";
+
+      const matchesQuery =
+        !cleanQuery ||
+        type.includes(cleanQuery) ||
+        text.includes(cleanQuery) ||
+        name.includes(cleanQuery) ||
+        location.includes(cleanQuery) ||
+        status.includes(cleanQuery);
+
+      const matchesCategory =
+        activeCategory === "For you" ||
+        type.includes(activeCategory.toLowerCase()) ||
+        text.includes(activeCategory.toLowerCase()) ||
+        status.includes(activeCategory.toLowerCase());
+
+      return matchesQuery && matchesCategory;
+    });
+  }, [stories, query, activeCategory]);
+
+  function getCardTitle(story: StoryRow) {
+    if (story.story_text) {
+      return story.story_text.length > 70
+        ? `${story.story_text.slice(0, 70)}...`
+        : story.story_text;
+    }
+
+    if (story.video_url) {
+      return "Video testimony";
+    }
+
+    return "Story of encouragement";
+  }
+
+  function getStoryType(story: StoryRow) {
+    return story.story_type || "Testimony";
+  }
+
+  function getInitial(story: StoryRow) {
+    return story.name?.trim()?.charAt(0)?.toUpperCase() || "H";
+  }
+
+  if (checkingUser) {
+    return (
+      <main className="min-h-screen bg-[#f8fbff] px-6 py-12 text-slate-900">
+        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          Loading Search...
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
+      <div className="mx-auto max-w-3xl px-4 pt-5">
+        <section className="sticky top-0 z-40 -mx-4 bg-[#f8fbff]/95 px-4 pb-4 pt-3 backdrop-blur-xl">
+          <div className="flex items-center gap-3">
+            <div className="flex min-h-12 flex-1 items-center rounded-full bg-slate-100 px-4 ring-1 ring-slate-200">
+              <Search className="h-5 w-5 text-slate-500" />
+
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search testimonies, prayer, praise..."
+                className="w-full bg-transparent px-3 text-base font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+              />
+            </div>
+
+            <Link
+              href="/share-your-story"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#0b63ce] shadow-sm ring-1 ring-slate-200"
+            >
+              <Sparkles className="h-5 w-5" />
+            </Link>
+          </div>
+
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => setActiveCategory(category)}
+                className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-black transition ${
+                  activeCategory === category
+                    ? "bg-[#0b63ce] text-white"
+                    : "bg-white text-slate-700 ring-1 ring-slate-200"
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {message && (
+          <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">
+            {message}
+          </div>
+        )}
+
+        <section className="mt-3">
+          {filteredStories.length === 0 ? (
+            <div className="rounded-[2rem] bg-white p-6 text-slate-600 shadow-sm ring-1 ring-slate-200">
+              No results yet. Try another search or category.
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5">
+              {filteredStories.map((story, index) => {
+                const isLarge = index % 7 === 0;
+
+                return (
+                  <Link
+                    key={story.id}
+                    href="/feed"
+                    className={`group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 ${
+                      isLarge ? "col-span-2 row-span-2 min-h-64" : "min-h-32"
+                    }`}
+                  >
+                    {story.video_url ? (
+                      <video
+                        src={story.video_url}
+                        muted
+                        playsInline
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full min-h-32 flex-col justify-between bg-gradient-to-br from-blue-50 via-white to-amber-50 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-black text-[#0b63ce] shadow-sm">
+                            {getInitial(story)}
+                          </div>
+
+                          {story.status === "answered" ? (
+                            <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                              Answered
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div>
+                          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                            {getStoryType(story)}
+                          </div>
+
+                          <p
+                            className={`font-black leading-tight text-[#062a57] ${
+                              isLarge ? "text-xl" : "text-xs"
+                            }`}
+                          >
+                            {getCardTitle(story)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {story.video_url && (
+                      <div className="absolute right-2 top-2 rounded-full bg-black/55 p-1.5 text-white">
+                        <Play className="h-3.5 w-3.5 fill-white" />
+                      </div>
+                    )}
+
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white opacity-0 transition group-hover:opacity-100">
+                      <div className="flex items-center gap-1 text-[11px] font-bold">
+                        {story.video_url ? (
+                          <Video className="h-3.5 w-3.5" />
+                        ) : getStoryType(story).toLowerCase().includes("prayer") ? (
+                          <HeartHandshake className="h-3.5 w-3.5" />
+                        ) : (
+                          <Globe2 className="h-3.5 w-3.5" />
+                        )}
+
+                        {story.location || "HTBF Community"}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <LoggedInBottomNav />
+    </main>
+  );
+}
