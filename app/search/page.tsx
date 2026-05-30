@@ -289,8 +289,9 @@ export default function SearchPage() {
 
                 if (videoSource) {
                   return (
-                    <VideoExploreCard
+                    <VideoExploreTile
                       key={story.id}
+                      storyId={story.id}
                       videoSource={videoSource}
                       thumbnailUrl={story.thumbnail_url}
                       title={getCardTitle(story)}
@@ -353,73 +354,71 @@ export default function SearchPage() {
   );
 }
 
-function VideoExploreCard({
+function VideoExploreTile({
+  storyId,
   videoSource,
   thumbnailUrl,
   title,
   location,
   isLarge,
 }: {
+  storyId: string;
   videoSource: string;
   thumbnailUrl: string | null;
   title: string;
   location: string;
   isLarge: boolean;
 }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-
   return (
-    <div
-      className={`relative overflow-hidden bg-black shadow-sm ring-1 ring-slate-200 ${
+    <Link
+      href={`/video-feed?story=${storyId}&from=search`}
+      className={`relative block overflow-hidden bg-black shadow-sm ring-1 ring-slate-200 ${
         isLarge ? "col-span-2 row-span-2 aspect-square" : "aspect-square"
       }`}
     >
-      {isPlaying ? (
-        <video
-          src={videoSource}
-          controls
-          autoPlay
-          playsInline
-          className="h-full w-full object-cover"
+      {thumbnailUrl ? (
+        <img
+          src={thumbnailUrl}
+          alt={title}
+          className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => setIsPlaying(true)}
-          className="relative block h-full w-full cursor-pointer overflow-hidden text-left"
-        >
-          {thumbnailUrl ? (
-            <img
-              src={thumbnailUrl}
-              alt={title}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#f5b84b]" />
-          )}
-
-          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-
-          <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
-              <Video className="h-3 w-3" />
-              {location}
-            </div>
-
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
-              Video Testimony
-            </div>
-
-            <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
-              {title}
-            </div>
-          </div>
-
-          <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
-            <Play className="h-3 w-3 fill-white" />
-          </div>
-        </button>
+        <video
+          src={videoSource}
+          muted
+          playsInline
+          preload="metadata"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          onLoadedMetadata={(event) => {
+            try {
+              event.currentTarget.currentTime = 0.4;
+            } catch {
+              // keep the preview as-is
+            }
+          }}
+        />
       )}
-    </div>
+
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+
+      <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
+        <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
+          <Video className="h-3 w-3" />
+          {location}
+        </div>
+
+        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
+          Video Testimony
+        </div>
+
+        <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
+          {title}
+        </div>
+      </div>
+
+      <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
+        <Play className="h-3 w-3 fill-white" />
+      </div>
+    </Link>
   );
 }
