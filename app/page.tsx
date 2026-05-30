@@ -10,7 +10,6 @@ import {
   Send,
   Search,
   CheckCircle2,
-  Flame,
 } from "lucide-react";
 
 export default function Home() {
@@ -73,10 +72,10 @@ export default function Home() {
             </Link>
 
             <Link
-              href="/share-your-story"
+              href="/feed"
               className="rounded-full bg-[#0b63ce] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#084f9f]"
             >
-              Share Your Story
+              Enter HTBF
             </Link>
           </div>
         </div>
@@ -106,18 +105,18 @@ export default function Home() {
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href="/share-your-story"
+                  href="/feed"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80]"
                 >
-                  Share Your Story <Send className="h-4 w-4" />
+                  Enter HTBF <Send className="h-4 w-4" />
                 </Link>
 
-                <Link
-                  href="/feed"
+                <a
+                  href="#how-it-works"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
                 >
-                  Enter Freedom Feed <Search className="h-4 w-4" />
-                </Link>
+                  Learn More <Search className="h-4 w-4" />
+                </a>
               </div>
             </div>
 
@@ -204,9 +203,9 @@ export default function Home() {
                 </h2>
 
                 <p className="mt-5 text-lg leading-8 text-slate-600">
-                  Hyper to Be Free is not built around likes or arguments. It is
-                  built around encouragement, testimonies, prayer support, and
-                  sharing what God is doing in people’s lives.
+                  Hyper to Be Free is built around encouragement, testimonies,
+                  prayer support, and sharing what God is doing in people’s
+                  lives.
                 </p>
 
                 <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -214,7 +213,7 @@ export default function Home() {
                     href="/feed"
                     className="inline-flex justify-center rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
                   >
-                    Enter Freedom Feed
+                    Enter HTBF
                   </Link>
 
                   <Link
@@ -306,7 +305,7 @@ export default function Home() {
             <InfoCard
               icon={<HeartHandshake className="h-9 w-9 text-[#0b63ce]" />}
               title="Prayer chains"
-              text="Users can let others know they are praying and stand with prayer requests in real time."
+              text="Users can let others know they are praying and stand with prayer requests."
             />
 
             <InfoCard
@@ -359,16 +358,16 @@ export default function Home() {
 
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
                 Whether your story is big or small, recent or years in the
-                making, it matters. Share what God has done, read stories from
-                others, and be part of a community centered on freedom, hope,
-                prayer, and encouragement.
+                making, it matters. Enter HTBF to read stories from others,
+                share what God has done, and be part of a community centered on
+                freedom, hope, prayer, and encouragement.
               </p>
 
               <Link
-                href="/share-your-story"
+                href="/feed"
                 className="mt-8 inline-flex rounded-full bg-[#0b63ce] px-6 py-3.5 text-base font-bold text-white shadow-sm hover:bg-[#084f9f]"
               >
-                Join Hyper to Be Free
+                Enter HTBF
               </Link>
             </div>
 
