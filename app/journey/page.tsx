@@ -73,11 +73,12 @@ export default function JourneyPage() {
           />
 
           <JourneyCard
-            icon={<Map className="h-6 w-6" />}
-            title="Testimony Map"
-            text="Coming soon: a global view of where testimonies and answered prayers are being shared."
-            href="/feed"
-            button="Coming Soon"
+  icon={<Map className="h-6 w-6" />}
+  title="Testimony Map"
+  text="See where testimonies, prayer requests, videos, and answered prayers are being shared from."
+  href="/map"
+  button="Open Map"
+/>
           />
         </section>
 
