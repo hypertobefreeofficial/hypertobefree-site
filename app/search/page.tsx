@@ -76,6 +76,20 @@ export default function SearchPage() {
     loadSearch();
   }, []);
 
+  function getVideoSource(videoUrl: string | null) {
+    if (!videoUrl) return null;
+
+    if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+      return videoUrl;
+    }
+
+    const { data } = supabase.storage
+      .from("story-videos")
+      .getPublicUrl(videoUrl);
+
+    return data.publicUrl;
+  }
+
   const filteredStories = useMemo(() => {
     const cleanQuery = query.trim().toLowerCase();
 
@@ -250,6 +264,7 @@ export default function SearchPage() {
             <div className="grid grid-cols-3 gap-1.5">
               {filteredStories.map((story, index) => {
                 const isLarge = index % 7 === 0;
+                const videoSource = getVideoSource(story.video_url);
 
                 return (
                   <Link
@@ -259,13 +274,32 @@ export default function SearchPage() {
                       isLarge ? "col-span-2 row-span-2 min-h-64" : "min-h-32"
                     }`}
                   >
-                    {story.video_url ? (
-                      <video
-                        src={story.video_url}
-                        muted
-                        playsInline
-                        className="h-full w-full object-cover"
-                      />
+                    {videoSource ? (
+                      <div className="relative h-full min-h-32 bg-slate-900">
+                        <video
+                          src={videoSource}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          controls={isLarge}
+                          className="h-full w-full object-cover"
+                        />
+
+                        {!isLarge && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white">
+                              <Play className="h-5 w-5 fill-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 to-transparent p-3 text-white">
+                          <div className="flex items-center gap-1 text-[11px] font-bold">
+                            <Video className="h-3.5 w-3.5" />
+                            {story.location || "Video testimony"}
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex h-full min-h-32 flex-col justify-between bg-gradient-to-br from-blue-50 via-white to-amber-50 p-3">
                         <div className="flex items-center justify-between">
@@ -297,25 +331,21 @@ export default function SearchPage() {
                       </div>
                     )}
 
-                    {story.video_url && (
-                      <div className="absolute right-2 top-2 rounded-full bg-black/55 p-1.5 text-white">
-                        <Play className="h-3.5 w-3.5 fill-white" />
+                    {!videoSource && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white opacity-0 transition group-hover:opacity-100">
+                        <div className="flex items-center gap-1 text-[11px] font-bold">
+                          {getStoryType(story)
+                            .toLowerCase()
+                            .includes("prayer") ? (
+                            <HeartHandshake className="h-3.5 w-3.5" />
+                          ) : (
+                            <Globe2 className="h-3.5 w-3.5" />
+                          )}
+
+                          {story.location || "HTBF Community"}
+                        </div>
                       </div>
                     )}
-
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white opacity-0 transition group-hover:opacity-100">
-                      <div className="flex items-center gap-1 text-[11px] font-bold">
-                        {story.video_url ? (
-                          <Video className="h-3.5 w-3.5" />
-                        ) : getStoryType(story).toLowerCase().includes("prayer") ? (
-                          <HeartHandshake className="h-3.5 w-3.5" />
-                        ) : (
-                          <Globe2 className="h-3.5 w-3.5" />
-                        )}
-
-                        {story.location || "HTBF Community"}
-                      </div>
-                    </div>
                   </Link>
                 );
               })}
