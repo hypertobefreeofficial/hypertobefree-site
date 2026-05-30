@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -21,6 +21,7 @@ type ProfileRow = {
   real_name: string | null;
   display_name: string | null;
   username: string | null;
+  username_last_changed_at: string | null;
   location: string | null;
   bio: string | null;
   status: string | null;
@@ -33,6 +34,8 @@ type ProfileRow = {
   profile_completed: boolean | null;
 };
 
+const USERNAME_COOLDOWN_DAYS = 30;
+
 export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -43,6 +46,11 @@ export default function AccountPage() {
   const [realName, setRealName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [originalUsername, setOriginalUsername] = useState("");
+  const [usernameLastChangedAt, setUsernameLastChangedAt] = useState<
+    string | null
+  >(null);
+
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
 
@@ -79,7 +87,7 @@ export default function AccountPage() {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, email, real_name, display_name, username, location, bio, status, profile_visibility, allow_prayer_notifications, allow_story_notifications, show_location, show_real_name, journey_focus, profile_completed"
+          "id, email, real_name, display_name, username, username_last_changed_at, location, bio, status, profile_visibility, allow_prayer_notifications, allow_story_notifications, show_location, show_real_name, journey_focus, profile_completed"
         )
         .eq("id", user.id)
         .maybeSingle();
@@ -93,9 +101,14 @@ export default function AccountPage() {
       const profile = data as ProfileRow | null;
       const fallbackName = userEmail.split("@")[0] ?? "";
 
+      const savedUsername = profile?.username ?? "";
+
       setRealName(profile?.real_name ?? "");
       setDisplayName(profile?.display_name ?? fallbackName);
-      setUsername(profile?.username ?? "");
+      setUsername(savedUsername);
+      setOriginalUsername(savedUsername);
+      setUsernameLastChangedAt(profile?.username_last_changed_at ?? null);
+
       setLocation(profile?.location ?? "");
       setBio(profile?.bio ?? "");
 
@@ -121,6 +134,40 @@ export default function AccountPage() {
       .slice(0, 24);
   }
 
+  const usernameChanged = useMemo(() => {
+    return cleanUsername(username) !== cleanUsername(originalUsername);
+  }, [username, originalUsername]);
+
+  const usernameCooldownInfo = useMemo(() => {
+    if (!usernameLastChangedAt) {
+      return {
+        locked: false,
+        daysRemaining: 0,
+      };
+    }
+
+    const lastChanged = new Date(usernameLastChangedAt);
+    const nextAllowed = new Date(lastChanged);
+    nextAllowed.setDate(nextAllowed.getDate() + USERNAME_COOLDOWN_DAYS);
+
+    const now = new Date();
+
+    if (now >= nextAllowed) {
+      return {
+        locked: false,
+        daysRemaining: 0,
+      };
+    }
+
+    const diffMs = nextAllowed.getTime() - now.getTime();
+    const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    return {
+      locked: true,
+      daysRemaining,
+    };
+  }, [usernameLastChangedAt]);
+
   async function saveAccount() {
     setMessage("");
 
@@ -130,12 +177,15 @@ export default function AccountPage() {
     }
 
     if (!email) {
-      setMessage("Could not find your account email. Please sign out and sign back in.");
+      setMessage(
+        "Could not find your account email. Please sign out and sign back in."
+      );
       return;
     }
 
     const cleanDisplayName = displayName.trim();
     const cleanUsernameValue = cleanUsername(username);
+    const cleanOriginalUsername = cleanUsername(originalUsername);
 
     if (!cleanDisplayName) {
       setMessage("Please add a display name.");
@@ -147,14 +197,32 @@ export default function AccountPage() {
       return;
     }
 
+    const isChangingUsername =
+      cleanOriginalUsername && cleanUsernameValue !== cleanOriginalUsername;
+
+    if (isChangingUsername && usernameCooldownInfo.locked) {
+      setMessage(
+        `You can change your username again in ${usernameCooldownInfo.daysRemaining} day${
+          usernameCooldownInfo.daysRemaining === 1 ? "" : "s"
+        }.`
+      );
+      return;
+    }
+
+    const usernameChangeTimestamp =
+      isChangingUsername || !usernameLastChangedAt
+        ? new Date().toISOString()
+        : usernameLastChangedAt;
+
     setSaving(true);
 
     const { error } = await supabase.from("profiles").upsert({
       id: userId,
-      email: email,
+      email,
       real_name: realName.trim() || null,
       display_name: cleanDisplayName,
       username: cleanUsernameValue,
+      username_last_changed_at: usernameChangeTimestamp,
       location: location.trim() || null,
       bio: bio.trim() || null,
       status,
@@ -182,6 +250,10 @@ export default function AccountPage() {
       setMessage(`Could not save account settings: ${error.message}`);
       return;
     }
+
+    setOriginalUsername(cleanUsernameValue);
+    setUsername(cleanUsernameValue);
+    setUsernameLastChangedAt(usernameChangeTimestamp);
 
     setMessage("Account settings saved.");
   }
@@ -259,6 +331,10 @@ export default function AccountPage() {
               disabled
               className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500"
             />
+            <p className="mt-2 text-xs font-semibold text-slate-500">
+              Your email comes from your sign-in provider and cannot be changed
+              here.
+            </p>
           </Field>
 
           <Field label="Real name">
@@ -291,9 +367,19 @@ export default function AccountPage() {
                 className="w-full bg-transparent px-1 py-3 outline-none"
               />
             </div>
-            <p className="mt-2 text-xs font-semibold text-slate-500">
-              Use lowercase letters, numbers, or underscores.
-            </p>
+
+            <div className="mt-2 rounded-2xl bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800 ring-1 ring-amber-100">
+              Your username is how people recognize you on HTBF. You can change
+              it, but only once every {USERNAME_COOLDOWN_DAYS} days.
+              {usernameCooldownInfo.locked && !usernameChanged && (
+                <>
+                  {" "}
+                  You can change it again in{" "}
+                  {usernameCooldownInfo.daysRemaining} day
+                  {usernameCooldownInfo.daysRemaining === 1 ? "" : "s"}.
+                </>
+              )}
+            </div>
           </Field>
 
           <Field label="Location">
