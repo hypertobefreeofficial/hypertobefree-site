@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Globe2,
@@ -26,10 +26,17 @@ type StoryRow = {
   created_at?: string | null;
 };
 
+type ReactionType = "amen" | "praise" | "encouraged";
+
 type ReactionCounts = {
   amen: number;
   praise: number;
   encouraged: number;
+};
+
+type ReactionRow = {
+  story_id: string;
+  reaction_type: ReactionType;
 };
 
 export default function VideoFeedPage() {
@@ -107,21 +114,16 @@ export default function VideoFeedPage() {
       };
     });
 
-    data?.forEach((reaction) => {
-      const storyId = reaction.story_id as string;
-      const reactionType = reaction.reaction_type as keyof ReactionCounts;
-
-      if (!nextCounts[storyId]) {
-        nextCounts[storyId] = {
+    ((data as ReactionRow[]) ?? []).forEach((reaction) => {
+      if (!nextCounts[reaction.story_id]) {
+        nextCounts[reaction.story_id] = {
           amen: 0,
           praise: 0,
           encouraged: 0,
         };
       }
 
-      if (reactionType in nextCounts[storyId]) {
-        nextCounts[storyId][reactionType] += 1;
-      }
+      nextCounts[reaction.story_id][reaction.reaction_type] += 1;
     });
 
     setReactionCounts(nextCounts);
@@ -174,22 +176,24 @@ export default function VideoFeedPage() {
     return story.story_text || "Video testimony";
   }
 
-  async function toggleReaction(
-    storyId: string,
-    reactionType: "amen" | "praise" | "encouraged"
-  ) {
+  async function toggleReaction(storyId: string, reactionType: ReactionType) {
     if (!currentUserId) {
       setMessage("Please sign in to react.");
       return;
     }
 
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("story_reactions")
       .select("id")
       .eq("story_id", storyId)
       .eq("user_id", currentUserId)
       .eq("reaction_type", reactionType)
       .maybeSingle();
+
+    if (existingError) {
+      setMessage(existingError.message);
+      return;
+    }
 
     if (existing?.id) {
       const { error } = await supabase
@@ -300,4 +304,92 @@ export default function VideoFeedPage() {
                 />
 
                 <div className="absolute right-1 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3">
-                 
+                  <VideoActionButton
+                    label="Amen"
+                    count={counts.amen}
+                    onClick={() => toggleReaction(story.id, "amen")}
+                    icon={<HeartHandshake className="h-5 w-5" />}
+                  />
+
+                  <VideoActionButton
+                    label="Praise"
+                    count={counts.praise}
+                    onClick={() => toggleReaction(story.id, "praise")}
+                    icon={<Sparkles className="h-5 w-5" />}
+                  />
+
+                  <VideoActionButton
+                    label="Encouraged"
+                    count={counts.encouraged}
+                    onClick={() => toggleReaction(story.id, "encouraged")}
+                    icon={<MessageCircleHeart className="h-5 w-5" />}
+                  />
+
+                  <VideoActionButton
+                    label="Share"
+                    count={null}
+                    onClick={() => shareVideo(story)}
+                    icon={<Share2 className="h-5 w-5" />}
+                  />
+                </div>
+
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-5 pb-10 pr-20">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
+                    <Globe2 className="h-4 w-4" />
+                    {story.location || "HTBF Community"}
+                  </div>
+
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
+                    {story.story_type || "Video Testimony"}
+                  </div>
+
+                  <h1 className="mt-2 max-w-xl text-xl font-black leading-tight">
+                    {getTitle(story)}
+                  </h1>
+
+                  {story.name && (
+                    <p className="mt-2 text-sm font-bold text-white/70">
+                      Shared by {story.name}
+                    </p>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      )}
+    </main>
+  );
+}
+
+function VideoActionButton({
+  label,
+  count,
+  icon,
+  onClick,
+}: {
+  label: string;
+  count: number | null;
+  icon: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col items-center gap-1 text-white"
+      aria-label={label}
+      title={label}
+    >
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/12 text-white ring-1 ring-white/15 backdrop-blur-md transition group-hover:bg-white/25">
+        {icon}
+      </span>
+
+      {count !== null && (
+        <span className="rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 backdrop-blur">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
