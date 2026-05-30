@@ -387,18 +387,37 @@ function VideoExploreTile({
         <video
           src={videoSource}
           muted
+          autoPlay
+          loop
           playsInline
-          preload="metadata"
+          preload="auto"
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          onLoadedMetadata={(event) => {
-            try {
-              event.currentTarget.currentTime = 0.4;
-            } catch {
-              // keep preview as-is
-            }
-          }}
         />
       )}
+
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
+
+      <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
+        <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
+          <Video className="h-3 w-3" />
+          {location}
+        </div>
+
+        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
+          Video Testimony
+        </div>
+
+        <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
+          {title}
+        </div>
+      </div>
+
+      <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
+        <Play className="h-3 w-3 fill-white" />
+      </div>
+    </Link>
+  );
+}
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 
