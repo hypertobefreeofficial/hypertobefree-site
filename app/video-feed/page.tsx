@@ -35,6 +35,7 @@ type ReactionCounts = {
 };
 
 type ReactionRow = {
+  id?: string;
   story_id: string;
   reaction_type: ReactionType;
 };
@@ -182,6 +183,8 @@ export default function VideoFeedPage() {
       return;
     }
 
+    setMessage("");
+
     const { data: existing, error: existingError } = await supabase
       .from("story_reactions")
       .select("id")
@@ -303,7 +306,7 @@ export default function VideoFeedPage() {
                   className="h-full w-full object-contain"
                 />
 
-                <div className="absolute right-1 top-1/2 z-40 flex -translate-y-1/2 flex-col gap-3">
+                <div className="absolute right-1 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
                   <VideoActionButton
                     label="Amen"
                     count={counts.amen}
