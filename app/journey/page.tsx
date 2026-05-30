@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   HeartHandshake,
-  Map,
   Sparkles,
   Trophy,
   Flame,
@@ -15,6 +14,10 @@ import {
   MessageCircleHeart,
   Globe2,
   Star,
+  Target,
+  Lightbulb,
+  HandHeart,
+  Map,
 } from "lucide-react";
 
 export default function JourneyPage() {
@@ -44,34 +47,79 @@ export default function JourneyPage() {
           </div>
 
           <h1 className="text-4xl font-black tracking-tight">
-            This is more than a feed.
+            This is your role in the movement.
           </h1>
 
           <p className="mt-3 leading-7 text-blue-100">
-            HTBF is built around a spiritual movement: people share what God is
-            doing, others stand with them in prayer, and answered prayers become
-            encouragement for someone else.
+            Journey is not another feed. It is where HTBF helps you pray,
+            encourage, reflect, testify, and see how your story can strengthen
+            someone else.
           </p>
 
           <div className="mt-6 grid grid-cols-3 gap-3">
-            <MiniStat number="1" label="Share" />
-            <MiniStat number="2" label="Pray" />
-            <MiniStat number="3" label="Testify" />
+            <MiniStat number="01" label="Notice" />
+            <MiniStat number="02" label="Respond" />
+            <MiniStat number="03" label="Testify" />
           </div>
         </section>
 
         <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <Compass className="h-6 w-6" />
+              <Target className="h-6 w-6" />
             </div>
 
             <div>
               <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Journey Path
+                Today’s Mission
               </div>
               <h2 className="text-2xl font-black text-[#062a57]">
-                How a story moves through HTBF
+                Do one thing that brings encouragement.
+              </h2>
+            </div>
+          </div>
+
+          <p className="leading-7 text-slate-600">
+            Instead of endless scrolling, Journey gives you a simple mission:
+            pray for someone, encourage someone, or share what God has done.
+          </p>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <MissionButton
+              href="/prayer"
+              icon={<HeartHandshake className="h-5 w-5" />}
+              title="Pray"
+              text="Join one prayer chain"
+            />
+
+            <MissionButton
+              href="/feed"
+              icon={<HandHeart className="h-5 w-5" />}
+              title="Encourage"
+              text="Respond to one story"
+            />
+
+            <MissionButton
+              href="/share-your-story"
+              icon={<Send className="h-5 w-5" />}
+              title="Testify"
+              text="Share what God did"
+            />
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <Footprints className="h-6 w-6" />
+            </div>
+
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
+                Freedom Milestones
+              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                The HTBF journey path
               </h2>
             </div>
           </div>
@@ -79,74 +127,109 @@ export default function JourneyPage() {
           <div className="space-y-4">
             <JourneyPathStep
               number="01"
-              icon={<Send className="h-5 w-5" />}
-              title="Someone shares"
-              text="A person shares a testimony, praise report, prayer request, or video story."
+              icon={<Lightbulb className="h-5 w-5" />}
+              title="God moved"
+              text="Something happened — peace, healing, help, restoration, a door opening, or a moment worth remembering."
             />
 
             <JourneyPathStep
               number="02"
-              icon={<Users className="h-5 w-5" />}
-              title="The community responds"
-              text="Others respond with prayer, encouragement, Amen, Praise God, or support."
+              icon={<Send className="h-5 w-5" />}
+              title="You shared"
+              text="You shared a testimony, praise report, prayer request, or video story."
             />
 
             <JourneyPathStep
               number="03"
-              icon={<CheckCircle2 className="h-5 w-5" />}
-              title="God Did It"
-              text="When a prayer is answered, the original poster can mark it answered and share what happened."
+              icon={<Users className="h-5 w-5" />}
+              title="Others responded"
+              text="People prayed, encouraged, said Amen, or stood with your story."
             />
 
             <JourneyPathStep
               number="04"
+              icon={<CheckCircle2 className="h-5 w-5" />}
+              title="God Did It"
+              text="A prayer was marked answered by the original person who shared it."
+            />
+
+            <JourneyPathStep
+              number="05"
               icon={<Flame className="h-5 w-5" />}
-              title="The testimony strengthens others"
-              text="Answered prayers and testimonies become reminders that God is still moving."
+              title="Someone else was strengthened"
+              text="Your testimony became encouragement for another person’s journey."
             />
           </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2">
-          <JourneyFeatureCard
-            icon={<HeartHandshake className="h-6 w-6" />}
-            eyebrow="Prayer Movement"
-            title="Prayer Chains"
-            text="Not just a list of prayer requests. Prayer Chains show people that others are actively standing with them."
-            href="/prayer"
-            button="Join a Prayer Chain"
-            color="blue"
+          <UniqueJourneyCard
+            icon={<Users className="h-6 w-6" />}
+            eyebrow="Coming Soon"
+            title="My Prayer Watchlist"
+            text="A private place to see the people and requests you said you are praying for."
           />
 
-          <JourneyFeatureCard
+          <UniqueJourneyCard
             icon={<CheckCircle2 className="h-6 w-6" />}
-            eyebrow="Answered Prayer"
-            title="God Did It"
-            text="Answered prayers are marked by the original person who shared the request, turning prayer into testimony."
-            href="/answered"
-            button="See God Did It"
-            color="emerald"
+            eyebrow="Coming Soon"
+            title="My God Did It Moments"
+            text="A personal record of prayers you marked answered and testimonies you shared."
           />
 
-          <JourneyFeatureCard
-            icon={<Footprints className="h-6 w-6" />}
-            eyebrow="Personal Step"
-            title="Start Your Journey"
-            text="Your story may be the exact encouragement someone else needs. Share a testimony, prayer, praise report, or video."
-            href="/share-your-story"
-            button="Start My Journey"
-            color="amber"
+          <UniqueJourneyCard
+            icon={<MessageCircleHeart className="h-6 w-6" />}
+            eyebrow="Coming Soon"
+            title="Encouragement Impact"
+            text="See how your stories, prayers, and encouragement have helped strengthen others."
           />
 
-          <JourneyFeatureCard
-            icon={<Map className="h-6 w-6" />}
-            eyebrow="Movement Map"
-            title="Testimony Map"
-            text="See where testimonies, prayer requests, videos, and answered prayers are being shared from."
+          <UniqueJourneyCard
+            icon={<Globe2 className="h-6 w-6" />}
+            eyebrow="Movement View"
+            title="Where Encouragement Is Spreading"
+            text="Use the Testimony Map to see where stories and prayers are being shared."
             href="/map"
             button="Open Map"
-            color="sky"
           />
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <Compass className="h-6 w-6" />
+            </div>
+
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">
+                Reflection Room
+              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                Pause before you scroll.
+              </h2>
+            </div>
+          </div>
+
+          <p className="leading-7 text-slate-600">
+            This future space can become a private reflection area where users
+            write what they are praying about, what God is teaching them, and
+            what they want to remember.
+          </p>
+
+          <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-5 ring-1 ring-slate-100">
+            <div className="text-sm font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+              Prompt
+            </div>
+
+            <p className="mt-2 text-lg font-black text-[#062a57]">
+              What is one thing God helped you through recently?
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Later, this can become a private journal entry or a testimony
+              draft.
+            </p>
+          </div>
         </section>
 
         <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -175,7 +258,7 @@ export default function JourneyPage() {
             <DifferenceCard
               icon={<HeartHandshake className="h-5 w-5" />}
               title="Prayer support"
-              text="Prayer requests are not passive posts. They can become active prayer chains."
+              text="Prayer requests can become active prayer chains."
             />
 
             <DifferenceCard
@@ -229,25 +312,26 @@ export default function JourneyPage() {
 
         <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
               <ShieldCheck className="h-6 w-6" />
             </div>
 
             <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">
-                Coming Next
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                Future Personal Journey
               </div>
               <h2 className="text-2xl font-black text-[#062a57]">
-                Future Journey features
+                What this can become
               </h2>
             </div>
           </div>
 
           <div className="space-y-3">
-            <ComingSoonItem text="My Prayer Chains — people I am praying for." />
-            <ComingSoonItem text="My God Did It moments — answered prayers I shared." />
-            <ComingSoonItem text="Encouragement impact — people encouraged by my stories." />
-            <ComingSoonItem text="Countries reached — where my testimonies have been viewed." />
+            <ComingSoonItem text="People I am praying for." />
+            <ComingSoonItem text="Answered prayers I shared." />
+            <ComingSoonItem text="Testimonies I posted." />
+            <ComingSoonItem text="People encouraged by my stories." />
+            <ComingSoonItem text="Locations reached by my testimony." />
           </div>
         </section>
       </div>
@@ -263,6 +347,32 @@ function MiniStat({ number, label }: { number: string; label: string }) {
         {label}
       </div>
     </div>
+  );
+}
+
+function MissionButton({
+  href,
+  icon,
+  title,
+  text,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-blue-50"
+    >
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#0b63ce] shadow-sm ring-1 ring-slate-100">
+        {icon}
+      </div>
+
+      <div className="font-black text-[#062a57]">{title}</div>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+    </Link>
   );
 }
 
@@ -294,57 +404,28 @@ function JourneyPathStep({
   );
 }
 
-function JourneyFeatureCard({
+function UniqueJourneyCard({
   icon,
   eyebrow,
   title,
   text,
   href,
   button,
-  color,
 }: {
   icon: React.ReactNode;
   eyebrow: string;
   title: string;
   text: string;
-  href: string;
-  button: string;
-  color: "blue" | "emerald" | "amber" | "sky";
+  href?: string;
+  button?: string;
 }) {
-  const styles = {
-    blue: {
-      icon: "bg-blue-50 text-[#0b63ce]",
-      eyebrow: "text-[#0b63ce]",
-      button: "bg-[#0b63ce] hover:bg-[#084f9f]",
-    },
-    emerald: {
-      icon: "bg-emerald-50 text-emerald-700",
-      eyebrow: "text-emerald-700",
-      button: "bg-emerald-600 hover:bg-emerald-700",
-    },
-    amber: {
-      icon: "bg-amber-50 text-amber-700",
-      eyebrow: "text-amber-700",
-      button: "bg-amber-600 hover:bg-amber-700",
-    },
-    sky: {
-      icon: "bg-sky-50 text-sky-700",
-      eyebrow: "text-sky-700",
-      button: "bg-sky-600 hover:bg-sky-700",
-    },
-  }[color];
-
-  return (
+  const cardContent = (
     <div className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${styles.icon}`}
-      >
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
         {icon}
       </div>
 
-      <div
-        className={`text-xs font-black uppercase tracking-[0.16em] ${styles.eyebrow}`}
-      >
+      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
         {eyebrow}
       </div>
 
@@ -352,14 +433,19 @@ function JourneyFeatureCard({
 
       <p className="mt-2 leading-7 text-slate-600">{text}</p>
 
-      <Link
-        href={href}
-        className={`mt-5 inline-flex rounded-full px-5 py-3 text-sm font-black text-white ${styles.button}`}
-      >
-        {button}
-      </Link>
+      {href && button && (
+        <div className="mt-5 inline-flex rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white">
+          {button}
+        </div>
+      )}
     </div>
   );
+
+  if (href) {
+    return <Link href={href}>{cardContent}</Link>;
+  }
+
+  return cardContent;
 }
 
 function DifferenceCard({
