@@ -4,114 +4,115 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  MapPin,
   Send,
   ShieldCheck,
-  Video,
-  Upload,
-  FileText,
-  Mail,
+  Sparkles,
   UserCircle,
-  LogIn,
+  Video,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
-type UserProfile = {
+type ProfileRow = {
   id: string;
-  email: string | null;
+  real_name: string | null;
   display_name: string | null;
+  username: string | null;
   location: string | null;
+  show_location: boolean | null;
+  show_real_name: boolean | null;
+  profile_completed: boolean | null;
 };
 
 export default function ShareYourStoryPage() {
-  const [email, setEmail] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [checkingUser, setCheckingUser] = useState(true);
-  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+
   const [storyType, setStoryType] = useState("Testimony");
   const [storyText, setStoryText] = useState("");
-  const [guestEmail, setGuestEmail] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [hasPermission, setHasPermission] = useState(false);
-  const [understandsReview, setUnderstandsReview] = useState(false);
 
-  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadUserAndProfile() {
+    async function loadProfile() {
+      setLoading(true);
+      setMessage("");
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        setEmail(null);
-        setUserId(null);
-        setCheckingUser(false);
+        window.location.href = "/login";
         return;
       }
 
-      setEmail(user.email ?? null);
       setUserId(user.id);
 
-      const { data: profile } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, display_name, location")
+        .select(
+          "id, real_name, display_name, username, location, show_location, show_real_name, profile_completed"
+        )
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (profile) {
-        const savedProfile = profile as UserProfile;
-
-        if (savedProfile.display_name) {
-          setName(savedProfile.display_name);
-        }
-
-        if (savedProfile.location) {
-          setLocation(savedProfile.location);
-        }
+      if (error) {
+        setMessage(`Could not load your profile: ${error.message}`);
+        setLoading(false);
+        return;
       }
 
-      setProfileLoaded(true);
-      setCheckingUser(false);
+      const loadedProfile = data as ProfileRow | null;
+
+      if (
+        !loadedProfile ||
+        !loadedProfile.profile_completed ||
+        !loadedProfile.display_name ||
+        !loadedProfile.username
+      ) {
+        window.location.href = "/account";
+        return;
+      }
+
+      setProfile(loadedProfile);
+      setLoading(false);
     }
 
-    loadUserAndProfile();
+    loadProfile();
   }, []);
 
-  function getFileExtension(fileName: string) {
-    const parts = fileName.split(".");
-    return parts.length > 1 ? parts.pop() : "mp4";
-  }
+  function getPostingName() {
+    if (!profile) return "HTBF Community";
 
-  async function saveOrUpdateProfile() {
-    if (!userId || !email) {
-      return;
+    if (profile.show_real_name && profile.real_name) {
+      return profile.real_name;
     }
 
-    const { error } = await supabase.from("profiles").upsert({
-      id: userId,
-      email,
-      display_name: name.trim(),
-      location: location.trim() || null,
-      updated_at: new Date().toISOString(),
-    });
-
-    if (error) {
-      throw new Error(`Profile could not be saved: ${error.message}`);
-    }
+    return profile.display_name || "HTBF Community";
   }
 
-  async function uploadVideoIfSelected() {
-    if (!videoFile || !userId) {
+  function getPostingLocation() {
+    if (!profile) return null;
+
+    if (profile.show_location === false) {
       return null;
     }
 
-    const fileExtension = getFileExtension(videoFile.name);
-    const safeFileName = `${Date.now()}-${crypto.randomUUID()}.${fileExtension}`;
-    const filePath = `${userId}/${safeFileName}`;
+    return profile.location || null;
+  }
+
+  async function uploadVideoIfNeeded() {
+    if (!videoFile || !userId) return null;
+
+    const fileExtension = videoFile.name.split(".").pop() || "mp4";
+    const filePath = `${userId}/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}.${fileExtension}`;
 
     const { error } = await supabase.storage
       .from("story-videos")
@@ -121,7 +122,7 @@ export default function ShareYourStoryPage() {
       });
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(`Could not upload video: ${error.message}`);
     }
 
     return filePath;
@@ -130,373 +131,241 @@ export default function ShareYourStoryPage() {
   async function submitStory() {
     setMessage("");
 
-    if (!userId || !email) {
-      setMessage("Please sign in before submitting your story.");
+    if (!userId) {
+      setMessage("Please sign in again.");
       return;
     }
 
-    if (!name.trim()) {
-      setMessage("Please enter your display name or first name.");
+    if (!profile) {
+      setMessage("Please finish your account profile before sharing.");
       return;
     }
 
-    if (!storyText.trim()) {
-      setMessage("Please write your story before submitting.");
-      return;
-    }
+    const cleanStoryText = storyText.trim();
 
-    if (!hasPermission || !understandsReview) {
-      setMessage("Please check both permission boxes before submitting.");
-      return;
-    }
-
-    if (videoFile && videoFile.size > 100 * 1024 * 1024) {
-      setMessage("Please upload a video smaller than 100 MB.");
+    if (!cleanStoryText && !videoFile) {
+      setMessage("Please add a story, prayer request, praise report, or video.");
       return;
     }
 
     setSubmitting(true);
 
     try {
-      await saveOrUpdateProfile();
+      const videoPath = await uploadVideoIfNeeded();
 
-      const videoPath = await uploadVideoIfSelected();
+      const postingName = getPostingName();
+      const postingLocation = getPostingLocation();
 
       const { error } = await supabase.from("stories").insert({
         user_id: userId,
-        name: name.trim(),
-        email,
-        location: location.trim() || null,
+        name: postingName,
+        location: postingLocation,
         story_type: storyType,
-        story_text: storyText.trim(),
+        story_text: cleanStoryText || null,
         video_url: videoPath,
         status: "pending",
       });
 
       if (error) {
-        throw new Error(error.message);
+        setMessage(`Could not submit story: ${error.message}`);
+        setSubmitting(false);
+        return;
       }
 
-      setMessage(
-        videoPath
-          ? "Your story and video were submitted successfully. They are now pending review. Your display name and location were saved for next time."
-          : "Your story was submitted successfully. It is now pending review. Your display name and location were saved for next time."
-      );
-
-      setStoryType("Testimony");
       setStoryText("");
-      setGuestEmail("");
       setVideoFile(null);
-      setHasPermission(false);
-      setUnderstandsReview(false);
+      setMessage(
+        "Your story was submitted. It will appear after review and approval."
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Something went wrong.";
-      setMessage(`Something went wrong: ${errorMessage}`);
+      setMessage(errorMessage);
     }
 
     setSubmitting(false);
   }
 
-  return (
-    <main className="min-h-screen bg-[#f8fbff] text-slate-900">
-      <section className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-[#0b63ce] hover:text-[#084f9f]"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Home
-        </Link>
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#f8fbff] px-4 py-10 text-slate-900">
+        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          Loading story form...
+        </div>
+      </main>
+    );
+  }
 
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-[2.5rem] sm:p-8 md:p-12">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-[#0b63ce]">
-            <Send className="h-4 w-4" />
+  const postingName = getPostingName();
+  const postingLocation = getPostingLocation();
+
+  return (
+    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+          <Link
+            href="/feed"
+            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Feed
+          </Link>
+
+          <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+            Share
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce]">
+            <Sparkles className="h-4 w-4" />
             Share Your Story
           </div>
 
-          <h1 className="text-4xl font-black tracking-tight text-[#062a57] sm:text-5xl md:text-6xl">
-            Tell us what God has done in your life.
+          <h1 className="text-4xl font-black tracking-tight text-[#062a57]">
+            What has God done?
           </h1>
 
-          <p className="mt-5 text-base leading-8 text-slate-600 sm:text-lg">
-            Share a testimony, praise report, prayer encouragement, or story of
-            freedom. Your display name and location can be saved for future
-            submissions.
+          <p className="mt-3 leading-7 text-slate-600">
+            Share a testimony, praise report, prayer request, answered prayer,
+            or video testimony with the HTBF community.
           </p>
 
-          {!checkingUser && email && (
-            <div className="mt-6 flex items-center gap-3 rounded-3xl bg-green-50 p-4 text-sm leading-6 text-green-900">
-              <UserCircle className="h-5 w-5 shrink-0" />
-              <div>
-                <span className="font-black">Signed in as:</span> {email}
-                {profileLoaded && (
-                  <div className="text-xs text-green-800">
-                    Your saved profile info will auto-fill when available.
-                  </div>
-                )}
-              </div>
+          {message && (
+            <div
+              className={`mt-5 rounded-2xl p-4 text-sm font-bold ${
+                message.includes("submitted")
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-red-50 text-red-700"
+              }`}
+            >
+              {message}
             </div>
           )}
+        </section>
 
-          {!checkingUser && !email && (
-            <div className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-5 text-sm leading-6 text-[#082f63]">
-              <div className="mb-2 flex items-center gap-2 font-black">
-                <LogIn className="h-5 w-5" />
-                Sign in first
-              </div>
-              <p>
-                Create an account or sign in before submitting so your story can
-                be connected to your profile.
-              </p>
-              <Link
-                href="/login"
-                className="mt-4 inline-flex rounded-full bg-[#0b63ce] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#084f9f]"
-              >
-                Sign In or Create Account
-              </Link>
-            </div>
-          )}
-
-          <div className="mt-8 grid gap-4 rounded-3xl bg-blue-50 p-5 sm:grid-cols-3">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#0b63ce] shadow-sm">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="font-black text-[#062a57]">Write it</div>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Share your story in your own words.
-                </p>
-              </div>
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+              <UserCircle className="h-6 w-6" />
             </div>
 
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#0b63ce] shadow-sm">
-                <Video className="h-5 w-5" />
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                Posting As
               </div>
-              <div>
-                <div className="font-black text-[#062a57]">Add video</div>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Upload a short testimony video.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#0b63ce] shadow-sm">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="font-black text-[#062a57]">Reviewed first</div>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Stories and videos are reviewed before posting.
-                </p>
-              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                {postingName}
+              </h2>
             </div>
           </div>
 
-          <div className="mt-10 grid gap-6">
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-700">
-                Display name or first name
-              </label>
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
-                placeholder="Example: Ashley"
-              />
-              <p className="mt-2 text-xs text-slate-500">
-                This will be saved for future submissions. You can change it
-                anytime before submitting.
-              </p>
+          <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100">
+            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-600">
+              <span>@{profile?.username}</span>
+
+              {postingLocation && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    {postingLocation}
+                  </span>
+                </>
+              )}
             </div>
 
-            {!email && (
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={guestEmail}
-                  onChange={(event) => setGuestEmail(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
-                  placeholder="you@example.com"
-                />
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Your name, username, and location come from Account Settings. To
+              change them, update your profile.
+            </p>
+
+            <Link
+              href="/account"
+              className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-slate-200 hover:bg-blue-50"
+            >
+              Edit Account Settings
+            </Link>
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="space-y-5">
+            <label className="block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
+                What are you sharing?
               </div>
-            )}
 
-            {email && (
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Email
-                </label>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-600">
-                  {email}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-700">
-                Location, optional
-              </label>
-              <input
-                value={location}
-                onChange={(event) => setLocation(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
-                placeholder="City, State or Country"
-              />
-              <p className="mt-2 text-xs text-slate-500">
-                This will be saved for future submissions if provided.
-              </p>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-700">
-                Story type
-              </label>
               <select
                 value={storyType}
                 onChange={(event) => setStoryType(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
+                className="input-style"
               >
-                <option>Testimony</option>
-                <option>Praise Report</option>
-                <option>Prayer Encouragement</option>
-                <option>Freedom Story</option>
-                <option>Answered Prayer</option>
-                <option>Video Testimony</option>
+                <option value="Testimony">Testimony</option>
+                <option value="Praise Report">Praise Report</option>
+                <option value="Prayer Encouragement">Prayer Request</option>
+                <option value="Answered Prayer">Answered Prayer</option>
+                <option value="Video Testimony">Video Testimony</option>
               </select>
-            </div>
+            </label>
 
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-700">
+            <label className="block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
                 Your story
-              </label>
+              </div>
+
               <textarea
-                rows={8}
                 value={storyText}
                 onChange={(event) => setStoryText(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-[#0b63ce] focus:bg-white"
-                placeholder="Share what God has done..."
+                placeholder="Share your testimony, prayer request, praise report, or what God has done..."
+                className="min-h-44 input-style"
               />
-            </div>
-
-            <div>
-              <label className="mb-3 block text-sm font-bold text-slate-700">
-                Upload video, optional
-              </label>
-
-              <div className="rounded-[2rem] border-2 border-dashed border-blue-200 bg-blue-50/60 p-5 sm:p-8">
-                <div className="flex flex-col items-center justify-center text-center">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-[#0b63ce] shadow-sm">
-                    <Upload className="h-8 w-8" />
-                  </div>
-
-                  <h2 className="text-xl font-black text-[#062a57]">
-                    Add a testimony video
-                  </h2>
-
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                    Upload a short video sharing your testimony, praise report,
-                    or story of freedom. Videos are private during review.
-                  </p>
-
-                  <input
-                    type="file"
-                    accept="video/mp4,video/quicktime,video/webm"
-                    onChange={(event) =>
-                      setVideoFile(event.target.files?.[0] ?? null)
-                    }
-                    className="mt-5 w-full max-w-md rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm file:mr-4 file:rounded-full file:border-0 file:bg-[#0b63ce] file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
-                  />
-
-                  {videoFile && (
-                    <p className="mt-3 text-sm font-semibold text-[#082f63]">
-                      Selected video: {videoFile.name}
-                    </p>
-                  )}
-
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Maximum file size: 100 MB. Accepted formats: MP4, MOV, WEBM.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <label className="flex gap-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={hasPermission}
-                onChange={(event) => setHasPermission(event.target.checked)}
-              />
-              <span>
-                I confirm that I own or have permission to share this story,
-                photo, or video, and I give Hyper to Be Free permission to
-                review it for possible sharing on the website.
-              </span>
             </label>
 
-            <label className="flex gap-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+            <label className="block">
+              <div className="mb-2 flex items-center gap-2 text-sm font-black text-[#062a57]">
+                <Video className="h-4 w-4" />
+                Optional video
+              </div>
+
               <input
-                type="checkbox"
-                className="mt-1"
-                checked={understandsReview}
+                type="file"
+                accept="video/*"
                 onChange={(event) =>
-                  setUnderstandsReview(event.target.checked)
+                  setVideoFile(event.target.files?.[0] ?? null)
                 }
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"
               />
-              <span>
-                I understand that submitted stories and videos may be reviewed
-                before anything is posted publicly.
-              </span>
+
+              {videoFile && (
+                <p className="mt-2 text-sm font-semibold text-slate-500">
+                  Selected: {videoFile.name}
+                </p>
+              )}
             </label>
 
-            {message && (
-              <div className="rounded-2xl bg-blue-50 p-4 text-sm font-semibold leading-6 text-[#082f63]">
-                {message}
-              </div>
-            )}
-
-            <div className="rounded-2xl bg-blue-50 p-4 text-sm leading-6 text-[#082f63]">
+            <div className="rounded-[1.5rem] bg-blue-50 p-4 text-sm leading-6 text-[#082f63] ring-1 ring-blue-100">
               <div className="mb-1 flex items-center gap-2 font-black">
                 <ShieldCheck className="h-4 w-4" />
-                Review before posting
+                Review notice
               </div>
-              Stories and videos submitted here are saved as pending review.
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
-              <div className="mb-1 flex items-center gap-2 font-black text-[#062a57]">
-                <Mail className="h-4 w-4 text-[#0b63ce]" />
-                Questions?
-              </div>
-              You can contact the Hyper to Be Free team at{" "}
-              <span className="font-bold text-[#0b63ce]">
-                info@hypertobefree.com
-              </span>
-              .
+              Posts may be reviewed before appearing publicly. Videos and prayer
+              requests may take longer to approve.
             </div>
 
             <button
               onClick={submitStory}
               disabled={submitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:opacity-60"
             >
-              {submitting
-                ? videoFile
-                  ? "Uploading video..."
-                  : "Submitting..."
-                : "Submit Story"}
               <Send className="h-4 w-4" />
+              {submitting ? "Submitting..." : "Submit Story"}
             </button>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
