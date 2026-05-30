@@ -123,7 +123,7 @@ export default function VideoFeedPage() {
       <div className="fixed left-4 top-4 z-50">
         <Link
           href="/search"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
           aria-label="Back to search"
         >
           <ArrowLeft className="h-5 w-5" />
