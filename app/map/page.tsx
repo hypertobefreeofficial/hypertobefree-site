@@ -32,8 +32,32 @@ type LocationGroup = {
   prayers: number;
   answered: number;
   videos: number;
-  latestStory: MapStory | null;
 };
+
+function cleanLocation(location: string | null) {
+  if (!location) return null;
+
+  const trimmed = location.trim();
+
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+
+  if (lower === "buckeye") return "Buckeye, AZ";
+  if (lower === "buckeye az") return "Buckeye, AZ";
+  if (lower === "buckeye, az") return "Buckeye, AZ";
+  if (lower === "arizona") return "Arizona";
+  if (lower === "az") return "Arizona";
+
+  return trimmed
+    .split(" ")
+    .map((word) =>
+      word.length > 2
+        ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        : word.toUpperCase()
+    )
+    .join(" ");
+}
 
 export default function TestimonyMapPage() {
   const [checkingUser, setCheckingUser] = useState(true);
@@ -80,13 +104,9 @@ export default function TestimonyMapPage() {
     const groups = new Map<string, LocationGroup>();
 
     stories.forEach((story) => {
-      const rawLocation = story.location?.trim();
+      const location = cleanLocation(story.location);
 
-      if (!rawLocation) {
-        return;
-      }
-
-      const location = rawLocation;
+      if (!location) return;
 
       const existing =
         groups.get(location) ??
@@ -97,7 +117,6 @@ export default function TestimonyMapPage() {
           prayers: 0,
           answered: 0,
           videos: 0,
-          latestStory: null,
         } as LocationGroup);
 
       const storyType = story.story_type?.toLowerCase() ?? "";
@@ -111,21 +130,9 @@ export default function TestimonyMapPage() {
         existing.testimonies += 1;
       }
 
-      if (isPrayer) {
-        existing.prayers += 1;
-      }
-
-      if (isAnswered) {
-        existing.answered += 1;
-      }
-
-      if (hasVideo) {
-        existing.videos += 1;
-      }
-
-      if (!existing.latestStory) {
-        existing.latestStory = story;
-      }
+      if (isPrayer) existing.prayers += 1;
+      if (isAnswered) existing.answered += 1;
+      if (hasVideo) existing.videos += 1;
 
       groups.set(location, existing);
     });
@@ -186,8 +193,8 @@ export default function TestimonyMapPage() {
           </h1>
 
           <p className="mt-3 leading-7 text-slate-600">
-            This map pulls from approved HTBF stories and groups them by the
-            location shared by each person.
+            A movement view of approved testimonies, prayer requests, answered
+            prayers, and video stories grouped by location.
           </p>
 
           {message && (
@@ -205,38 +212,49 @@ export default function TestimonyMapPage() {
           <StatCard label="Videos" value={totals.videos} />
         </section>
 
-        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#79b9ff] p-6 text-white shadow-sm">
-          <div className="mb-5 flex items-center justify-between">
+        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#061f45] via-[#0b63ce] to-[#69b7ff] p-5 text-white shadow-xl shadow-blue-950/10">
+          <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.22em] text-blue-100">
                 Movement View
               </div>
+
               <h2 className="mt-1 text-3xl font-black tracking-tight">
                 Stories around the world
               </h2>
+
+              <p className="mt-2 text-sm leading-6 text-blue-100">
+                Each pin represents a place where someone has shared testimony,
+                prayer, or answered prayer.
+              </p>
             </div>
 
-            <Globe2 className="h-10 w-10 text-blue-100" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+              <Globe2 className="h-7 w-7 text-white" />
+            </div>
           </div>
 
-          <div className="relative min-h-[280px] rounded-[1.5rem] bg-white/10 p-4 ring-1 ring-white/15">
-            <div className="absolute inset-0 opacity-30">
-              <div className="absolute left-[8%] top-[30%] h-20 w-32 rounded-full border border-white/60" />
-              <div className="absolute left-[34%] top-[22%] h-28 w-44 rounded-full border border-white/60" />
-              <div className="absolute left-[61%] top-[34%] h-24 w-36 rounded-full border border-white/60" />
-              <div className="absolute left-[48%] top-[62%] h-14 w-28 rounded-full border border-white/60" />
+          <div className="relative min-h-[310px] overflow-hidden rounded-[1.75rem] bg-white/10 p-4 ring-1 ring-white/15">
+            <div className="absolute inset-0 opacity-25">
+              <div className="absolute left-[6%] top-[25%] h-28 w-40 rounded-full border border-white/70" />
+              <div className="absolute left-[34%] top-[18%] h-36 w-52 rounded-full border border-white/70" />
+              <div className="absolute left-[62%] top-[30%] h-32 w-44 rounded-full border border-white/70" />
+              <div className="absolute left-[48%] top-[62%] h-20 w-36 rounded-full border border-white/70" />
+              <div className="absolute left-[16%] top-[68%] h-16 w-28 rounded-full border border-white/50" />
             </div>
+
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_35%,rgba(255,255,255,0.24),transparent_18%),radial-gradient(circle_at_72%_40%,rgba(255,255,255,0.18),transparent_16%),radial-gradient(circle_at_52%_70%,rgba(255,255,255,0.16),transparent_12%)]" />
 
             {locationGroups.slice(0, 8).map((group, index) => {
               const positions = [
-                "left-[13%] top-[35%]",
-                "left-[42%] top-[30%]",
-                "left-[68%] top-[40%]",
-                "left-[52%] top-[65%]",
-                "left-[25%] top-[58%]",
-                "left-[78%] top-[24%]",
-                "left-[36%] top-[72%]",
-                "left-[58%] top-[18%]",
+                "left-[18%] top-[37%]",
+                "left-[49%] top-[30%]",
+                "left-[74%] top-[43%]",
+                "left-[55%] top-[68%]",
+                "left-[28%] top-[64%]",
+                "left-[82%] top-[25%]",
+                "left-[38%] top-[78%]",
+                "left-[62%] top-[18%]",
               ];
 
               return (
@@ -245,17 +263,36 @@ export default function TestimonyMapPage() {
                   className={`absolute ${positions[index]} -translate-x-1/2 -translate-y-1/2`}
                 >
                   <div className="flex flex-col items-center">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#0b63ce] shadow-lg">
-                      <MapPin className="h-5 w-5 fill-[#0b63ce]/10" />
+                    <div className="relative">
+                      <div className="absolute inset-0 animate-ping rounded-full bg-white/40" />
+                      <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#0b63ce] shadow-lg">
+                        <MapPin className="h-6 w-6 fill-[#0b63ce]/10" />
+                      </div>
                     </div>
 
-                    <div className="mt-2 rounded-full bg-white/95 px-3 py-1 text-xs font-black text-[#082f63] shadow-sm">
+                    <div className="mt-2 whitespace-nowrap rounded-full bg-white/95 px-3 py-1 text-xs font-black text-[#082f63] shadow-sm">
                       {group.location}
+                    </div>
+
+                    <div className="mt-1 rounded-full bg-[#082f63]/70 px-2.5 py-1 text-[10px] font-black text-white ring-1 ring-white/20">
+                      {group.total} shared
                     </div>
                   </div>
                 </div>
               );
             })}
+
+            {locationGroups.length === 0 && (
+              <div className="relative z-10 flex h-[260px] items-center justify-center text-center">
+                <div>
+                  <MapPin className="mx-auto h-10 w-10 text-blue-100" />
+                  <p className="mt-3 text-sm font-semibold text-blue-100">
+                    Locations will appear here when approved stories include a
+                    location.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -264,9 +301,15 @@ export default function TestimonyMapPage() {
             <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
               Locations
             </div>
+
             <h2 className="mt-1 text-3xl font-black tracking-tight text-[#062a57]">
               Where stories are being shared
             </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              This section shows counts by location only. The full stories stay
+              in the Home and Journey feeds.
+            </p>
           </div>
 
           {locationGroups.length === 0 ? (
@@ -311,9 +354,9 @@ function LocationCard({ group }: { group: LocationGroup }) {
           </div>
 
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {group.latestStory?.story_text
-              ? group.latestStory.story_text.slice(0, 120)
-              : "Stories, prayer, and encouragement are being shared from this location."}
+            {group.total === 1
+              ? "1 approved HTBF story has been shared from this location."
+              : `${group.total} approved HTBF stories have been shared from this location.`}
           </p>
         </div>
 
