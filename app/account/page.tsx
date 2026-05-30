@@ -17,6 +17,7 @@ import { supabase } from "../../lib/supabaseClient";
 
 type ProfileRow = {
   id: string;
+  email: string | null;
   real_name: string | null;
   display_name: string | null;
   username: string | null;
@@ -70,13 +71,15 @@ export default function AccountPage() {
         return;
       }
 
+      const userEmail = user.email ?? "";
+
       setUserId(user.id);
-      setEmail(user.email ?? "");
+      setEmail(userEmail);
 
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, real_name, display_name, username, location, bio, status, profile_visibility, allow_prayer_notifications, allow_story_notifications, show_location, show_real_name, journey_focus, profile_completed"
+          "id, email, real_name, display_name, username, location, bio, status, profile_visibility, allow_prayer_notifications, allow_story_notifications, show_location, show_real_name, journey_focus, profile_completed"
         )
         .eq("id", user.id)
         .maybeSingle();
@@ -88,8 +91,7 @@ export default function AccountPage() {
       }
 
       const profile = data as ProfileRow | null;
-
-      const fallbackName = user.email?.split("@")[0] ?? "";
+      const fallbackName = userEmail.split("@")[0] ?? "";
 
       setRealName(profile?.real_name ?? "");
       setDisplayName(profile?.display_name ?? fallbackName);
@@ -101,9 +103,7 @@ export default function AccountPage() {
       setProfileVisibility(profile?.profile_visibility ?? "public");
       setShowLocation(profile?.show_location ?? true);
       setShowRealName(profile?.show_real_name ?? false);
-      setAllowPrayerNotifications(
-        profile?.allow_prayer_notifications ?? true
-      );
+      setAllowPrayerNotifications(profile?.allow_prayer_notifications ?? true);
       setAllowStoryNotifications(profile?.allow_story_notifications ?? true);
       setJourneyFocus(profile?.journey_focus ?? "encouragement");
 
@@ -129,6 +129,11 @@ export default function AccountPage() {
       return;
     }
 
+    if (!email) {
+      setMessage("Could not find your account email. Please sign out and sign back in.");
+      return;
+    }
+
     const cleanDisplayName = displayName.trim();
     const cleanUsernameValue = cleanUsername(username);
 
@@ -146,6 +151,7 @@ export default function AccountPage() {
 
     const { error } = await supabase.from("profiles").upsert({
       id: userId,
+      email: email,
       real_name: realName.trim() || null,
       display_name: cleanDisplayName,
       username: cleanUsernameValue,
