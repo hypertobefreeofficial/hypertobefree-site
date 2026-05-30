@@ -2,15 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { MouseEvent } from "react";
 import {
   Globe2,
-  Heart,
   HeartHandshake,
   Play,
   Search,
-  Share2,
-  Smile,
   Sparkles,
   Video,
 } from "lucide-react";
@@ -240,6 +236,7 @@ export default function SearchPage() {
           <div className="flex items-center gap-2">
             <div className="flex min-h-12 flex-1 items-center rounded-full bg-slate-100 px-4 ring-1 ring-slate-200">
               <Search className="h-5 w-5 text-slate-500" />
+
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -373,99 +370,51 @@ function VideoExploreTile({
   location: string;
   isLarge: boolean;
 }) {
-  function stopActionClick(event: MouseEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
   return (
-    <div
-      className={`relative overflow-hidden bg-black shadow-sm ring-1 ring-slate-200 ${
+    <Link
+      href={`/video-feed?story=${storyId}&from=search`}
+      className={`relative block overflow-hidden bg-black shadow-sm ring-1 ring-slate-200 ${
         isLarge ? "col-span-2 row-span-2 aspect-square" : "aspect-square"
       }`}
     >
-      <Link
-        href={`/video-feed?story=${storyId}&from=search`}
-        className="absolute inset-0 z-10 block"
-        aria-label={`Open video: ${title}`}
-      >
-        {thumbnailUrl ? (
-          <img
-            src={thumbnailUrl}
-            alt={title}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <video
-            src={videoSource}
-            muted
-            autoPlay
-            loop
-            playsInline
-            preload="auto"
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          />
-        )}
+      {thumbnailUrl ? (
+        <img
+          src={thumbnailUrl}
+          alt={title}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <video
+          src={videoSource}
+          muted
+          autoPlay
+          loop
+          playsInline
+          preload="auto"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-11 p-2 text-white">
-          <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
-            <Video className="h-3 w-3" />
-            {location}
-          </div>
-
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
-            Video Testimony
-          </div>
-
-          <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
-            {title}
-          </div>
+      <div className="absolute bottom-0 left-0 right-8 p-2 text-white">
+        <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
+          <Video className="h-3 w-3" />
+          {location}
         </div>
 
-        <div className="absolute bottom-2 right-1 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
-          <Play className="h-3 w-3 fill-white" />
+        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
+          Video Testimony
         </div>
-      </Link>
 
-      <div className="absolute right-1 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={stopActionClick}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce] shadow-sm backdrop-blur"
-          aria-label="Amen"
-        >
-          <Heart className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={stopActionClick}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce] shadow-sm backdrop-blur"
-          aria-label="Praise God"
-        >
-          <Sparkles className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={stopActionClick}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce] shadow-sm backdrop-blur"
-          aria-label="Encouraged"
-        >
-          <Smile className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={stopActionClick}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#0b63ce] shadow-sm backdrop-blur"
-          aria-label="Share"
-        >
-          <Share2 className="h-4 w-4" />
-        </button>
+        <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
+          {title}
+        </div>
       </div>
-    </div>
+
+      <div className="absolute bottom-2 right-1.5 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
+        <Play className="h-3 w-3 fill-white" />
+      </div>
+    </Link>
   );
 }
