@@ -21,7 +21,7 @@ type StoryRow = {
   story_type: string | null;
   story_text: string | null;
   video_url: string | null;
-  thumbnail_url?: string | null;
+  thumbnail_url: string | null;
   status: string | null;
   created_at?: string | null;
 };
@@ -292,7 +292,7 @@ export default function SearchPage() {
                     <VideoExploreCard
                       key={story.id}
                       videoSource={videoSource}
-                      fallbackThumbnail={story.thumbnail_url || null}
+                      thumbnailUrl={story.thumbnail_url}
                       title={getCardTitle(story)}
                       location={story.location || "Video testimony"}
                       isLarge={isLarge}
@@ -305,7 +305,9 @@ export default function SearchPage() {
                     key={story.id}
                     href="/feed"
                     className={`relative overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 ${
-                      isLarge ? "col-span-2 row-span-2 aspect-square" : "aspect-square"
+                      isLarge
+                        ? "col-span-2 row-span-2 aspect-square"
+                        : "aspect-square"
                     }`}
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-amber-50" />
@@ -353,82 +355,18 @@ export default function SearchPage() {
 
 function VideoExploreCard({
   videoSource,
-  fallbackThumbnail,
+  thumbnailUrl,
   title,
   location,
   isLarge,
 }: {
   videoSource: string;
-  fallbackThumbnail: string | null;
+  thumbnailUrl: string | null;
   title: string;
   location: string;
   isLarge: boolean;
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [thumbnail, setThumbnail] = useState<string | null>(fallbackThumbnail);
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
-
-  useEffect(() => {
-    if (fallbackThumbnail || thumbnailFailed) return;
-
-    let cancelled = false;
-    const video = document.createElement("video");
-
-    video.src = videoSource;
-    video.crossOrigin = "anonymous";
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = "metadata";
-
-    const cleanup = () => {
-      video.removeAttribute("src");
-      video.load();
-    };
-
-    video.onloadedmetadata = () => {
-      try {
-        video.currentTime = Math.min(0.35, video.duration || 0.35);
-      } catch {
-        setThumbnailFailed(true);
-      }
-    };
-
-    video.onseeked = () => {
-      if (cancelled) return;
-
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 360;
-
-        const context = canvas.getContext("2d");
-
-        if (!context) {
-          setThumbnailFailed(true);
-          return;
-        }
-
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const imageUrl = canvas.toDataURL("image/jpeg", 0.82);
-        setThumbnail(imageUrl);
-      } catch {
-        setThumbnailFailed(true);
-      } finally {
-        cleanup();
-      }
-    };
-
-    video.onerror = () => {
-      if (!cancelled) setThumbnailFailed(true);
-      cleanup();
-    };
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, [videoSource, fallbackThumbnail, thumbnailFailed]);
 
   return (
     <div
@@ -450,27 +388,14 @@ function VideoExploreCard({
           onClick={() => setIsPlaying(true)}
           className="relative block h-full w-full cursor-pointer overflow-hidden text-left"
         >
-          {thumbnail ? (
+          {thumbnailUrl ? (
             <img
-              src={thumbnail}
+              src={thumbnailUrl}
               alt={title}
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <video
-              src={videoSource}
-              muted
-              playsInline
-              preload="metadata"
-              className="absolute inset-0 h-full w-full object-cover"
-              onError={(event) => {
-                event.currentTarget.style.display = "none";
-              }}
-            />
-          )}
-
-          {!thumbnail && (
-            <div className="absolute inset-0 bg-gradient-to-br from-[#082f63]/70 via-[#0b63ce]/60 to-[#f5b84b]/50" />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#f5b84b]" />
           )}
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
@@ -490,8 +415,8 @@ function VideoExploreCard({
             </div>
           </div>
 
-          <div className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
-            <Play className="h-3.5 w-3.5 fill-white" />
+          <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
+            <Play className="h-3 w-3 fill-white" />
           </div>
         </button>
       )}
