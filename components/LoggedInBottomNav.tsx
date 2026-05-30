@@ -6,6 +6,7 @@ import {
   Video,
   PlusSquare,
   HeartHandshake,
+  Sparkles,
   UserCircle,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -32,6 +33,11 @@ const navItems = [
     icon: HeartHandshake,
   },
   {
+    label: "Journey",
+    href: "/journey",
+    icon: Sparkles,
+  },
+  {
     label: "Profile",
     href: "/account",
     icon: UserCircle,
@@ -44,6 +50,7 @@ const appRoutes = [
   "/share-your-story",
   "/prayer",
   "/answered",
+  "/journey",
   "/account",
 ];
 
@@ -60,7 +67,7 @@ export default function LoggedInBottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-slate-200 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.10)]">
-      <div className="mx-auto grid max-w-3xl grid-cols-5 px-1 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2">
+      <div className="mx-auto grid max-w-3xl grid-cols-6 px-1 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2">
         {navItems.map((item) => {
           const Icon = item.icon;
 
@@ -75,7 +82,7 @@ export default function LoggedInBottomNav() {
               className="flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
             >
               <div
-                className={`flex h-9 w-12 items-center justify-center rounded-2xl transition ${
+                className={`flex h-9 w-11 items-center justify-center rounded-2xl transition ${
                   active ? "bg-blue-50" : "bg-transparent"
                 }`}
               >
@@ -87,7 +94,7 @@ export default function LoggedInBottomNav() {
               </div>
 
               <span
-                className={`text-[11px] font-black leading-none ${
+                className={`text-[10px] font-black leading-none ${
                   active ? "text-[#0b63ce]" : "text-slate-600"
                 }`}
               >
