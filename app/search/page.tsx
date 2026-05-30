@@ -94,11 +94,69 @@ export default function SearchPage() {
         location.includes(cleanQuery) ||
         status.includes(cleanQuery);
 
-      const matchesCategory =
-        activeCategory === "For you" ||
-        type.includes(activeCategory.toLowerCase()) ||
-        text.includes(activeCategory.toLowerCase()) ||
-        status.includes(activeCategory.toLowerCase());
+      let matchesCategory = true;
+
+      if (activeCategory === "Testimonies") {
+        matchesCategory =
+          type.includes("testimony") ||
+          type.includes("story") ||
+          type.includes("praise") ||
+          type.includes("answered");
+      }
+
+      if (activeCategory === "Videos") {
+        matchesCategory = !!story.video_url || type.includes("video");
+      }
+
+      if (activeCategory === "Prayer") {
+        matchesCategory =
+          type.includes("prayer") ||
+          text.includes("pray") ||
+          text.includes("prayer");
+      }
+
+      if (activeCategory === "Praise") {
+        matchesCategory =
+          type.includes("praise") ||
+          text.includes("praise") ||
+          text.includes("thankful") ||
+          text.includes("thank") ||
+          text.includes("god did");
+      }
+
+      if (activeCategory === "Answered") {
+        matchesCategory =
+          status.includes("answered") ||
+          type.includes("answered") ||
+          text.includes("answered") ||
+          text.includes("god did it");
+      }
+
+      if (activeCategory === "Healing") {
+        matchesCategory =
+          text.includes("heal") ||
+          text.includes("healing") ||
+          text.includes("restored") ||
+          text.includes("restoration") ||
+          type.includes("healing");
+      }
+
+      if (activeCategory === "Freedom") {
+        matchesCategory =
+          text.includes("freedom") ||
+          text.includes("free") ||
+          text.includes("delivered") ||
+          text.includes("breakthrough") ||
+          type.includes("freedom");
+      }
+
+      if (activeCategory === "Peace") {
+        matchesCategory =
+          text.includes("peace") ||
+          text.includes("calm") ||
+          text.includes("comfort") ||
+          type.includes("peace");
+      }
 
       return matchesQuery && matchesCategory;
     });
@@ -215,7 +273,8 @@ export default function SearchPage() {
                             {getInitial(story)}
                           </div>
 
-                          {story.status === "answered" ? (
+                          {story.status === "answered" ||
+                          story.story_type?.toLowerCase().includes("answered") ? (
                             <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
                               Answered
                             </div>
