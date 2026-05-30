@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  Lock,
   MapPin,
   Send,
   ShieldCheck,
@@ -153,13 +154,10 @@ export default function ShareYourStoryPage() {
     try {
       const videoPath = await uploadVideoIfNeeded();
 
-      const postingName = getPostingName();
-      const postingLocation = getPostingLocation();
-
       const { error } = await supabase.from("stories").insert({
         user_id: userId,
-        name: postingName,
-        location: postingLocation,
+        name: getPostingName(),
+        location: getPostingLocation(),
         story_type: storyType,
         story_text: cleanStoryText || null,
         video_url: videoPath,
@@ -174,9 +172,7 @@ export default function ShareYourStoryPage() {
 
       setStoryText("");
       setVideoFile(null);
-      setMessage(
-        "Your story was submitted. It will appear after review and approval."
-      );
+      setMessage("Your story was submitted for review.");
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Something went wrong.";
@@ -230,8 +226,40 @@ export default function ShareYourStoryPage() {
 
           <p className="mt-3 leading-7 text-slate-600">
             Share a testimony, praise report, prayer request, answered prayer,
-            or video testimony with the HTBF community.
+            or video testimony.
           </p>
+
+          <div className="mt-5 rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-600 ring-1 ring-slate-100">
+            <div className="flex flex-wrap items-center gap-2">
+              <UserCircle className="h-4 w-4 text-[#0b63ce]" />
+
+              <span>
+                Posting as{" "}
+                <span className="font-black text-[#062a57]">
+                  {postingName}
+                </span>
+              </span>
+
+              <span className="text-slate-300">•</span>
+
+              <span>@{profile?.username}</span>
+
+              {postingLocation && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    {postingLocation}
+                  </span>
+                </>
+              )}
+
+              <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500">
+                <Lock className="h-3.5 w-3.5" />
+                Profile locked
+              </span>
+            </div>
+          </div>
 
           {message && (
             <div
@@ -244,51 +272,6 @@ export default function ShareYourStoryPage() {
               {message}
             </div>
           )}
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <UserCircle className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Posting As
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                {postingName}
-              </h2>
-            </div>
-          </div>
-
-          <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100">
-            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-600">
-              <span>@{profile?.username}</span>
-
-              {postingLocation && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-4 w-4" />
-                    {postingLocation}
-                  </span>
-                </>
-              )}
-            </div>
-
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              Your name, username, and location come from Account Settings. To
-              change them, update your profile.
-            </p>
-
-            <Link
-              href="/account"
-              className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-slate-200 hover:bg-blue-50"
-            >
-              Edit Account Settings
-            </Link>
-          </div>
         </section>
 
         <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -305,7 +288,7 @@ export default function ShareYourStoryPage() {
               >
                 <option value="Testimony">Testimony</option>
                 <option value="Praise Report">Praise Report</option>
-                <option value="Prayer Encouragement">Prayer Request</option>
+                <option value="Prayer Request">Prayer Request</option>
                 <option value="Answered Prayer">Answered Prayer</option>
                 <option value="Video Testimony">Video Testimony</option>
               </select>
