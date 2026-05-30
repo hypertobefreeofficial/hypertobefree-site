@@ -72,14 +72,13 @@ export default function JourneyPage() {
             button="Share Now"
           />
 
-          <JourneyCard
+<JourneyCard
   icon={<Map className="h-6 w-6" />}
   title="Testimony Map"
   text="See where testimonies, prayer requests, videos, and answered prayers are being shared from."
   href="/map"
   button="Open Map"
 />
-          />
         </section>
 
         <section className="rounded-[2rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-6 text-white shadow-sm">
