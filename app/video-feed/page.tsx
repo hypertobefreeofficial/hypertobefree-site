@@ -7,6 +7,7 @@ import {
   Globe2,
   HeartHandshake,
   MessageCircleHeart,
+  Play,
   Share2,
   Sparkles,
   Video,
@@ -44,7 +45,9 @@ export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryRow[]>([]);
-  const [reactionCounts, setReactionCounts] = useState<Record<string, ReactionCounts>>({});
+  const [reactionCounts, setReactionCounts] = useState<
+    Record<string, ReactionCounts>
+  >({});
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
 
@@ -82,7 +85,6 @@ export default function VideoFeedPage() {
 
       const videoStories = (data as StoryRow[]) ?? [];
       setStories(videoStories);
-
       await loadReactionCounts(videoStories.map((story) => story.id));
 
       setCheckingUser(false);
@@ -293,11 +295,12 @@ export default function VideoFeedPage() {
             return (
               <article
                 key={story.id}
-                className="relative flex h-screen snap-start items-center justify-center bg-black"
+                className="relative flex h-screen snap-start items-center justify-center overflow-hidden bg-black"
               >
                 <ReelVideoPlayer
                   videoSource={videoSource}
                   poster={story.thumbnail_url}
+                  onVideoError={(errorMessage) => setMessage(errorMessage)}
                 />
 
                 <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
@@ -330,7 +333,7 @@ export default function VideoFeedPage() {
                   />
                 </div>
 
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-5 pb-10 pr-20">
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-5 pb-10 pr-20">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
                     <Globe2 className="h-4 w-4" />
                     {story.location || "HTBF Community"}
@@ -362,41 +365,91 @@ export default function VideoFeedPage() {
 function ReelVideoPlayer({
   videoSource,
   poster,
+  onVideoError,
 }: {
   videoSource: string;
   poster: string | null;
+  onVideoError: (message: string) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [paused, setPaused] = useState(true);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    setPaused(true);
     video.muted = true;
+    video.load();
 
     const playPromise = video.play();
 
     if (playPromise) {
-      playPromise.catch(() => {
-        // Browser blocked autoplay. User can still press play with controls.
-      });
+      playPromise
+        .then(() => {
+          setPaused(false);
+        })
+        .catch(() => {
+          setPaused(true);
+        });
     }
   }, [videoSource]);
 
+  function togglePlay() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      video
+        .play()
+        .then(() => {
+          setPaused(false);
+        })
+        .catch(() => {
+          onVideoError(
+            "Video could not play. Try uploading an MP4/H.264 video or test the Supabase video URL directly."
+          );
+        });
+    } else {
+      video.pause();
+      setPaused(true);
+    }
+  }
+
   return (
-    <video
-      ref={videoRef}
-      key={videoSource}
-      src={videoSource}
-      poster={poster || undefined}
-      controls
-      autoPlay
-      muted
-      loop
-      playsInline
-      preload="auto"
-      className="h-full w-full object-contain"
-    />
+    <button
+      type="button"
+      onClick={togglePlay}
+      className="relative h-full w-full bg-black"
+      aria-label="Play or pause video"
+    >
+      <video
+        ref={videoRef}
+        src={videoSource}
+        poster={poster || undefined}
+        muted
+        autoPlay
+        loop
+        playsInline
+        preload="auto"
+        className="h-full w-full object-contain"
+        onPlay={() => setPaused(false)}
+        onPause={() => setPaused(true)}
+        onError={() =>
+          onVideoError(
+            "Video failed to load. Check the Supabase video URL or video format."
+          )
+        }
+      />
+
+      {paused && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/85 text-slate-900 shadow-lg">
+            <Play className="h-7 w-7 fill-slate-900" />
+          </div>
+        </div>
+      )}
+    </button>
   );
 }
 
