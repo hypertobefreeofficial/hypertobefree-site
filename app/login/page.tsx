@@ -157,7 +157,7 @@ export default function LoginPage() {
             privacy_accepted_at: now,
             guidelines_accepted_at: now,
           },
-          emailRedirectTo: `${window.location.origin}/feed`,
+       emailRedirectTo: `${window.location.origin}/profile-setup`,
         },
       });
 
