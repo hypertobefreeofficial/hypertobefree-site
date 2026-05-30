@@ -10,6 +10,7 @@ import {
   MessageCircleHeart,
   Sparkles,
   CheckCircle2,
+  Share2,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -422,6 +423,53 @@ export default function FreedomFeed({
     setReactionMessage("Prayer request marked as answered. God did it.");
   }
 
+  async function shareStory(story: ApprovedStory) {
+    setReactionMessage("");
+
+    const storyType = story.story_type || "HTBF Story";
+
+    let shareText = "See this story on Hyper to Be Free.";
+
+    if (isPrayerStory(story) && story.prayer_status === "answered") {
+      shareText = story.answered_text
+        ? `God did it. Read this answered prayer: ${story.answered_text.slice(
+            0,
+            140
+          )}`
+        : "God did it. Read this answered prayer on Hyper to Be Free.";
+    } else if (isPrayerStory(story)) {
+      shareText = story.story_text
+        ? `Stand in prayer with this request: ${story.story_text.slice(0, 140)}`
+        : "Stand in prayer with this request on Hyper to Be Free.";
+    } else if (story.signed_video_url || story.video_url) {
+      shareText = story.story_text
+        ? `Watch this video testimony: ${story.story_text.slice(0, 140)}`
+        : "Watch this video testimony on Hyper to Be Free.";
+    } else if (story.story_text) {
+      shareText = story.story_text.slice(0, 140);
+    }
+
+    const shareUrl = `${window.location.origin}/feed`;
+
+    const shareData = {
+      title: `Hyper to Be Free - ${storyType}`,
+      text: shareText,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+      setReactionMessage("Share link copied.");
+    } catch (error) {
+      console.error("Share failed:", error);
+    }
+  }
+
   const feedLabel =
     lockedFilter && defaultFilter === "videos"
       ? "Video Testimonies"
@@ -540,15 +588,15 @@ export default function FreedomFeed({
                   className="relative h-48 w-32 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-900 text-left shadow-sm"
                 >
                   {story.signed_video_url ? (
-             <video
-  src={story.signed_video_url}
-  autoPlay
-  muted
-  loop
-  playsInline
-  preload="metadata"
-  className="h-full w-full object-cover opacity-80"
-/>
+                    <video
+                      src={story.signed_video_url}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover opacity-80"
+                    />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#082f63] to-[#0b63ce]">
                       <Play className="h-9 w-9 fill-white text-white" />
@@ -700,18 +748,18 @@ export default function FreedomFeed({
 
                   {story.signed_video_url && (
                     <div className="bg-black">
-                  <video
-  controls
-  autoPlay
-  muted
-  loop
-  playsInline
-  preload="metadata"
-  className="max-h-[560px] w-full bg-black object-contain"
-  src={story.signed_video_url}
->
-  Your browser does not support the video tag.
-</video>
+                      <video
+                        controls
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="metadata"
+                        className="max-h-[560px] w-full bg-black object-contain"
+                        src={story.signed_video_url}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
                     </div>
                   )}
 
@@ -754,6 +802,14 @@ export default function FreedomFeed({
                                   : `${story.reaction_counts.praying} people prayed with this request.`}
                               </p>
                             )}
+
+                            <button
+                              onClick={() => shareStory(story)}
+                              className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 ring-1 ring-emerald-100 transition hover:bg-emerald-100"
+                            >
+                              <Share2 className="h-4 w-4" />
+                              Share Answered Prayer
+                            </button>
                           </div>
                         ) : (
                           <>
@@ -789,6 +845,14 @@ export default function FreedomFeed({
                                 }
                               />
 
+                              <button
+                                onClick={() => shareStory(story)}
+                                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-50 px-4 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
+                              >
+                                <Share2 className="h-4 w-4" />
+                                Share
+                              </button>
+
                               {originalPoster && (
                                 <button
                                   onClick={() => markPrayerAnswered(story.id)}
@@ -813,7 +877,7 @@ export default function FreedomFeed({
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-4 gap-2">
                           <ReactionButton
                             active={story.user_reactions.includes("amen")}
                             label="Amen"
@@ -835,6 +899,14 @@ export default function FreedomFeed({
                               toggleReaction(story.id, "encouraged")
                             }
                           />
+
+                          <button
+                            onClick={() => shareStory(story)}
+                            className="inline-flex items-center justify-center gap-1 rounded-2xl bg-slate-50 px-2 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
+                          >
+                            <Share2 className="h-4 w-4" />
+                            Share
+                          </button>
                         </div>
                       </>
                     )}
