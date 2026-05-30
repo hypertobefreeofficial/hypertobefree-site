@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import FreedomFeed from "../../components/FreedomFeed";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 
@@ -8,13 +7,9 @@ export default function PrayerPage() {
     <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link
-            href="/feed"
-            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Feed
-          </Link>
+       <div className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]">
+  HTBF
+</div>
 
           <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
             Prayer
