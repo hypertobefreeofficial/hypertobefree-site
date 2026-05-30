@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Globe2,
   HeartHandshake,
+  Play,
   Search,
   Sparkles,
   Video,
@@ -285,32 +286,6 @@ export default function SearchPage() {
                 const isLarge = index % 7 === 0;
                 const videoSource = getVideoSource(story.video_url);
 
-                if (videoSource) {
-                  return (
-                    <div
-                      key={story.id}
-                      className={`relative overflow-hidden rounded-2xl bg-black shadow-sm ring-1 ring-slate-200 ${
-                        isLarge ? "col-span-2 row-span-2 min-h-64" : "min-h-32"
-                      }`}
-                    >
-                      <video
-                        src={videoSource}
-                        preload="metadata"
-                        controls
-                        playsInline
-                        className="h-full w-full object-cover"
-                      />
-
-                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white">
-                        <div className="flex items-center gap-1 text-[11px] font-bold">
-                          <Video className="h-3.5 w-3.5" />
-                          {story.location || "Video testimony"}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
                 return (
                   <Link
                     key={story.id}
@@ -319,46 +294,86 @@ export default function SearchPage() {
                       isLarge ? "col-span-2 row-span-2 min-h-64" : "min-h-32"
                     }`}
                   >
-                    <div className="flex h-full min-h-32 flex-col justify-between bg-gradient-to-br from-blue-50 via-white to-amber-50 p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-black text-[#0b63ce] shadow-sm">
-                          {getInitial(story)}
-                        </div>
+                    {videoSource ? (
+                      <div className="relative flex h-full min-h-32 items-center justify-center overflow-hidden bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#f5b84b]">
+                        <video
+                          src={videoSource}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-90"
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none";
+                          }}
+                        />
 
-                        {story.status === "answered" ||
-                        story.story_type?.toLowerCase().includes("answered") ? (
-                          <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                            Answered
+                        <div className="relative z-10 flex flex-col items-center justify-center px-3 text-center text-white">
+                          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/25 backdrop-blur">
+                            <Play className="h-6 w-6 fill-white" />
                           </div>
-                        ) : null}
-                      </div>
 
-                      <div>
-                        <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                          {getStoryType(story)}
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/85">
+                            Video Testimony
+                          </div>
+
+                          <div className="mt-1 text-sm font-black leading-tight">
+                            {getCardTitle(story)}
+                          </div>
                         </div>
 
-                        <p
-                          className={`font-black leading-tight text-[#062a57] ${
-                            isLarge ? "text-xl" : "text-xs"
-                          }`}
-                        >
-                          {getCardTitle(story)}
-                        </p>
+                        <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/75 to-transparent p-3 text-white">
+                          <div className="flex items-center gap-1 text-[11px] font-bold">
+                            <Video className="h-3.5 w-3.5" />
+                            {story.location || "Video testimony"}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex h-full min-h-32 flex-col justify-between bg-gradient-to-br from-blue-50 via-white to-amber-50 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-black text-[#0b63ce] shadow-sm">
+                            {getInitial(story)}
+                          </div>
 
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white opacity-0 transition group-hover:opacity-100">
-                      <div className="flex items-center gap-1 text-[11px] font-bold">
-                        {getStoryType(story).toLowerCase().includes("prayer") ? (
-                          <HeartHandshake className="h-3.5 w-3.5" />
-                        ) : (
-                          <Globe2 className="h-3.5 w-3.5" />
-                        )}
+                          {story.status === "answered" ||
+                          story.story_type?.toLowerCase().includes("answered") ? (
+                            <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                              Answered
+                            </div>
+                          ) : null}
+                        </div>
 
-                        {story.location || "HTBF Community"}
+                        <div>
+                          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                            {getStoryType(story)}
+                          </div>
+
+                          <p
+                            className={`font-black leading-tight text-[#062a57] ${
+                              isLarge ? "text-xl" : "text-xs"
+                            }`}
+                          >
+                            {getCardTitle(story)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {!videoSource && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white opacity-0 transition group-hover:opacity-100">
+                        <div className="flex items-center gap-1 text-[11px] font-bold">
+                          {getStoryType(story)
+                            .toLowerCase()
+                            .includes("prayer") ? (
+                            <HeartHandshake className="h-3.5 w-3.5" />
+                          ) : (
+                            <Globe2 className="h-3.5 w-3.5" />
+                          )}
+
+                          {story.location || "HTBF Community"}
+                        </div>
+                      </div>
+                    )}
                   </Link>
                 );
               })}
