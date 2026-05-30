@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   Globe2,
+  Heart,
   HeartHandshake,
   Play,
   Search,
+  Share2,
+  Smile,
   Sparkles,
   Video,
 } from "lucide-react";
@@ -372,15 +375,13 @@ function VideoExploreTile({
 }) {
   return (
     <div
-      className={`${
+      className={`flex flex-col gap-1.5 ${
         isLarge ? "col-span-2 row-span-2" : ""
-      } flex flex-col gap-2`}
+      }`}
     >
       <Link
         href={`/video-feed?story=${storyId}&from=search`}
-        className={`group relative block overflow-hidden rounded-[22px] bg-black shadow-sm ring-1 ring-slate-200 ${
-          isLarge ? "aspect-square" : "aspect-square"
-        }`}
+        className="relative block aspect-square overflow-hidden bg-black shadow-sm ring-1 ring-slate-200"
       >
         {thumbnailUrl ? (
           <img
@@ -392,97 +393,69 @@ function VideoExploreTile({
           <video
             src={videoSource}
             muted
+            autoPlay
+            loop
             playsInline
-            preload="metadata"
-            className="absolute inset-0 h-full w-full object-cover"
+            preload="auto"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
           />
         )}
 
-        {/* subtle dark gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
 
-        {/* small play button bottom right */}
-        <div className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm">
-          <Play className="h-4 w-4 fill-slate-900 text-slate-900" />
-        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
+          <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
+            <Video className="h-3 w-3" />
+            {location}
+          </div>
 
-        {/* location + title */}
-        <div className="absolute bottom-3 left-3 right-12 text-white">
-          {location ? (
-            <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-white/90">
-              <MapPin className="h-3 w-3" />
-              <span className="truncate">{location}</span>
-            </div>
-          ) : null}
-
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/85">
+          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
             Video Testimony
           </div>
 
-          <div className="line-clamp-2 text-sm font-semibold leading-tight text-white">
+          <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
             {title}
           </div>
         </div>
+
+        <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
+          <Play className="h-3 w-3 fill-white" />
+        </div>
       </Link>
 
-      {/* light action row */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-1">
         <button
           type="button"
-          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
         >
-          <Heart className="h-3.5 w-3.5" />
-          <span>Amen</span>
+          <Heart className="h-3 w-3" />
+          Amen
         </button>
 
         <button
           type="button"
-          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
         >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>Praise God</span>
+          <Sparkles className="h-3 w-3" />
+          Praise
         </button>
 
         <button
           type="button"
-          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
         >
-          <Smile className="h-3.5 w-3.5" />
-          <span>Encouraged</span>
+          <Smile className="h-3 w-3" />
+          Encouraged
         </button>
 
         <button
           type="button"
-          className="flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
         >
-          <Share2 className="h-3.5 w-3.5" />
-          <span>Share</span>
+          <Share2 className="h-3 w-3" />
+          Share
         </button>
       </div>
     </div>
-  );
-}
-
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
-
-      <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
-        <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
-          <Video className="h-3 w-3" />
-          {location}
-        </div>
-
-        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
-          Video Testimony
-        </div>
-
-        <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
-          {title}
-        </div>
-      </div>
-
-      <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
-        <Play className="h-3 w-3 fill-white" />
-      </div>
-    </Link>
   );
 }
