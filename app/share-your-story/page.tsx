@@ -4,12 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
-  Lock,
-  MapPin,
   Send,
   ShieldCheck,
   Sparkles,
-  UserCircle,
   Video,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
@@ -39,7 +36,7 @@ export default function ShareYourStoryPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadProfile() {
+    async function loadPage() {
       setLoading(true);
       setMessage("");
 
@@ -53,6 +50,25 @@ export default function ShareYourStoryPage() {
       }
 
       setUserId(user.id);
+
+      const searchParams = new URLSearchParams(window.location.search);
+      const typeParam = searchParams.get("type");
+
+      if (typeParam === "prayer") {
+        setStoryType("Prayer Request");
+      }
+
+      if (typeParam === "video") {
+        setStoryType("Video Testimony");
+      }
+
+      if (typeParam === "praise") {
+        setStoryType("Praise Report");
+      }
+
+      if (typeParam === "answered") {
+        setStoryType("Answered Prayer");
+      }
 
       const { data, error } = await supabase
         .from("profiles")
@@ -70,12 +86,12 @@ export default function ShareYourStoryPage() {
 
       const loadedProfile = data as ProfileRow | null;
 
-      if (
-        !loadedProfile ||
-        !loadedProfile.profile_completed ||
-        !loadedProfile.display_name ||
-        !loadedProfile.username
-      ) {
+      if (!loadedProfile) {
+        window.location.href = "/account";
+        return;
+      }
+
+      if (!loadedProfile.display_name || !loadedProfile.username) {
         window.location.href = "/account";
         return;
       }
@@ -84,7 +100,7 @@ export default function ShareYourStoryPage() {
       setLoading(false);
     }
 
-    loadProfile();
+    loadPage();
   }, []);
 
   function getPostingName() {
@@ -132,12 +148,7 @@ export default function ShareYourStoryPage() {
   async function submitStory() {
     setMessage("");
 
-    if (!userId) {
-      setMessage("Please sign in again.");
-      return;
-    }
-
-    if (!profile) {
+    if (!userId || !profile) {
       setMessage("Please finish your account profile before sharing.");
       return;
     }
@@ -156,8 +167,12 @@ export default function ShareYourStoryPage() {
 
       const { error } = await supabase.from("stories").insert({
         user_id: userId,
+
+        // Locked identity from Account Settings.
+        // Users cannot change these from this page.
         name: getPostingName(),
         location: getPostingLocation(),
+
         story_type: storyType,
         story_text: cleanStoryText || null,
         video_url: videoPath,
@@ -170,6 +185,7 @@ export default function ShareYourStoryPage() {
         return;
       }
 
+      setStoryType("Testimony");
       setStoryText("");
       setVideoFile(null);
       setMessage("Your story was submitted for review.");
@@ -191,9 +207,6 @@ export default function ShareYourStoryPage() {
       </main>
     );
   }
-
-  const postingName = getPostingName();
-  const postingLocation = getPostingLocation();
 
   return (
     <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
@@ -229,37 +242,11 @@ export default function ShareYourStoryPage() {
             or video testimony.
           </p>
 
-          <div className="mt-5 rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-slate-600 ring-1 ring-slate-100">
-            <div className="flex flex-wrap items-center gap-2">
-              <UserCircle className="h-4 w-4 text-[#0b63ce]" />
-
-              <span>
-                Posting as{" "}
-                <span className="font-black text-[#062a57]">
-                  {postingName}
-                </span>
-              </span>
-
-              <span className="text-slate-300">•</span>
-
-              <span>@{profile?.username}</span>
-
-              {postingLocation && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-4 w-4" />
-                    {postingLocation}
-                  </span>
-                </>
-              )}
-
-              <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500">
-                <Lock className="h-3.5 w-3.5" />
-                Profile locked
-              </span>
-            </div>
-          </div>
+          {profile && (
+            <p className="mt-4 text-sm font-semibold text-slate-500">
+              Posting as {getPostingName()} · @{profile.username}
+            </p>
+          )}
 
           {message && (
             <div
