@@ -540,13 +540,15 @@ export default function FreedomFeed({
                   className="relative h-48 w-32 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-900 text-left shadow-sm"
                 >
                   {story.signed_video_url ? (
-                    <video
-                      src={story.signed_video_url}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="h-full w-full object-cover opacity-80"
-                    />
+             <video
+  src={story.signed_video_url}
+  autoPlay
+  muted
+  loop
+  playsInline
+  preload="metadata"
+  className="h-full w-full object-cover opacity-80"
+/>
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#082f63] to-[#0b63ce]">
                       <Play className="h-9 w-9 fill-white text-white" />
@@ -698,15 +700,18 @@ export default function FreedomFeed({
 
                   {story.signed_video_url && (
                     <div className="bg-black">
-                      <video
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="max-h-[560px] w-full bg-black object-contain"
-                        src={story.signed_video_url}
-                      >
-                        Your browser does not support the video tag.
-                      </video>
+                  <video
+  controls
+  autoPlay
+  muted
+  loop
+  playsInline
+  preload="metadata"
+  className="max-h-[560px] w-full bg-black object-contain"
+  src={story.signed_video_url}
+>
+  Your browser does not support the video tag.
+</video>
                     </div>
                   )}
 
