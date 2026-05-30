@@ -294,24 +294,28 @@ export default function SearchPage() {
                       isLarge ? "col-span-2 row-span-2 min-h-64" : "min-h-32"
                     }`}
                   >
-                    {videoSource ? (
-                      <div className="relative flex h-full min-h-32 items-center justify-center overflow-hidden bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#f5b84b]">
-                        <video
-                          src={videoSource}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          controls={isLarge}
-                          className="absolute inset-0 h-full w-full object-cover"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none";
-                          }}
-                        />
+                   {videoSource ? (
+  <div
+    className={`relative overflow-hidden rounded-2xl bg-black shadow-sm ring-1 ring-slate-200 ${
+      isLarge ? "col-span-2 row-span-2 min-h-64" : "min-h-32"
+    }`}
+  >
+    <video
+      src={videoSource}
+      preload="metadata"
+      controls
+      playsInline
+      className="h-full w-full object-cover"
+    />
 
-                        <div className="relative z-10 flex flex-col items-center justify-center px-3 text-center text-white">
-                          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur">
-                            <Play className="h-6 w-6 fill-white" />
-                          </div>
+    <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white">
+      <div className="flex items-center gap-1 text-[11px] font-bold">
+        <Video className="h-3.5 w-3.5" />
+        {story.location || "Video testimony"}
+      </div>
+    </div>
+  </div>
+) : (
 
                           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
                             Video Testimony
