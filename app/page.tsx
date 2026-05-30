@@ -9,8 +9,9 @@ import {
   Sparkles,
   Send,
   Search,
+  CheckCircle2,
+  Flame,
 } from "lucide-react";
-import FreedomFeed from "../components/FreedomFeed";
 
 export default function Home() {
   const categories = [
@@ -40,7 +41,7 @@ export default function Home() {
                 HTBF
               </div>
               <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Hyper to Be Free
+                HYPER TO BE FREE
               </div>
             </div>
           </div>
@@ -49,8 +50,8 @@ export default function Home() {
             <a className="hover:text-[#0b63ce]" href="#">
               Home
             </a>
-            <a className="hover:text-[#0b63ce]" href="#stories">
-              Stories
+            <a className="hover:text-[#0b63ce]" href="#how-it-works">
+              How It Works
             </a>
             <a className="hover:text-[#0b63ce]" href="#praise">
               Praise Reports
@@ -65,10 +66,10 @@ export default function Home() {
 
           <div className="flex items-center gap-3">
             <Link
-              href="/account"
+              href="/login"
               className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block"
             >
-              My Account
+              Sign In
             </Link>
 
             <Link
@@ -111,12 +112,12 @@ export default function Home() {
                   Share Your Story <Send className="h-4 w-4" />
                 </Link>
 
-                <a
-                  href="#stories"
+                <Link
+                  href="/feed"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
                 >
-                  Explore Testimonies <Search className="h-4 w-4" />
-                </a>
+                  Enter Freedom Feed <Search className="h-4 w-4" />
+                </Link>
               </div>
             </div>
 
@@ -137,10 +138,10 @@ export default function Home() {
 
                   <div>
                     <div className="text-sm font-black text-slate-900">
-                      Latest Video Story
+                      Video Testimonies
                     </div>
                     <div className="text-xs font-medium text-slate-500">
-                      Freedom • Testimony
+                      Real stories. Real hope.
                     </div>
                   </div>
                 </div>
@@ -155,7 +156,7 @@ export default function Home() {
                     Amen
                   </span>
                   <span className="rounded-full bg-slate-100 px-3 py-1">
-                    Praise God
+                    Praying
                   </span>
                   <span className="rounded-full bg-slate-100 px-3 py-1">
                     Encouraged
@@ -166,23 +167,23 @@ export default function Home() {
               <div className="absolute bottom-2 left-10 w-[300px] rounded-3xl border border-white/70 bg-white/90 p-4 shadow-xl shadow-blue-950/10 backdrop-blur-xl">
                 <div className="mb-3 flex items-center justify-between">
                   <div className="text-sm font-black text-slate-900">
-                    From Around the World
+                    Global Encouragement
                   </div>
                   <Globe2 className="h-4 w-4 text-[#0b63ce]" />
                 </div>
 
                 <div className="space-y-2 text-sm text-slate-600">
                   <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
-                    <span>USA</span>
-                    <span>Praise Report</span>
+                    <span>Testimonies</span>
+                    <span>Freedom</span>
                   </div>
                   <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
-                    <span>Nigeria</span>
-                    <span>Testimony</span>
+                    <span>Prayer Chains</span>
+                    <span>Support</span>
                   </div>
                   <div className="flex justify-between rounded-2xl bg-slate-50 px-3 py-2">
-                    <span>Philippines</span>
-                    <span>Prayer</span>
+                    <span>Answered Prayers</span>
+                    <span>God Did It</span>
                   </div>
                 </div>
               </div>
@@ -190,7 +191,68 @@ export default function Home() {
           </div>
         </section>
 
-        <FreedomFeed />
+        <section id="how-it-works" className="mx-auto max-w-7xl px-6 py-14">
+          <div className="rounded-[2.5rem] border border-slate-200 bg-white p-8 shadow-sm md:p-12">
+            <div className="grid gap-8 md:grid-cols-[0.9fr_1.1fr] md:items-center">
+              <div>
+                <div className="text-sm font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
+                  How HTBF Works
+                </div>
+
+                <h2 className="mt-2 text-3xl font-black tracking-tight text-[#062a57] md:text-4xl">
+                  A place for testimonies, prayer chains, and answered prayer.
+                </h2>
+
+                <p className="mt-5 text-lg leading-8 text-slate-600">
+                  Hyper to Be Free is not built around likes or arguments. It is
+                  built around encouragement, testimonies, prayer support, and
+                  sharing what God is doing in people’s lives.
+                </p>
+
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    href="/feed"
+                    className="inline-flex justify-center rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
+                  >
+                    Enter Freedom Feed
+                  </Link>
+
+                  <Link
+                    href="/login"
+                    className="inline-flex justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-black text-[#082f63] hover:bg-slate-50"
+                  >
+                    Sign In
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  ["Testimonies", "Share what God has done in your life."],
+                  ["Prayer Chains", "Let others stand with you in prayer."],
+                  [
+                    "God Did It",
+                    "Mark answered prayers and share what happened.",
+                  ],
+                  [
+                    "Encouragement",
+                    "Read stories that bring hope, strength, and peace.",
+                  ],
+                ].map(([title, body]) => (
+                  <div
+                    key={title}
+                    className="rounded-3xl bg-slate-50 p-5 ring-1 ring-slate-100"
+                  >
+                    <div className="font-black text-[#062a57]">{title}</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section id="praise" className="mx-auto max-w-7xl px-6 py-14">
           <div className="rounded-[2.5rem] bg-[#082f63] p-8 text-white shadow-2xl shadow-blue-950/10 md:p-12">
@@ -199,9 +261,11 @@ export default function Home() {
                 <div className="mb-4 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-blue-100">
                   Praise Reports
                 </div>
+
                 <h2 className="text-4xl font-black tracking-tight">
                   Small reminders. Real hope.
                 </h2>
+
                 <p className="mt-5 text-lg leading-8 text-blue-100">
                   Short posts that help people see encouragement throughout the
                   day — answered prayer, renewed peace, a door opening, a heart
@@ -213,7 +277,10 @@ export default function Home() {
                 {[
                   ["Answered Prayer", "God made a way when I could not see one."],
                   ["Healing", "Thankful for renewed strength and peace today."],
-                  ["Restoration", "God is restoring something I thought was lost."],
+                  [
+                    "Restoration",
+                    "God is restoring something I thought was lost.",
+                  ],
                   ["Peace", "I woke up today with a calm heart."],
                 ].map(([title, body]) => (
                   <div
@@ -238,20 +305,20 @@ export default function Home() {
           <div className="grid gap-6 md:grid-cols-3">
             <InfoCard
               icon={<HeartHandshake className="h-9 w-9 text-[#0b63ce]" />}
-              title="Encouraging responses"
-              text="Simple response options keep the focus on prayer, praise, and encouragement."
+              title="Prayer chains"
+              text="Users can let others know they are praying and stand with prayer requests in real time."
             />
 
             <InfoCard
-              icon={<MessageCircleHeart className="h-9 w-9 text-[#0b63ce]" />}
-              title="Prayer support"
-              text="A quiet place for people to share prayer needs and receive encouragement."
+              icon={<CheckCircle2 className="h-9 w-9 text-emerald-600" />}
+              title="Answered prayers"
+              text="The original poster can mark a prayer request answered and share what God did."
             />
 
             <InfoCard
               icon={<ShieldCheck className="h-9 w-9 text-[#0b63ce]" />}
               title="Protected space"
-              text="Reporting and review tools help keep the community focused and safe."
+              text="Review and moderation tools help keep the community focused, safe, and encouraging."
             />
           </div>
         </section>
@@ -264,19 +331,20 @@ export default function Home() {
                   Browse
                 </div>
                 <h2 className="mt-2 text-3xl font-black tracking-tight text-[#062a57]">
-                  Find stories by category
+                  Find encouragement by category
                 </h2>
               </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
               {categories.map((cat) => (
-                <button
+                <Link
                   key={cat}
+                  href="/feed"
                   className="rounded-full border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#0b63ce]"
                 >
                   {cat}
-                </button>
+                </Link>
               ))}
             </div>
           </div>
@@ -288,6 +356,7 @@ export default function Home() {
               <h2 className="text-4xl font-black tracking-tight text-[#062a57]">
                 Your story may be the encouragement someone else needs today.
               </h2>
+
               <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
                 Whether your story is big or small, recent or years in the
                 making, it matters. Share what God has done, read stories from
@@ -312,16 +381,17 @@ export default function Home() {
                     className="h-full w-full object-contain p-1"
                   />
                 </div>
-               <div>
-  <div className="text-xl font-black tracking-tight text-[#082f63]">
-    HTBF
-  </div>
-  <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-    HYPER TO BE FREE
-  </div>
-</div>
+
+                <div>
+                  <div className="text-xl font-black tracking-tight text-[#082f63]">
+                    HTBF
+                  </div>
+                  <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                    HYPER TO BE FREE
+                  </div>
                 </div>
-         
+              </div>
+
               <p className="leading-7 text-slate-600">
                 Inspired by a dream of a place filled with people from all over
                 the world sharing the good things God has done in their lives.
