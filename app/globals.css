@@ -21,3 +21,17 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+.input-style {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(248 250 252);
+  padding: 0.75rem 1rem;
+  outline: none;
+}
+
+.input-style:focus {
+  border-color: rgb(191 219 254);
+  background: white;
+  box-shadow: 0 0 0 4px rgb(239 246 255);
+}
