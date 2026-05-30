@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, LogOut, UserCircle } from "lucide-react";
+import { LogOut, UserCircle } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import FreedomFeed from "../../components/FreedomFeed";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
@@ -47,13 +47,9 @@ export default function FeedPage() {
     <main className="min-h-screen bg-[#f8fbff] text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            HTBF
-          </Link>
+      <div className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]">
+  HTBF
+</div>
 
           <div className="flex items-center gap-3">
             <Link
