@@ -1,104 +1,88 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
-  Home,
-  Video,
   HeartHandshake,
+  Home,
+  Search,
   Sparkles,
   UserCircle,
+  Video,
 } from "lucide-react";
-import { usePathname } from "next/navigation";
-
-const navItems = [
-  {
-    label: "Home",
-    href: "/feed",
-    icon: Home,
-  },
-  {
-    label: "Videos",
-    href: "/videos",
-    icon: Video,
-  },
-  {
-    label: "Prayer",
-    href: "/prayer",
-    icon: HeartHandshake,
-  },
-  {
-    label: "Journey",
-    href: "/journey",
-    icon: Sparkles,
-  },
-  {
-    label: "Profile",
-    href: "/account",
-    icon: UserCircle,
-  },
-];
-
-const appRoutes = [
-  "/feed",
-  "/videos",
-  "/share-your-story",
-  "/prayer",
-  "/answered",
-  "/journey",
-  "/map",
-  "/account",
-];
 
 export default function LoggedInBottomNav() {
   const pathname = usePathname();
 
-  const shouldShow = appRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-
-  if (!shouldShow) {
-    return null;
-  }
-
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-[9999] border-t border-slate-200 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.10)]">
-      <div className="mx-auto grid max-w-3xl grid-cols-5 px-1 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2">
-        {navItems.map((item) => {
-          const Icon = item.icon;
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur-xl">
+      <div className="mx-auto grid max-w-3xl grid-cols-6 px-2 py-2">
+        <NavItem
+          href="/feed"
+          label="Home"
+          active={pathname === "/feed"}
+          icon={<Home />}
+        />
 
-          const active =
-            pathname === item.href ||
-            (item.href !== "/feed" && pathname.startsWith(item.href));
+        <NavItem
+          href="/videos"
+          label="Videos"
+          active={pathname === "/videos"}
+          icon={<Video />}
+        />
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5"
-            >
-              <div
-                className={`flex h-9 w-12 items-center justify-center rounded-2xl transition ${
-                  active ? "bg-blue-50" : "bg-transparent"
-                }`}
-              >
-                <Icon
-                  className={`h-6 w-6 stroke-[2.4] ${
-                    active ? "text-[#0b63ce]" : "text-slate-600"
-                  }`}
-                />
-              </div>
+        <NavItem
+          href="/prayer"
+          label="Prayer"
+          active={pathname === "/prayer"}
+          icon={<HeartHandshake />}
+        />
 
-              <span
-                className={`text-[11px] font-black leading-none ${
-                  active ? "text-[#0b63ce]" : "text-slate-600"
-                }`}
-              >
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+        <NavItem
+          href="/journey"
+          label="Journey"
+          active={pathname === "/journey"}
+          icon={<Sparkles />}
+        />
+
+        <NavItem
+          href="/search"
+          label="Search"
+          active={pathname === "/search"}
+          icon={<Search />}
+        />
+
+        <NavItem
+          href="/account"
+          label="Profile"
+          active={pathname === "/account"}
+          icon={<UserCircle />}
+        />
       </div>
     </nav>
+  );
+}
+
+function NavItem({
+  href,
+  label,
+  icon,
+  active = false,
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  active?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-black ${
+        active ? "text-[#0b63ce]" : "text-slate-500 hover:bg-slate-50"
+      }`}
+    >
+      <span className="[&>svg]:h-5 [&>svg]:w-5">{icon}</span>
+      <span className="mt-1">{label}</span>
+    </Link>
   );
 }
