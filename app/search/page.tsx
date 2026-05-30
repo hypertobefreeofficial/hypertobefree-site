@@ -21,6 +21,7 @@ type StoryRow = {
   story_type: string | null;
   story_text: string | null;
   video_url: string | null;
+  thumbnail_url?: string | null;
   status: string | null;
   created_at?: string | null;
 };
@@ -198,8 +199,8 @@ export default function SearchPage() {
 
   function getCardTitle(story: StoryRow) {
     if (story.story_text) {
-      return story.story_text.length > 70
-        ? `${story.story_text.slice(0, 70)}...`
+      return story.story_text.length > 65
+        ? `${story.story_text.slice(0, 65)}...`
         : story.story_text;
     }
 
@@ -230,9 +231,9 @@ export default function SearchPage() {
 
   return (
     <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
-      <div className="mx-auto max-w-3xl px-4 pt-5">
-        <section className="sticky top-0 z-40 -mx-4 bg-[#f8fbff]/95 px-4 pb-4 pt-3 backdrop-blur-xl">
-          <div className="flex items-center gap-3">
+      <div className="mx-auto max-w-3xl px-2 pt-4">
+        <section className="sticky top-0 z-40 -mx-2 bg-[#f8fbff]/95 px-2 pb-3 pt-2 backdrop-blur-xl">
+          <div className="flex items-center gap-2">
             <div className="flex min-h-12 flex-1 items-center rounded-full bg-slate-100 px-4 ring-1 ring-slate-200">
               <Search className="h-5 w-5 text-slate-500" />
 
@@ -252,7 +253,7 @@ export default function SearchPage() {
             </Link>
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {categories.map((category) => (
               <button
                 key={category}
@@ -275,105 +276,68 @@ export default function SearchPage() {
           </div>
         )}
 
-        <section className="mt-3">
+        <section className="mt-2">
           {filteredStories.length === 0 ? (
             <div className="rounded-[2rem] bg-white p-6 text-slate-600 shadow-sm ring-1 ring-slate-200">
               No results yet. Try another search or category.
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 gap-1">
               {filteredStories.map((story, index) => {
-                const isLarge = index % 7 === 0;
                 const videoSource = getVideoSource(story.video_url);
+                const isLarge = index % 9 === 0;
+
+                if (videoSource) {
+                  return (
+                    <VideoExploreCard
+                      key={story.id}
+                      videoSource={videoSource}
+                      fallbackThumbnail={story.thumbnail_url || null}
+                      title={getCardTitle(story)}
+                      location={story.location || "Video testimony"}
+                      isLarge={isLarge}
+                    />
+                  );
+                }
 
                 return (
                   <Link
                     key={story.id}
                     href="/feed"
-                    className={`group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 ${
-                      isLarge ? "col-span-2 row-span-2 min-h-64" : "min-h-32"
+                    className={`relative overflow-hidden bg-white shadow-sm ring-1 ring-slate-200 ${
+                      isLarge ? "col-span-2 row-span-2 aspect-square" : "aspect-square"
                     }`}
                   >
-                    {videoSource ? (
-                      <div className="relative flex h-full min-h-32 items-center justify-center overflow-hidden bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#f5b84b]">
-                        <video
-                          src={videoSource}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-90"
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none";
-                          }}
-                        />
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-amber-50" />
 
-                        <div className="relative z-10 flex flex-col items-center justify-center px-3 text-center text-white">
-                          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/25 backdrop-blur">
-                            <Play className="h-6 w-6 fill-white" />
-                          </div>
+                    <div className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-xs font-black text-[#0b63ce] shadow-sm">
+                      {getInitial(story)}
+                    </div>
 
-                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/85">
-                            Video Testimony
-                          </div>
-
-                          <div className="mt-1 text-sm font-black leading-tight">
-                            {getCardTitle(story)}
-                          </div>
-                        </div>
-
-                        <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/75 to-transparent p-3 text-white">
-                          <div className="flex items-center gap-1 text-[11px] font-bold">
-                            <Video className="h-3.5 w-3.5" />
-                            {story.location || "Video testimony"}
-                          </div>
-                        </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent p-2 text-white">
+                      <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
+                        {getStoryType(story)}
                       </div>
-                    ) : (
-                      <div className="flex h-full min-h-32 flex-col justify-between bg-gradient-to-br from-blue-50 via-white to-amber-50 p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-black text-[#0b63ce] shadow-sm">
-                            {getInitial(story)}
-                          </div>
 
-                          {story.status === "answered" ||
-                          story.story_type?.toLowerCase().includes("answered") ? (
-                            <div className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                              Answered
-                            </div>
-                          ) : null}
-                        </div>
+                      <p className="mt-1 line-clamp-2 text-xs font-black leading-tight">
+                        {getCardTitle(story)}
+                      </p>
+                    </div>
 
-                        <div>
-                          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                            {getStoryType(story)}
-                          </div>
-
-                          <p
-                            className={`font-black leading-tight text-[#062a57] ${
-                              isLarge ? "text-xl" : "text-xs"
-                            }`}
-                          >
-                            {getCardTitle(story)}
-                          </p>
-                        </div>
+                    {story.status === "answered" ||
+                    story.story_type?.toLowerCase().includes("answered") ? (
+                      <div className="absolute right-2 top-2 rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black text-emerald-700">
+                        Answered
                       </div>
-                    )}
+                    ) : null}
 
-                    {!videoSource && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white opacity-0 transition group-hover:opacity-100">
-                        <div className="flex items-center gap-1 text-[11px] font-bold">
-                          {getStoryType(story)
-                            .toLowerCase()
-                            .includes("prayer") ? (
-                            <HeartHandshake className="h-3.5 w-3.5" />
-                          ) : (
-                            <Globe2 className="h-3.5 w-3.5" />
-                          )}
-
-                          {story.location || "HTBF Community"}
-                        </div>
-                      </div>
-                    )}
+                    <div className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md bg-black/45 text-white backdrop-blur">
+                      {getStoryType(story).toLowerCase().includes("prayer") ? (
+                        <HeartHandshake className="h-3.5 w-3.5" />
+                      ) : (
+                        <Globe2 className="h-3.5 w-3.5" />
+                      )}
+                    </div>
                   </Link>
                 );
               })}
@@ -384,5 +348,153 @@ export default function SearchPage() {
 
       <LoggedInBottomNav />
     </main>
+  );
+}
+
+function VideoExploreCard({
+  videoSource,
+  fallbackThumbnail,
+  title,
+  location,
+  isLarge,
+}: {
+  videoSource: string;
+  fallbackThumbnail: string | null;
+  title: string;
+  location: string;
+  isLarge: boolean;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [thumbnail, setThumbnail] = useState<string | null>(fallbackThumbnail);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
+  useEffect(() => {
+    if (fallbackThumbnail || thumbnailFailed) return;
+
+    let cancelled = false;
+    const video = document.createElement("video");
+
+    video.src = videoSource;
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+
+    const cleanup = () => {
+      video.removeAttribute("src");
+      video.load();
+    };
+
+    video.onloadedmetadata = () => {
+      try {
+        video.currentTime = Math.min(0.35, video.duration || 0.35);
+      } catch {
+        setThumbnailFailed(true);
+      }
+    };
+
+    video.onseeked = () => {
+      if (cancelled) return;
+
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          setThumbnailFailed(true);
+          return;
+        }
+
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imageUrl = canvas.toDataURL("image/jpeg", 0.82);
+        setThumbnail(imageUrl);
+      } catch {
+        setThumbnailFailed(true);
+      } finally {
+        cleanup();
+      }
+    };
+
+    video.onerror = () => {
+      if (!cancelled) setThumbnailFailed(true);
+      cleanup();
+    };
+
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [videoSource, fallbackThumbnail, thumbnailFailed]);
+
+  return (
+    <div
+      className={`relative overflow-hidden bg-black shadow-sm ring-1 ring-slate-200 ${
+        isLarge ? "col-span-2 row-span-2 aspect-square" : "aspect-square"
+      }`}
+    >
+      {isPlaying ? (
+        <video
+          src={videoSource}
+          controls
+          autoPlay
+          playsInline
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsPlaying(true)}
+          className="relative block h-full w-full cursor-pointer overflow-hidden text-left"
+        >
+          {thumbnail ? (
+            <img
+              src={thumbnail}
+              alt={title}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <video
+              src={videoSource}
+              muted
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 h-full w-full object-cover"
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
+              }}
+            />
+          )}
+
+          {!thumbnail && (
+            <div className="absolute inset-0 bg-gradient-to-br from-[#082f63]/70 via-[#0b63ce]/60 to-[#f5b84b]/50" />
+          )}
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+
+          <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
+            <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
+              <Video className="h-3 w-3" />
+              {location}
+            </div>
+
+            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
+              Video Testimony
+            </div>
+
+            <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
+              {title}
+            </div>
+          </div>
+
+          <div className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
+            <Play className="h-3.5 w-3.5 fill-white" />
+          </div>
+        </button>
+      )}
+    </div>
   );
 }
