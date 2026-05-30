@@ -373,15 +373,21 @@ function VideoExploreTile({
   location: string;
   isLarge: boolean;
 }) {
+  function stopActionClick(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   return (
     <div
-      className={`flex flex-col gap-1.5 ${
-        isLarge ? "col-span-2 row-span-2" : ""
+      className={`relative overflow-hidden bg-black shadow-sm ring-1 ring-slate-200 ${
+        isLarge ? "col-span-2 row-span-2 aspect-square" : "aspect-square"
       }`}
     >
       <Link
         href={`/video-feed?story=${storyId}&from=search`}
-        className="relative block aspect-square overflow-hidden bg-black shadow-sm ring-1 ring-slate-200"
+        className="absolute inset-0 z-10 block"
+        aria-label={`Open video: ${title}`}
       >
         {thumbnailUrl ? (
           <img
@@ -401,61 +407,8 @@ function VideoExploreTile({
           />
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 
-        <div className="absolute bottom-0 left-0 right-0 p-2 text-white">
+        <div className="absolute bottom-0 left-0 right-11 p-2 text-white">
           <div className="mb-1 flex items-center gap-1 text-[10px] font-bold">
-            <Video className="h-3 w-3" />
-            {location}
-          </div>
-
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/80">
-            Video Testimony
-          </div>
-
-          <div className="mt-1 line-clamp-2 text-xs font-black leading-tight">
-            {title}
-          </div>
-        </div>
-
-        <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-md bg-black/55 text-white backdrop-blur">
-          <Play className="h-3 w-3 fill-white" />
-        </div>
-      </Link>
-
-      <div className="grid grid-cols-2 gap-1">
-        <button
-          type="button"
-          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
-        >
-          <Heart className="h-3 w-3" />
-          Amen
-        </button>
-
-        <button
-          type="button"
-          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
-        >
-          <Sparkles className="h-3 w-3" />
-          Praise
-        </button>
-
-        <button
-          type="button"
-          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
-        >
-          <Smile className="h-3 w-3" />
-          Encouraged
-        </button>
-
-        <button
-          type="button"
-          className="flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200"
-        >
-          <Share2 className="h-3 w-3" />
-          Share
-        </button>
-      </div>
-    </div>
-  );
-}
+            <Video className="h-3 w-
