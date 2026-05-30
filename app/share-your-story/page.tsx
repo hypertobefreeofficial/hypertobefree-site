@@ -225,28 +225,35 @@ export default function ShareYourStoryPage() {
 
     let thumbnailUrl: string | null = null;
 
-    try {
-      const thumbnailBlob = await createVideoThumbnail(videoFile);
-      const thumbnailFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.jpg`;
+  try {
+    const thumbnailBlob = await createVideoThumbnail(videoFile);
+    const thumbnailFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.jpg`;
 
-      const { error: thumbnailUploadError } = await supabase.storage
-        .from("story-thumbnails")
-        .upload(thumbnailFileName, thumbnailBlob, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: "image/jpeg",
-        });
+    const { error: thumbnailUploadError } = await supabase.storage
+      .from("story-thumbnails")
+      .upload(thumbnailFileName, thumbnailBlob, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: "image/jpeg",
+      });
 
-      if (!thumbnailUploadError) {
-        const { data: thumbnailPublicData } = supabase.storage
-          .from("story-thumbnails")
-          .getPublicUrl(thumbnailFileName);
-
-        thumbnailUrl = thumbnailPublicData.publicUrl;
-      }
-    } catch {
-      thumbnailUrl = null;
+    if (thumbnailUploadError) {
+      throw new Error(`Thumbnail upload failed: ${thumbnailUploadError.message}`);
     }
+
+    const { data: thumbnailPublicData } = supabase.storage
+      .from("story-thumbnails")
+      .getPublicUrl(thumbnailFileName);
+
+    thumbnailUrl = thumbnailPublicData.publicUrl;
+  } catch (thumbnailError) {
+    const message =
+      thumbnailError instanceof Error
+        ? thumbnailError.message
+        : "Thumbnail creation failed.";
+
+    throw new Error(message);
+  }
 
     return {
       videoUrl: videoFileName,
