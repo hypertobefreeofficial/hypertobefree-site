@@ -85,6 +85,7 @@ export default function VideoFeedPage() {
 
       const videoStories = (data as StoryRow[]) ?? [];
       setStories(videoStories);
+
       await loadReactionCounts(videoStories.map((story) => story.id));
 
       setCheckingUser(false);
@@ -300,7 +301,11 @@ export default function VideoFeedPage() {
                 <ReelVideoPlayer
                   videoSource={videoSource}
                   poster={story.thumbnail_url}
-                  onVideoError={(errorMessage) => setMessage(errorMessage)}
+                  onVideoError={() =>
+                    setMessage(
+                      "Video failed to load. Check the Supabase video URL or video format."
+                    )
+                  }
                 />
 
                 <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
@@ -369,7 +374,7 @@ function ReelVideoPlayer({
 }: {
   videoSource: string;
   poster: string | null;
-  onVideoError: (message: string) => void;
+  onVideoError: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [paused, setPaused] = useState(true);
@@ -378,7 +383,6 @@ function ReelVideoPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    setPaused(true);
     video.muted = true;
     video.load();
 
@@ -386,10 +390,9 @@ function ReelVideoPlayer({
 
     if (playPromise) {
       playPromise
-        .then(() => {
-          setPaused(false);
-        })
+        .then(() => setPaused(false))
         .catch(() => {
+          // Autoplay may be blocked. Do not show an error.
           setPaused(true);
         });
     }
@@ -402,13 +405,9 @@ function ReelVideoPlayer({
     if (video.paused) {
       video
         .play()
-        .then(() => {
-          setPaused(false);
-        })
+        .then(() => setPaused(false))
         .catch(() => {
-          onVideoError(
-            "Video could not play. Try uploading an MP4/H.264 video or test the Supabase video URL directly."
-          );
+          setPaused(true);
         });
     } else {
       video.pause();
@@ -417,39 +416,34 @@ function ReelVideoPlayer({
   }
 
   return (
-    <button
-      type="button"
-      onClick={togglePlay}
-      className="relative h-full w-full bg-black"
-      aria-label="Play or pause video"
-    >
+    <div className="relative h-full w-full bg-black">
       <video
         ref={videoRef}
         src={videoSource}
         poster={poster || undefined}
         muted
-        autoPlay
         loop
         playsInline
         preload="auto"
         className="h-full w-full object-contain"
         onPlay={() => setPaused(false)}
         onPause={() => setPaused(true)}
-        onError={() =>
-          onVideoError(
-            "Video failed to load. Check the Supabase video URL or video format."
-          )
-        }
+        onError={onVideoError}
       />
 
+      <button
+        type="button"
+        onClick={togglePlay}
+        className="absolute bottom-24 right-3 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+        aria-label="Play or pause video"
+      >
+        <Play className="h-4 w-4 fill-slate-900" />
+      </button>
+
       {paused && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/85 text-slate-900 shadow-lg">
-            <Play className="h-7 w-7 fill-slate-900" />
-          </div>
-        </div>
+        <div className="pointer-events-none absolute bottom-24 right-3 z-30 h-9 w-9 rounded-full ring-2 ring-white/40" />
       )}
-    </button>
+    </div>
   );
 }
 
