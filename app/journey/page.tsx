@@ -1,89 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
-  HeartHandshake,
-  Sparkles,
-  Trophy,
-  Flame,
-  Send,
-  Users,
-  Footprints,
-  Globe2,
-  Target,
-  Lightbulb,
-  HandHeart,
-  NotebookPen,
-  Play,
-  Inbox,
   MessageCircleHeart,
-  RefreshCw,
+  Reply,
+  Send,
+  Sparkles,
+  Trash2,
+  UserCircle,
+  Video,
+  X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import LoggedInBottomNav from "../../components/LoggedInBottomNav";
+
+type JourneyTab = "received" | "sent" | "all";
+
+type ReplyRow = {
+  id: string;
+  story_id: string | null;
+  user_id: string | null;
+  recipient_user_id: string | null;
+  parent_reply_id: string | null;
+  message: string | null;
+  created_at: string | null;
+  deleted_by_sender: boolean | null;
+  deleted_by_recipient: boolean | null;
+  read_at: string | null;
+};
 
 type StoryRow = {
   id: string;
   user_id: string | null;
   name: string | null;
-  location: string | null;
-  story_type: string | null;
-  story_text: string | null;
-  video_url: string | null;
-  status: string | null;
-  prayer_status: string | null;
-  answered_text: string | null;
-  created_at: string | null;
-};
-
-type ReactionRow = {
-  story_id: string | null;
-  user_id: string | null;
-  reaction_type: string | null;
-};
-
-type StorySummary = {
-  id: string;
-  name: string | null;
-  location: string | null;
   story_text: string | null;
   story_type: string | null;
   video_url: string | null;
 };
 
-type RawVideoReplyRow = {
+type ProfileRow = {
   id: string;
-  story_id: string | null;
-  user_id: string | null;
-  recipient_user_id: string | null;
-  message: string | null;
-  created_at: string | null;
-  stories: StorySummary | StorySummary[] | null;
-};
-
-type VideoReplyRow = {
-  id: string;
-  story_id: string | null;
-  user_id: string | null;
-  recipient_user_id: string | null;
-  message: string | null;
-  created_at: string | null;
-  story: StorySummary | null;
+  display_name: string | null;
+  username: string | null;
+  real_name: string | null;
 };
 
 export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [stories, setStories] = useState<StoryRow[]>([]);
-  const [reactions, setReactions] = useState<ReactionRow[]>([]);
-  const [videoResponses, setVideoResponses] = useState<VideoReplyRow[]>([]);
-  const [reflection, setReflection] = useState("");
+  const [messages, setMessages] = useState<ReplyRow[]>([]);
+  const [stories, setStories] = useState<Record<string, StoryRow>>({});
+  const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
+  const [activeTab, setActiveTab] = useState<JourneyTab>("received");
   const [message, setMessage] = useState("");
+  const [replyTarget, setReplyTarget] = useState<ReplyRow | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   useEffect(() => {
-    async function loadJourney() {
+    async function loadPage() {
       setCheckingUser(true);
       setMessage("");
 
@@ -97,703 +75,551 @@ export default function JourneyPage() {
       }
 
       setUserId(user.id);
-
-      const savedReflection = window.localStorage.getItem(
-        `htbf-reflection-${user.id}`
-      );
-
-      if (savedReflection) {
-        setReflection(savedReflection);
-      }
-
-      await Promise.all([loadStoriesAndReactions(user.id), loadVideoResponses(user.id)]);
-
+      await loadJourneyMessages(user.id);
       setCheckingUser(false);
     }
 
-    loadJourney();
+    loadPage();
+
+    const channel = supabase
+      .channel("journey-message-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "story_video_replies",
+        },
+        async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (user) {
+            await loadJourneyMessages(user.id);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  async function loadStoriesAndReactions(currentUserId: string) {
-    const { data: storyData, error: storyError } = await supabase
-      .from("stories")
-      .select(
-        "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at"
-      )
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (storyError) {
-      setMessage(`Could not load Journey data: ${storyError.message}`);
-      return;
-    }
-
-    const approvedStories = (storyData as StoryRow[]) ?? [];
-    setStories(approvedStories);
-
-    const storyIds = approvedStories.map((story) => story.id);
-
-    if (storyIds.length > 0) {
-      const { data: reactionData, error: reactionError } = await supabase
-        .from("story_reactions")
-        .select("story_id, user_id, reaction_type")
-        .in("story_id", storyIds);
-
-      if (reactionError) {
-        setMessage(`Could not load Journey reactions: ${reactionError.message}`);
-      } else {
-        setReactions((reactionData as ReactionRow[]) ?? []);
-      }
-    }
-  }
-
-  async function loadVideoResponses(currentUserId?: string | null) {
-    const targetUserId = currentUserId || userId;
-
-    if (!targetUserId) return;
-
+  async function loadJourneyMessages(currentUserId: string) {
     const { data, error } = await supabase
       .from("story_video_replies")
       .select(
-        `
-        id,
-        story_id,
-        user_id,
-        recipient_user_id,
-        message,
-        created_at,
-        stories (
-          id,
-          name,
-          location,
-          story_text,
-          story_type,
-          video_url
-        )
-      `
+        "id, story_id, user_id, recipient_user_id, parent_reply_id, message, created_at, deleted_by_sender, deleted_by_recipient, read_at"
       )
-      .eq("recipient_user_id", targetUserId)
+      .or(`user_id.eq.${currentUserId},recipient_user_id.eq.${currentUserId}`)
       .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage(`Could not load video responses: ${error.message}`);
+      setMessage(`Could not load Journey messages: ${error.message}`);
       return;
     }
 
-    const normalizedResponses: VideoReplyRow[] = (
-      (data ?? []) as RawVideoReplyRow[]
-    ).map((item) => {
-      const story = Array.isArray(item.stories)
-        ? item.stories[0] ?? null
-        : item.stories ?? null;
+    const visibleMessages = ((data as ReplyRow[]) ?? []).filter((item) => {
+      const hiddenFromSender =
+        item.user_id === currentUserId && item.deleted_by_sender === true;
 
-      return {
-        id: item.id,
-        story_id: item.story_id,
-        user_id: item.user_id,
-        recipient_user_id: item.recipient_user_id,
-        message: item.message,
-        created_at: item.created_at,
-        story,
-      };
+      const hiddenFromRecipient =
+        item.recipient_user_id === currentUserId &&
+        item.deleted_by_recipient === true;
+
+      return !hiddenFromSender && !hiddenFromRecipient;
     });
 
-    setVideoResponses(normalizedResponses);
+    setMessages(visibleMessages);
+
+    const unreadReceived = visibleMessages.filter(
+      (item) => item.recipient_user_id === currentUserId && !item.read_at
+    );
+
+    if (unreadReceived.length > 0) {
+      await supabase
+        .from("story_video_replies")
+        .update({ read_at: new Date().toISOString() })
+        .in(
+          "id",
+          unreadReceived.map((item) => item.id)
+        );
+    }
+
+    const storyIds = Array.from(
+      new Set(
+        visibleMessages
+          .map((item) => item.story_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    if (storyIds.length > 0) {
+      const { data: storyData } = await supabase
+        .from("stories")
+        .select("id, user_id, name, story_text, story_type, video_url")
+        .in("id", storyIds);
+
+      const nextStories: Record<string, StoryRow> = {};
+
+      ((storyData as StoryRow[]) ?? []).forEach((story) => {
+        nextStories[story.id] = story;
+      });
+
+      setStories(nextStories);
+    }
+
+    const profileIds = Array.from(
+      new Set(
+        visibleMessages
+          .flatMap((item) => [item.user_id, item.recipient_user_id])
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    if (profileIds.length > 0) {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("id, display_name, username, real_name")
+        .in("id", profileIds);
+
+      const nextProfiles: Record<string, ProfileRow> = {};
+
+      ((profileData as ProfileRow[]) ?? []).forEach((profile) => {
+        nextProfiles[profile.id] = profile;
+      });
+
+      setProfiles(nextProfiles);
+    }
   }
 
-  function saveReflection(nextReflection: string) {
-    setReflection(nextReflection);
+  const filteredMessages = useMemo(() => {
+    if (!userId) return [];
 
-    if (userId) {
-      window.localStorage.setItem(`htbf-reflection-${userId}`, nextReflection);
+    if (activeTab === "received") {
+      return messages.filter((item) => item.recipient_user_id === userId);
     }
+
+    if (activeTab === "sent") {
+      return messages.filter((item) => item.user_id === userId);
+    }
+
+    return messages;
+  }, [activeTab, messages, userId]);
+
+  const receivedCount = useMemo(() => {
+    if (!userId) return 0;
+    return messages.filter((item) => item.recipient_user_id === userId).length;
+  }, [messages, userId]);
+
+  const sentCount = useMemo(() => {
+    if (!userId) return 0;
+    return messages.filter((item) => item.user_id === userId).length;
+  }, [messages, userId]);
+
+  function getProfileName(profileId: string | null) {
+    if (!profileId) return "HTBF Community";
+
+    const profile = profiles[profileId];
+
+    return (
+      profile?.display_name?.trim() ||
+      profile?.username?.trim() ||
+      profile?.real_name?.trim() ||
+      "HTBF Community"
+    );
+  }
+
+  function getOtherPerson(messageRow: ReplyRow) {
+    if (!userId) return "HTBF Community";
+
+    if (messageRow.user_id === userId) {
+      return getProfileName(messageRow.recipient_user_id);
+    }
+
+    return getProfileName(messageRow.user_id);
+  }
+
+  function getMessageLabel(messageRow: ReplyRow) {
+    if (!userId) return "Message";
+
+    if (messageRow.user_id === userId) {
+      return `To ${getProfileName(messageRow.recipient_user_id)}`;
+    }
+
+    return `From ${getProfileName(messageRow.user_id)}`;
+  }
+
+  function getStoryPreview(storyId: string | null) {
+    if (!storyId) return "Video testimony";
+
+    const story = stories[storyId];
+
+    if (!story) return "Video testimony";
+
+    return story.story_text || story.story_type || "Video testimony";
+  }
+
+  async function sendReply() {
+    if (!userId || !replyTarget) {
+      setMessage("Please sign in to reply.");
+      return;
+    }
+
+    const cleanReply = replyText.trim();
+
+    if (!cleanReply) {
+      setMessage("Please write a reply first.");
+      return;
+    }
+
+    const recipientUserId =
+      replyTarget.user_id === userId
+        ? replyTarget.recipient_user_id
+        : replyTarget.user_id;
+
+    if (!recipientUserId) {
+      setMessage("Could not find who to reply to.");
+      return;
+    }
+
+    setSendingReply(true);
+    setMessage("");
+
+    const { error } = await supabase.from("story_video_replies").insert({
+      story_id: replyTarget.story_id,
+      user_id: userId,
+      recipient_user_id: recipientUserId,
+      parent_reply_id: replyTarget.id,
+      message: cleanReply,
+    });
+
+    if (error) {
+      setMessage(`Could not send reply: ${error.message}`);
+      setSendingReply(false);
+      return;
+    }
+
+    setReplyText("");
+    setReplyTarget(null);
+    setSendingReply(false);
+    setMessage("Reply sent.");
+    await loadJourneyMessages(userId);
+  }
+
+  async function deleteMessage(messageRow: ReplyRow) {
+    if (!userId) return;
+
+    const confirmed = window.confirm(
+      "Delete this message from your Journey? This only hides it from your side."
+    );
+
+    if (!confirmed) return;
+
+    const updateData: {
+      deleted_by_sender?: boolean;
+      deleted_by_recipient?: boolean;
+    } = {};
+
+    if (messageRow.user_id === userId) {
+      updateData.deleted_by_sender = true;
+    }
+
+    if (messageRow.recipient_user_id === userId) {
+      updateData.deleted_by_recipient = true;
+    }
+
+    const { error } = await supabase
+      .from("story_video_replies")
+      .update(updateData)
+      .eq("id", messageRow.id);
+
+    if (error) {
+      setMessage(`Could not delete message: ${error.message}`);
+      return;
+    }
+
+    setMessages((currentMessages) =>
+      currentMessages.filter((item) => item.id !== messageRow.id)
+    );
+
+    setMessage("Message deleted from your Journey.");
   }
 
   function formatDate(value: string | null) {
     if (!value) return "";
 
-    return new Date(value).toLocaleDateString(undefined, {
+    return new Intl.DateTimeFormat(undefined, {
       month: "short",
       day: "numeric",
-      year: "numeric",
-    });
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(value));
   }
-
-  const myStories = useMemo(() => {
-    return stories.filter((story) => story.user_id === userId);
-  }, [stories, userId]);
-
-  const myPrayerWatchlist = useMemo(() => {
-    const storyIdsIPrayedFor = reactions
-      .filter(
-        (reaction) =>
-          reaction.user_id === userId && reaction.reaction_type === "praying"
-      )
-      .map((reaction) => reaction.story_id)
-      .filter(Boolean);
-
-    return stories.filter(
-      (story) =>
-        storyIdsIPrayedFor.includes(story.id) &&
-        story.story_type?.toLowerCase().includes("prayer")
-    );
-  }, [reactions, stories, userId]);
-
-  const myGodDidItMoments = useMemo(() => {
-    return myStories.filter(
-      (story) =>
-        story.story_type?.toLowerCase().includes("prayer") &&
-        story.prayer_status === "answered"
-    );
-  }, [myStories]);
-
-  const encouragementImpact = useMemo(() => {
-    const myStoryIds = myStories.map((story) => story.id);
-
-    const reactionsOnMyStories = reactions.filter((reaction) =>
-      myStoryIds.includes(reaction.story_id ?? "")
-    );
-
-    return {
-      total: reactionsOnMyStories.length + videoResponses.length,
-      amen: reactionsOnMyStories.filter(
-        (reaction) => reaction.reaction_type === "amen"
-      ).length,
-      praiseGod: reactionsOnMyStories.filter(
-        (reaction) => reaction.reaction_type === "praise_god"
-      ).length,
-      encouraged: reactionsOnMyStories.filter(
-        (reaction) => reaction.reaction_type === "encouraged"
-      ).length,
-      praying: reactionsOnMyStories.filter(
-        (reaction) => reaction.reaction_type === "praying"
-      ).length,
-      videoResponses: videoResponses.length,
-    };
-  }, [myStories, reactions, videoResponses.length]);
-
-  const journeyTotals = useMemo(() => {
-    return {
-      storiesShared: myStories.length,
-      prayersJoined: myPrayerWatchlist.length,
-      godDidIt: myGodDidItMoments.length,
-      encouragements: encouragementImpact.total,
-    };
-  }, [
-    myStories.length,
-    myPrayerWatchlist.length,
-    myGodDidItMoments.length,
-    encouragementImpact.total,
-  ]);
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-[#f8fbff] px-4 py-10 text-slate-900">
-        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          Loading your Journey...
+      <main className="min-h-screen bg-[#f8fbff] px-6 py-12 text-slate-900">
+        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          Loading Journey...
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
+      <div className="mx-auto max-w-3xl px-4 pt-5">
+        <div className="mb-5 flex items-center justify-between">
           <Link
             href="/feed"
-            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
+            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Feed
+            Feed
           </Link>
 
-          <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+          <div className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
             Journey
           </div>
         </div>
-      </header>
 
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
-            <Sparkles className="h-4 w-4" />
-            Freedom Journey
+        <section className="mb-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+              <Sparkles className="h-6 w-6" />
+            </div>
+
+            <div>
+              <h1 className="text-3xl font-black text-[#062a57]">
+                Your Journey
+              </h1>
+
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                See encouragement, prayers, and replies connected to your video
+                testimonies and responses you have sent to others.
+              </p>
+            </div>
           </div>
 
-          <h1 className="text-4xl font-black tracking-tight">
-            This is your role in the movement.
-          </h1>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-[1.5rem] bg-blue-50 p-4">
+              <div className="text-2xl font-black text-[#062a57]">
+                {receivedCount}
+              </div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                Received
+              </div>
+            </div>
 
-          <p className="mt-3 leading-7 text-blue-100">
-            Journey helps you keep track of prayer, encouragement, answered
-            prayers, personal reflection, and the stories you have shared.
-          </p>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MiniStat number={journeyTotals.storiesShared} label="Shared" />
-            <MiniStat number={journeyTotals.prayersJoined} label="Prayers" />
-            <MiniStat number={journeyTotals.godDidIt} label="God Did It" />
-            <MiniStat number={journeyTotals.encouragements} label="Responses" />
+            <div className="rounded-[1.5rem] bg-amber-50 p-4">
+              <div className="text-2xl font-black text-[#062a57]">
+                {sentCount}
+              </div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">
+                Sent
+              </div>
+            </div>
           </div>
         </section>
 
-        {message && (
-          <section className="rounded-[2rem] bg-red-50 p-5 text-sm font-bold text-red-700 ring-1 ring-red-100">
-            {message}
-          </section>
-        )}
+        <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-5 grid grid-cols-3 gap-2 rounded-[1.5rem] bg-slate-50 p-2">
+            <TabButton
+              label="Received"
+              active={activeTab === "received"}
+              onClick={() => setActiveTab("received")}
+            />
 
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5 flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-                <Inbox className="h-6 w-6" />
-              </div>
+            <TabButton
+              label="Sent"
+              active={activeTab === "sent"}
+              onClick={() => setActiveTab("sent")}
+            />
 
-              <div>
-                <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  Journey Inbox
-                </div>
-                <h2 className="text-2xl font-black text-[#062a57]">
-                  Video Responses
-                </h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Encouragement people sent in response to your videos.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => loadVideoResponses()}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
-              aria-label="Refresh responses"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
+            <TabButton
+              label="All"
+              active={activeTab === "all"}
+              onClick={() => setActiveTab("all")}
+            />
           </div>
 
-          {videoResponses.length === 0 ? (
-            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
-              No video responses yet. When someone responds to one of your
-              videos, it will show here.
+          {message && (
+            <div className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63]">
+              {message}
             </div>
-          ) : (
-            <div className="space-y-4">
-              {videoResponses.map((item) => {
-                const story = item.story;
+          )}
+
+          <div className="space-y-4">
+            {filteredMessages.length === 0 ? (
+              <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
+                No Journey messages here yet.
+              </div>
+            ) : (
+              filteredMessages.map((messageRow) => {
+                const storyPreview = getStoryPreview(messageRow.story_id);
 
                 return (
                   <article
-                    key={item.id}
+                    key={messageRow.id}
                     className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200"
                   >
                     <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                          <MessageCircleHeart className="h-4 w-4" />
-                          New response
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#0b63ce] ring-1 ring-slate-200">
+                          <UserCircle className="h-6 w-6" />
                         </div>
 
-                        <div className="mt-1 text-sm font-semibold text-slate-500">
-                          {formatDate(item.created_at)}
+                        <div>
+                          <div className="text-sm font-black text-[#062a57]">
+                            {getMessageLabel(messageRow)}
+                          </div>
+
+                          <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-500">
+                            <Video className="h-3.5 w-3.5" />
+                            {formatDate(messageRow.created_at)}
+                          </div>
                         </div>
                       </div>
 
-                      {story?.id && (
+                      {messageRow.recipient_user_id === userId &&
+                        messageRow.read_at && (
+                          <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Read
+                          </div>
+                        )}
+                    </div>
+
+                    <div className="mb-3 rounded-2xl bg-white p-3 text-xs font-semibold leading-5 text-slate-500 ring-1 ring-slate-100">
+                      Related video:{" "}
+                      <span className="font-black text-slate-700">
+                        {storyPreview.length > 110
+                          ? `${storyPreview.slice(0, 110)}...`
+                          : storyPreview}
+                      </span>
+                    </div>
+
+                    <p className="whitespace-pre-line text-[15px] leading-7 text-slate-800">
+                      {messageRow.message}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyTarget(messageRow);
+                          setReplyText("");
+                          setMessage("");
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
+                      >
+                        <Reply className="h-4 w-4" />
+                        Reply
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteMessage(messageRow)}
+                        className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-red-600 ring-1 ring-red-100 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+
+                      {messageRow.story_id && (
                         <Link
-                          href={`/video-feed?story=${story.id}&from=journey`}
-                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-black text-[#082f63] shadow-sm ring-1 ring-slate-200 hover:bg-blue-50"
+                          href={`/video-feed?story=${messageRow.story_id}&from=journey`}
+                          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] ring-1 ring-slate-200 hover:bg-blue-50"
                         >
-                          <Play className="h-3.5 w-3.5 fill-[#082f63]" />
+                          <MessageCircleHeart className="h-4 w-4" />
                           View Video
                         </Link>
                       )}
                     </div>
-
-                    <div className="rounded-[1.25rem] bg-white p-4 text-base leading-7 text-slate-800 ring-1 ring-slate-200">
-                      “{item.message}”
-                    </div>
-
-                    {story && (
-                      <div className="mt-4 rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce]">
-                            <Sparkles className="h-3.5 w-3.5" />
-                            {story.story_type || "Video Testimony"}
-                          </span>
-
-                          {story.location && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
-                              <Globe2 className="h-3.5 w-3.5" />
-                              {story.location}
-                            </span>
-                          )}
-                        </div>
-
-                        {story.story_text && (
-                          <p className="line-clamp-3 text-sm leading-6 text-slate-600">
-                            {story.story_text}
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </article>
                 );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <Target className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Today’s Mission
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                Do one thing that brings encouragement.
-              </h2>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MissionButton
-              href="/prayer"
-              icon={<HeartHandshake className="h-5 w-5" />}
-              title="Pray"
-              text="Stand with one request"
-            />
-
-            <MissionButton
-              href="/feed"
-              icon={<HandHeart className="h-5 w-5" />}
-              title="Encourage"
-              text="Respond to one story"
-            />
-
-            <MissionButton
-              href="/share-your-story"
-              icon={<Send className="h-5 w-5" />}
-              title="Testify"
-              text="Share what God did"
-            />
-          </div>
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-              <Footprints className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
-                Freedom Milestones
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                Your HTBF journey path
-              </h2>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <JourneyPathStep
-              active={myStories.length > 0}
-              number="01"
-              icon={<Lightbulb className="h-5 w-5" />}
-              title="God moved"
-              text="Something happened that was worth remembering."
-            />
-
-            <JourneyPathStep
-              active={myStories.length > 0}
-              number="02"
-              icon={<Send className="h-5 w-5" />}
-              title="You shared"
-              text={
-                myStories.length > 0
-                  ? `You have shared ${myStories.length} approved ${
-                      myStories.length === 1 ? "story" : "stories"
-                    }.`
-                  : "Share a testimony, praise report, prayer request, or video."
-              }
-            />
-
-            <JourneyPathStep
-              active={encouragementImpact.total > 0}
-              number="03"
-              icon={<Users className="h-5 w-5" />}
-              title="Others responded"
-              text={
-                encouragementImpact.total > 0
-                  ? `Your stories and videos have received ${encouragementImpact.total} response${
-                      encouragementImpact.total === 1 ? "" : "s"
-                    }.`
-                  : "Responses to your stories will appear here."
-              }
-            />
-
-            <JourneyPathStep
-              active={myGodDidItMoments.length > 0}
-              number="04"
-              icon={<CheckCircle2 className="h-5 w-5" />}
-              title="God Did It"
-              text={
-                myGodDidItMoments.length > 0
-                  ? `${myGodDidItMoments.length} of your prayer request${
-                      myGodDidItMoments.length === 1 ? " has" : "s have"
-                    } been marked answered.`
-                  : "Answered prayer moments will appear here."
-              }
-            />
-
-            <JourneyPathStep
-              active={encouragementImpact.encouraged > 0}
-              number="05"
-              icon={<Flame className="h-5 w-5" />}
-              title="Someone else was strengthened"
-              text={
-                encouragementImpact.encouraged > 0
-                  ? `${encouragementImpact.encouraged} person${
-                      encouragementImpact.encouraged === 1 ? " was" : "s were"
-                    } encouraged by your stories.`
-                  : "Encouragement impact will grow as people respond."
-              }
-            />
-          </div>
-        </section>
-
-        <section className="grid gap-4 sm:grid-cols-2">
-          <DashboardCard
-            icon={<Users className="h-6 w-6" />}
-            eyebrow="My Prayer Watchlist"
-            title={`${myPrayerWatchlist.length} Prayer ${
-              myPrayerWatchlist.length === 1 ? "Request" : "Requests"
-            }`}
-            text="These are prayer requests you joined by selecting I’m Praying."
-            href="/prayer"
-            button="View Prayer"
-          />
-
-          <DashboardCard
-            icon={<CheckCircle2 className="h-6 w-6" />}
-            eyebrow="My God Did It Moments"
-            title={`${myGodDidItMoments.length} Answered`}
-            text="These are your prayer requests that have been marked answered."
-            href="/answered"
-            button="View Answered"
-          />
-
-          <DashboardCard
-            icon={<MessageCircleHeart className="h-6 w-6" />}
-            eyebrow="Encouragement Impact"
-            title={`${encouragementImpact.total} Responses`}
-            text={`Amen: ${encouragementImpact.amen} • Praise God: ${encouragementImpact.praiseGod} • Encouraged: ${encouragementImpact.encouraged} • Praying: ${encouragementImpact.praying} • Video Replies: ${encouragementImpact.videoResponses}`}
-            href="/feed"
-            button="Open Feed"
-          />
-
-          <DashboardCard
-            icon={<Globe2 className="h-6 w-6" />}
-            eyebrow="Movement View"
-            title="Testimony Map"
-            text="See where stories, prayers, videos, and answered prayers are being shared."
-            href="/map"
-            button="Open Map"
-          />
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <NotebookPen className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">
-                Reflection Room
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                What do you want to remember?
-              </h2>
-            </div>
-          </div>
-
-          <textarea
-            value={reflection}
-            onChange={(event) => saveReflection(event.target.value)}
-            placeholder="Write a private reflection, prayer note, or testimony reminder..."
-            className="min-h-40 w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 text-base leading-7 text-slate-700 outline-none transition focus:border-blue-200 focus:bg-white focus:ring-4 focus:ring-blue-50"
-          />
-
-          <p className="mt-3 text-sm font-semibold text-slate-500">
-            Saved on this device.
-          </p>
-        </section>
-
-        <section className="rounded-[2rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-6 text-white shadow-sm">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100">
-            <Trophy className="h-4 w-4" />
-            Keep going
-          </div>
-
-          <h2 className="text-3xl font-black tracking-tight">
-            One story can strengthen another person’s journey.
-          </h2>
-
-          <p className="mt-3 leading-7 text-blue-100">
-            Share what God did, stand with someone in prayer, or write down what
-            you want to remember.
-          </p>
-
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/share-your-story"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-[#082f63] hover:bg-blue-50"
-            >
-              Share What God Did
-              <Send className="h-4 w-4" />
-            </Link>
-
-            <Link
-              href="/videos"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white/10 px-5 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/15"
-            >
-              Watch Testimonies
-              <Play className="h-4 w-4" />
-            </Link>
+              })
+            )}
           </div>
         </section>
       </div>
+
+      {replyTarget && (
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  Reply from Journey
+                </div>
+
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  Reply to {getOtherPerson(replyTarget)}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setReplyTarget(null);
+                  setReplyText("");
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Close reply box"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <textarea
+              value={replyText}
+              onChange={(event) => setReplyText(event.target.value)}
+              rows={5}
+              placeholder="Write a kind reply, prayer, or encouragement..."
+              className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+            />
+
+            <button
+              type="button"
+              disabled={sendingReply}
+              onClick={sendReply}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {sendingReply ? "Sending..." : "Send Reply"}
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <LoggedInBottomNav />
     </main>
   );
 }
 
-function MiniStat({
-  number,
+function TabButton({
   label,
-}: {
-  number: string | number;
-  label: string;
-}) {
-  return (
-    <div className="rounded-2xl bg-white/10 p-3 text-center ring-1 ring-white/15">
-      <div className="text-2xl font-black">{number}</div>
-      <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-blue-100">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function MissionButton({
-  href,
-  icon,
-  title,
-  text,
-}: {
-  href: string;
-  icon: ReactNode;
-  title: string;
-  text: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-blue-50"
-    >
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#0b63ce] shadow-sm ring-1 ring-slate-100">
-        {icon}
-      </div>
-
-      <div className="font-black text-[#062a57]">{title}</div>
-      <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
-    </Link>
-  );
-}
-
-function JourneyPathStep({
   active,
-  number,
-  icon,
-  title,
-  text,
+  onClick,
 }: {
+  label: string;
   active: boolean;
-  number: string;
-  icon: ReactNode;
-  title: string;
-  text: string;
+  onClick: () => void;
 }) {
   return (
-    <div
-      className={`flex gap-4 rounded-[1.5rem] p-4 ring-1 ${
-        active ? "bg-blue-50 ring-blue-100" : "bg-slate-50 ring-slate-100"
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-2 text-sm font-black transition ${
+        active
+          ? "bg-white text-[#0b63ce] shadow-sm"
+          : "text-slate-500 hover:bg-white"
       }`}
     >
-      <div
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-1 ${
-          active
-            ? "bg-[#0b63ce] text-white ring-blue-200"
-            : "bg-white text-[#0b63ce] ring-slate-100"
-        }`}
-      >
-        {icon}
-      </div>
-
-      <div>
-        <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-          {number}
-        </div>
-        <div className="mt-1 font-black text-[#062a57]">{title}</div>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
-      </div>
-    </div>
-  );
-}
-
-function DashboardCard({
-  icon,
-  eyebrow,
-  title,
-  text,
-  href,
-  button,
-}: {
-  icon: ReactNode;
-  eyebrow: string;
-  title: string;
-  text: string;
-  href: string;
-  button: string;
-}) {
-  return (
-    <div className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-        {icon}
-      </div>
-
-      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-        {eyebrow}
-      </div>
-
-      <h3 className="mt-1 text-2xl font-black text-[#062a57]">{title}</h3>
-
-      <p className="mt-2 leading-7 text-slate-600">{text}</p>
-
-      <Link
-        href={href}
-        className="mt-5 inline-flex rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
-      >
-        {button}
-      </Link>
-    </div>
+      {label}
+    </button>
   );
 }
