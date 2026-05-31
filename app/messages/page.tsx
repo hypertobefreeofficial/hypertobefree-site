@@ -12,6 +12,25 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 
+type StorySummary = {
+  id: string;
+  name: string | null;
+  location: string | null;
+  story_text: string | null;
+  story_type: string | null;
+  video_url: string | null;
+};
+
+type RawVideoReplyRow = {
+  id: string;
+  story_id: string | null;
+  user_id: string | null;
+  recipient_user_id: string | null;
+  message: string | null;
+  created_at: string | null;
+  stories: StorySummary | StorySummary[] | null;
+};
+
 type VideoReplyRow = {
   id: string;
   story_id: string | null;
@@ -19,21 +38,11 @@ type VideoReplyRow = {
   recipient_user_id: string | null;
   message: string | null;
   created_at: string | null;
-  stories:
-    | {
-        id: string;
-        name: string | null;
-        location: string | null;
-        story_text: string | null;
-        story_type: string | null;
-        video_url: string | null;
-      }
-    | null;
+  story: StorySummary | null;
 };
 
 export default function MessagesPage() {
   const [checkingUser, setCheckingUser] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<VideoReplyRow[]>([]);
   const [message, setMessage] = useState("");
 
@@ -50,8 +59,6 @@ export default function MessagesPage() {
         window.location.href = "/login";
         return;
       }
-
-      setUserId(user.id);
 
       const { data, error } = await supabase
         .from("story_video_replies")
@@ -82,7 +89,25 @@ export default function MessagesPage() {
         return;
       }
 
-      setMessages((data as VideoReplyRow[]) ?? []);
+      const normalizedMessages: VideoReplyRow[] = ((data ?? []) as RawVideoReplyRow[]).map(
+        (item) => {
+          const story = Array.isArray(item.stories)
+            ? item.stories[0] ?? null
+            : item.stories ?? null;
+
+          return {
+            id: item.id,
+            story_id: item.story_id,
+            user_id: item.user_id,
+            recipient_user_id: item.recipient_user_id,
+            message: item.message,
+            created_at: item.created_at,
+            story,
+          };
+        }
+      );
+
+      setMessages(normalizedMessages);
       setCheckingUser(false);
     }
 
@@ -156,7 +181,7 @@ export default function MessagesPage() {
           ) : (
             <div className="space-y-4">
               {messages.map((item) => {
-                const story = item.stories;
+                const story = item.story;
 
                 return (
                   <article
