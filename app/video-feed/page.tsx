@@ -357,11 +357,12 @@ export default function VideoFeedPage() {
     setSendingReply(true);
     setMessage("");
 
-    const { error } = await supabase.from("story_video_replies").insert({
-      story_id: replyStory.id,
-      user_id: userId,
-      message: cleanReply,
-    });
+  const { error } = await supabase.from("story_video_replies").insert({
+  story_id: replyStory.id,
+  user_id: userId,
+  recipient_user_id: replyStory.user_id,
+  message: cleanReply,
+});
 
     if (error) {
       setMessage(`Could not send response: ${error.message}`);
