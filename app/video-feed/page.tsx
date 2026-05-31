@@ -612,6 +612,8 @@ function AutoPlayReelVideo({
   const [zoomScale, setZoomScale] = useState(1);
 
   const pinchStartDistanceRef = useRef<number | null>(null);
+  const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerInsideRef = useRef(false);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -687,8 +689,6 @@ function AutoPlayReelVideo({
     function handleTouchStart(event: TouchEvent) {
       if (event.touches.length === 2) {
         event.preventDefault();
-        event.stopPropagation();
-
         pinchStartDistanceRef.current = getDistance(event.touches);
       }
     }
@@ -696,7 +696,6 @@ function AutoPlayReelVideo({
     function handleTouchMove(event: TouchEvent) {
       if (event.touches.length === 2 && pinchStartDistanceRef.current) {
         event.preventDefault();
-        event.stopPropagation();
 
         const currentDistance = getDistance(event.touches);
         const rawScale = currentDistance / pinchStartDistanceRef.current;
@@ -708,12 +707,18 @@ function AutoPlayReelVideo({
 
     function handleTouchEnd(event: TouchEvent) {
       if (event.touches.length < 2) {
-        event.preventDefault();
-        event.stopPropagation();
-
         pinchStartDistanceRef.current = null;
         setZoomScale(1);
       }
+    }
+
+    function handlePointerEnter() {
+      pointerInsideRef.current = true;
+    }
+
+    function handlePointerLeave() {
+      pointerInsideRef.current = false;
+      setZoomScale(1);
     }
 
     wrapper.addEventListener("touchstart", handleTouchStart, {
@@ -732,11 +737,66 @@ function AutoPlayReelVideo({
       passive: false,
     });
 
+    wrapper.addEventListener("pointerenter", handlePointerEnter);
+    wrapper.addEventListener("pointerleave", handlePointerLeave);
+
     return () => {
       wrapper.removeEventListener("touchstart", handleTouchStart);
       wrapper.removeEventListener("touchmove", handleTouchMove);
       wrapper.removeEventListener("touchend", handleTouchEnd);
       wrapper.removeEventListener("touchcancel", handleTouchEnd);
+      wrapper.removeEventListener("pointerenter", handlePointerEnter);
+      wrapper.removeEventListener("pointerleave", handlePointerLeave);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleWheelZoom(event: WheelEvent) {
+      const wrapper = wrapperRef.current;
+
+      if (!wrapper) return;
+
+      const target = event.target as Node | null;
+      const eventStartedInsideVideo = target ? wrapper.contains(target) : false;
+
+      const isTrackpadPinchOrBrowserZoom =
+        event.ctrlKey || event.metaKey;
+
+      if (!eventStartedInsideVideo && !pointerInsideRef.current) return;
+      if (!isTrackpadPinchOrBrowserZoom) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      setZoomScale((currentScale) => {
+        const zoomChange = event.deltaY < 0 ? 0.12 : -0.12;
+        const nextScale = currentScale + zoomChange;
+
+        return Math.min(Math.max(nextScale, 1), 3);
+      });
+
+      if (wheelZoomTimeoutRef.current) {
+        clearTimeout(wheelZoomTimeoutRef.current);
+      }
+
+      wheelZoomTimeoutRef.current = setTimeout(() => {
+        setZoomScale(1);
+      }, 220);
+    }
+
+    window.addEventListener("wheel", handleWheelZoom, {
+      passive: false,
+      capture: true,
+    });
+
+    return () => {
+      window.removeEventListener("wheel", handleWheelZoom, {
+        capture: true,
+      } as AddEventListenerOptions);
+
+      if (wheelZoomTimeoutRef.current) {
+        clearTimeout(wheelZoomTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -785,7 +845,7 @@ function AutoPlayReelVideo({
   return (
     <div
       ref={wrapperRef}
-      className="relative h-full w-full overflow-hidden bg-black [touch-action:none]"
+      className="relative h-full w-full overflow-hidden bg-black [touch-action:pan-y]"
     >
       <video
         ref={videoRef}
