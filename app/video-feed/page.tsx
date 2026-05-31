@@ -36,7 +36,6 @@ type ReactionCounts = {
 };
 
 type ReactionRow = {
-  id?: string;
   story_id: string;
   reaction_type: ReactionType;
 };
@@ -57,8 +56,7 @@ export default function VideoFeedPage() {
       setMessage("");
 
       const params = new URLSearchParams(window.location.search);
-      const storyParam = params.get("story");
-      setSelectedStoryId(storyParam);
+      setSelectedStoryId(params.get("story"));
 
       const {
         data: { user },
@@ -102,10 +100,7 @@ export default function VideoFeedPage() {
       .select("story_id, reaction_type")
       .in("story_id", storyIds);
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
+    if (error) return;
 
     const nextCounts: Record<string, ReactionCounts> = {};
 
@@ -135,13 +130,19 @@ export default function VideoFeedPage() {
   function getVideoStoragePath(videoUrl: string | null) {
     if (!videoUrl) return null;
 
-    if (videoUrl.includes("story-videos/")) {
-      const afterBucket = videoUrl.split("story-videos/")[1];
-      const pathOnly = afterBucket.split("?")[0];
-      return decodeURIComponent(pathOnly);
+    if (videoUrl.includes("/storage/v1/object/public/story-videos/")) {
+      const afterBucket = videoUrl.split(
+        "/storage/v1/object/public/story-videos/"
+      )[1];
+      return decodeURIComponent(afterBucket.split("?")[0]);
     }
 
-    if (videoUrl.startsWith("http")) {
+    if (videoUrl.includes("story-videos/")) {
+      const afterBucket = videoUrl.split("story-videos/")[1];
+      return decodeURIComponent(afterBucket.split("?")[0]);
+    }
+
+    if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
       return null;
     }
 
@@ -156,7 +157,6 @@ export default function VideoFeedPage() {
     }
 
     const storagePath = getVideoStoragePath(videoUrl);
-
     if (!storagePath) return null;
 
     const { data } = supabase.storage
@@ -301,11 +301,6 @@ export default function VideoFeedPage() {
                 <ReelVideoPlayer
                   videoSource={videoSource}
                   poster={story.thumbnail_url}
-                  onVideoError={() =>
-                    setMessage(
-                      "Video failed to load. Check the Supabase video URL or video format."
-                    )
-                  }
                 />
 
                 <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
@@ -370,11 +365,9 @@ export default function VideoFeedPage() {
 function ReelVideoPlayer({
   videoSource,
   poster,
-  onVideoError,
 }: {
   videoSource: string;
   poster: string | null;
-  onVideoError: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [paused, setPaused] = useState(true);
@@ -386,16 +379,10 @@ function ReelVideoPlayer({
     video.muted = true;
     video.load();
 
-    const playPromise = video.play();
-
-    if (playPromise) {
-      playPromise
-        .then(() => setPaused(false))
-        .catch(() => {
-          // Autoplay may be blocked. Do not show an error.
-          setPaused(true);
-        });
-    }
+    video
+      .play()
+      .then(() => setPaused(false))
+      .catch(() => setPaused(true));
   }, [videoSource]);
 
   function togglePlay() {
@@ -406,9 +393,7 @@ function ReelVideoPlayer({
       video
         .play()
         .then(() => setPaused(false))
-        .catch(() => {
-          setPaused(true);
-        });
+        .catch(() => setPaused(true));
     } else {
       video.pause();
       setPaused(true);
@@ -419,29 +404,30 @@ function ReelVideoPlayer({
     <div className="relative h-full w-full bg-black">
       <video
         ref={videoRef}
+        key={videoSource}
         src={videoSource}
         poster={poster || undefined}
         muted
+        autoPlay
         loop
         playsInline
         preload="auto"
         className="h-full w-full object-contain"
         onPlay={() => setPaused(false)}
         onPause={() => setPaused(true)}
-        onError={onVideoError}
       />
 
       <button
         type="button"
         onClick={togglePlay}
-        className="absolute bottom-24 right-3 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+        className="absolute bottom-24 right-3 z-40 flex h-8 w-8 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
         aria-label="Play or pause video"
       >
-        <Play className="h-4 w-4 fill-slate-900" />
+        <Play className="h-3.5 w-3.5 fill-slate-900" />
       </button>
 
       {paused && (
-        <div className="pointer-events-none absolute bottom-24 right-3 z-30 h-9 w-9 rounded-full ring-2 ring-white/40" />
+        <div className="pointer-events-none absolute bottom-24 right-3 z-30 h-8 w-8 rounded-full ring-2 ring-white/40" />
       )}
     </div>
   );
