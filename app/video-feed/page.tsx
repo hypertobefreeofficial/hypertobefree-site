@@ -8,11 +8,14 @@ import {
   HandHeart,
   HeartHandshake,
   MessageCircleHeart,
+  Pause,
   Play,
   Send,
   Share2,
   Sparkles,
   Video,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
@@ -590,7 +593,13 @@ export default function VideoFeedPage() {
 function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
   const [paused, setPaused] = useState(true);
+  const [muted, setMuted] = useState(true);
+  const [userPaused, setUserPaused] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+
+  const pinchStartDistanceRef = useRef<number | null>(null);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -598,17 +607,21 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
 
     if (!wrapper || !video) return;
 
-    video.muted = true;
+    video.muted = muted;
     video.playsInline = true;
     video.load();
 
     const observer = new IntersectionObserver(
       ([entry]) => {
+        if (!video) return;
+
         if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
-          video
-            .play()
-            .then(() => setPaused(false))
-            .catch(() => setPaused(true));
+          if (!userPaused) {
+            video
+              .play()
+              .then(() => setPaused(false))
+              .catch(() => setPaused(true));
+          }
         } else {
           video.pause();
           setPaused(true);
@@ -624,54 +637,172 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
     return () => {
       observer.disconnect();
     };
-  }, [videoUrl]);
+  }, [videoUrl, muted, userPaused]);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+
+    if (!wrapper) return;
+
+    function getDistance(touches: TouchList) {
+      const firstTouch = touches[0];
+      const secondTouch = touches[1];
+
+      const xDistance = firstTouch.clientX - secondTouch.clientX;
+      const yDistance = firstTouch.clientY - secondTouch.clientY;
+
+      return Math.sqrt(xDistance * xDistance + yDistance * yDistance);
+    }
+
+    function handleTouchStart(event: TouchEvent) {
+      if (event.touches.length === 2) {
+        event.preventDefault();
+        pinchStartDistanceRef.current = getDistance(event.touches);
+      }
+    }
+
+    function handleTouchMove(event: TouchEvent) {
+      if (event.touches.length === 2 && pinchStartDistanceRef.current) {
+        event.preventDefault();
+
+        const currentDistance = getDistance(event.touches);
+        const nextScale = currentDistance / pinchStartDistanceRef.current;
+
+        const limitedScale = Math.min(Math.max(nextScale, 1), 2.75);
+
+        setZoomScale(limitedScale);
+      }
+    }
+
+    function handleTouchEnd(event: TouchEvent) {
+      if (event.touches.length < 2) {
+        pinchStartDistanceRef.current = null;
+        setZoomScale(1);
+      }
+    }
+
+    wrapper.addEventListener("touchstart", handleTouchStart, {
+      passive: false,
+    });
+
+    wrapper.addEventListener("touchmove", handleTouchMove, {
+      passive: false,
+    });
+
+    wrapper.addEventListener("touchend", handleTouchEnd, {
+      passive: false,
+    });
+
+    wrapper.addEventListener("touchcancel", handleTouchEnd, {
+      passive: false,
+    });
+
+    return () => {
+      wrapper.removeEventListener("touchstart", handleTouchStart);
+      wrapper.removeEventListener("touchmove", handleTouchMove);
+      wrapper.removeEventListener("touchend", handleTouchEnd);
+      wrapper.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, []);
 
   function togglePlay() {
     const video = videoRef.current;
     if (!video) return;
 
     if (video.paused) {
+      setUserPaused(false);
+
       video
         .play()
         .then(() => setPaused(false))
         .catch(() => setPaused(true));
     } else {
+      setUserPaused(true);
       video.pause();
       setPaused(true);
     }
   }
 
+  function toggleMute() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const nextMuted = !muted;
+
+    video.muted = nextMuted;
+    setMuted(nextMuted);
+
+    if (!nextMuted) {
+      video.volume = 1;
+
+      video
+        .play()
+        .then(() => {
+          setPaused(false);
+          setUserPaused(false);
+        })
+        .catch(() => setPaused(true));
+    }
+  }
+
   return (
-    <div ref={wrapperRef} className="relative h-full w-full bg-black">
+    <div
+      ref={wrapperRef}
+      className="relative h-full w-full touch-none overflow-hidden bg-black"
+    >
       <video
         ref={videoRef}
         key={videoUrl}
         src={videoUrl}
-        muted
+        muted={muted}
         loop
         playsInline
         preload="auto"
-        className="h-full w-full bg-black object-contain"
+        className="h-full w-full bg-black object-contain transition-transform duration-150 ease-out"
+        style={{
+          transform: `scale(${zoomScale})`,
+          transformOrigin: "center center",
+        }}
         onPlay={() => setPaused(false)}
         onPause={() => setPaused(true)}
       />
 
-      <button
-        type="button"
-        onClick={togglePlay}
-        className="absolute bottom-24 right-3 z-40 flex h-8 w-8 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-        aria-label="Play or pause video"
-      >
-        <Play className="h-3.5 w-3.5 fill-slate-900" />
-      </button>
+      <div className="absolute bottom-24 right-3 z-40 flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={toggleMute}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+          aria-label={muted ? "Turn sound on" : "Turn sound off"}
+        >
+          {muted ? (
+            <VolumeX className="h-4 w-4" />
+          ) : (
+            <Volume2 className="h-4 w-4" />
+          )}
+        </button>
 
-      {paused && (
-        <div className="pointer-events-none absolute bottom-24 right-3 z-30 h-8 w-8 rounded-full ring-2 ring-white/40" />
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+          aria-label={paused ? "Play video" : "Pause video"}
+        >
+          {paused ? (
+            <Play className="h-4 w-4 fill-slate-900" />
+          ) : (
+            <Pause className="h-4 w-4 fill-slate-900" />
+          )}
+        </button>
+      </div>
+
+      {zoomScale > 1 && (
+        <div className="pointer-events-none absolute left-1/2 top-6 z-40 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
+          Zoom {zoomScale.toFixed(1)}x
+        </div>
       )}
     </div>
   );
 }
-
 function VideoActionButton({
   label,
   count,
