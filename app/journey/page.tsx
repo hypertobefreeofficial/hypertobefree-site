@@ -1,45 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
   CheckCircle2,
-  ChevronRight,
-  Inbox,
-  MessageCircleHeart,
-  PlayCircle,
-  Reply,
-  Send,
+  HeartHandshake,
   Sparkles,
+  Trophy,
+  Flame,
+  Send,
+  Users,
+  Footprints,
+  Compass,
+  MessageCircleHeart,
+  Globe2,
+  Target,
+  Lightbulb,
+  HandHeart,
+  Map,
+  NotebookPen,
+  Play,
+  Inbox,
+  ChevronRight,
+  Reply,
   Trash2,
   UserCircle,
   Video,
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
-
-type JourneyTab = "received" | "sent" | "all";
-
-type ProfileRow = {
-  id: string;
-  display_name: string | null;
-  username: string | null;
-  real_name: string | null;
-};
 
 type StoryRow = {
   id: string;
   user_id: string | null;
   name: string | null;
-  story_text: string | null;
+  location: string | null;
   story_type: string | null;
+  story_text: string | null;
   video_url: string | null;
   status: string | null;
+  prayer_status: string | null;
+  answered_text: string | null;
+  created_at: string | null;
 };
 
-type ReplyRow = {
+type ReactionRow = {
+  story_id: string | null;
+  user_id: string | null;
+  reaction_type: string | null;
+};
+
+type JourneyInboxTab = "received" | "sent" | "all";
+
+type VideoReplyRow = {
   id: string;
   story_id: string | null;
   user_id: string | null;
@@ -52,38 +71,34 @@ type ReplyRow = {
   read_at: string | null;
 };
 
-type ReactionRow = {
-  story_id: string | null;
-  reaction_type: string | null;
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+  real_name: string | null;
 };
 
 export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [stories, setStories] = useState<StoryRow[]>([]);
+  const [reactions, setReactions] = useState<ReactionRow[]>([]);
+  const [reflection, setReflection] = useState("");
+  const [message, setMessage] = useState("");
 
-  const [profile, setProfile] = useState<ProfileRow | null>(null);
-  const [myStories, setMyStories] = useState<StoryRow[]>([]);
-  const [messages, setMessages] = useState<ReplyRow[]>([]);
-  const [storiesById, setStoriesById] = useState<Record<string, StoryRow>>({});
-  const [profilesById, setProfilesById] = useState<Record<string, ProfileRow>>(
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [activeInboxTab, setActiveInboxTab] =
+    useState<JourneyInboxTab>("received");
+  const [videoReplies, setVideoReplies] = useState<VideoReplyRow[]>([]);
+  const [replyProfiles, setReplyProfiles] = useState<Record<string, ProfileRow>>(
     {}
   );
-  const [reactionCounts, setReactionCounts] = useState({
-    amen: 0,
-    praise_god: 0,
-    encouraged: 0,
-    praying: 0,
-  });
-
-  const [activeTab, setActiveTab] = useState<JourneyTab>("received");
-  const [inboxOpen, setInboxOpen] = useState(false);
-  const [message, setMessage] = useState("");
-  const [replyTarget, setReplyTarget] = useState<ReplyRow | null>(null);
+  const [replyTarget, setReplyTarget] = useState<VideoReplyRow | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
   useEffect(() => {
-    async function loadPage() {
+    async function loadJourney() {
       setCheckingUser(true);
       setMessage("");
 
@@ -98,19 +113,58 @@ export default function JourneyPage() {
 
       setUserId(user.id);
 
-      await Promise.all([
-        loadProfile(user.id),
-        loadJourneyStats(user.id),
-        loadJourneyMessages(user.id),
-      ]);
+      const savedReflection = window.localStorage.getItem(
+        `htbf-reflection-${user.id}`
+      );
+
+      if (savedReflection) {
+        setReflection(savedReflection);
+      }
+
+      const { data: storyData, error: storyError } = await supabase
+        .from("stories")
+        .select(
+          "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at"
+        )
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (storyError) {
+        setMessage(`Could not load Journey data: ${storyError.message}`);
+        setCheckingUser(false);
+        return;
+      }
+
+      const approvedStories = (storyData as StoryRow[]) ?? [];
+      setStories(approvedStories);
+
+      const storyIds = approvedStories.map((story) => story.id);
+
+      if (storyIds.length > 0) {
+        const { data: reactionData, error: reactionError } = await supabase
+          .from("story_reactions")
+          .select("story_id, user_id, reaction_type")
+          .in("story_id", storyIds);
+
+        if (reactionError) {
+          setMessage(
+            `Could not load Journey reactions: ${reactionError.message}`
+          );
+        } else {
+          setReactions((reactionData as ReactionRow[]) ?? []);
+        }
+      }
+
+      await loadVideoReplies(user.id);
 
       setCheckingUser(false);
     }
 
-    loadPage();
+    loadJourney();
 
     const channel = supabase
-      .channel("journey-live-updates")
+      .channel("journey-inbox-updates")
       .on(
         "postgres_changes",
         {
@@ -124,24 +178,7 @@ export default function JourneyPage() {
           } = await supabase.auth.getUser();
 
           if (user) {
-            await loadJourneyMessages(user.id);
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "story_reactions",
-        },
-        async () => {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-
-          if (user) {
-            await loadJourneyStats(user.id);
+            await loadVideoReplies(user.id);
           }
         }
       )
@@ -152,61 +189,7 @@ export default function JourneyPage() {
     };
   }, []);
 
-  async function loadProfile(currentUserId: string) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, display_name, username, real_name")
-      .eq("id", currentUserId)
-      .maybeSingle();
-
-    if (data) {
-      setProfile(data as ProfileRow);
-    }
-  }
-
-  async function loadJourneyStats(currentUserId: string) {
-    const { data: storyData } = await supabase
-      .from("stories")
-      .select("id, user_id, name, story_text, story_type, video_url, status")
-      .eq("user_id", currentUserId)
-      .order("created_at", { ascending: false });
-
-    const ownedStories = (storyData as StoryRow[]) ?? [];
-    setMyStories(ownedStories);
-
-    const storyIds = ownedStories.map((story) => story.id);
-
-    if (storyIds.length === 0) {
-      setReactionCounts({
-        amen: 0,
-        praise_god: 0,
-        encouraged: 0,
-        praying: 0,
-      });
-      return;
-    }
-
-    const { data: reactionData } = await supabase
-      .from("story_reactions")
-      .select("story_id, reaction_type")
-      .in("story_id", storyIds);
-
-    const reactions = (reactionData as ReactionRow[]) ?? [];
-
-    setReactionCounts({
-      amen: reactions.filter((item) => item.reaction_type === "amen").length,
-      praise_god: reactions.filter(
-        (item) => item.reaction_type === "praise_god"
-      ).length,
-      encouraged: reactions.filter(
-        (item) => item.reaction_type === "encouraged"
-      ).length,
-      praying: reactions.filter((item) => item.reaction_type === "praying")
-        .length,
-    });
-  }
-
-  async function loadJourneyMessages(currentUserId: string) {
+  async function loadVideoReplies(currentUserId: string) {
     const { data, error } = await supabase
       .from("story_video_replies")
       .select(
@@ -220,46 +203,23 @@ export default function JourneyPage() {
       return;
     }
 
-    const visibleMessages = ((data as ReplyRow[]) ?? []).filter((item) => {
+    const visibleReplies = ((data as VideoReplyRow[]) ?? []).filter((reply) => {
       const hiddenFromSender =
-        item.user_id === currentUserId && item.deleted_by_sender === true;
+        reply.user_id === currentUserId && reply.deleted_by_sender === true;
 
       const hiddenFromRecipient =
-        item.recipient_user_id === currentUserId &&
-        item.deleted_by_recipient === true;
+        reply.recipient_user_id === currentUserId &&
+        reply.deleted_by_recipient === true;
 
       return !hiddenFromSender && !hiddenFromRecipient;
     });
 
-    setMessages(visibleMessages);
-
-    const storyIds = Array.from(
-      new Set(
-        visibleMessages
-          .map((item) => item.story_id)
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-
-    if (storyIds.length > 0) {
-      const { data: storyData } = await supabase
-        .from("stories")
-        .select("id, user_id, name, story_text, story_type, video_url, status")
-        .in("id", storyIds);
-
-      const nextStories: Record<string, StoryRow> = {};
-
-      ((storyData as StoryRow[]) ?? []).forEach((story) => {
-        nextStories[story.id] = story;
-      });
-
-      setStoriesById(nextStories);
-    }
+    setVideoReplies(visibleReplies);
 
     const profileIds = Array.from(
       new Set(
-        visibleMessages
-          .flatMap((item) => [item.user_id, item.recipient_user_id])
+        visibleReplies
+          .flatMap((reply) => [reply.user_id, reply.recipient_user_id])
           .filter((id): id is string => Boolean(id))
       )
     );
@@ -272,97 +232,148 @@ export default function JourneyPage() {
 
       const nextProfiles: Record<string, ProfileRow> = {};
 
-      ((profileData as ProfileRow[]) ?? []).forEach((profileItem) => {
-        nextProfiles[profileItem.id] = profileItem;
+      ((profileData as ProfileRow[]) ?? []).forEach((profile) => {
+        nextProfiles[profile.id] = profile;
       });
 
-      setProfilesById(nextProfiles);
+      setReplyProfiles(nextProfiles);
     }
   }
 
-  const receivedMessages = useMemo(() => {
-    if (!userId) return [];
-    return messages.filter((item) => item.recipient_user_id === userId);
-  }, [messages, userId]);
+  function saveReflection(nextReflection: string) {
+    setReflection(nextReflection);
 
-  const sentMessages = useMemo(() => {
-    if (!userId) return [];
-    return messages.filter((item) => item.user_id === userId);
-  }, [messages, userId]);
+    if (userId) {
+      window.localStorage.setItem(
+        `htbf-reflection-${userId}`,
+        nextReflection
+      );
+    }
+  }
 
-  const unreadCount = useMemo(() => {
-    if (!userId) return 0;
+  const myStories = useMemo(() => {
+    return stories.filter((story) => story.user_id === userId);
+  }, [stories, userId]);
 
-    return messages.filter(
-      (item) => item.recipient_user_id === userId && !item.read_at
-    ).length;
-  }, [messages, userId]);
+  const myPrayerWatchlist = useMemo(() => {
+    const storyIdsIPrayedFor = reactions
+      .filter(
+        (reaction) =>
+          reaction.user_id === userId && reaction.reaction_type === "praying"
+      )
+      .map((reaction) => reaction.story_id)
+      .filter(Boolean);
 
-  const filteredMessages = useMemo(() => {
-    if (!userId) return [];
+    return stories.filter(
+      (story) =>
+        storyIdsIPrayedFor.includes(story.id) &&
+        story.story_type?.toLowerCase().includes("prayer")
+    );
+  }, [reactions, stories, userId]);
 
-    if (activeTab === "received") return receivedMessages;
-    if (activeTab === "sent") return sentMessages;
-
-    return messages;
-  }, [activeTab, messages, receivedMessages, sentMessages, userId]);
-
-  const videoCount = useMemo(() => {
-    return myStories.filter((story) => Boolean(story.video_url)).length;
+  const myGodDidItMoments = useMemo(() => {
+    return myStories.filter(
+      (story) =>
+        story.story_type?.toLowerCase().includes("prayer") &&
+        story.prayer_status === "answered"
+    );
   }, [myStories]);
 
-  const totalReactions =
-    reactionCounts.amen +
-    reactionCounts.praise_god +
-    reactionCounts.encouraged +
-    reactionCounts.praying;
+  const encouragementImpact = useMemo(() => {
+    const myStoryIds = myStories.map((story) => story.id);
 
-  function getDisplayName() {
-    return (
-      profile?.display_name?.trim() ||
-      profile?.username?.trim() ||
-      profile?.real_name?.trim() ||
-      "Your"
+    const reactionsOnMyStories = reactions.filter((reaction) =>
+      myStoryIds.includes(reaction.story_id ?? "")
     );
-  }
+
+    return {
+      total: reactionsOnMyStories.length,
+      amen: reactionsOnMyStories.filter(
+        (reaction) => reaction.reaction_type === "amen"
+      ).length,
+      praiseGod: reactionsOnMyStories.filter(
+        (reaction) => reaction.reaction_type === "praise_god"
+      ).length,
+      encouraged: reactionsOnMyStories.filter(
+        (reaction) => reaction.reaction_type === "encouraged"
+      ).length,
+      praying: reactionsOnMyStories.filter(
+        (reaction) => reaction.reaction_type === "praying"
+      ).length,
+    };
+  }, [myStories, reactions]);
+
+  const journeyTotals = useMemo(() => {
+    return {
+      storiesShared: myStories.length,
+      prayersJoined: myPrayerWatchlist.length,
+      godDidIt: myGodDidItMoments.length,
+      encouragements: encouragementImpact.total,
+    };
+  }, [
+    myStories.length,
+    myPrayerWatchlist.length,
+    myGodDidItMoments.length,
+    encouragementImpact.total,
+  ]);
+
+  const receivedReplies = useMemo(() => {
+    return videoReplies.filter((reply) => reply.recipient_user_id === userId);
+  }, [videoReplies, userId]);
+
+  const sentReplies = useMemo(() => {
+    return videoReplies.filter((reply) => reply.user_id === userId);
+  }, [videoReplies, userId]);
+
+  const unreadInboxCount = useMemo(() => {
+    return videoReplies.filter(
+      (reply) => reply.recipient_user_id === userId && !reply.read_at
+    ).length;
+  }, [videoReplies, userId]);
+
+  const filteredInboxReplies = useMemo(() => {
+    if (activeInboxTab === "received") return receivedReplies;
+    if (activeInboxTab === "sent") return sentReplies;
+    return videoReplies;
+  }, [activeInboxTab, receivedReplies, sentReplies, videoReplies]);
 
   function getProfileName(profileId: string | null) {
     if (!profileId) return "HTBF Community";
 
-    const foundProfile = profilesById[profileId];
+    const profile = replyProfiles[profileId];
 
     return (
-      foundProfile?.display_name?.trim() ||
-      foundProfile?.username?.trim() ||
-      foundProfile?.real_name?.trim() ||
+      profile?.display_name?.trim() ||
+      profile?.username?.trim() ||
+      profile?.real_name?.trim() ||
       "HTBF Community"
     );
   }
 
-  function getMessageLabel(messageRow: ReplyRow) {
+  function getReplyLabel(reply: VideoReplyRow) {
     if (!userId) return "Message";
 
-    if (messageRow.user_id === userId) {
-      return `To ${getProfileName(messageRow.recipient_user_id)}`;
+    if (reply.user_id === userId) {
+      return `To ${getProfileName(reply.recipient_user_id)}`;
     }
 
-    return `From ${getProfileName(messageRow.user_id)}`;
+    return `From ${getProfileName(reply.user_id)}`;
   }
 
-  function getOtherPerson(messageRow: ReplyRow) {
+  function getOtherPerson(reply: VideoReplyRow) {
     if (!userId) return "HTBF Community";
 
-    if (messageRow.user_id === userId) {
-      return getProfileName(messageRow.recipient_user_id);
+    if (reply.user_id === userId) {
+      return getProfileName(reply.recipient_user_id);
     }
 
-    return getProfileName(messageRow.user_id);
+    return getProfileName(reply.user_id);
   }
 
   function getStoryPreview(storyId: string | null) {
     if (!storyId) return "Video testimony";
 
-    const story = storiesById[storyId];
+    const story = stories.find((item) => item.id === storyId);
 
     if (!story) return "Video testimony";
 
@@ -375,20 +386,20 @@ export default function JourneyPage() {
 
     if (!userId) return;
 
-    const unreadReceived = messages.filter(
-      (item) => item.recipient_user_id === userId && !item.read_at
+    const unreadReplies = videoReplies.filter(
+      (reply) => reply.recipient_user_id === userId && !reply.read_at
     );
 
-    if (unreadReceived.length > 0) {
+    if (unreadReplies.length > 0) {
       await supabase
         .from("story_video_replies")
         .update({ read_at: new Date().toISOString() })
         .in(
           "id",
-          unreadReceived.map((item) => item.id)
+          unreadReplies.map((reply) => reply.id)
         );
 
-      await loadJourneyMessages(userId);
+      await loadVideoReplies(userId);
     }
   }
 
@@ -436,14 +447,15 @@ export default function JourneyPage() {
     setReplyTarget(null);
     setSendingReply(false);
     setMessage("Reply sent.");
-    await loadJourneyMessages(userId);
+
+    await loadVideoReplies(userId);
   }
 
-  async function deleteMessage(messageRow: ReplyRow) {
+  async function deleteReply(reply: VideoReplyRow) {
     if (!userId) return;
 
     const confirmed = window.confirm(
-      "Delete this message from your Journey? This only hides it from your side."
+      "Delete this message from your Journey inbox? This only hides it from your side."
     );
 
     if (!confirmed) return;
@@ -453,29 +465,29 @@ export default function JourneyPage() {
       deleted_by_recipient?: boolean;
     } = {};
 
-    if (messageRow.user_id === userId) {
+    if (reply.user_id === userId) {
       updateData.deleted_by_sender = true;
     }
 
-    if (messageRow.recipient_user_id === userId) {
+    if (reply.recipient_user_id === userId) {
       updateData.deleted_by_recipient = true;
     }
 
     const { error } = await supabase
       .from("story_video_replies")
       .update(updateData)
-      .eq("id", messageRow.id);
+      .eq("id", reply.id);
 
     if (error) {
       setMessage(`Could not delete message: ${error.message}`);
       return;
     }
 
-    setMessages((currentMessages) =>
-      currentMessages.filter((item) => item.id !== messageRow.id)
+    setVideoReplies((currentReplies) =>
+      currentReplies.filter((item) => item.id !== reply.id)
     );
 
-    setMessage("Message deleted from your Journey.");
+    setMessage("Message deleted from your Journey inbox.");
   }
 
   function formatDate(value: string | null) {
@@ -491,180 +503,108 @@ export default function JourneyPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-[#f8fbff] px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
-          Loading Journey...
+      <main className="min-h-screen bg-[#f8fbff] px-4 py-10 text-slate-900">
+        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          Loading your Journey...
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
-      <div className="mx-auto max-w-3xl px-4 pt-5">
-        <div className="mb-5 flex items-center justify-between">
+    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
             href="/feed"
-            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Feed
+            Back to Feed
           </Link>
 
-          <div className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+          <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
             Journey
           </div>
         </div>
+      </header>
 
-        <section className="mb-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <Sparkles className="h-6 w-6" />
-            </div>
-
-            <div>
-              <h1 className="text-3xl font-black text-[#062a57]">
-                {getDisplayName()} Journey
-              </h1>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Track your shared stories, video responses, encouragement, and
-                faith activity in one place.
-              </p>
-            </div>
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
+            <Sparkles className="h-4 w-4" />
+            Freedom Journey
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <JourneyStatCard
-              label="Stories"
-              value={myStories.length}
-              tone="blue"
+          <h1 className="text-4xl font-black tracking-tight">
+            This is your role in the movement.
+          </h1>
+
+          <p className="mt-3 leading-7 text-blue-100">
+            Journey helps you keep track of prayer, encouragement, answered
+            prayers, personal reflection, and the stories you have shared.
+          </p>
+
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <MiniStat number={journeyTotals.storiesShared} label="Shared" />
+            <MiniStat number={journeyTotals.prayersJoined} label="Prayers" />
+            <MiniStat number={journeyTotals.godDidIt} label="God Did It" />
+            <MiniStat
+              number={journeyTotals.encouragements}
+              label="Responses"
             />
-
-            <JourneyStatCard label="Videos" value={videoCount} tone="amber" />
-
-            <JourneyStatCard
-              label="Encouragements"
-              value={totalReactions}
-              tone="green"
-            />
-
-            <button
-              type="button"
-              onClick={openInbox}
-              className="relative rounded-[1.5rem] bg-white p-4 text-left ring-1 ring-slate-200 transition hover:bg-blue-50"
-            >
-              {unreadCount > 0 && (
-                <span className="absolute right-3 top-3 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black text-white">
-                  {unreadCount}
-                </span>
-              )}
-
-              <div className="flex items-center gap-2 text-[#0b63ce]">
-                <Inbox className="h-5 w-5" />
-                <span className="text-2xl font-black">
-                  {receivedMessages.length}
-                </span>
-              </div>
-
-              <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                Inbox
-              </div>
-
-              <div className="mt-3 flex items-center gap-1 text-xs font-bold text-slate-500">
-                Open messages
-                <ChevronRight className="h-3.5 w-3.5" />
-              </div>
-            </button>
           </div>
         </section>
 
-        {!inboxOpen ? (
-          <>
-            <section className="mb-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-              <div className="mb-4 flex items-center gap-2">
-                <PlayCircle className="h-5 w-5 text-[#0b63ce]" />
-                <h2 className="text-xl font-black text-[#062a57]">
-                  Quick Actions
-                </h2>
-              </div>
+        {message && (
+          <section className="rounded-[2rem] bg-blue-50 p-5 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
+            {message}
+          </section>
+        )}
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Link
-                  href="/share-your-story"
-                  className="rounded-[1.5rem] bg-blue-50 p-4 text-sm font-black text-[#082f63] ring-1 ring-blue-100"
-                >
-                  Share a new testimony
-                </Link>
-
-                <Link
-                  href="/video-feed"
-                  className="rounded-[1.5rem] bg-amber-50 p-4 text-sm font-black text-[#082f63] ring-1 ring-amber-100"
-                >
-                  View video testimonies
-                </Link>
-
-                <Link
-                  href="/search"
-                  className="rounded-[1.5rem] bg-slate-50 p-4 text-sm font-black text-[#082f63] ring-1 ring-slate-200"
-                >
-                  Search stories
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={openInbox}
-                  className="rounded-[1.5rem] bg-white p-4 text-left text-sm font-black text-[#082f63] ring-1 ring-slate-200"
-                >
-                  Open Journey inbox
-                </button>
-              </div>
-            </section>
-
-            <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-              <div className="mb-4 flex items-center gap-2">
-                <MessageCircleHeart className="h-5 w-5 text-[#0b63ce]" />
-                <h2 className="text-xl font-black text-[#062a57]">
-                  Recent Inbox Preview
-                </h2>
-              </div>
-
-              {receivedMessages.length === 0 ? (
-                <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
-                  No video responses yet. When someone responds to your videos,
-                  they will appear here.
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={openInbox}
-                  className="w-full rounded-[1.5rem] bg-slate-50 p-4 text-left ring-1 ring-slate-200 transition hover:bg-blue-50"
-                >
-                  <div className="text-sm font-black text-[#062a57]">
-                    {getMessageLabel(receivedMessages[0])}
-                  </div>
-
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
-                    {receivedMessages[0].message}
-                  </p>
-
-                  <div className="mt-3 flex items-center gap-1 text-xs font-black text-[#0b63ce]">
-                    Open inbox
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </div>
-                </button>
+        <button
+          type="button"
+          onClick={openInbox}
+          className="w-full rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
+        >
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+              <Inbox className="h-6 w-6" />
+              {unreadInboxCount > 0 && (
+                <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white">
+                  {unreadInboxCount}
+                </span>
               )}
-            </section>
-          </>
-        ) : (
-          <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  Journey Inbox
-                </div>
+            </div>
 
-                <h2 className="mt-1 text-2xl font-black text-[#062a57]">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                Journey Inbox
+              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                Video responses and encouragement
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                {receivedReplies.length === 0
+                  ? "Messages people send from your videos will appear here."
+                  : `${receivedReplies.length} received message${
+                      receivedReplies.length === 1 ? "" : "s"
+                    } connected to video testimonies.`}
+              </p>
+            </div>
+
+            <ChevronRight className="h-5 w-5 text-slate-400" />
+          </div>
+        </button>
+
+        {inboxOpen && (
+          <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  Inbox
+                </div>
+                <h2 className="text-2xl font-black text-[#062a57]">
                   Video Responses
                 </h2>
               </div>
@@ -679,43 +619,37 @@ export default function JourneyPage() {
             </div>
 
             <div className="mb-5 grid grid-cols-3 gap-2 rounded-[1.5rem] bg-slate-50 p-2">
-              <TabButton
+              <InboxTabButton
                 label="Received"
-                active={activeTab === "received"}
-                onClick={() => setActiveTab("received")}
+                active={activeInboxTab === "received"}
+                onClick={() => setActiveInboxTab("received")}
               />
 
-              <TabButton
+              <InboxTabButton
                 label="Sent"
-                active={activeTab === "sent"}
-                onClick={() => setActiveTab("sent")}
+                active={activeInboxTab === "sent"}
+                onClick={() => setActiveInboxTab("sent")}
               />
 
-              <TabButton
+              <InboxTabButton
                 label="All"
-                active={activeTab === "all"}
-                onClick={() => setActiveTab("all")}
+                active={activeInboxTab === "all"}
+                onClick={() => setActiveInboxTab("all")}
               />
             </div>
 
-            {message && (
-              <div className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63]">
-                {message}
-              </div>
-            )}
-
             <div className="space-y-4">
-              {filteredMessages.length === 0 ? (
+              {filteredInboxReplies.length === 0 ? (
                 <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
                   No messages here yet.
                 </div>
               ) : (
-                filteredMessages.map((messageRow) => {
-                  const storyPreview = getStoryPreview(messageRow.story_id);
+                filteredInboxReplies.map((reply) => {
+                  const storyPreview = getStoryPreview(reply.story_id);
 
                   return (
                     <article
-                      key={messageRow.id}
+                      key={reply.id}
                       className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200"
                     >
                       <div className="mb-3 flex items-start justify-between gap-3">
@@ -726,23 +660,22 @@ export default function JourneyPage() {
 
                           <div>
                             <div className="text-sm font-black text-[#062a57]">
-                              {getMessageLabel(messageRow)}
+                              {getReplyLabel(reply)}
                             </div>
 
                             <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-500">
                               <Video className="h-3.5 w-3.5" />
-                              {formatDate(messageRow.created_at)}
+                              {formatDate(reply.created_at)}
                             </div>
                           </div>
                         </div>
 
-                        {messageRow.recipient_user_id === userId &&
-                          messageRow.read_at && (
-                            <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Read
-                            </div>
-                          )}
+                        {reply.recipient_user_id === userId && reply.read_at && (
+                          <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Read
+                          </div>
+                        )}
                       </div>
 
                       <div className="mb-3 rounded-2xl bg-white p-3 text-xs font-semibold leading-5 text-slate-500 ring-1 ring-slate-100">
@@ -755,14 +688,14 @@ export default function JourneyPage() {
                       </div>
 
                       <p className="whitespace-pre-line text-[15px] leading-7 text-slate-800">
-                        {messageRow.message}
+                        {reply.message}
                       </p>
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            setReplyTarget(messageRow);
+                            setReplyTarget(reply);
                             setReplyText("");
                             setMessage("");
                           }}
@@ -774,16 +707,16 @@ export default function JourneyPage() {
 
                         <button
                           type="button"
-                          onClick={() => deleteMessage(messageRow)}
+                          onClick={() => deleteReply(reply)}
                           className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-red-600 ring-1 ring-red-100 hover:bg-red-50"
                         >
                           <Trash2 className="h-4 w-4" />
                           Delete
                         </button>
 
-                        {messageRow.story_id && (
+                        {reply.story_id && (
                           <Link
-                            href={`/video-feed?story=${messageRow.story_id}&from=journey`}
+                            href={`/video-feed?story=${reply.story_id}&from=journey`}
                             className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] ring-1 ring-slate-200 hover:bg-blue-50"
                           >
                             <MessageCircleHeart className="h-4 w-4" />
@@ -798,6 +731,231 @@ export default function JourneyPage() {
             </div>
           </section>
         )}
+
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+              <Target className="h-6 w-6" />
+            </div>
+
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                Today’s Mission
+              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                Do one thing that brings encouragement.
+              </h2>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MissionButton
+              href="/prayer"
+              icon={<HeartHandshake className="h-5 w-5" />}
+              title="Pray"
+              text="Stand with one request"
+            />
+
+            <MissionButton
+              href="/feed"
+              icon={<HandHeart className="h-5 w-5" />}
+              title="Encourage"
+              text="Respond to one story"
+            />
+
+            <MissionButton
+              href="/share-your-story"
+              icon={<Send className="h-5 w-5" />}
+              title="Testify"
+              text="Share what God did"
+            />
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <Footprints className="h-6 w-6" />
+            </div>
+
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
+                Freedom Milestones
+              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                Your HTBF journey path
+              </h2>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <JourneyPathStep
+              active={myStories.length > 0}
+              number="01"
+              icon={<Lightbulb className="h-5 w-5" />}
+              title="God moved"
+              text="Something happened that was worth remembering."
+            />
+
+            <JourneyPathStep
+              active={myStories.length > 0}
+              number="02"
+              icon={<Send className="h-5 w-5" />}
+              title="You shared"
+              text={
+                myStories.length > 0
+                  ? `You have shared ${myStories.length} approved story${
+                      myStories.length === 1 ? "" : "ies"
+                    }.`
+                  : "Share a testimony, praise report, prayer request, or video."
+              }
+            />
+
+            <JourneyPathStep
+              active={encouragementImpact.total > 0}
+              number="03"
+              icon={<Users className="h-5 w-5" />}
+              title="Others responded"
+              text={
+                encouragementImpact.total > 0
+                  ? `Your stories have received ${encouragementImpact.total} response${
+                      encouragementImpact.total === 1 ? "" : "s"
+                    }.`
+                  : "Responses to your stories will appear here."
+              }
+            />
+
+            <JourneyPathStep
+              active={myGodDidItMoments.length > 0}
+              number="04"
+              icon={<CheckCircle2 className="h-5 w-5" />}
+              title="God Did It"
+              text={
+                myGodDidItMoments.length > 0
+                  ? `${myGodDidItMoments.length} of your prayer request${
+                      myGodDidItMoments.length === 1 ? " has" : "s have"
+                    } been marked answered.`
+                  : "Answered prayer moments will appear here."
+              }
+            />
+
+            <JourneyPathStep
+              active={encouragementImpact.encouraged > 0}
+              number="05"
+              icon={<Flame className="h-5 w-5" />}
+              title="Someone else was strengthened"
+              text={
+                encouragementImpact.encouraged > 0
+                  ? `${encouragementImpact.encouraged} person${
+                      encouragementImpact.encouraged === 1 ? " was" : "s were"
+                    } encouraged by your stories.`
+                  : "Encouragement impact will grow as people respond."
+              }
+            />
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2">
+          <DashboardCard
+            icon={<Users className="h-6 w-6" />}
+            eyebrow="My Prayer Watchlist"
+            title={`${myPrayerWatchlist.length} Prayer ${
+              myPrayerWatchlist.length === 1 ? "Request" : "Requests"
+            }`}
+            text="These are prayer requests you joined by selecting I’m Praying."
+            href="/prayer"
+            button="View Prayer"
+          />
+
+          <DashboardCard
+            icon={<CheckCircle2 className="h-6 w-6" />}
+            eyebrow="My God Did It Moments"
+            title={`${myGodDidItMoments.length} Answered`}
+            text="These are your prayer requests that have been marked answered."
+            href="/answered"
+            button="View Answered"
+          />
+
+          <DashboardCard
+            icon={<MessageCircleHeart className="h-6 w-6" />}
+            eyebrow="Encouragement Impact"
+            title={`${encouragementImpact.total} Responses`}
+            text={`Amen: ${encouragementImpact.amen} • Praise God: ${encouragementImpact.praiseGod} • Encouraged: ${encouragementImpact.encouraged} • Praying: ${encouragementImpact.praying}`}
+            href="/feed"
+            button="Open Feed"
+          />
+
+          <DashboardCard
+            icon={<Globe2 className="h-6 w-6" />}
+            eyebrow="Movement View"
+            title="Testimony Map"
+            text="See where stories, prayers, videos, and answered prayers are being shared."
+            href="/map"
+            button="Open Map"
+          />
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <NotebookPen className="h-6 w-6" />
+            </div>
+
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">
+                Reflection Room
+              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                What do you want to remember?
+              </h2>
+            </div>
+          </div>
+
+          <textarea
+            value={reflection}
+            onChange={(event) => saveReflection(event.target.value)}
+            placeholder="Write a private reflection, prayer note, or testimony reminder..."
+            className="min-h-40 w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 text-base leading-7 text-slate-700 outline-none transition focus:border-blue-200 focus:bg-white focus:ring-4 focus:ring-blue-50"
+          />
+
+          <p className="mt-3 text-sm font-semibold text-slate-500">
+            Saved on this device.
+          </p>
+        </section>
+
+        <section className="rounded-[2rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-6 text-white shadow-sm">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100">
+            <Trophy className="h-4 w-4" />
+            Keep going
+          </div>
+
+          <h2 className="text-3xl font-black tracking-tight">
+            One story can strengthen another person’s journey.
+          </h2>
+
+          <p className="mt-3 leading-7 text-blue-100">
+            Share what God did, stand with someone in prayer, or write down what
+            you want to remember.
+          </p>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/share-your-story"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-[#082f63] hover:bg-blue-50"
+            >
+              Share What God Did
+              <Send className="h-4 w-4" />
+            </Link>
+
+            <Link
+              href="/videos"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white/10 px-5 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/15"
+            >
+              Watch Testimonies
+              <Play className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
       </div>
 
       {replyTarget && (
@@ -847,38 +1005,28 @@ export default function JourneyPage() {
           </div>
         </div>
       )}
-
-      <LoggedInBottomNav />
     </main>
   );
 }
 
-function JourneyStatCard({
+function MiniStat({
+  number,
   label,
-  value,
-  tone,
 }: {
+  number: string | number;
   label: string;
-  value: number;
-  tone: "blue" | "amber" | "green";
 }) {
-  const toneClasses = {
-    blue: "bg-blue-50 text-[#0b63ce]",
-    amber: "bg-amber-50 text-amber-700",
-    green: "bg-emerald-50 text-emerald-700",
-  };
-
   return (
-    <div className={`rounded-[1.5rem] p-4 ${toneClasses[tone]}`}>
-      <div className="text-2xl font-black text-[#062a57]">{value}</div>
-      <div className="text-xs font-black uppercase tracking-[0.16em]">
+    <div className="rounded-2xl bg-white/10 p-3 text-center ring-1 ring-white/15">
+      <div className="text-2xl font-black">{number}</div>
+      <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-blue-100">
         {label}
       </div>
     </div>
   );
 }
 
-function TabButton({
+function InboxTabButton({
   label,
   active,
   onClick,
@@ -899,5 +1047,112 @@ function TabButton({
     >
       {label}
     </button>
+  );
+}
+
+function MissionButton({
+  href,
+  icon,
+  title,
+  text,
+}: {
+  href: string;
+  icon: ReactNode;
+  title: string;
+  text: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-blue-50"
+    >
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#0b63ce] shadow-sm ring-1 ring-slate-100">
+        {icon}
+      </div>
+
+      <div className="font-black text-[#062a57]">{title}</div>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+    </Link>
+  );
+}
+
+function JourneyPathStep({
+  active,
+  number,
+  icon,
+  title,
+  text,
+}: {
+  active: boolean;
+  number: string;
+  icon: ReactNode;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div
+      className={`flex gap-4 rounded-[1.5rem] p-4 ring-1 ${
+        active
+          ? "bg-blue-50 ring-blue-100"
+          : "bg-slate-50 ring-slate-100"
+      }`}
+    >
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-1 ${
+          active
+            ? "bg-[#0b63ce] text-white ring-blue-200"
+            : "bg-white text-[#0b63ce] ring-slate-100"
+        }`}
+      >
+        {icon}
+      </div>
+
+      <div>
+        <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+          {number}
+        </div>
+        <div className="mt-1 font-black text-[#062a57]">{title}</div>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function DashboardCard({
+  icon,
+  eyebrow,
+  title,
+  text,
+  href,
+  button,
+}: {
+  icon: ReactNode;
+  eyebrow: string;
+  title: string;
+  text: string;
+  href: string;
+  button: string;
+}) {
+  return (
+    <div className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+        {icon}
+      </div>
+
+      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+        {eyebrow}
+      </div>
+
+      <h3 className="mt-1 text-2xl font-black text-[#062a57]">{title}</h3>
+
+      <p className="mt-2 leading-7 text-slate-600">{text}</p>
+
+      <Link
+        href={href}
+        className="mt-5 inline-flex rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
+      >
+        {button}
+      </Link>
+    </div>
   );
 }
