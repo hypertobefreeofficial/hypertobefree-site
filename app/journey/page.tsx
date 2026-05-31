@@ -5,7 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronRight,
+  Inbox,
   MessageCircleHeart,
+  PlayCircle,
   Reply,
   Send,
   Sparkles,
@@ -18,6 +21,23 @@ import { supabase } from "../../lib/supabaseClient";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 
 type JourneyTab = "received" | "sent" | "all";
+
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+  real_name: string | null;
+};
+
+type StoryRow = {
+  id: string;
+  user_id: string | null;
+  name: string | null;
+  story_text: string | null;
+  story_type: string | null;
+  video_url: string | null;
+  status: string | null;
+};
 
 type ReplyRow = {
   id: string;
@@ -32,29 +52,31 @@ type ReplyRow = {
   read_at: string | null;
 };
 
-type StoryRow = {
-  id: string;
-  user_id: string | null;
-  name: string | null;
-  story_text: string | null;
-  story_type: string | null;
-  video_url: string | null;
-};
-
-type ProfileRow = {
-  id: string;
-  display_name: string | null;
-  username: string | null;
-  real_name: string | null;
+type ReactionRow = {
+  story_id: string | null;
+  reaction_type: string | null;
 };
 
 export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [myStories, setMyStories] = useState<StoryRow[]>([]);
   const [messages, setMessages] = useState<ReplyRow[]>([]);
-  const [stories, setStories] = useState<Record<string, StoryRow>>({});
-  const [profiles, setProfiles] = useState<Record<string, ProfileRow>>({});
+  const [storiesById, setStoriesById] = useState<Record<string, StoryRow>>({});
+  const [profilesById, setProfilesById] = useState<Record<string, ProfileRow>>(
+    {}
+  );
+  const [reactionCounts, setReactionCounts] = useState({
+    amen: 0,
+    praise_god: 0,
+    encouraged: 0,
+    praying: 0,
+  });
+
   const [activeTab, setActiveTab] = useState<JourneyTab>("received");
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [replyTarget, setReplyTarget] = useState<ReplyRow | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -75,14 +97,20 @@ export default function JourneyPage() {
       }
 
       setUserId(user.id);
-      await loadJourneyMessages(user.id);
+
+      await Promise.all([
+        loadProfile(user.id),
+        loadJourneyStats(user.id),
+        loadJourneyMessages(user.id),
+      ]);
+
       setCheckingUser(false);
     }
 
     loadPage();
 
     const channel = supabase
-      .channel("journey-message-updates")
+      .channel("journey-live-updates")
       .on(
         "postgres_changes",
         {
@@ -100,12 +128,83 @@ export default function JourneyPage() {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "story_reactions",
+        },
+        async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (user) {
+            await loadJourneyStats(user.id);
+          }
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  async function loadProfile(currentUserId: string) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, display_name, username, real_name")
+      .eq("id", currentUserId)
+      .maybeSingle();
+
+    if (data) {
+      setProfile(data as ProfileRow);
+    }
+  }
+
+  async function loadJourneyStats(currentUserId: string) {
+    const { data: storyData } = await supabase
+      .from("stories")
+      .select("id, user_id, name, story_text, story_type, video_url, status")
+      .eq("user_id", currentUserId)
+      .order("created_at", { ascending: false });
+
+    const ownedStories = (storyData as StoryRow[]) ?? [];
+    setMyStories(ownedStories);
+
+    const storyIds = ownedStories.map((story) => story.id);
+
+    if (storyIds.length === 0) {
+      setReactionCounts({
+        amen: 0,
+        praise_god: 0,
+        encouraged: 0,
+        praying: 0,
+      });
+      return;
+    }
+
+    const { data: reactionData } = await supabase
+      .from("story_reactions")
+      .select("story_id, reaction_type")
+      .in("story_id", storyIds);
+
+    const reactions = (reactionData as ReactionRow[]) ?? [];
+
+    setReactionCounts({
+      amen: reactions.filter((item) => item.reaction_type === "amen").length,
+      praise_god: reactions.filter(
+        (item) => item.reaction_type === "praise_god"
+      ).length,
+      encouraged: reactions.filter(
+        (item) => item.reaction_type === "encouraged"
+      ).length,
+      praying: reactions.filter((item) => item.reaction_type === "praying")
+        .length,
+    });
+  }
 
   async function loadJourneyMessages(currentUserId: string) {
     const { data, error } = await supabase
@@ -117,7 +216,7 @@ export default function JourneyPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage(`Could not load Journey messages: ${error.message}`);
+      setMessage(`Could not load Journey inbox: ${error.message}`);
       return;
     }
 
@@ -134,20 +233,6 @@ export default function JourneyPage() {
 
     setMessages(visibleMessages);
 
-    const unreadReceived = visibleMessages.filter(
-      (item) => item.recipient_user_id === currentUserId && !item.read_at
-    );
-
-    if (unreadReceived.length > 0) {
-      await supabase
-        .from("story_video_replies")
-        .update({ read_at: new Date().toISOString() })
-        .in(
-          "id",
-          unreadReceived.map((item) => item.id)
-        );
-    }
-
     const storyIds = Array.from(
       new Set(
         visibleMessages
@@ -159,7 +244,7 @@ export default function JourneyPage() {
     if (storyIds.length > 0) {
       const { data: storyData } = await supabase
         .from("stories")
-        .select("id, user_id, name, story_text, story_type, video_url")
+        .select("id, user_id, name, story_text, story_type, video_url, status")
         .in("id", storyIds);
 
       const nextStories: Record<string, StoryRow> = {};
@@ -168,7 +253,7 @@ export default function JourneyPage() {
         nextStories[story.id] = story;
       });
 
-      setStories(nextStories);
+      setStoriesById(nextStories);
     }
 
     const profileIds = Array.from(
@@ -187,59 +272,71 @@ export default function JourneyPage() {
 
       const nextProfiles: Record<string, ProfileRow> = {};
 
-      ((profileData as ProfileRow[]) ?? []).forEach((profile) => {
-        nextProfiles[profile.id] = profile;
+      ((profileData as ProfileRow[]) ?? []).forEach((profileItem) => {
+        nextProfiles[profileItem.id] = profileItem;
       });
 
-      setProfiles(nextProfiles);
+      setProfilesById(nextProfiles);
     }
   }
+
+  const receivedMessages = useMemo(() => {
+    if (!userId) return [];
+    return messages.filter((item) => item.recipient_user_id === userId);
+  }, [messages, userId]);
+
+  const sentMessages = useMemo(() => {
+    if (!userId) return [];
+    return messages.filter((item) => item.user_id === userId);
+  }, [messages, userId]);
+
+  const unreadCount = useMemo(() => {
+    if (!userId) return 0;
+
+    return messages.filter(
+      (item) => item.recipient_user_id === userId && !item.read_at
+    ).length;
+  }, [messages, userId]);
 
   const filteredMessages = useMemo(() => {
     if (!userId) return [];
 
-    if (activeTab === "received") {
-      return messages.filter((item) => item.recipient_user_id === userId);
-    }
-
-    if (activeTab === "sent") {
-      return messages.filter((item) => item.user_id === userId);
-    }
+    if (activeTab === "received") return receivedMessages;
+    if (activeTab === "sent") return sentMessages;
 
     return messages;
-  }, [activeTab, messages, userId]);
+  }, [activeTab, messages, receivedMessages, sentMessages, userId]);
 
-  const receivedCount = useMemo(() => {
-    if (!userId) return 0;
-    return messages.filter((item) => item.recipient_user_id === userId).length;
-  }, [messages, userId]);
+  const videoCount = useMemo(() => {
+    return myStories.filter((story) => Boolean(story.video_url)).length;
+  }, [myStories]);
 
-  const sentCount = useMemo(() => {
-    if (!userId) return 0;
-    return messages.filter((item) => item.user_id === userId).length;
-  }, [messages, userId]);
+  const totalReactions =
+    reactionCounts.amen +
+    reactionCounts.praise_god +
+    reactionCounts.encouraged +
+    reactionCounts.praying;
 
-  function getProfileName(profileId: string | null) {
-    if (!profileId) return "HTBF Community";
-
-    const profile = profiles[profileId];
-
+  function getDisplayName() {
     return (
       profile?.display_name?.trim() ||
       profile?.username?.trim() ||
       profile?.real_name?.trim() ||
-      "HTBF Community"
+      "Your"
     );
   }
 
-  function getOtherPerson(messageRow: ReplyRow) {
-    if (!userId) return "HTBF Community";
+  function getProfileName(profileId: string | null) {
+    if (!profileId) return "HTBF Community";
 
-    if (messageRow.user_id === userId) {
-      return getProfileName(messageRow.recipient_user_id);
-    }
+    const foundProfile = profilesById[profileId];
 
-    return getProfileName(messageRow.user_id);
+    return (
+      foundProfile?.display_name?.trim() ||
+      foundProfile?.username?.trim() ||
+      foundProfile?.real_name?.trim() ||
+      "HTBF Community"
+    );
   }
 
   function getMessageLabel(messageRow: ReplyRow) {
@@ -252,14 +349,47 @@ export default function JourneyPage() {
     return `From ${getProfileName(messageRow.user_id)}`;
   }
 
+  function getOtherPerson(messageRow: ReplyRow) {
+    if (!userId) return "HTBF Community";
+
+    if (messageRow.user_id === userId) {
+      return getProfileName(messageRow.recipient_user_id);
+    }
+
+    return getProfileName(messageRow.user_id);
+  }
+
   function getStoryPreview(storyId: string | null) {
     if (!storyId) return "Video testimony";
 
-    const story = stories[storyId];
+    const story = storiesById[storyId];
 
     if (!story) return "Video testimony";
 
     return story.story_text || story.story_type || "Video testimony";
+  }
+
+  async function openInbox() {
+    setInboxOpen(true);
+    setMessage("");
+
+    if (!userId) return;
+
+    const unreadReceived = messages.filter(
+      (item) => item.recipient_user_id === userId && !item.read_at
+    );
+
+    if (unreadReceived.length > 0) {
+      await supabase
+        .from("story_video_replies")
+        .update({ read_at: new Date().toISOString() })
+        .in(
+          "id",
+          unreadReceived.map((item) => item.id)
+        );
+
+      await loadJourneyMessages(userId);
+    }
   }
 
   async function sendReply() {
@@ -394,157 +524,280 @@ export default function JourneyPage() {
 
             <div>
               <h1 className="text-3xl font-black text-[#062a57]">
-                Your Journey
+                {getDisplayName()} Journey
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                See encouragement, prayers, and replies connected to your video
-                testimonies and responses you have sent to others.
+                Track your shared stories, video responses, encouragement, and
+                faith activity in one place.
               </p>
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-[1.5rem] bg-blue-50 p-4">
-              <div className="text-2xl font-black text-[#062a57]">
-                {receivedCount}
-              </div>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                Received
-              </div>
-            </div>
+            <JourneyStatCard
+              label="Stories"
+              value={myStories.length}
+              tone="blue"
+            />
 
-            <div className="rounded-[1.5rem] bg-amber-50 p-4">
-              <div className="text-2xl font-black text-[#062a57]">
-                {sentCount}
+            <JourneyStatCard label="Videos" value={videoCount} tone="amber" />
+
+            <JourneyStatCard
+              label="Encouragements"
+              value={totalReactions}
+              tone="green"
+            />
+
+            <button
+              type="button"
+              onClick={openInbox}
+              className="relative rounded-[1.5rem] bg-white p-4 text-left ring-1 ring-slate-200 transition hover:bg-blue-50"
+            >
+              {unreadCount > 0 && (
+                <span className="absolute right-3 top-3 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black text-white">
+                  {unreadCount}
+                </span>
+              )}
+
+              <div className="flex items-center gap-2 text-[#0b63ce]">
+                <Inbox className="h-5 w-5" />
+                <span className="text-2xl font-black">
+                  {receivedMessages.length}
+                </span>
               </div>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">
-                Sent
+
+              <div className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                Inbox
               </div>
-            </div>
+
+              <div className="mt-3 flex items-center gap-1 text-xs font-bold text-slate-500">
+                Open messages
+                <ChevronRight className="h-3.5 w-3.5" />
+              </div>
+            </button>
           </div>
         </section>
 
-        <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5 grid grid-cols-3 gap-2 rounded-[1.5rem] bg-slate-50 p-2">
-            <TabButton
-              label="Received"
-              active={activeTab === "received"}
-              onClick={() => setActiveTab("received")}
-            />
-
-            <TabButton
-              label="Sent"
-              active={activeTab === "sent"}
-              onClick={() => setActiveTab("sent")}
-            />
-
-            <TabButton
-              label="All"
-              active={activeTab === "all"}
-              onClick={() => setActiveTab("all")}
-            />
-          </div>
-
-          {message && (
-            <div className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63]">
-              {message}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {filteredMessages.length === 0 ? (
-              <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
-                No Journey messages here yet.
+        {!inboxOpen ? (
+          <>
+            <section className="mb-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+              <div className="mb-4 flex items-center gap-2">
+                <PlayCircle className="h-5 w-5 text-[#0b63ce]" />
+                <h2 className="text-xl font-black text-[#062a57]">
+                  Quick Actions
+                </h2>
               </div>
-            ) : (
-              filteredMessages.map((messageRow) => {
-                const storyPreview = getStoryPreview(messageRow.story_id);
 
-                return (
-                  <article
-                    key={messageRow.id}
-                    className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200"
-                  >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#0b63ce] ring-1 ring-slate-200">
-                          <UserCircle className="h-6 w-6" />
-                        </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Link
+                  href="/share-your-story"
+                  className="rounded-[1.5rem] bg-blue-50 p-4 text-sm font-black text-[#082f63] ring-1 ring-blue-100"
+                >
+                  Share a new testimony
+                </Link>
 
-                        <div>
-                          <div className="text-sm font-black text-[#062a57]">
-                            {getMessageLabel(messageRow)}
+                <Link
+                  href="/video-feed"
+                  className="rounded-[1.5rem] bg-amber-50 p-4 text-sm font-black text-[#082f63] ring-1 ring-amber-100"
+                >
+                  View video testimonies
+                </Link>
+
+                <Link
+                  href="/search"
+                  className="rounded-[1.5rem] bg-slate-50 p-4 text-sm font-black text-[#082f63] ring-1 ring-slate-200"
+                >
+                  Search stories
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={openInbox}
+                  className="rounded-[1.5rem] bg-white p-4 text-left text-sm font-black text-[#082f63] ring-1 ring-slate-200"
+                >
+                  Open Journey inbox
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+              <div className="mb-4 flex items-center gap-2">
+                <MessageCircleHeart className="h-5 w-5 text-[#0b63ce]" />
+                <h2 className="text-xl font-black text-[#062a57]">
+                  Recent Inbox Preview
+                </h2>
+              </div>
+
+              {receivedMessages.length === 0 ? (
+                <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
+                  No video responses yet. When someone responds to your videos,
+                  they will appear here.
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openInbox}
+                  className="w-full rounded-[1.5rem] bg-slate-50 p-4 text-left ring-1 ring-slate-200 transition hover:bg-blue-50"
+                >
+                  <div className="text-sm font-black text-[#062a57]">
+                    {getMessageLabel(receivedMessages[0])}
+                  </div>
+
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
+                    {receivedMessages[0].message}
+                  </p>
+
+                  <div className="mt-3 flex items-center gap-1 text-xs font-black text-[#0b63ce]">
+                    Open inbox
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </div>
+                </button>
+              )}
+            </section>
+          </>
+        ) : (
+          <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  Journey Inbox
+                </div>
+
+                <h2 className="mt-1 text-2xl font-black text-[#062a57]">
+                  Video Responses
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setInboxOpen(false)}
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mb-5 grid grid-cols-3 gap-2 rounded-[1.5rem] bg-slate-50 p-2">
+              <TabButton
+                label="Received"
+                active={activeTab === "received"}
+                onClick={() => setActiveTab("received")}
+              />
+
+              <TabButton
+                label="Sent"
+                active={activeTab === "sent"}
+                onClick={() => setActiveTab("sent")}
+              />
+
+              <TabButton
+                label="All"
+                active={activeTab === "all"}
+                onClick={() => setActiveTab("all")}
+              />
+            </div>
+
+            {message && (
+              <div className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63]">
+                {message}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {filteredMessages.length === 0 ? (
+                <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
+                  No messages here yet.
+                </div>
+              ) : (
+                filteredMessages.map((messageRow) => {
+                  const storyPreview = getStoryPreview(messageRow.story_id);
+
+                  return (
+                    <article
+                      key={messageRow.id}
+                      className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200"
+                    >
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#0b63ce] ring-1 ring-slate-200">
+                            <UserCircle className="h-6 w-6" />
                           </div>
 
-                          <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-500">
-                            <Video className="h-3.5 w-3.5" />
-                            {formatDate(messageRow.created_at)}
+                          <div>
+                            <div className="text-sm font-black text-[#062a57]">
+                              {getMessageLabel(messageRow)}
+                            </div>
+
+                            <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-500">
+                              <Video className="h-3.5 w-3.5" />
+                              {formatDate(messageRow.created_at)}
+                            </div>
                           </div>
                         </div>
+
+                        {messageRow.recipient_user_id === userId &&
+                          messageRow.read_at && (
+                            <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Read
+                            </div>
+                          )}
                       </div>
 
-                      {messageRow.recipient_user_id === userId &&
-                        messageRow.read_at && (
-                          <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Read
-                          </div>
-                        )}
-                    </div>
+                      <div className="mb-3 rounded-2xl bg-white p-3 text-xs font-semibold leading-5 text-slate-500 ring-1 ring-slate-100">
+                        Related video:{" "}
+                        <span className="font-black text-slate-700">
+                          {storyPreview.length > 110
+                            ? `${storyPreview.slice(0, 110)}...`
+                            : storyPreview}
+                        </span>
+                      </div>
 
-                    <div className="mb-3 rounded-2xl bg-white p-3 text-xs font-semibold leading-5 text-slate-500 ring-1 ring-slate-100">
-                      Related video:{" "}
-                      <span className="font-black text-slate-700">
-                        {storyPreview.length > 110
-                          ? `${storyPreview.slice(0, 110)}...`
-                          : storyPreview}
-                      </span>
-                    </div>
+                      <p className="whitespace-pre-line text-[15px] leading-7 text-slate-800">
+                        {messageRow.message}
+                      </p>
 
-                    <p className="whitespace-pre-line text-[15px] leading-7 text-slate-800">
-                      {messageRow.message}
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReplyTarget(messageRow);
-                          setReplyText("");
-                          setMessage("");
-                        }}
-                        className="inline-flex items-center gap-2 rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-                      >
-                        <Reply className="h-4 w-4" />
-                        Reply
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => deleteMessage(messageRow)}
-                        className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-red-600 ring-1 ring-red-100 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </button>
-
-                      {messageRow.story_id && (
-                        <Link
-                          href={`/video-feed?story=${messageRow.story_id}&from=journey`}
-                          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] ring-1 ring-slate-200 hover:bg-blue-50"
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplyTarget(messageRow);
+                            setReplyText("");
+                            setMessage("");
+                          }}
+                          className="inline-flex items-center gap-2 rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
                         >
-                          <MessageCircleHeart className="h-4 w-4" />
-                          View Video
-                        </Link>
-                      )}
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </section>
+                          <Reply className="h-4 w-4" />
+                          Reply
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => deleteMessage(messageRow)}
+                          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-red-600 ring-1 ring-red-100 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </button>
+
+                        {messageRow.story_id && (
+                          <Link
+                            href={`/video-feed?story=${messageRow.story_id}&from=journey`}
+                            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] ring-1 ring-slate-200 hover:bg-blue-50"
+                          >
+                            <MessageCircleHeart className="h-4 w-4" />
+                            View Video
+                          </Link>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        )}
       </div>
 
       {replyTarget && (
@@ -597,6 +850,31 @@ export default function JourneyPage() {
 
       <LoggedInBottomNav />
     </main>
+  );
+}
+
+function JourneyStatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "blue" | "amber" | "green";
+}) {
+  const toneClasses = {
+    blue: "bg-blue-50 text-[#0b63ce]",
+    amber: "bg-amber-50 text-amber-700",
+    green: "bg-emerald-50 text-emerald-700",
+  };
+
+  return (
+    <div className={`rounded-[1.5rem] p-4 ${toneClasses[tone]}`}>
+      <div className="text-2xl font-black text-[#062a57]">{value}</div>
+      <div className="text-xs font-black uppercase tracking-[0.16em]">
+        {label}
+      </div>
+    </div>
   );
 }
 
