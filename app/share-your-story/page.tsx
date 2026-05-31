@@ -198,32 +198,37 @@ export default function ShareYourStoryPage() {
       };
     });
   }
+async function uploadVideoIfNeeded(currentUserId: string) {
+  if (!videoFile) {
+    return {
+      videoUrl: null as string | null,
+      thumbnailUrl: null as string | null,
+    };
+  }
 
-  async function uploadVideoIfNeeded(currentUserId: string) {
-    if (!videoFile) {
-      return {
-        videoUrl: null as string | null,
-        thumbnailUrl: null as string | null,
-      };
-    }
+  const fileExtension = videoFile.name.split(".").pop() || "mp4";
+  const cleanExtension = fileExtension.toLowerCase();
+  const videoFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.${cleanExtension}`;
 
-    const fileExtension = videoFile.name.split(".").pop() || "mp4";
-    const cleanExtension = fileExtension.toLowerCase();
-    const videoFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.${cleanExtension}`;
+  const { error: videoUploadError } = await supabase.storage
+    .from("story-videos")
+    .upload(videoFileName, videoFile, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: videoFile.type || "video/mp4",
+    });
 
-    const { error: videoUploadError } = await supabase.storage
-      .from("story-videos")
-      .upload(videoFileName, videoFile, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: videoFile.type || "video/mp4",
-      });
+  if (videoUploadError) {
+    throw new Error(videoUploadError.message);
+  }
 
-    if (videoUploadError) {
-      throw new Error(videoUploadError.message);
-    }
+  const { data: videoPublicData } = supabase.storage
+    .from("story-videos")
+    .getPublicUrl(videoFileName);
 
-    let thumbnailUrl: string | null = null;
+  const videoPublicUrl = videoPublicData.publicUrl;
+
+  let thumbnailUrl: string | null = null;
 
   try {
     const thumbnailBlob = await createVideoThumbnail(videoFile);
@@ -238,7 +243,9 @@ export default function ShareYourStoryPage() {
       });
 
     if (thumbnailUploadError) {
-      throw new Error(`Thumbnail upload failed: ${thumbnailUploadError.message}`);
+      throw new Error(
+        `Thumbnail upload failed: ${thumbnailUploadError.message}`
+      );
     }
 
     const { data: thumbnailPublicData } = supabase.storage
@@ -255,11 +262,11 @@ export default function ShareYourStoryPage() {
     throw new Error(message);
   }
 
-    return {
-      videoUrl: videoFileName,
-      thumbnailUrl,
-    };
-  }
+  return {
+    videoUrl: videoPublicUrl,
+    thumbnailUrl,
+  };
+}
 
   async function submitStory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
