@@ -44,9 +44,7 @@ export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryRow[]>([]);
-  const [reactionCounts, setReactionCounts] = useState<
-    Record<string, ReactionCounts>
-  >({});
+  const [reactionCounts, setReactionCounts] = useState<Record<string, ReactionCounts>>({});
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
 
@@ -83,7 +81,6 @@ export default function VideoFeedPage() {
 
       const videoStories = (data as StoryRow[]) ?? [];
       setStories(videoStories);
-
       await loadReactionCounts(videoStories.map((story) => story.id));
 
       setCheckingUser(false);
@@ -370,20 +367,44 @@ function ReelVideoPlayer({
   videoSource: string;
   poster: string | null;
 }) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [paused, setPaused] = useState(true);
 
   useEffect(() => {
+    const wrapper = wrapperRef.current;
     const video = videoRef.current;
-    if (!video) return;
+
+    if (!wrapper || !video) return;
 
     video.muted = true;
+    video.playsInline = true;
     video.load();
 
-    video
-      .play()
-      .then(() => setPaused(false))
-      .catch(() => setPaused(true));
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!video) return;
+
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+          video
+            .play()
+            .then(() => setPaused(false))
+            .catch(() => setPaused(true));
+        } else {
+          video.pause();
+          setPaused(true);
+        }
+      },
+      {
+        threshold: [0, 0.25, 0.65, 1],
+      }
+    );
+
+    observer.observe(wrapper);
+
+    return () => {
+      observer.disconnect();
+    };
   }, [videoSource]);
 
   function togglePlay() {
@@ -402,15 +423,13 @@ function ReelVideoPlayer({
   }
 
   return (
-    <div className="relative h-full w-full bg-black">
+    <div ref={wrapperRef} className="relative h-full w-full bg-black">
       <video
         ref={videoRef}
         key={videoSource}
         src={videoSource}
         poster={poster || undefined}
-        controls
         muted
-        autoPlay
         loop
         playsInline
         preload="auto"
