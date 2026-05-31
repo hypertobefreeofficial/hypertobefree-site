@@ -68,7 +68,7 @@ export default function VideoFeedPage() {
   const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false)
-  const [soundOn, setSoundOn] = useState(true);
+const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
     let currentUserId: string | null = null;
@@ -640,8 +640,6 @@ function AutoPlayReelVideo({
                 setPaused(false);
               })
               .catch(() => {
-                // Some phones/browsers block autoplay with sound.
-                // Fall back to muted autoplay so scrolling still works.
                 video.muted = true;
                 onSoundChange(false);
 
@@ -838,7 +836,15 @@ function AutoPlayReelVideo({
       video
         .play()
         .then(() => setPaused(false))
-        .catch(() => setPaused(true));
+        .catch(() => {
+          video.muted = true;
+          onSoundChange(false);
+
+          video
+            .play()
+            .then(() => setPaused(false))
+            .catch(() => setPaused(true));
+        });
     }
   }
 
@@ -853,7 +859,15 @@ function AutoPlayReelVideo({
       video
         .play()
         .then(() => setPaused(false))
-        .catch(() => setPaused(true));
+        .catch(() => {
+          video.muted = true;
+          onSoundChange(false);
+
+          video
+            .play()
+            .then(() => setPaused(false))
+            .catch(() => setPaused(true));
+        });
     } else {
       setUserPaused(true);
       video.pause();
@@ -868,7 +882,6 @@ function AutoPlayReelVideo({
     const nextSoundOn = !soundOn;
 
     onSoundChange(nextSoundOn);
-
     video.muted = !nextSoundOn;
 
     if (nextSoundOn) {
@@ -880,7 +893,11 @@ function AutoPlayReelVideo({
           setPaused(false);
           setUserPaused(false);
         })
-        .catch(() => setPaused(true));
+        .catch(() => {
+          video.muted = true;
+          onSoundChange(false);
+          setPaused(true);
+        });
     }
   }
 
@@ -913,6 +930,7 @@ function AutoPlayReelVideo({
       <div className="absolute bottom-24 right-3 z-40 flex flex-col gap-2">
         <button
           type="button"
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
             toggleSound();
@@ -929,6 +947,7 @@ function AutoPlayReelVideo({
 
         <button
           type="button"
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
             togglePlayButton();
@@ -947,6 +966,12 @@ function AutoPlayReelVideo({
       {zoomScale > 1 && (
         <div className="pointer-events-none absolute left-1/2 top-6 z-40 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
           Zoom {zoomScale.toFixed(1)}x
+        </div>
+      )}
+
+      {!soundOn && (
+        <div className="pointer-events-none absolute left-1/2 bottom-24 z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
+          Tap speaker for sound
         </div>
       )}
     </div>
