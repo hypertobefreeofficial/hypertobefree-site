@@ -614,6 +614,7 @@ function AutoPlayReelVideo({
   const pinchStartDistanceRef = useRef<number | null>(null);
   const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerInsideRef = useRef(false);
+  const pressPausedRef = useRef(false);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -639,7 +640,15 @@ function AutoPlayReelVideo({
                 setPaused(false);
               })
               .catch(() => {
-                setPaused(true);
+                // Some phones/browsers block autoplay with sound.
+                // Fall back to muted autoplay so scrolling still works.
+                video.muted = true;
+                onSoundChange(false);
+
+                video
+                  .play()
+                  .then(() => setPaused(false))
+                  .catch(() => setPaused(true));
               });
           }
         } else {
@@ -657,7 +666,7 @@ function AutoPlayReelVideo({
     return () => {
       observer.disconnect();
     };
-  }, [videoUrl, soundOn, userPaused]);
+  }, [videoUrl, soundOn, userPaused, onSoundChange]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -719,6 +728,7 @@ function AutoPlayReelVideo({
     function handlePointerLeave() {
       pointerInsideRef.current = false;
       setZoomScale(1);
+      releasePause();
     }
 
     wrapper.addEventListener("touchstart", handleTouchStart, {
@@ -758,9 +768,7 @@ function AutoPlayReelVideo({
 
       const target = event.target as Node | null;
       const eventStartedInsideVideo = target ? wrapper.contains(target) : false;
-
-      const isTrackpadPinchOrBrowserZoom =
-        event.ctrlKey || event.metaKey;
+      const isTrackpadPinchOrBrowserZoom = event.ctrlKey || event.metaKey;
 
       if (!eventStartedInsideVideo && !pointerInsideRef.current) return;
       if (!isTrackpadPinchOrBrowserZoom) return;
@@ -800,7 +808,41 @@ function AutoPlayReelVideo({
     };
   }, []);
 
-  function togglePlay() {
+  function isControlClick(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest("button, a, textarea, input"));
+  }
+
+  function pressPause(target: EventTarget | null) {
+    if (isControlClick(target)) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!video.paused) {
+      pressPausedRef.current = true;
+      video.pause();
+      setPaused(true);
+    }
+  }
+
+  function releasePause() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (pressPausedRef.current) {
+      pressPausedRef.current = false;
+      setUserPaused(false);
+      video.muted = !soundOn;
+
+      video
+        .play()
+        .then(() => setPaused(false))
+        .catch(() => setPaused(true));
+    }
+  }
+
+  function togglePlayButton() {
     const video = videoRef.current;
     if (!video) return;
 
@@ -846,6 +888,10 @@ function AutoPlayReelVideo({
     <div
       ref={wrapperRef}
       className="relative h-full w-full overflow-hidden bg-black [touch-action:pan-y]"
+      onPointerDown={(event) => pressPause(event.target)}
+      onPointerUp={releasePause}
+      onPointerCancel={releasePause}
+      onMouseLeave={releasePause}
     >
       <video
         ref={videoRef}
@@ -867,7 +913,10 @@ function AutoPlayReelVideo({
       <div className="absolute bottom-24 right-3 z-40 flex flex-col gap-2">
         <button
           type="button"
-          onClick={toggleSound}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleSound();
+          }}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
           aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
         >
@@ -880,7 +929,10 @@ function AutoPlayReelVideo({
 
         <button
           type="button"
-          onClick={togglePlay}
+          onClick={(event) => {
+            event.stopPropagation();
+            togglePlayButton();
+          }}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
           aria-label={paused ? "Play video" : "Pause video"}
         >
