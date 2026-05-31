@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
   Globe2,
   HeartHandshake,
   ImagePlus,
-  MessageCircleHeart,
   Send,
   Sparkles,
   Upload,
@@ -198,77 +197,78 @@ export default function ShareYourStoryPage() {
       };
     });
   }
-async function uploadVideoIfNeeded(currentUserId: string) {
-  if (!videoFile) {
+
+  async function uploadVideoIfNeeded(currentUserId: string) {
+    if (!videoFile) {
+      return {
+        videoUrl: null as string | null,
+        thumbnailUrl: null as string | null,
+      };
+    }
+
+    const fileExtension = videoFile.name.split(".").pop() || "mp4";
+    const cleanExtension = fileExtension.toLowerCase();
+    const videoFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.${cleanExtension}`;
+
+    const { error: videoUploadError } = await supabase.storage
+      .from("story-videos")
+      .upload(videoFileName, videoFile, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: videoFile.type || "video/mp4",
+      });
+
+    if (videoUploadError) {
+      throw new Error(videoUploadError.message);
+    }
+
+    const { data: videoPublicData } = supabase.storage
+      .from("story-videos")
+      .getPublicUrl(videoFileName);
+
+    const videoPublicUrl = videoPublicData.publicUrl;
+
+    let thumbnailUrl: string | null = null;
+
+    try {
+      const thumbnailBlob = await createVideoThumbnail(videoFile);
+      const thumbnailFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.jpg`;
+
+      const { error: thumbnailUploadError } = await supabase.storage
+        .from("story-thumbnails")
+        .upload(thumbnailFileName, thumbnailBlob, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: "image/jpeg",
+        });
+
+      if (thumbnailUploadError) {
+        throw new Error(
+          `Thumbnail upload failed: ${thumbnailUploadError.message}`
+        );
+      }
+
+      const { data: thumbnailPublicData } = supabase.storage
+        .from("story-thumbnails")
+        .getPublicUrl(thumbnailFileName);
+
+      thumbnailUrl = thumbnailPublicData.publicUrl;
+    } catch (thumbnailError) {
+      const errorMessage =
+        thumbnailError instanceof Error
+          ? thumbnailError.message
+          : "Thumbnail creation failed.";
+
+      throw new Error(errorMessage);
+    }
+
     return {
-      videoUrl: null as string | null,
-      thumbnailUrl: null as string | null,
+      videoUrl: videoPublicUrl,
+      thumbnailUrl,
     };
   }
 
-  const fileExtension = videoFile.name.split(".").pop() || "mp4";
-  const cleanExtension = fileExtension.toLowerCase();
-  const videoFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.${cleanExtension}`;
-
-  const { error: videoUploadError } = await supabase.storage
-    .from("story-videos")
-    .upload(videoFileName, videoFile, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType: videoFile.type || "video/mp4",
-    });
-
-  if (videoUploadError) {
-    throw new Error(videoUploadError.message);
-  }
-
-  const { data: videoPublicData } = supabase.storage
-    .from("story-videos")
-    .getPublicUrl(videoFileName);
-
-  const videoPublicUrl = videoPublicData.publicUrl;
-
-  let thumbnailUrl: string | null = null;
-
-  try {
-    const thumbnailBlob = await createVideoThumbnail(videoFile);
-    const thumbnailFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.jpg`;
-
-    const { error: thumbnailUploadError } = await supabase.storage
-      .from("story-thumbnails")
-      .upload(thumbnailFileName, thumbnailBlob, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: "image/jpeg",
-      });
-
-    if (thumbnailUploadError) {
-      throw new Error(
-        `Thumbnail upload failed: ${thumbnailUploadError.message}`
-      );
-    }
-
-    const { data: thumbnailPublicData } = supabase.storage
-      .from("story-thumbnails")
-      .getPublicUrl(thumbnailFileName);
-
-    thumbnailUrl = thumbnailPublicData.publicUrl;
-  } catch (thumbnailError) {
-    const message =
-      thumbnailError instanceof Error
-        ? thumbnailError.message
-        : "Thumbnail creation failed.";
-
-    throw new Error(message);
-  }
-
-  return {
-    videoUrl: videoPublicUrl,
-    thumbnailUrl,
-  };
-}
-
-  async function submitStory(event: React.FormEvent<HTMLFormElement>) {
+  async function submitStory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!userId || !profile) {
@@ -279,7 +279,9 @@ async function uploadVideoIfNeeded(currentUserId: string) {
     const cleanStoryText = storyText.trim();
 
     if (!cleanStoryText && !videoFile) {
-      setMessage("Please write a story, prayer request, praise report, or upload a video.");
+      setMessage(
+        "Please write a story, prayer request, praise report, or upload a video."
+      );
       return;
     }
 
