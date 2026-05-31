@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -12,15 +12,15 @@ import {
   Send,
   Users,
   Footprints,
-  Compass,
-  MessageCircleHeart,
   Globe2,
   Target,
   Lightbulb,
   HandHeart,
-  Map,
   NotebookPen,
   Play,
+  Inbox,
+  MessageCircleHeart,
+  RefreshCw,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -44,11 +44,41 @@ type ReactionRow = {
   reaction_type: string | null;
 };
 
+type StorySummary = {
+  id: string;
+  name: string | null;
+  location: string | null;
+  story_text: string | null;
+  story_type: string | null;
+  video_url: string | null;
+};
+
+type RawVideoReplyRow = {
+  id: string;
+  story_id: string | null;
+  user_id: string | null;
+  recipient_user_id: string | null;
+  message: string | null;
+  created_at: string | null;
+  stories: StorySummary | StorySummary[] | null;
+};
+
+type VideoReplyRow = {
+  id: string;
+  story_id: string | null;
+  user_id: string | null;
+  recipient_user_id: string | null;
+  message: string | null;
+  created_at: string | null;
+  story: StorySummary | null;
+};
+
 export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryRow[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
+  const [videoResponses, setVideoResponses] = useState<VideoReplyRow[]>([]);
   const [reflection, setReflection] = useState("");
   const [message, setMessage] = useState("");
 
@@ -76,40 +106,7 @@ export default function JourneyPage() {
         setReflection(savedReflection);
       }
 
-      const { data: storyData, error: storyError } = await supabase
-        .from("stories")
-        .select(
-          "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at"
-        )
-        .eq("status", "approved")
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (storyError) {
-        setMessage(`Could not load Journey data: ${storyError.message}`);
-        setCheckingUser(false);
-        return;
-      }
-
-      const approvedStories = (storyData as StoryRow[]) ?? [];
-      setStories(approvedStories);
-
-      const storyIds = approvedStories.map((story) => story.id);
-
-      if (storyIds.length > 0) {
-        const { data: reactionData, error: reactionError } = await supabase
-          .from("story_reactions")
-          .select("story_id, user_id, reaction_type")
-          .in("story_id", storyIds);
-
-        if (reactionError) {
-          setMessage(
-            `Could not load Journey reactions: ${reactionError.message}`
-          );
-        } else {
-          setReactions((reactionData as ReactionRow[]) ?? []);
-        }
-      }
+      await Promise.all([loadStoriesAndReactions(user.id), loadVideoResponses(user.id)]);
 
       setCheckingUser(false);
     }
@@ -117,15 +114,110 @@ export default function JourneyPage() {
     loadJourney();
   }, []);
 
+  async function loadStoriesAndReactions(currentUserId: string) {
+    const { data: storyData, error: storyError } = await supabase
+      .from("stories")
+      .select(
+        "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at"
+      )
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (storyError) {
+      setMessage(`Could not load Journey data: ${storyError.message}`);
+      return;
+    }
+
+    const approvedStories = (storyData as StoryRow[]) ?? [];
+    setStories(approvedStories);
+
+    const storyIds = approvedStories.map((story) => story.id);
+
+    if (storyIds.length > 0) {
+      const { data: reactionData, error: reactionError } = await supabase
+        .from("story_reactions")
+        .select("story_id, user_id, reaction_type")
+        .in("story_id", storyIds);
+
+      if (reactionError) {
+        setMessage(`Could not load Journey reactions: ${reactionError.message}`);
+      } else {
+        setReactions((reactionData as ReactionRow[]) ?? []);
+      }
+    }
+  }
+
+  async function loadVideoResponses(currentUserId?: string | null) {
+    const targetUserId = currentUserId || userId;
+
+    if (!targetUserId) return;
+
+    const { data, error } = await supabase
+      .from("story_video_replies")
+      .select(
+        `
+        id,
+        story_id,
+        user_id,
+        recipient_user_id,
+        message,
+        created_at,
+        stories (
+          id,
+          name,
+          location,
+          story_text,
+          story_type,
+          video_url
+        )
+      `
+      )
+      .eq("recipient_user_id", targetUserId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(`Could not load video responses: ${error.message}`);
+      return;
+    }
+
+    const normalizedResponses: VideoReplyRow[] = (
+      (data ?? []) as RawVideoReplyRow[]
+    ).map((item) => {
+      const story = Array.isArray(item.stories)
+        ? item.stories[0] ?? null
+        : item.stories ?? null;
+
+      return {
+        id: item.id,
+        story_id: item.story_id,
+        user_id: item.user_id,
+        recipient_user_id: item.recipient_user_id,
+        message: item.message,
+        created_at: item.created_at,
+        story,
+      };
+    });
+
+    setVideoResponses(normalizedResponses);
+  }
+
   function saveReflection(nextReflection: string) {
     setReflection(nextReflection);
 
     if (userId) {
-      window.localStorage.setItem(
-        `htbf-reflection-${userId}`,
-        nextReflection
-      );
+      window.localStorage.setItem(`htbf-reflection-${userId}`, nextReflection);
     }
+  }
+
+  function formatDate(value: string | null) {
+    if (!value) return "";
+
+    return new Date(value).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   }
 
   const myStories = useMemo(() => {
@@ -164,7 +256,7 @@ export default function JourneyPage() {
     );
 
     return {
-      total: reactionsOnMyStories.length,
+      total: reactionsOnMyStories.length + videoResponses.length,
       amen: reactionsOnMyStories.filter(
         (reaction) => reaction.reaction_type === "amen"
       ).length,
@@ -177,8 +269,9 @@ export default function JourneyPage() {
       praying: reactionsOnMyStories.filter(
         (reaction) => reaction.reaction_type === "praying"
       ).length,
+      videoResponses: videoResponses.length,
     };
-  }, [myStories, reactions]);
+  }, [myStories, reactions, videoResponses.length]);
 
   const journeyTotals = useMemo(() => {
     return {
@@ -242,10 +335,7 @@ export default function JourneyPage() {
             <MiniStat number={journeyTotals.storiesShared} label="Shared" />
             <MiniStat number={journeyTotals.prayersJoined} label="Prayers" />
             <MiniStat number={journeyTotals.godDidIt} label="God Did It" />
-            <MiniStat
-              number={journeyTotals.encouragements}
-              label="Responses"
-            />
+            <MiniStat number={journeyTotals.encouragements} label="Responses" />
           </div>
         </section>
 
@@ -254,6 +344,108 @@ export default function JourneyPage() {
             {message}
           </section>
         )}
+
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+                <Inbox className="h-6 w-6" />
+              </div>
+
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  Journey Inbox
+                </div>
+                <h2 className="text-2xl font-black text-[#062a57]">
+                  Video Responses
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Encouragement people sent in response to your videos.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => loadVideoResponses()}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+              aria-label="Refresh responses"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+
+          {videoResponses.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
+              No video responses yet. When someone responds to one of your
+              videos, it will show here.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {videoResponses.map((item) => {
+                const story = item.story;
+
+                return (
+                  <article
+                    key={item.id}
+                    className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200"
+                  >
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                          <MessageCircleHeart className="h-4 w-4" />
+                          New response
+                        </div>
+
+                        <div className="mt-1 text-sm font-semibold text-slate-500">
+                          {formatDate(item.created_at)}
+                        </div>
+                      </div>
+
+                      {story?.id && (
+                        <Link
+                          href={`/video-feed?story=${story.id}&from=journey`}
+                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-black text-[#082f63] shadow-sm ring-1 ring-slate-200 hover:bg-blue-50"
+                        >
+                          <Play className="h-3.5 w-3.5 fill-[#082f63]" />
+                          View Video
+                        </Link>
+                      )}
+                    </div>
+
+                    <div className="rounded-[1.25rem] bg-white p-4 text-base leading-7 text-slate-800 ring-1 ring-slate-200">
+                      “{item.message}”
+                    </div>
+
+                    {story && (
+                      <div className="mt-4 rounded-[1.25rem] bg-white p-4 ring-1 ring-slate-200">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce]">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            {story.story_type || "Video Testimony"}
+                          </span>
+
+                          {story.location && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
+                              <Globe2 className="h-3.5 w-3.5" />
+                              {story.location}
+                            </span>
+                          )}
+                        </div>
+
+                        {story.story_text && (
+                          <p className="line-clamp-3 text-sm leading-6 text-slate-600">
+                            {story.story_text}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-5 flex items-center gap-3">
@@ -327,8 +519,8 @@ export default function JourneyPage() {
               title="You shared"
               text={
                 myStories.length > 0
-                  ? `You have shared ${myStories.length} approved story ${
-                      myStories.length === 1 ? "" : "ies"
+                  ? `You have shared ${myStories.length} approved ${
+                      myStories.length === 1 ? "story" : "stories"
                     }.`
                   : "Share a testimony, praise report, prayer request, or video."
               }
@@ -341,7 +533,7 @@ export default function JourneyPage() {
               title="Others responded"
               text={
                 encouragementImpact.total > 0
-                  ? `Your stories have received ${encouragementImpact.total} response${
+                  ? `Your stories and videos have received ${encouragementImpact.total} response${
                       encouragementImpact.total === 1 ? "" : "s"
                     }.`
                   : "Responses to your stories will appear here."
@@ -403,7 +595,7 @@ export default function JourneyPage() {
             icon={<MessageCircleHeart className="h-6 w-6" />}
             eyebrow="Encouragement Impact"
             title={`${encouragementImpact.total} Responses`}
-            text={`Amen: ${encouragementImpact.amen} • Praise God: ${encouragementImpact.praiseGod} • Encouraged: ${encouragementImpact.encouraged} • Praying: ${encouragementImpact.praying}`}
+            text={`Amen: ${encouragementImpact.amen} • Praise God: ${encouragementImpact.praiseGod} • Encouraged: ${encouragementImpact.encouraged} • Praying: ${encouragementImpact.praying} • Video Replies: ${encouragementImpact.videoResponses}`}
             href="/feed"
             button="Open Feed"
           />
@@ -508,7 +700,7 @@ function MissionButton({
   text,
 }: {
   href: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   text: string;
 }) {
@@ -536,16 +728,14 @@ function JourneyPathStep({
 }: {
   active: boolean;
   number: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   text: string;
 }) {
   return (
     <div
       className={`flex gap-4 rounded-[1.5rem] p-4 ring-1 ${
-        active
-          ? "bg-blue-50 ring-blue-100"
-          : "bg-slate-50 ring-slate-100"
+        active ? "bg-blue-50 ring-blue-100" : "bg-slate-50 ring-slate-100"
       }`}
     >
       <div
@@ -577,7 +767,7 @@ function DashboardCard({
   href,
   button,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   eyebrow: string;
   title: string;
   text: string;
