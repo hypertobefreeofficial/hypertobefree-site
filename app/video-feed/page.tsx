@@ -5,12 +5,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Globe2,
+  HandHeart,
   HeartHandshake,
   MessageCircleHeart,
   Play,
+  Send,
   Share2,
   Sparkles,
   Video,
+  X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -37,6 +40,10 @@ type ReactionRow = {
   reaction_type: string | null;
 };
 
+type VideoReplyRow = {
+  story_id: string | null;
+};
+
 type VideoStory = StoryRow & {
   signed_video_url: string | null;
   reaction_counts: {
@@ -46,6 +53,7 @@ type VideoStory = StoryRow & {
     praying: number;
   };
   user_reactions: ReactionType[];
+  reply_count: number;
 };
 
 export default function VideoFeedPage() {
@@ -54,6 +62,9 @@ export default function VideoFeedPage() {
   const [stories, setStories] = useState<VideoStory[]>([]);
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+  const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   useEffect(() => {
     let currentUserId: string | null = null;
@@ -91,6 +102,17 @@ export default function VideoFeedPage() {
           event: "*",
           schema: "public",
           table: "story_reactions",
+        },
+        async () => {
+          await loadVideoStories(currentUserId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "story_video_replies",
         },
         async () => {
           await loadVideoStories(currentUserId);
@@ -149,6 +171,7 @@ export default function VideoFeedPage() {
     const storyIds = data.map((story) => story.id);
 
     let reactions: ReactionRow[] = [];
+    let replies: VideoReplyRow[] = [];
 
     if (storyIds.length > 0) {
       const { data: reactionData } = await supabase
@@ -157,6 +180,13 @@ export default function VideoFeedPage() {
         .in("story_id", storyIds);
 
       reactions = (reactionData as ReactionRow[]) ?? [];
+
+      const { data: replyData } = await supabase
+        .from("story_video_replies")
+        .select("story_id")
+        .in("story_id", storyIds);
+
+      replies = (replyData as VideoReplyRow[]) ?? [];
     }
 
     const nextStories: VideoStory[] = await Promise.all(
@@ -184,6 +214,10 @@ export default function VideoFeedPage() {
 
         const storyReactions = reactions.filter(
           (reaction) => reaction.story_id === story.id
+        );
+
+        const storyReplies = replies.filter(
+          (reply) => reply.story_id === story.id
         );
 
         const userReactions = storyReactions
@@ -215,6 +249,7 @@ export default function VideoFeedPage() {
             ).length,
           },
           user_reactions: userReactions,
+          reply_count: storyReplies.length,
         };
       })
     );
@@ -306,6 +341,51 @@ export default function VideoFeedPage() {
     );
   }
 
+  async function sendVideoReply() {
+    if (!userId || !replyStory) {
+      setMessage("Please sign in to respond.");
+      return;
+    }
+
+    const cleanReply = replyText.trim();
+
+    if (!cleanReply) {
+      setMessage("Please write a response first.");
+      return;
+    }
+
+    setSendingReply(true);
+    setMessage("");
+
+    const { error } = await supabase.from("story_video_replies").insert({
+      story_id: replyStory.id,
+      user_id: userId,
+      message: cleanReply,
+    });
+
+    if (error) {
+      setMessage(`Could not send response: ${error.message}`);
+      setSendingReply(false);
+      return;
+    }
+
+    setStories((currentStories) =>
+      currentStories.map((story) =>
+        story.id === replyStory.id
+          ? {
+              ...story,
+              reply_count: story.reply_count + 1,
+            }
+          : story
+      )
+    );
+
+    setReplyText("");
+    setReplyStory(null);
+    setSendingReply(false);
+    setMessage("Response sent.");
+  }
+
   async function shareStory(story: VideoStory) {
     setMessage("");
 
@@ -392,6 +472,14 @@ export default function VideoFeedPage() {
                   />
 
                   <VideoActionButton
+                    label="Praying"
+                    count={story.reaction_counts.praying}
+                    active={story.user_reactions.includes("praying")}
+                    onClick={() => toggleReaction(story.id, "praying")}
+                    icon={<HandHeart className="h-5 w-5" />}
+                  />
+
+                  <VideoActionButton
                     label="Praise"
                     count={story.reaction_counts.praise_god}
                     active={story.user_reactions.includes("praise_god")}
@@ -400,10 +488,14 @@ export default function VideoFeedPage() {
                   />
 
                   <VideoActionButton
-                    label="Encouraged"
-                    count={story.reaction_counts.encouraged}
-                    active={story.user_reactions.includes("encouraged")}
-                    onClick={() => toggleReaction(story.id, "encouraged")}
+                    label="Respond"
+                    count={story.reply_count}
+                    active={false}
+                    onClick={() => {
+                      setReplyStory(story);
+                      setReplyText("");
+                      setMessage("");
+                    }}
                     icon={<MessageCircleHeart className="h-5 w-5" />}
                   />
 
@@ -442,6 +534,53 @@ export default function VideoFeedPage() {
             );
           })}
         </section>
+      )}
+
+      {replyStory && (
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  Respond with encouragement
+                </div>
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  Send a message
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setReplyStory(null);
+                  setReplyText("");
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Close response box"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <textarea
+              value={replyText}
+              onChange={(event) => setReplyText(event.target.value)}
+              rows={5}
+              placeholder="Write a kind response, prayer, or encouragement..."
+              className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+            />
+
+            <button
+              type="button"
+              disabled={sendingReply}
+              onClick={sendVideoReply}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {sendingReply ? "Sending..." : "Send Response"}
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );
@@ -568,6 +707,10 @@ function VideoActionButton({
           {count}
         </span>
       )}
+
+      <span className="text-[10px] font-black leading-none text-white/80 drop-shadow">
+        {label}
+      </span>
     </button>
   );
 }
