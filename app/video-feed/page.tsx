@@ -67,7 +67,8 @@ export default function VideoFeedPage() {
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
   const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
   const [replyText, setReplyText] = useState("");
-  const [sendingReply, setSendingReply] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false)
+  const [soundOn, setSoundOn] = useState(true);
 
   useEffect(() => {
     let currentUserId: string | null = null;
@@ -464,7 +465,11 @@ export default function VideoFeedPage() {
                 key={story.id}
                 className="relative flex h-screen snap-start items-center justify-center overflow-hidden bg-black"
               >
-                <AutoPlayReelVideo videoUrl={story.signed_video_url} />
+           <AutoPlayReelVideo
+  videoUrl={story.signed_video_url}
+  soundOn={soundOn}
+  onSoundChange={setSoundOn}
+/>
 
                 <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
                   <VideoActionButton
@@ -590,12 +595,19 @@ export default function VideoFeedPage() {
   );
 }
 
-function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
+function AutoPlayReelVideo({
+  videoUrl,
+  soundOn,
+  onSoundChange,
+}: {
+  videoUrl: string;
+  soundOn: boolean;
+  onSoundChange: (nextValue: boolean) => void;
+}) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const [paused, setPaused] = useState(true);
-  const [muted, setMuted] = useState(true);
   const [userPaused, setUserPaused] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
 
@@ -607,7 +619,7 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
 
     if (!wrapper || !video) return;
 
-    video.muted = muted;
+    video.muted = !soundOn;
     video.playsInline = true;
     video.load();
 
@@ -617,10 +629,16 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
 
         if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
           if (!userPaused) {
+            video.muted = !soundOn;
+
             video
               .play()
-              .then(() => setPaused(false))
-              .catch(() => setPaused(true));
+              .then(() => {
+                setPaused(false);
+              })
+              .catch(() => {
+                setPaused(true);
+              });
           }
         } else {
           video.pause();
@@ -637,7 +655,19 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
     return () => {
       observer.disconnect();
     };
-  }, [videoUrl, muted, userPaused]);
+  }, [videoUrl, soundOn, userPaused]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) return;
+
+    video.muted = !soundOn;
+
+    if (soundOn) {
+      video.volume = 1;
+    }
+  }, [soundOn]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -657,6 +687,8 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
     function handleTouchStart(event: TouchEvent) {
       if (event.touches.length === 2) {
         event.preventDefault();
+        event.stopPropagation();
+
         pinchStartDistanceRef.current = getDistance(event.touches);
       }
     }
@@ -664,11 +696,11 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
     function handleTouchMove(event: TouchEvent) {
       if (event.touches.length === 2 && pinchStartDistanceRef.current) {
         event.preventDefault();
+        event.stopPropagation();
 
         const currentDistance = getDistance(event.touches);
-        const nextScale = currentDistance / pinchStartDistanceRef.current;
-
-        const limitedScale = Math.min(Math.max(nextScale, 1), 2.75);
+        const rawScale = currentDistance / pinchStartDistanceRef.current;
+        const limitedScale = Math.min(Math.max(rawScale, 1), 3);
 
         setZoomScale(limitedScale);
       }
@@ -676,6 +708,9 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
 
     function handleTouchEnd(event: TouchEvent) {
       if (event.touches.length < 2) {
+        event.preventDefault();
+        event.stopPropagation();
+
         pinchStartDistanceRef.current = null;
         setZoomScale(1);
       }
@@ -711,6 +746,7 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
 
     if (video.paused) {
       setUserPaused(false);
+      video.muted = !soundOn;
 
       video
         .play()
@@ -723,16 +759,17 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
     }
   }
 
-  function toggleMute() {
+  function toggleSound() {
     const video = videoRef.current;
     if (!video) return;
 
-    const nextMuted = !muted;
+    const nextSoundOn = !soundOn;
 
-    video.muted = nextMuted;
-    setMuted(nextMuted);
+    onSoundChange(nextSoundOn);
 
-    if (!nextMuted) {
+    video.muted = !nextSoundOn;
+
+    if (nextSoundOn) {
       video.volume = 1;
 
       video
@@ -748,13 +785,13 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
   return (
     <div
       ref={wrapperRef}
-      className="relative h-full w-full touch-none overflow-hidden bg-black"
+      className="relative h-full w-full overflow-hidden bg-black [touch-action:none]"
     >
       <video
         ref={videoRef}
         key={videoUrl}
         src={videoUrl}
-        muted={muted}
+        muted={!soundOn}
         loop
         playsInline
         preload="auto"
@@ -770,14 +807,14 @@ function AutoPlayReelVideo({ videoUrl }: { videoUrl: string }) {
       <div className="absolute bottom-24 right-3 z-40 flex flex-col gap-2">
         <button
           type="button"
-          onClick={toggleMute}
+          onClick={toggleSound}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-          aria-label={muted ? "Turn sound on" : "Turn sound off"}
+          aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
         >
-          {muted ? (
-            <VolumeX className="h-4 w-4" />
-          ) : (
+          {soundOn ? (
             <Volume2 className="h-4 w-4" />
+          ) : (
+            <VolumeX className="h-4 w-4" />
           )}
         </button>
 
