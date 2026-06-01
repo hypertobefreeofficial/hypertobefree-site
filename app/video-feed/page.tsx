@@ -1017,11 +1017,11 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           event.stopPropagation();
           setHidden(false);
         }}
-        className="absolute bottom-28 left-4 z-50 inline-flex items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs font-black text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+        className="absolute bottom-28 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
         aria-label="Show video details"
+        title="Show video details"
       >
         <Eye className="h-4 w-4" />
-        Show details
       </button>
     );
   }
@@ -1035,11 +1035,11 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           event.stopPropagation();
           setHidden(true);
         }}
-        className="mb-3 inline-flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs font-black text-white/90 ring-1 ring-white/15 backdrop-blur-md"
+        className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
         aria-label="Hide video details"
+        title="Hide video details"
       >
         <EyeOff className="h-4 w-4" />
-        Hide
       </button>
 
       <div className="pointer-events-none">
