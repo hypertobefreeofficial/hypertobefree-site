@@ -21,11 +21,11 @@ export default function MobileSplashScreen() {
 
     const fadeTimer = window.setTimeout(() => {
       setFadeOut(true);
-    }, 1300);
+    }, 1500);
 
     const removeTimer = window.setTimeout(() => {
       setShowSplash(false);
-    }, 1850);
+    }, 2050);
 
     return () => {
       window.clearTimeout(fadeTimer);
@@ -48,9 +48,9 @@ export default function MobileSplashScreen() {
       <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-[#061a31]/55 to-transparent" />
 
       <div className="relative flex flex-col items-center px-6 text-center text-white">
-        <div className="mb-6 flex w-[86vw] max-w-[390px] items-center justify-center rounded-[2rem] bg-white px-5 py-7 shadow-2xl ring-1 ring-white/40">
+        <div className="mb-6 flex w-[88vw] max-w-[430px] items-center justify-center rounded-[2rem] bg-white px-5 py-8 shadow-2xl ring-1 ring-white/40">
           <img
-            src="/htbf-logo.png"
+            src="/images/htbf-logo.png"
             alt="HTBF logo"
             className="h-auto w-full object-contain"
           />
