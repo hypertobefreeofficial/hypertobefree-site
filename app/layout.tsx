@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import RegisterServiceWorker from "../components/RegisterServiceWorker";
 import LoggedInBottomNav from "../components/LoggedInBottomNav";
+import MobileSplashScreen from "../components/MobileSplashScreen";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <MobileSplashScreen />
         <RegisterServiceWorker />
         {children}
         <LoggedInBottomNav />
