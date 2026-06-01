@@ -165,7 +165,7 @@ const [soundOn, setSoundOn] = useState(false);
       .eq("status", "approved")
       .not("video_url", "is", null)
       .order("created_at", { ascending: false })
-      .limit(40);
+      .limit(15);
 
     if (error || !data) {
       setMessage(`Could not load videos: ${error?.message ?? "Unknown error"}`);
