@@ -65,10 +65,13 @@ export default function VideoFeedPage() {
   const [stories, setStories] = useState<VideoStory[]>([]);
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+
   const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
   const [replyText, setReplyText] = useState("");
-  const [sendingReply, setSendingReply] = useState(false)
-const [soundOn, setSoundOn] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
+
+  // Default muted so phone autoplay works. User can tap speaker to turn sound on.
+  const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
     let currentUserId: string | null = null;
@@ -146,6 +149,7 @@ const [soundOn, setSoundOn] = useState(false);
     if (videoUrl.includes("story-videos/")) {
       const afterBucket = videoUrl.split("story-videos/")[1];
       const pathOnly = afterBucket.split("?")[0];
+
       return decodeURIComponent(pathOnly);
     }
 
@@ -361,12 +365,12 @@ const [soundOn, setSoundOn] = useState(false);
     setSendingReply(true);
     setMessage("");
 
-  const { error } = await supabase.from("story_video_replies").insert({
-  story_id: replyStory.id,
-  user_id: userId,
-  recipient_user_id: replyStory.user_id,
-  message: cleanReply,
-});
+    const { error } = await supabase.from("story_video_replies").insert({
+      story_id: replyStory.id,
+      user_id: userId,
+      recipient_user_id: replyStory.user_id,
+      message: cleanReply,
+    });
 
     if (error) {
       setMessage(`Could not send response: ${error.message}`);
@@ -428,7 +432,7 @@ const [soundOn, setSoundOn] = useState(false);
   }
 
   return (
-    <main className="min-h-screen bg-black text-white">
+    <main className="min-h-[100dvh] bg-black text-white">
       <div className="fixed left-4 top-4 z-50">
         <Link
           href="/search"
@@ -446,7 +450,7 @@ const [soundOn, setSoundOn] = useState(false);
       )}
 
       {orderedStories.length === 0 ? (
-        <div className="flex min-h-screen items-center justify-center px-6 text-center">
+        <div className="flex min-h-[100dvh] items-center justify-center px-6 text-center">
           <div>
             <Video className="mx-auto mb-4 h-10 w-10 text-white/70" />
             <div className="text-xl font-black">No videos yet</div>
@@ -456,20 +460,21 @@ const [soundOn, setSoundOn] = useState(false);
           </div>
         </div>
       ) : (
-        <section className="h-screen snap-y snap-mandatory overflow-y-scroll">
-          {orderedStories.map((story) => {
+        <section className="h-[100dvh] snap-y snap-mandatory overflow-y-scroll">
+          {orderedStories.map((story, index) => {
             if (!story.signed_video_url) return null;
 
             return (
               <article
                 key={story.id}
-                className="relative flex h-screen snap-start items-center justify-center overflow-hidden bg-black"
+                className="relative flex h-[100dvh] snap-start items-center justify-center overflow-hidden bg-black"
               >
-           <AutoPlayReelVideo
-  videoUrl={story.signed_video_url}
-  soundOn={soundOn}
-  onSoundChange={setSoundOn}
-/>
+                <AutoPlayReelVideo
+                  videoUrl={story.signed_video_url}
+                  soundOn={soundOn}
+                  onSoundChange={setSoundOn}
+                  eagerLoad={index === 0}
+                />
 
                 <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
                   <VideoActionButton
@@ -517,7 +522,7 @@ const [soundOn, setSoundOn] = useState(false);
                   />
                 </div>
 
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-5 pb-10 pr-20">
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-5 pb-28 pr-20">
                   <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
                     <Globe2 className="h-4 w-4" />
                     {story.location || "HTBF Community"}
@@ -553,6 +558,7 @@ const [soundOn, setSoundOn] = useState(false);
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
                   Respond with encouragement
                 </div>
+
                 <h2 className="mt-1 text-xl font-black text-[#062a57]">
                   Send a message
                 </h2>
@@ -599,10 +605,12 @@ function AutoPlayReelVideo({
   videoUrl,
   soundOn,
   onSoundChange,
+  eagerLoad,
 }: {
   videoUrl: string;
   soundOn: boolean;
   onSoundChange: (nextValue: boolean) => void;
+  eagerLoad: boolean;
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -610,6 +618,7 @@ function AutoPlayReelVideo({
   const [paused, setPaused] = useState(true);
   const [userPaused, setUserPaused] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(eagerLoad);
 
   const pinchStartDistanceRef = useRef<number | null>(null);
   const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -618,19 +627,45 @@ function AutoPlayReelVideo({
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
+
+    if (!wrapper) return;
+
+    const loadObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShouldLoadVideo(true);
+        }
+      },
+      {
+        rootMargin: "700px 0px",
+        threshold: 0.01,
+      }
+    );
+
+    loadObserver.observe(wrapper);
+
+    return () => {
+      loadObserver.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
     const video = videoRef.current;
 
-    if (!wrapper || !video) return;
+    if (!wrapper || !video || !shouldLoadVideo) return;
 
     video.muted = !soundOn;
     video.playsInline = true;
-    video.load();
 
-    const observer = new IntersectionObserver(
+    const playObserver = new IntersectionObserver(
       ([entry]) => {
         if (!video) return;
 
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+        const isMostlyVisible =
+          entry.isIntersecting && entry.intersectionRatio >= 0.65;
+
+        if (isMostlyVisible) {
           if (!userPaused) {
             video.muted = !soundOn;
 
@@ -659,12 +694,13 @@ function AutoPlayReelVideo({
       }
     );
 
-    observer.observe(wrapper);
+    playObserver.observe(wrapper);
 
     return () => {
-      observer.disconnect();
+      playObserver.disconnect();
+      video.pause();
     };
-  }, [videoUrl, soundOn, userPaused, onSoundChange]);
+  }, [videoUrl, soundOn, userPaused, shouldLoadVideo, onSoundChange]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -808,6 +844,7 @@ function AutoPlayReelVideo({
 
   function isControlClick(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false;
+
     return Boolean(target.closest("button, a, textarea, input"));
   }
 
@@ -815,6 +852,7 @@ function AutoPlayReelVideo({
     if (isControlClick(target)) return;
 
     const video = videoRef.current;
+
     if (!video) return;
 
     if (!video.paused) {
@@ -826,6 +864,7 @@ function AutoPlayReelVideo({
 
   function releasePause() {
     const video = videoRef.current;
+
     if (!video) return;
 
     if (pressPausedRef.current) {
@@ -850,6 +889,7 @@ function AutoPlayReelVideo({
 
   function togglePlayButton() {
     const video = videoRef.current;
+
     if (!video) return;
 
     if (video.paused) {
@@ -877,6 +917,7 @@ function AutoPlayReelVideo({
 
   function toggleSound() {
     const video = videoRef.current;
+
     if (!video) return;
 
     const nextSoundOn = !soundOn;
@@ -910,24 +951,30 @@ function AutoPlayReelVideo({
       onPointerCancel={releasePause}
       onMouseLeave={releasePause}
     >
-      <video
-        ref={videoRef}
-        key={videoUrl}
-        src={videoUrl}
-        muted={!soundOn}
-        loop
-        playsInline
-        preload="auto"
-        className="h-full w-full bg-black object-contain transition-transform duration-150 ease-out"
-        style={{
-          transform: `scale(${zoomScale})`,
-          transformOrigin: "center center",
-        }}
-        onPlay={() => setPaused(false)}
-        onPause={() => setPaused(true)}
-      />
+      {shouldLoadVideo ? (
+        <video
+          ref={videoRef}
+          key={videoUrl}
+          src={videoUrl}
+          muted={!soundOn}
+          loop
+          playsInline
+          preload="metadata"
+          className="h-full w-full bg-black object-cover transition-transform duration-150 ease-out will-change-transform md:object-contain"
+          style={{
+            transform: `scale(${zoomScale})`,
+            transformOrigin: "center center",
+          }}
+          onPlay={() => setPaused(false)}
+          onPause={() => setPaused(true)}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
+          Loading video
+        </div>
+      )}
 
-      <div className="absolute bottom-24 right-3 z-40 flex flex-col gap-2">
+      <div className="absolute bottom-28 right-3 z-40 flex flex-col gap-2">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -935,7 +982,7 @@ function AutoPlayReelVideo({
             event.stopPropagation();
             toggleSound();
           }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
           aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
         >
           {soundOn ? (
@@ -952,7 +999,7 @@ function AutoPlayReelVideo({
             event.stopPropagation();
             togglePlayButton();
           }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
           aria-label={paused ? "Play video" : "Pause video"}
         >
           {paused ? (
@@ -970,13 +1017,14 @@ function AutoPlayReelVideo({
       )}
 
       {!soundOn && (
-        <div className="pointer-events-none absolute left-1/2 bottom-24 z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
+        <div className="pointer-events-none absolute left-1/2 bottom-28 z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
           Tap speaker for sound
         </div>
       )}
     </div>
   );
 }
+
 function VideoActionButton({
   label,
   count,
@@ -999,22 +1047,22 @@ function VideoActionButton({
       title={label}
     >
       <span
-        className={`flex h-10 w-10 items-center justify-center rounded-full ring-1 backdrop-blur-md transition ${
+        className={`flex h-11 w-11 items-center justify-center rounded-full ring-1 backdrop-blur-md transition ${
           active
             ? "bg-white text-[#0b63ce] ring-white"
-            : "bg-white/15 text-white ring-white/20 group-hover:bg-white/25"
+            : "bg-white/20 text-white ring-white/25 group-hover:bg-white/30"
         }`}
       >
         {icon}
       </span>
 
       {count !== null && (
-        <span className="rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 backdrop-blur">
+        <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 backdrop-blur">
           {count}
         </span>
       )}
 
-      <span className="text-[10px] font-black leading-none text-white/80 drop-shadow">
+      <span className="text-[10px] font-black leading-none text-white/85 drop-shadow">
         {label}
       </span>
     </button>
