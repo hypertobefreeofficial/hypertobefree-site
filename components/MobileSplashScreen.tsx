@@ -41,21 +41,25 @@ export default function MobileSplashScreen() {
         fadeOut ? "opacity-0" : "opacity-100"
       }`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,196,87,0.45),transparent_30%),linear-gradient(135deg,#082f63_0%,#0b63ce_50%,#69b7ff_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_24%,rgba(255,196,87,0.42),transparent_28%),linear-gradient(135deg,#061a31_0%,#082f63_34%,#0b63ce_66%,#69b7ff_100%)]" />
 
-      <div className="absolute bottom-0 left-0 right-0 h-44 bg-gradient-to-t from-[#061a31]/50 to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.22),transparent_26%)]" />
+
+      <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-[#061a31]/55 to-transparent" />
 
       <div className="relative flex flex-col items-center px-6 text-center text-white">
-        <div className="mb-5 flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white shadow-2xl ring-1 ring-white/25">
-          <div className="flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-[#082f63] text-white shadow-sm">
+        <div className="mb-5 flex flex-col items-center">
+          <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-[#082f63] text-white shadow-2xl ring-4 ring-white/90">
             <DoveMark />
           </div>
-        </div>
 
-        <div className="text-5xl font-black tracking-tight">HTBF</div>
+          <div className="mt-5 text-5xl font-black tracking-tight text-white">
+            HTBF
+          </div>
 
-        <div className="mt-1 text-xs font-black uppercase tracking-[0.32em] text-blue-100">
-          Hyper to Be Free
+          <div className="mt-1 text-xs font-black uppercase tracking-[0.34em] text-blue-100">
+            Hyper to Be Free
+          </div>
         </div>
 
         <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-black text-blue-50 ring-1 ring-white/20 backdrop-blur">
@@ -71,7 +75,7 @@ function DoveMark() {
   return (
     <svg
       viewBox="0 0 64 64"
-      className="h-11 w-11"
+      className="h-12 w-12"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
