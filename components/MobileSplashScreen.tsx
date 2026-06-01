@@ -41,25 +41,23 @@ export default function MobileSplashScreen() {
         fadeOut ? "opacity-0" : "opacity-100"
       }`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_24%,rgba(255,196,87,0.42),transparent_28%),linear-gradient(135deg,#061a31_0%,#082f63_34%,#0b63ce_66%,#69b7ff_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_24%,rgba(255,196,87,0.38),transparent_28%),linear-gradient(135deg,#061a31_0%,#082f63_34%,#0b63ce_66%,#69b7ff_100%)]" />
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.22),transparent_26%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.20),transparent_26%)]" />
 
       <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-[#061a31]/55 to-transparent" />
 
       <div className="relative flex flex-col items-center px-6 text-center text-white">
-        <div className="mb-5 flex flex-col items-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-[#082f63] text-white shadow-2xl ring-4 ring-white/90">
-            <DoveMark />
-          </div>
+        <div className="mb-6 flex w-[86vw] max-w-[390px] items-center justify-center rounded-[2rem] bg-white px-5 py-7 shadow-2xl ring-1 ring-white/40">
+          <img
+            src="/htbf-logo.png"
+            alt="HTBF logo"
+            className="h-auto w-full object-contain"
+          />
+        </div>
 
-          <div className="mt-5 text-5xl font-black tracking-tight text-white">
-            HTBF
-          </div>
-
-          <div className="mt-1 text-xs font-black uppercase tracking-[0.34em] text-blue-100">
-            Hyper to Be Free
-          </div>
+        <div className="text-xs font-black uppercase tracking-[0.34em] text-blue-100">
+          Hyper to Be Free
         </div>
 
         <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-black text-blue-50 ring-1 ring-white/20 backdrop-blur">
@@ -68,27 +66,5 @@ export default function MobileSplashScreen() {
         </div>
       </div>
     </div>
-  );
-}
-
-function DoveMark() {
-  return (
-    <svg
-      viewBox="0 0 64 64"
-      className="h-12 w-12"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path
-        d="M10 36c12 0 18-7 24-19 2 9 8 16 20 19-11 2-19 7-25 16-3-7-9-13-19-16Z"
-        fill="currentColor"
-      />
-      <path
-        d="M33 17c4 4 8 7 14 9-7 0-13-2-19-6 2-1 3-2 5-3Z"
-        fill="#3fa2ff"
-        opacity=".9"
-      />
-    </svg>
   );
 }
