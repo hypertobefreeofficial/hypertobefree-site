@@ -21,11 +21,11 @@ export default function MobileSplashScreen() {
 
     const fadeTimer = window.setTimeout(() => {
       setFadeOut(true);
-    }, 1200);
+    }, 1300);
 
     const removeTimer = window.setTimeout(() => {
       setShowSplash(false);
-    }, 1750);
+    }, 1850);
 
     return () => {
       window.clearTimeout(fadeTimer);
@@ -46,8 +46,10 @@ export default function MobileSplashScreen() {
       <div className="absolute bottom-0 left-0 right-0 h-44 bg-gradient-to-t from-[#061a31]/50 to-transparent" />
 
       <div className="relative flex flex-col items-center px-6 text-center text-white">
-        <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white/15 shadow-2xl ring-1 ring-white/25 backdrop-blur-md">
-          <DoveMark />
+        <div className="mb-5 flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white shadow-2xl ring-1 ring-white/25">
+          <div className="flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-[#082f63] text-white shadow-sm">
+            <DoveMark />
+          </div>
         </div>
 
         <div className="text-5xl font-black tracking-tight">HTBF</div>
@@ -69,7 +71,7 @@ function DoveMark() {
   return (
     <svg
       viewBox="0 0 64 64"
-      className="h-12 w-12 text-white"
+      className="h-11 w-11"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
@@ -80,8 +82,8 @@ function DoveMark() {
       />
       <path
         d="M33 17c4 4 8 7 14 9-7 0-13-2-19-6 2-1 3-2 5-3Z"
-        fill="#69b7ff"
-        opacity=".95"
+        fill="#3fa2ff"
+        opacity=".9"
       />
     </svg>
   );
