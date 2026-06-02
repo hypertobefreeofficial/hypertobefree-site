@@ -1,5 +1,3 @@
-UPDATED WORKING VIDEO FEED
-
 "use client";
 
 import Link from "next/link";
@@ -72,7 +70,6 @@ export default function VideoFeedPage() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
-  // Default muted so phone autoplay works. User can tap speaker to turn sound on.
   const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
@@ -524,28 +521,7 @@ export default function VideoFeedPage() {
                   />
                 </div>
 
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-5 pb-28 pr-20">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
-                    <Globe2 className="h-4 w-4" />
-                    {story.location || "HTBF Community"}
-                  </div>
-
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
-                    {story.story_type || "Video Testimony"}
-                  </div>
-
-                  {story.story_text && (
-                    <h1 className="mt-2 max-w-xl text-xl font-black leading-tight">
-                      {story.story_text}
-                    </h1>
-                  )}
-
-                  {story.name && (
-                    <p className="mt-2 text-sm font-bold text-white/70">
-                      Shared by {story.name}
-                    </p>
-                  )}
-                </div>
+                <VideoInfoOverlay story={story} />
               </article>
             );
           })}
@@ -1024,6 +1000,108 @@ function AutoPlayReelVideo({
         </div>
       )}
     </div>
+  );
+}
+
+function VideoInfoOverlay({ story }: { story: VideoStory }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const storyText = story.story_text?.trim() || "";
+  const isLongText = storyText.length > 160;
+
+  return (
+    <>
+      <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-5 pb-28 pr-24">
+        <div className="pointer-events-none">
+          <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
+            <Globe2 className="h-4 w-4" />
+            {story.location || "HTBF Community"}
+          </div>
+
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
+            {story.story_type || "Video Testimony"}
+          </div>
+
+          {storyText && (
+            <h1
+              className="mt-2 max-w-xl text-lg font-black leading-snug text-white md:text-xl"
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 4,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {storyText}
+            </h1>
+          )}
+
+          {story.name && (
+            <p className="mt-2 text-sm font-bold text-white/70">
+              Shared by {story.name}
+            </p>
+          )}
+        </div>
+
+        {isLongText && (
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpanded(true);
+            }}
+            className="mt-3 inline-flex rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-slate-900 shadow-md backdrop-blur"
+          >
+            More
+          </button>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="max-h-[75dvh] w-full max-w-lg overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  {story.story_type || "Video Testimony"}
+                </div>
+
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  Video Details
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Close video details"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[55dvh] overflow-y-auto p-5">
+              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
+                <Globe2 className="h-4 w-4" />
+                {story.location || "HTBF Community"}
+              </div>
+
+              <p className="whitespace-pre-line text-base font-bold leading-7 text-slate-800">
+                {storyText}
+              </p>
+
+              {story.name && (
+                <p className="mt-5 text-sm font-bold text-slate-500">
+                  Shared by {story.name}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
