@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
+  Eye,
+  EyeOff,
   Globe2,
   HandHeart,
   HeartHandshake,
@@ -17,8 +19,6 @@ import {
   Volume2,
   VolumeX,
   X,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -1850,8 +1850,7 @@ function AutoPlayReelVideo({
   function releasePause() {
     const video = videoRef.current;
 
-    if (!video) return;
-
+    if (!v
     if (pressPausedRef.current) {
       pressPausedRef.current = false;
       setUserPaused(false);
@@ -2011,18 +2010,53 @@ function AutoPlayReelVideo({
 }
 
 function VideoInfoOverlay({ story }: { story: VideoStory }) {
+  const [hidden, setHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const storyText = story.story_text?.trim() || "";
-  const isLongText = storyText.length > 160;
+  const isLongText = storyText.length > 80;
+
+  if (hidden) {
+    return (
+      <button
+        type="button"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          setHidden(false);
+        }}
+        className="absolute bottom-28 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+        aria-label="Show video details"
+        title="Show video details"
+      >
+        <Eye className="h-4 w-4" />
+      </button>
+    );
+  }
 
   return (
     <>
-      <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-5 pb-28 pr-24">
-        <div className="pointer-events-none">
-          <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
-            <Globe2 className="h-4 w-4" />
-            {story.location || "HTBF Community"}
+      <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-4 pb-28 pr-24 md:p-5 md:pb-28 md:pr-24">
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            setHidden(true);
+          }}
+          className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
+          aria-label="Hide video details"
+          title="Hide video details"
+        >
+          <EyeOff className="h-4 w-4" />
+        </button>
+
+        <div className="pointer-events-none max-w-[calc(100vw-7rem)] md:max-w-xl">
+          <div className="mb-1.5 flex items-center gap-2 text-sm font-bold text-white/85">
+            <Globe2 className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {story.location || "HTBF Community"}
+            </span>
           </div>
 
           <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
@@ -2030,21 +2064,19 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           </div>
 
           {storyText && (
-            <h1
-              className="mt-2 max-w-xl text-lg font-black leading-snug text-white md:text-xl"
-              style={{
-                display: "-webkit-box",
-                WebkitLineClamp: 4,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}
-            >
-              {storyText}
-            </h1>
+            <div className="relative mt-2">
+              <h1 className="max-h-[5.4rem] overflow-hidden break-words text-base font-black leading-snug text-white md:max-h-[6.3rem] md:text-lg">
+                {storyText}
+              </h1>
+
+              {isLongText && (
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/80 to-transparent" />
+              )}
+            </div>
           )}
 
           {story.name && (
-            <p className="mt-2 text-sm font-bold text-white/70">
+            <p className="mt-2 truncate text-sm font-bold text-white/70">
               Shared by {story.name}
             </p>
           )}
@@ -2095,7 +2127,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
                 {story.location || "HTBF Community"}
               </div>
 
-              <p className="whitespace-pre-line text-base font-bold leading-7 text-slate-800">
+              <p className="whitespace-pre-line break-words text-base font-bold leading-7 text-slate-800">
                 {storyText}
               </p>
 
@@ -2111,6 +2143,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
     </>
   );
 }
+ideo) return;
 
 function VideoActionButton({
   label,
