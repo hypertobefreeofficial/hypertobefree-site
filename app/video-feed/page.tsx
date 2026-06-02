@@ -1,11 +1,11 @@
+UPDATED WORKING VIDEO FEED
+
 "use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
-  Eye,
-  EyeOff,
   Globe2,
   HandHeart,
   HeartHandshake,
@@ -72,6 +72,7 @@ export default function VideoFeedPage() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
+  // Default muted so phone autoplay works. User can tap speaker to turn sound on.
   const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
@@ -523,7 +524,28 @@ export default function VideoFeedPage() {
                   />
                 </div>
 
-                <VideoInfoOverlay story={story} />
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-5 pb-28 pr-20">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
+                    <Globe2 className="h-4 w-4" />
+                    {story.location || "HTBF Community"}
+                  </div>
+
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
+                    {story.story_type || "Video Testimony"}
+                  </div>
+
+                  {story.story_text && (
+                    <h1 className="mt-2 max-w-xl text-xl font-black leading-tight">
+                      {story.story_text}
+                    </h1>
+                  )}
+
+                  {story.name && (
+                    <p className="mt-2 text-sm font-bold text-white/70">
+                      Shared by {story.name}
+                    </p>
+                  )}
+                </div>
               </article>
             );
           })}
@@ -1004,8 +1026,6 @@ function AutoPlayReelVideo({
     </div>
   );
 }
-
-
 
 function VideoActionButton({
   label,
