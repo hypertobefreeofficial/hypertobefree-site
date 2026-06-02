@@ -1,9 +1,7 @@
-
-
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -55,6 +53,8 @@ const storyTypes = [
   },
 ];
 
+const emojiOptions = ["🙏", "❤️", "✝️", "🙌", "🕊️", "🔥", "😭", "✨", "🤍"];
+
 export default function ShareYourStoryPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +64,17 @@ export default function ShareYourStoryPage() {
   const [storyType, setStoryType] = useState("Testimony");
   const [storyText, setStoryText] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+
+  const [textSize, setTextSize] = useState("text-medium");
+  const [textStyle, setTextStyle] = useState("style-clean");
+  const [textPosition, setTextPosition] = useState("position-bottom-left");
+  const [textBackground, setTextBackground] = useState("background-dark");
+
+  const previewText = useMemo(() => {
+    return storyText.trim() || "Your story text will preview here...";
+  }, [storyText]);
 
   useEffect(() => {
     async function loadPage() {
@@ -125,6 +135,20 @@ export default function ShareYourStoryPage() {
     loadPage();
   }, []);
 
+  useEffect(() => {
+    if (!videoFile) {
+      setVideoPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(videoFile);
+    setVideoPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [videoFile]);
+
   function getPostingName() {
     return (
       profile?.display_name?.trim() ||
@@ -136,6 +160,21 @@ export default function ShareYourStoryPage() {
 
   function getPostingLocation() {
     return profile?.location?.trim() || null;
+  }
+
+  function addEmoji(emoji: string) {
+    setStoryText((current) => {
+      if (!current.trim()) {
+        return emoji;
+      }
+
+      return `${current} ${emoji}`;
+    });
+  }
+
+  function removeVideo() {
+    setVideoFile(null);
+    setVideoPreviewUrl(null);
   }
 
   function createVideoThumbnail(file: File): Promise<Blob> {
@@ -303,6 +342,10 @@ export default function ShareYourStoryPage() {
         story_text: cleanStoryText || null,
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
+        text_size: textSize,
+        text_style: textStyle,
+        text_position: textPosition,
+        text_background: textBackground,
         status: "pending",
       });
 
@@ -312,7 +355,12 @@ export default function ShareYourStoryPage() {
 
       setStoryText("");
       setVideoFile(null);
+      setVideoPreviewUrl(null);
       setStoryType("Testimony");
+      setTextSize("text-medium");
+      setTextStyle("style-clean");
+      setTextPosition("position-bottom-left");
+      setTextBackground("background-dark");
       setMessage(
         "Your post was submitted. Testimony posts, stories, and videos may be reviewed before appearing publicly."
       );
@@ -452,6 +500,19 @@ export default function ShareYourStoryPage() {
                 placeholder="Write your testimony, praise report, prayer request, or encouragement..."
                 className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
               />
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {emojiOptions.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => addEmoji(emoji)}
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-xl ring-1 ring-slate-200 transition hover:bg-blue-50"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -482,13 +543,118 @@ export default function ShareYourStoryPage() {
                 </label>
 
                 {videoFile && (
-                  <div className="mt-3 flex items-center gap-2 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-[#082f63]">
-                    <ImagePlus className="h-4 w-4" />
-                    {videoFile.name}
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-[#082f63]">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ImagePlus className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{videoFile.name}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={removeVideo}
+                      className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-red-600 ring-1 ring-red-100"
+                    >
+                      Remove
+                    </button>
                   </div>
                 )}
               </div>
             </div>
+
+            {videoPreviewUrl && (
+              <div className="rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
+                <div className="mb-3">
+                  <div className="text-sm font-black">Preview your story</div>
+                  <p className="mt-1 text-xs font-semibold text-slate-300">
+                    Adjust how your message will appear on your video before
+                    submitting.
+                  </p>
+                </div>
+
+                <div className="relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                  <video
+                    src={videoPreviewUrl}
+                    controls
+                    playsInline
+                    className="h-full w-full object-cover"
+                  />
+
+                  <div
+                    className={`pointer-events-none absolute max-w-[86%] rounded-2xl px-4 py-3 leading-snug text-white shadow-lg ${textSize} ${textStyle} ${textPosition} ${textBackground}`}
+                  >
+                    {previewText}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
+                      Text Size
+                    </label>
+                    <select
+                      value={textSize}
+                      onChange={(event) => setTextSize(event.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+                    >
+                      <option value="text-small">Small</option>
+                      <option value="text-medium">Medium</option>
+                      <option value="text-large">Large</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
+                      Text Style
+                    </label>
+                    <select
+                      value={textStyle}
+                      onChange={(event) => setTextStyle(event.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+                    >
+                      <option value="style-clean">Clean</option>
+                      <option value="style-bold">Bold</option>
+                      <option value="style-scripture">Scripture</option>
+                      <option value="style-testimony">Testimony</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
+                      Text Position
+                    </label>
+                    <select
+                      value={textPosition}
+                      onChange={(event) => setTextPosition(event.target.value)}
+                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+                    >
+                      <option value="position-bottom-left">Bottom Left</option>
+                      <option value="position-bottom-center">
+                        Bottom Center
+                      </option>
+                      <option value="position-center">Center</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
+                      Text Background
+                    </label>
+                    <select
+                      value={textBackground}
+                      onChange={(event) =>
+                        setTextBackground(event.target.value)
+                      }
+                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+                    >
+                      <option value="background-none">None</option>
+                      <option value="background-dark">Soft Dark</option>
+                      <option value="background-blur">Blur</option>
+                      <option value="background-gold">Gold Glow</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="rounded-[1.5rem] bg-amber-50 p-4 text-sm leading-6 text-amber-900 ring-1 ring-amber-100">
               <div className="font-black">Reviewed before posting</div>
@@ -517,6 +683,81 @@ export default function ShareYourStoryPage() {
       </div>
 
       <LoggedInBottomNav />
+
+      <style jsx global>{`
+        .text-small {
+          font-size: 13px;
+        }
+
+        .text-medium {
+          font-size: 16px;
+        }
+
+        .text-large {
+          font-size: 21px;
+        }
+
+        .style-clean {
+          font-weight: 700;
+        }
+
+        .style-bold {
+          font-weight: 950;
+          letter-spacing: -0.02em;
+        }
+
+        .style-scripture {
+          font-family: Georgia, serif;
+          font-style: italic;
+          font-weight: 700;
+        }
+
+        .style-testimony {
+          font-weight: 900;
+          letter-spacing: 0.01em;
+        }
+
+        .position-bottom-left {
+          left: 16px;
+          bottom: 24px;
+          text-align: left;
+        }
+
+        .position-bottom-center {
+          left: 50%;
+          bottom: 24px;
+          transform: translateX(-50%);
+          text-align: center;
+        }
+
+        .position-center {
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          text-align: center;
+        }
+
+        .background-none {
+          background: transparent;
+          text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
+          box-shadow: none;
+        }
+
+        .background-dark {
+          background: rgba(0, 0, 0, 0.48);
+        }
+
+        .background-blur {
+          background: rgba(0, 0, 0, 0.35);
+          backdrop-filter: blur(12px);
+        }
+
+        .background-gold {
+          background: rgba(180, 126, 20, 0.72);
+          box-shadow: 0 0 24px rgba(250, 204, 21, 0.35);
+        }
+      `}</style>
     </main>
   );
 }
+
