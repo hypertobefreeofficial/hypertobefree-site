@@ -417,10 +417,10 @@ export default function HomePage() {
               <p className="mt-2 text-sm font-bold text-slate-600">
                 Contact:{" "}
                 <a
-                  href="mailto:support@hypertobefree.com"
+                  href="mailto:info@hypertobefree.com"
                   className="text-[#0b63ce] hover:underline"
                 >
-                  support@hypertobefree.com
+                  info@hypertobefree.com
                 </a>
               </p>
             </div>
