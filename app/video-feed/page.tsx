@@ -1,11 +1,11 @@
-
-
 "use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
+  Eye,
+  EyeOff,
   Globe2,
   HandHeart,
   HeartHandshake,
@@ -72,7 +72,6 @@ export default function VideoFeedPage() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
-  // Default muted so phone autoplay works. User can tap speaker to turn sound on.
   const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
@@ -524,28 +523,7 @@ export default function VideoFeedPage() {
                   />
                 </div>
 
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-5 pb-28 pr-20">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-bold text-white/85">
-                    <Globe2 className="h-4 w-4" />
-                    {story.location || "HTBF Community"}
-                  </div>
-
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
-                    {story.story_type || "Video Testimony"}
-                  </div>
-
-                  {story.story_text && (
-                    <h1 className="mt-2 max-w-xl text-xl font-black leading-tight">
-                      {story.story_text}
-                    </h1>
-                  )}
-
-                  {story.name && (
-                    <p className="mt-2 text-sm font-bold text-white/70">
-                      Shared by {story.name}
-                    </p>
-                  )}
-                </div>
+                <VideoInfoOverlay story={story} />
               </article>
             );
           })}
@@ -1024,6 +1002,141 @@ function AutoPlayReelVideo({
         </div>
       )}
     </div>
+  );
+}
+
+function VideoInfoOverlay({ story }: { story: VideoStory }) {
+  const [hidden, setHidden] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const storyText = story.story_text?.trim() || "";
+  const isLongText = storyText.length > 80;
+
+  if (hidden) {
+    return (
+      <button
+        type="button"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          setHidden(false);
+        }}
+        className="absolute bottom-28 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+        aria-label="Show video details"
+        title="Show video details"
+      >
+        <Eye className="h-4 w-4" />
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-4 pb-28 pr-24 md:p-5 md:pb-28 md:pr-24">
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            setHidden(true);
+          }}
+          className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
+          aria-label="Hide video details"
+          title="Hide video details"
+        >
+          <EyeOff className="h-4 w-4" />
+        </button>
+
+        <div className="pointer-events-none max-w-[calc(100vw-7rem)] md:max-w-xl">
+          <div className="mb-1.5 flex items-center gap-2 text-sm font-bold text-white/85">
+            <Globe2 className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {story.location || "HTBF Community"}
+            </span>
+          </div>
+
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
+            {story.story_type || "Video Testimony"}
+          </div>
+
+          {storyText && (
+            <div className="relative mt-2">
+              <h1 className="max-h-[5.4rem] overflow-hidden break-words text-base font-black leading-snug text-white md:max-h-[6.3rem] md:text-lg">
+                {storyText}
+              </h1>
+
+              {isLongText && (
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/80 to-transparent" />
+              )}
+            </div>
+          )}
+
+          {story.name && (
+            <p className="mt-2 truncate text-sm font-bold text-white/70">
+              Shared by {story.name}
+            </p>
+          )}
+        </div>
+
+        {isLongText && (
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpanded(true);
+            }}
+            className="mt-3 inline-flex rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-slate-900 shadow-md backdrop-blur"
+          >
+            More
+          </button>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="max-h-[75dvh] w-full max-w-lg overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  {story.story_type || "Video Testimony"}
+                </div>
+
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  Video Details
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Close video details"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[55dvh] overflow-y-auto p-5">
+              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
+                <Globe2 className="h-4 w-4" />
+                {story.location || "HTBF Community"}
+              </div>
+
+              <p className="whitespace-pre-line break-words text-base font-bold leading-7 text-slate-800">
+                {storyText}
+              </p>
+
+              {story.name && (
+                <p className="mt-5 text-sm font-bold text-slate-500">
+                  Shared by {story.name}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
