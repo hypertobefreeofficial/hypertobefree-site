@@ -8,12 +8,17 @@ import {
   Eye,
   Lock,
   LogOut,
+  Mail,
+  MessageCircleHeart,
   Save,
   ShieldAlert,
   Sparkles,
   UserCircle,
+  Video,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+
+type ProfileVisibility = "community" | "private";
 
 type ProfileRow = {
   id: string;
@@ -25,13 +30,21 @@ type ProfileRow = {
   location: string | null;
   bio: string | null;
   status: string | null;
-  profile_visibility: string | null;
-  allow_prayer_notifications: boolean | null;
-  allow_story_notifications: boolean | null;
+  profile_visibility: ProfileVisibility | string | null;
   show_location: boolean | null;
   show_real_name: boolean | null;
   journey_focus: string | null;
   profile_completed: boolean | null;
+
+  notify_replies: boolean | null;
+  notify_prayers: boolean | null;
+  notify_praise: boolean | null;
+  notify_journey_updates: boolean | null;
+  notify_email_updates: boolean | null;
+
+  allow_video_responses: boolean | null;
+  allow_prayer_messages: boolean | null;
+  allow_journey_messages: boolean | null;
 };
 
 const USERNAME_COOLDOWN_DAYS = 30;
@@ -55,13 +68,21 @@ export default function AccountPage() {
   const [bio, setBio] = useState("");
 
   const [status, setStatus] = useState("active");
-  const [profileVisibility, setProfileVisibility] = useState("public");
+  const [profileVisibility, setProfileVisibility] =
+    useState<ProfileVisibility>("community");
   const [showLocation, setShowLocation] = useState(true);
   const [showRealName, setShowRealName] = useState(false);
-  const [allowPrayerNotifications, setAllowPrayerNotifications] =
-    useState(true);
-  const [allowStoryNotifications, setAllowStoryNotifications] = useState(true);
   const [journeyFocus, setJourneyFocus] = useState("encouragement");
+
+  const [notifyReplies, setNotifyReplies] = useState(true);
+  const [notifyPrayers, setNotifyPrayers] = useState(true);
+  const [notifyPraise, setNotifyPraise] = useState(true);
+  const [notifyJourneyUpdates, setNotifyJourneyUpdates] = useState(true);
+  const [notifyEmailUpdates, setNotifyEmailUpdates] = useState(false);
+
+  const [allowVideoResponses, setAllowVideoResponses] = useState(true);
+  const [allowPrayerMessages, setAllowPrayerMessages] = useState(true);
+  const [allowJourneyMessages, setAllowJourneyMessages] = useState(true);
 
   const [message, setMessage] = useState("");
 
@@ -87,7 +108,30 @@ export default function AccountPage() {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "id, email, real_name, display_name, username, username_last_changed_at, location, bio, status, profile_visibility, allow_prayer_notifications, allow_story_notifications, show_location, show_real_name, journey_focus, profile_completed"
+          `
+          id,
+          email,
+          real_name,
+          display_name,
+          username,
+          username_last_changed_at,
+          location,
+          bio,
+          status,
+          profile_visibility,
+          show_location,
+          show_real_name,
+          journey_focus,
+          profile_completed,
+          notify_replies,
+          notify_prayers,
+          notify_praise,
+          notify_journey_updates,
+          notify_email_updates,
+          allow_video_responses,
+          allow_prayer_messages,
+          allow_journey_messages
+          `
         )
         .eq("id", user.id)
         .maybeSingle();
@@ -100,7 +144,6 @@ export default function AccountPage() {
 
       const profile = data as ProfileRow | null;
       const fallbackName = userEmail.split("@")[0] ?? "";
-
       const savedUsername = profile?.username ?? "";
 
       setRealName(profile?.real_name ?? "");
@@ -113,12 +156,25 @@ export default function AccountPage() {
       setBio(profile?.bio ?? "");
 
       setStatus(profile?.status ?? "active");
-      setProfileVisibility(profile?.profile_visibility ?? "public");
+
+      const savedVisibility = profile?.profile_visibility;
+      setProfileVisibility(
+        savedVisibility === "private" ? "private" : "community"
+      );
+
       setShowLocation(profile?.show_location ?? true);
       setShowRealName(profile?.show_real_name ?? false);
-      setAllowPrayerNotifications(profile?.allow_prayer_notifications ?? true);
-      setAllowStoryNotifications(profile?.allow_story_notifications ?? true);
       setJourneyFocus(profile?.journey_focus ?? "encouragement");
+
+      setNotifyReplies(profile?.notify_replies ?? true);
+      setNotifyPrayers(profile?.notify_prayers ?? true);
+      setNotifyPraise(profile?.notify_praise ?? true);
+      setNotifyJourneyUpdates(profile?.notify_journey_updates ?? true);
+      setNotifyEmailUpdates(profile?.notify_email_updates ?? false);
+
+      setAllowVideoResponses(profile?.allow_video_responses ?? true);
+      setAllowPrayerMessages(profile?.allow_prayer_messages ?? true);
+      setAllowJourneyMessages(profile?.allow_journey_messages ?? true);
 
       setLoading(false);
     }
@@ -227,11 +283,17 @@ export default function AccountPage() {
       bio: bio.trim() || null,
       status,
       profile_visibility: profileVisibility,
-      allow_prayer_notifications: allowPrayerNotifications,
-      allow_story_notifications: allowStoryNotifications,
       show_location: showLocation,
       show_real_name: showRealName,
       journey_focus: journeyFocus,
+      notify_replies: notifyReplies,
+      notify_prayers: notifyPrayers,
+      notify_praise: notifyPraise,
+      notify_journey_updates: notifyJourneyUpdates,
+      notify_email_updates: notifyEmailUpdates,
+      allow_video_responses: allowVideoResponses,
+      allow_prayer_messages: allowPrayerMessages,
+      allow_journey_messages: allowJourneyMessages,
       profile_completed: true,
       updated_at: new Date().toISOString(),
     });
@@ -274,7 +336,7 @@ export default function AccountPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
@@ -303,8 +365,8 @@ export default function AccountPage() {
           </h1>
 
           <p className="mt-3 leading-7 text-slate-600">
-            Update your profile identity, privacy, notifications, and Journey
-            preferences.
+            Update your profile identity, privacy, notifications, message
+            preferences, and Journey settings.
           </p>
 
           {message && (
@@ -408,7 +470,7 @@ export default function AccountPage() {
         >
           <ToggleRow
             title="Show my location"
-            text="Allow your location to appear with stories and on movement views."
+            text="Allow your location to appear with stories and community activity."
             checked={showLocation}
             onChange={setShowLocation}
           />
@@ -423,10 +485,11 @@ export default function AccountPage() {
           <Field label="Profile visibility">
             <select
               value={profileVisibility}
-              onChange={(event) => setProfileVisibility(event.target.value)}
+              onChange={(event) =>
+                setProfileVisibility(event.target.value as ProfileVisibility)
+              }
               className="input-style"
             >
-              <option value="public">Public</option>
               <option value="community">HTBF community only</option>
               <option value="private">Private</option>
             </select>
@@ -439,17 +502,65 @@ export default function AccountPage() {
           title="Choose what you want to be notified about"
         >
           <ToggleRow
-            title="Prayer notifications"
-            text="Notify me when people pray with my prayer request."
-            checked={allowPrayerNotifications}
-            onChange={setAllowPrayerNotifications}
+            title="Replies to my videos"
+            text="Notify me when someone responds to one of my video testimonies."
+            checked={notifyReplies}
+            onChange={setNotifyReplies}
           />
 
           <ToggleRow
-            title="Story response notifications"
-            text="Notify me when people respond to my stories."
-            checked={allowStoryNotifications}
-            onChange={setAllowStoryNotifications}
+            title="Prayer responses"
+            text="Notify me when someone prays with me or responds to my prayer request."
+            checked={notifyPrayers}
+            onChange={setNotifyPrayers}
+          />
+
+          <ToggleRow
+            title="Praise and Amen activity"
+            text="Notify me when people react with Amen, Praise, or encouragement."
+            checked={notifyPraise}
+            onChange={setNotifyPraise}
+          />
+
+          <ToggleRow
+            title="Journey inbox updates"
+            text="Notify me when I receive Journey messages or encouragement."
+            checked={notifyJourneyUpdates}
+            onChange={setNotifyJourneyUpdates}
+          />
+
+          <ToggleRow
+            title="Email updates"
+            text="Allow occasional HTBF email updates. You can leave this off for now."
+            checked={notifyEmailUpdates}
+            onChange={setNotifyEmailUpdates}
+          />
+        </SettingsSection>
+
+        <SettingsSection
+          icon={<MessageCircleHeart className="h-6 w-6" />}
+          label="Message Preferences"
+          title="Control how others can interact with you"
+        >
+          <ToggleRow
+            title="Allow video responses"
+            text="Let people send kind responses or encouragement from your video testimonies."
+            checked={allowVideoResponses}
+            onChange={setAllowVideoResponses}
+          />
+
+          <ToggleRow
+            title="Allow prayer messages"
+            text="Let people send prayer encouragement from prayer-related posts."
+            checked={allowPrayerMessages}
+            onChange={setAllowPrayerMessages}
+          />
+
+          <ToggleRow
+            title="Allow Journey messages"
+            text="Let people send encouragement to your Journey inbox."
+            checked={allowJourneyMessages}
+            onChange={setAllowJourneyMessages}
           />
         </SettingsSection>
 
@@ -510,14 +621,29 @@ export default function AccountPage() {
               Sign Out
             </button>
 
-            <button
-              type="button"
+            <a
+              href="mailto:info@hypertobefree.com?subject=Account%20Deletion%20Request"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-red-50 px-5 py-3 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
             >
               <ShieldAlert className="h-4 w-4" />
               Request Account Deletion
-            </button>
+            </a>
           </div>
+        </section>
+
+        <section className="rounded-[2rem] bg-blue-50 p-5 text-sm font-semibold leading-6 text-[#082f63] ring-1 ring-blue-100">
+          <div className="mb-2 flex items-center gap-2 font-black">
+            <Mail className="h-4 w-4" />
+            Need help?
+          </div>
+          Contact HTBF at{" "}
+          <a
+            href="mailto:info@hypertobefree.com"
+            className="font-black underline"
+          >
+            info@hypertobefree.com
+          </a>
+          .
         </section>
       </div>
     </main>
@@ -594,6 +720,7 @@ function ToggleRow({
         className={`relative h-8 w-14 shrink-0 rounded-full transition ${
           checked ? "bg-[#0b63ce]" : "bg-slate-300"
         }`}
+        aria-pressed={checked}
       >
         <span
           className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition ${
