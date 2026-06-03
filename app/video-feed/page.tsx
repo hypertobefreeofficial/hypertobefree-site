@@ -1032,7 +1032,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
   return (
     <>
-      <div className="absolute bottom-0 left-0 z-30 w-[calc(100%-6.5rem)] max-w-[560px] bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-32 md:w-[60%] md:p-5 md:pb-32">
+      <div className="absolute bottom-0 left-0 z-30 w-[calc(100%-7rem)] max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-32 md:w-[55%] md:p-5 md:pb-32">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1048,20 +1048,27 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
         </button>
 
         <div className="pointer-events-none max-w-full overflow-hidden">
-          <div className="mb-1 flex items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
+          <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
             <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               {story.location || "HTBF Community"}
             </span>
           </div>
 
-          <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
+          <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
             {story.story_type || "Video Testimony"}
           </div>
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
-              <h1 className="max-h-[4.25rem] overflow-hidden break-words text-sm font-black leading-snug text-white md:max-h-[5rem] md:text-base">
+              <h1
+                className="max-h-[4.25rem] max-w-full overflow-hidden text-sm font-black leading-snug text-white md:max-h-[5rem] md:text-base"
+                style={{
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                  whiteSpace: "normal",
+                }}
+              >
                 {storyText}
               </h1>
 
@@ -1072,7 +1079,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           )}
 
           {story.name && (
-            <p className="mt-1.5 truncate text-xs font-bold text-white/70 md:text-sm">
+            <p className="mt-1.5 max-w-full truncate text-xs font-bold text-white/70 md:text-sm">
               Shared by {story.name}
             </p>
           )}
@@ -1123,7 +1130,13 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
                 {story.location || "HTBF Community"}
               </div>
 
-              <p className="whitespace-pre-line break-words text-base font-bold leading-7 text-slate-800">
+              <p
+                className="whitespace-pre-line text-base font-bold leading-7 text-slate-800"
+                style={{
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                }}
+              >
                 {storyText}
               </p>
 
@@ -1139,7 +1152,6 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
     </>
   );
 }
-
 function VideoActionButton({
   label,
   count,
