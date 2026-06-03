@@ -1010,7 +1010,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
   const [expanded, setExpanded] = useState(false);
 
   const storyText = story.story_text?.trim() || "";
-  const isLongText = storyText.length > 80;
+  const isLongText = storyText.length > 70;
 
   if (hidden) {
     return (
@@ -1021,7 +1021,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           event.stopPropagation();
           setHidden(false);
         }}
-        className="absolute bottom-28 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+        className="absolute bottom-32 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
         aria-label="Show video details"
         title="Show video details"
       >
@@ -1032,7 +1032,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
   return (
     <>
-      <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-4 pb-28 pr-24 md:p-5 md:pb-28 md:pr-24">
+      <div className="absolute bottom-0 left-0 z-30 w-[calc(100%-6.5rem)] max-w-[560px] bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-32 md:w-[60%] md:p-5 md:pb-32">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1040,39 +1040,39 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
             event.stopPropagation();
             setHidden(true);
           }}
-          className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
+          className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
           aria-label="Hide video details"
           title="Hide video details"
         >
           <EyeOff className="h-4 w-4" />
         </button>
 
-        <div className="pointer-events-none max-w-[calc(100vw-7rem)] md:max-w-xl">
-          <div className="mb-1.5 flex items-center gap-2 text-sm font-bold text-white/85">
-            <Globe2 className="h-4 w-4 shrink-0" />
+        <div className="pointer-events-none max-w-full overflow-hidden">
+          <div className="mb-1 flex items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
+            <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
             <span className="truncate">
               {story.location || "HTBF Community"}
             </span>
           </div>
 
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-200">
+          <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
             {story.story_type || "Video Testimony"}
           </div>
 
           {storyText && (
-            <div className="relative mt-2">
-              <h1 className="max-h-[5.4rem] overflow-hidden break-words text-base font-black leading-snug text-white md:max-h-[6.3rem] md:text-lg">
+            <div className="relative mt-1.5 max-w-full overflow-hidden">
+              <h1 className="max-h-[4.25rem] overflow-hidden break-words text-sm font-black leading-snug text-white md:max-h-[5rem] md:text-base">
                 {storyText}
               </h1>
 
               {isLongText && (
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/80 to-transparent" />
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
               )}
             </div>
           )}
 
           {story.name && (
-            <p className="mt-2 truncate text-sm font-bold text-white/70">
+            <p className="mt-1.5 truncate text-xs font-bold text-white/70 md:text-sm">
               Shared by {story.name}
             </p>
           )}
@@ -1086,7 +1086,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
               event.stopPropagation();
               setExpanded(true);
             }}
-            className="mt-3 inline-flex rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-slate-900 shadow-md backdrop-blur"
+            className="mt-2 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-slate-900 shadow-md backdrop-blur md:text-xs"
           >
             More
           </button>
