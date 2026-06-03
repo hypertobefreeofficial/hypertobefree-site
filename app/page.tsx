@@ -417,6 +417,47 @@ function InfoCard({
       <div className="mb-5">{icon}</div>
       <h3 className="text-2xl font-black text-[#062a57]">{title}</h3>
       <p className="mt-3 leading-7 text-slate-600">{text}</p>
+<footer className="border-t border-slate-200 bg-white">
+  <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+      <div>
+        <div className="text-lg font-black text-[#082f63]">HTBF</div>
+        <p className="mt-1 text-sm font-semibold text-slate-500">
+          Hyper to Be Free — Stories of freedom, hope, prayer, and encouragement.
+        </p>
+        <p className="mt-2 text-sm font-bold text-slate-600">
+          Contact:{" "}
+          <a
+            href="mailto:support@hypertobefree.com"
+            className="text-[#0b63ce] hover:underline"
+          >
+            support@hypertobefree.com
+          </a>
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-4 text-sm font-bold text-slate-600">
+        <a href="/privacy" className="hover:text-[#0b63ce]">
+          Privacy Policy
+        </a>
+        <a href="/terms" className="hover:text-[#0b63ce]">
+          Terms of Service
+        </a>
+        <a href="/content-rules" className="hover:text-[#0b63ce]">
+          Content Rules
+        </a>
+        <a href="/copyright" className="hover:text-[#0b63ce]">
+          Copyright Removal
+        </a>
+      </div>
+    </div>
+
+    <div className="mt-6 text-xs font-semibold leading-6 text-slate-400">
+      © {new Date().getFullYear()} Hyper to Be Free. All rights reserved.
+    </div>
+  </div>
+</footer>
+    
     </div>
   );
 }
