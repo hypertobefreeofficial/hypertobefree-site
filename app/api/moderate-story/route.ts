@@ -17,7 +17,9 @@ function getActiveFlags(categories: ModerationCategories) {
 
 function getMaxScore(categoryScores: ModerationCategoryScores) {
   const scores = Object.values(categoryScores);
+
   if (scores.length === 0) return 0;
+
   return Math.max(...scores);
 }
 
@@ -77,11 +79,13 @@ function buildDecision(result: ModerationResult) {
 
 export async function POST(request: Request) {
   try {
-  const apiKey = process.env.OPENAI_API_KEY?.trim().replace(/^Bearer\s+/i, "");
+    const apiKey = process.env.OPENAI_API_KEY?.trim().replace(/^Bearer\s+/i, "");
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Missing OPENAI_API_KEY environment variable." },
+        {
+          error: "Missing OPENAI_API_KEY environment variable.",
+        },
         { status: 500 }
       );
     }
@@ -124,12 +128,9 @@ export async function POST(request: Request) {
     );
 
     if (!moderationResponse.ok) {
-      const errorText = await moderationResponse.text();
-
       return NextResponse.json(
         {
           error: "OpenAI moderation request failed.",
-          details: errorText,
         },
         { status: 500 }
       );
@@ -140,7 +141,9 @@ export async function POST(request: Request) {
 
     if (!result) {
       return NextResponse.json(
-        { error: "No moderation result returned." },
+        {
+          error: "No moderation result returned.",
+        },
         { status: 500 }
       );
     }
@@ -151,16 +154,18 @@ export async function POST(request: Request) {
       ...decision,
       aiReviewStatus: "completed",
       rawFlagged: result.flagged,
-      categoryScores: result.category_scores,
     });
-} catch (error) {
-  console.error(
-    "AI moderation error:",
-    error instanceof Error ? error.message : "Unknown error"
-  );
+  } catch (error) {
+    console.error(
+      "AI moderation error:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
 
-  return NextResponse.json(
-    { error: "AI moderation failed." },
-    { status: 500 }
-  );
+    return NextResponse.json(
+      {
+        error: "AI moderation failed.",
+      },
+      { status: 500 }
+    );
+  }
 }
