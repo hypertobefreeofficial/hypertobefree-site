@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import {
   Play,
   HeartHandshake,
@@ -74,19 +75,19 @@ export default function HomePage() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <a
+            <Link
               href="/login"
               className="hidden rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 sm:block"
             >
               Sign In
-            </a>
+            </Link>
 
-            <a
-              href="/signup"
+            <Link
+              href="/share-your-story"
               className="rounded-full bg-[#0b63ce] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#084f9f]"
             >
               Share Your Story
-            </a>
+            </Link>
           </div>
         </div>
       </header>
@@ -114,19 +115,19 @@ export default function HomePage() {
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <a
-                  href="/signup"
+                <Link
+                  href="/share-your-story"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-950/10 hover:bg-[#0b3f80]"
                 >
                   Share Your Story <Send className="h-4 w-4" />
-                </a>
+                </Link>
 
-                <a
+                <Link
                   href="/login"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-base font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
                 >
                   Explore Testimonies <Search className="h-4 w-4" />
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -213,12 +214,12 @@ export default function HomePage() {
               </h2>
             </div>
 
-            <a
+            <Link
               href="/login"
               className="w-fit rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-[#082f63] shadow-sm hover:bg-slate-50"
             >
               View More Stories
-            </a>
+            </Link>
           </div>
 
           <div className="grid gap-5 md:grid-cols-3">
@@ -287,9 +288,15 @@ export default function HomePage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 {[
-                  ["Answered Prayer", "God made a way when I could not see one."],
+                  [
+                    "Answered Prayer",
+                    "God made a way when I could not see one.",
+                  ],
                   ["Healing", "Thankful for renewed strength and peace today."],
-                  ["Restoration", "God is restoring something I thought was lost."],
+                  [
+                    "Restoration",
+                    "God is restoring something I thought was lost.",
+                  ],
                   ["Peace", "I woke up today with a calm heart."],
                 ].map(([title, body]) => (
                   <div
@@ -374,12 +381,12 @@ export default function HomePage() {
                 freedom, hope, prayer, and encouragement.
               </p>
 
-              <a
+              <Link
                 href="/login"
                 className="mt-8 inline-flex rounded-full bg-[#0b63ce] px-6 py-3.5 text-base font-bold text-white shadow-sm hover:bg-[#084f9f]"
               >
                 Enter HTBF
-              </a>
+              </Link>
             </div>
 
             <div className="rounded-[2rem] bg-white/70 p-6 shadow-sm ring-1 ring-white">
@@ -426,21 +433,21 @@ export default function HomePage() {
             </div>
 
             <div className="flex flex-wrap gap-4 text-sm font-bold text-slate-600">
-              <a href="/privacy" className="hover:text-[#0b63ce]">
+              <Link href="/privacy" className="hover:text-[#0b63ce]">
                 Privacy Policy
-              </a>
+              </Link>
 
-              <a href="/terms" className="hover:text-[#0b63ce]">
+              <Link href="/terms" className="hover:text-[#0b63ce]">
                 Terms of Service
-              </a>
+              </Link>
 
-              <a href="/content-rules" className="hover:text-[#0b63ce]">
+              <Link href="/content-rules" className="hover:text-[#0b63ce]">
                 Content Rules
-              </a>
+              </Link>
 
-              <a href="/copyright" className="hover:text-[#0b63ce]">
+              <Link href="/copyright" className="hover:text-[#0b63ce]">
                 Copyright Removal
-              </a>
+              </Link>
             </div>
           </div>
 
