@@ -384,6 +384,19 @@ emailRedirectTo: "https://hypertobefree-site.vercel.app/profile-setup",
                 ? "Need an account? Create one"
                 : "Already have an account? Sign in"}
             </button>
+            {mode === "login" && (
+  <div className="mt-4 flex flex-col gap-2 text-center text-sm font-bold sm:flex-row sm:justify-center">
+    <Link href="/forgot-password" className="text-[#0b63ce] hover:underline">
+      Forgot password?
+    </Link>
+
+    <span className="hidden text-slate-300 sm:inline">|</span>
+
+    <Link href="/forgot-username" className="text-[#0b63ce] hover:underline">
+      Forgot username?
+    </Link>
+  </div>
+)}
           </div>
         </div>
       </section>
