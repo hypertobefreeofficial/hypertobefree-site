@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Globe2,
@@ -241,7 +241,9 @@ export default function FreedomFeed({
     if (activeFilter === "all") return stories;
 
     if (activeFilter === "videos") {
-      return stories.filter((story) => story.signed_video_url || story.video_url);
+      return stories.filter(
+        (story) => story.signed_video_url || story.video_url
+      );
     }
 
     if (activeFilter === "testimony") {
@@ -743,9 +745,9 @@ export default function FreedomFeed({
 
                               <button
                                 onClick={() => shareStory(story)}
-                                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-50 px-4 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
+                                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
                               >
-                                <Share2 className="h-4 w-4" />
+                                <Share2 className="h-4 w-4 shrink-0" />
                                 Share
                               </button>
 
@@ -763,7 +765,7 @@ export default function FreedomFeed({
                       </>
                     ) : (
                       <>
-                        <div className="mb-3 flex items-center gap-4 text-sm font-semibold text-slate-500">
+                        <div className="mb-3 grid grid-cols-3 gap-2 text-center text-sm font-semibold text-slate-500 sm:flex sm:items-center sm:gap-4 sm:text-left">
                           <span>{story.reaction_counts.amen} Amen</span>
                           <span>
                             {story.reaction_counts.praise_god} Praise God
@@ -773,7 +775,7 @@ export default function FreedomFeed({
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           <ReactionButton
                             active={story.user_reactions.includes("amen")}
                             label="Amen"
@@ -782,7 +784,14 @@ export default function FreedomFeed({
 
                           <ReactionButton
                             active={story.user_reactions.includes("praise_god")}
-                            label="Praise God"
+                            label={
+                              <>
+                                <span className="sm:hidden">Praise</span>
+                                <span className="hidden sm:inline">
+                                  Praise God
+                                </span>
+                              </>
+                            }
                             onClick={() =>
                               toggleReaction(story.id, "praise_god")
                             }
@@ -790,7 +799,14 @@ export default function FreedomFeed({
 
                           <ReactionButton
                             active={story.user_reactions.includes("encouraged")}
-                            label="Encouraged"
+                            label={
+                              <>
+                                <span className="sm:hidden">Encourage</span>
+                                <span className="hidden sm:inline">
+                                  Encouraged
+                                </span>
+                              </>
+                            }
                             onClick={() =>
                               toggleReaction(story.id, "encouraged")
                             }
@@ -798,9 +814,9 @@ export default function FreedomFeed({
 
                           <button
                             onClick={() => shareStory(story)}
-                            className="inline-flex items-center justify-center gap-1 rounded-2xl bg-slate-50 px-2 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
+                            className="inline-flex min-w-0 items-center justify-center gap-1 rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
                           >
-                            <Share2 className="h-4 w-4" />
+                            <Share2 className="h-4 w-4 shrink-0" />
                             Share
                           </button>
                         </div>
@@ -846,13 +862,13 @@ function ReactionButton({
   onClick,
 }: {
   active: boolean;
-  label: string;
+  label: ReactNode;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-2xl px-4 py-2.5 text-sm font-black transition ${
+      className={`min-w-0 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
         active
           ? "bg-[#0b63ce] text-white"
           : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
