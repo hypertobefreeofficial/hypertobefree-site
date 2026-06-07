@@ -26,6 +26,15 @@ type ProfileRow = {
   profile_completed: boolean | null;
 };
 
+type AiModerationDecision = {
+  statusToUse: "approved" | "submitted";
+  aiRiskLevel: "low" | "medium" | "high";
+  aiSuggestedAction: "approve" | "review" | "reject";
+  aiSummary: string;
+  aiFlags: string[];
+  aiReviewStatus: string;
+};
+
 const storyTypes = [
   {
     label: "Testimony",
@@ -175,6 +184,74 @@ export default function ShareYourStoryPage() {
   function removeVideo() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
+  }
+
+  async function moderateStoryText({
+    finalStoryType,
+    cleanStoryText,
+    hasVideo,
+  }: {
+    finalStoryType: string;
+    cleanStoryText: string;
+    hasVideo: boolean;
+  }): Promise<AiModerationDecision> {
+    try {
+      const response = await fetch("/api/moderate-story", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          story_type: finalStoryType,
+          story_text: cleanStoryText,
+          has_video: hasVideo,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("AI moderation route failed.");
+      }
+
+      const data = await response.json();
+
+      return {
+        statusToUse:
+          data.statusToUse === "approved" ? "approved" : "submitted",
+        aiRiskLevel:
+          data.aiRiskLevel === "low" ||
+          data.aiRiskLevel === "medium" ||
+          data.aiRiskLevel === "high"
+            ? data.aiRiskLevel
+            : "medium",
+        aiSuggestedAction:
+          data.aiSuggestedAction === "approve" ||
+          data.aiSuggestedAction === "review" ||
+          data.aiSuggestedAction === "reject"
+            ? data.aiSuggestedAction
+            : "review",
+        aiSummary:
+          typeof data.aiSummary === "string"
+            ? data.aiSummary
+            : "AI Assist completed with no summary.",
+        aiFlags: Array.isArray(data.aiFlags) ? data.aiFlags : [],
+        aiReviewStatus:
+          typeof data.aiReviewStatus === "string"
+            ? data.aiReviewStatus
+            : "completed",
+      };
+    } catch (error) {
+      console.error("Moderation failed:", error);
+
+      return {
+        statusToUse: "submitted",
+        aiRiskLevel: "medium",
+        aiSuggestedAction: "review",
+        aiSummary:
+          "AI Assist could not complete the review, so this upload was sent to admin review.",
+        aiFlags: ["moderation_unavailable"],
+        aiReviewStatus: "failed",
+      };
+    }
   }
 
   function createVideoThumbnail(file: File): Promise<Blob> {
@@ -330,9 +407,19 @@ export default function ShareYourStoryPage() {
     setMessage("");
 
     try {
-      const { videoUrl, thumbnailUrl } = await uploadVideoIfNeeded(userId);
+      const finalStoryType = videoFile ? "Video Testimony" : storyType;
 
-      const finalStoryType = videoUrl ? "Video Testimony" : storyType;
+      setMessage("Checking your post...");
+
+      const moderationDecision = await moderateStoryText({
+        finalStoryType,
+        cleanStoryText,
+        hasVideo: Boolean(videoFile),
+      });
+
+      setMessage("Uploading your post...");
+
+      const { videoUrl, thumbnailUrl } = await uploadVideoIfNeeded(userId);
 
       const { error } = await supabase.from("stories").insert({
         user_id: userId,
@@ -346,12 +433,20 @@ export default function ShareYourStoryPage() {
         text_style: textStyle,
         text_position: textPosition,
         text_background: textBackground,
-        status: "pending",
+        status: moderationDecision.statusToUse,
+        ai_review_status: moderationDecision.aiReviewStatus,
+        ai_reviewed_at: new Date().toISOString(),
+        ai_risk_level: moderationDecision.aiRiskLevel,
+        ai_suggested_action: moderationDecision.aiSuggestedAction,
+        ai_flags: moderationDecision.aiFlags,
+        ai_summary: moderationDecision.aiSummary,
       });
 
       if (error) {
         throw new Error(error.message);
       }
+
+      const wentLiveInstantly = moderationDecision.statusToUse === "approved";
 
       setStoryText("");
       setVideoFile(null);
@@ -361,12 +456,16 @@ export default function ShareYourStoryPage() {
       setTextStyle("style-clean");
       setTextPosition("position-bottom-left");
       setTextBackground("background-dark");
+
       setMessage(
-        "Your post was submitted. Testimony posts, stories, and videos may be reviewed before appearing publicly."
+        wentLiveInstantly
+          ? "Your post is live on HTBF."
+          : "Your post was submitted for admin review before appearing publicly."
       );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Something went wrong.";
+
       setMessage(errorMessage);
     } finally {
       setSubmitting(false);
@@ -657,10 +756,10 @@ export default function ShareYourStoryPage() {
             )}
 
             <div className="rounded-[1.5rem] bg-amber-50 p-4 text-sm leading-6 text-amber-900 ring-1 ring-amber-100">
-              <div className="font-black">Reviewed before posting</div>
+              <div className="font-black">AI-assisted safety review</div>
               <p className="mt-1">
-                Testimony posts, stories, and videos may be reviewed before
-                appearing publicly.
+                Most low-risk posts can appear quickly. Posts that need a closer
+                look may go to admin review before appearing publicly.
               </p>
             </div>
 
@@ -760,4 +859,3 @@ export default function ShareYourStoryPage() {
     </main>
   );
 }
-
