@@ -18,7 +18,9 @@ function getActiveFlags(categories: ModerationCategories) {
 function getMaxScore(categoryScores: ModerationCategoryScores) {
   const scores = Object.values(categoryScores);
 
-  if (scores.length === 0) return 0;
+  if (scores.length === 0) {
+    return 0;
+  }
 
   return Math.max(...scores);
 }
@@ -79,9 +81,9 @@ function buildDecision(result: ModerationResult) {
 
 export async function POST(request: Request) {
   try {
-  const apiKey = process.env.OPENAI_API_KEY
-  ?.replace(/^Bearer\s+/i, "")
-  .replace(/\s/g, "");
+    const apiKey = process.env.OPENAI_API_KEY
+      ?.replace(/^Bearer\s+/i, "")
+      .replace(/\s/g, "");
 
     if (!apiKey) {
       return NextResponse.json(
@@ -157,13 +159,14 @@ export async function POST(request: Request) {
       aiReviewStatus: "completed",
       rawFlagged: result.flagged,
     });
-} catch {
-  console.error("AI moderation error occurred.");
+  } catch {
+    console.error("AI moderation error occurred.");
 
-  return NextResponse.json(
-    {
-      error: "AI moderation failed.",
-    },
-    { status: 500 }
-  );
+    return NextResponse.json(
+      {
+        error: "AI moderation failed.",
+      },
+      { status: 500 }
+    );
+  }
 }
