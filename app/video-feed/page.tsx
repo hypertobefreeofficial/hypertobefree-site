@@ -1274,13 +1274,4 @@ function RemoveVideoButton({ onClick }: { onClick: () => void }) {
       </span>
     </button>
   );
-}select
-  id,
-  user_id,
-  status,
-  removed_at,
-  removed_by,
-  created_at
-from public.stories
-order by created_at desc
-limit 10;
+}
