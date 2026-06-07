@@ -799,14 +799,7 @@ export default function FreedomFeed({
 
                           <ReactionButton
                             active={story.user_reactions.includes("encouraged")}
-                            label={
-                              <>
-                                <span className="sm:hidden">Encourage</span>
-                                <span className="hidden sm:inline">
-                                  Encouraged
-                                </span>
-                              </>
-                            }
+                            label="Encouraged"
                             onClick={() =>
                               toggleReaction(story.id, "encouraged")
                             }
@@ -814,7 +807,7 @@ export default function FreedomFeed({
 
                           <button
                             onClick={() => shareStory(story)}
-                            className="inline-flex min-w-0 items-center justify-center gap-1 rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
+                            className="inline-flex min-w-0 items-center justify-center gap-1 rounded-2xl bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce] sm:text-sm"
                           >
                             <Share2 className="h-4 w-4 shrink-0" />
                             Share
@@ -868,7 +861,7 @@ function ReactionButton({
   return (
     <button
       onClick={onClick}
-      className={`min-w-0 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
+      className={`min-w-0 rounded-2xl px-2 py-2.5 text-xs font-black transition sm:px-3 sm:text-sm ${
         active
           ? "bg-[#0b63ce] text-white"
           : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
