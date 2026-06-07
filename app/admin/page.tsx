@@ -115,6 +115,7 @@ export default function AdminPage() {
     }
 
     const baseReports = (data as ContentReport[]) ?? [];
+
     const storyIds = baseReports
       .map((report) => report.story_id)
       .filter((id): id is string => Boolean(id));
@@ -149,48 +150,17 @@ export default function AdminPage() {
     setReports(reportsWithStories);
   }
 
-  function getVideoStoragePath(videoUrl: string | null) {
-    if (!videoUrl) return null;
-
-    if (videoUrl.includes("story-videos/")) {
-      const afterBucket = videoUrl.split("story-videos/")[1];
-      const pathOnly = afterBucket.split("?")[0];
-
-      return decodeURIComponent(pathOnly);
-    }
-
-    if (videoUrl.startsWith("http")) {
-      return null;
-    }
-
-    return videoUrl;
-  }
-
-  async function openStoryVideo(story: Story | null | undefined) {
-    setMessage("");
-
-    if (!story?.video_url) {
-      setMessage("No video found for this story.");
+  function openVideoReviewPage(storyId: string | null | undefined) {
+    if (!storyId) {
+      setMessage("No story ID found for this video.");
       return;
     }
 
-    const storagePath = getVideoStoragePath(story.video_url);
-
-    if (!storagePath) {
-      window.open(story.video_url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    const { data, error } = await supabase.storage
-      .from("story-videos")
-      .createSignedUrl(storagePath, 60 * 10);
-
-    if (error || !data?.signedUrl) {
-      setMessage(`Could not open video: ${error?.message ?? "Unknown error"}`);
-      return;
-    }
-
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    window.open(
+      `/admin/video-review?story=${storyId}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   async function updateStoryStatus(storyId: string, newStatus: string) {
@@ -613,7 +583,7 @@ export default function AdminPage() {
                       {report.story?.video_url && (
                         <button
                           type="button"
-                          onClick={() => openStoryVideo(report.story)}
+                          onClick={() => openVideoReviewPage(report.story?.id)}
                           className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-bold text-white hover:bg-[#084f9f]"
                         >
                           <Video className="h-4 w-4" />
@@ -732,7 +702,7 @@ export default function AdminPage() {
                       <div className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-600">
                         <button
                           type="button"
-                          onClick={() => openStoryVideo(story)}
+                          onClick={() => openVideoReviewPage(story.id)}
                           className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-bold text-white hover:bg-[#084f9f]"
                         >
                           <Video className="h-4 w-4" />
