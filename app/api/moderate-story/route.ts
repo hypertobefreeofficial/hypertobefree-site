@@ -1,59 +1,33 @@
 import { NextResponse } from "next/server";
 
-type ModerationCategoryScores = Record<string, number>;
-type ModerationCategories = Record<string, boolean>;
-
 type ModerationResult = {
   flagged: boolean;
-  categories: ModerationCategories;
-  category_scores: ModerationCategoryScores;
+  categories: Record<string, boolean>;
+  category_scores: Record<string, number>;
 };
 
-function getActiveFlags(categories: ModerationCategories) {
-  return Object.entries(categories)
+function getDecision(result: ModerationResult) {
+  const flags = Object.entries(result.categories)
     .filter(([, value]) => value === true)
     .map(([key]) => key);
-}
 
-function getMaxScore(categoryScores: ModerationCategoryScores) {
-  const scores = Object.values(categoryScores);
+  const scores = Object.values(result.category_scores);
+  const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
 
-  if (scores.length === 0) {
-    return 0;
-  }
-
-  return Math.max(...scores);
-}
-
-function buildDecision(result: ModerationResult) {
-  const flags = getActiveFlags(result.categories);
-  const maxScore = getMaxScore(result.category_scores);
-
-  const hasSevereFlag =
+  const severe =
     result.categories["sexual/minors"] === true ||
     result.categories["self-harm/instructions"] === true ||
     result.categories["self-harm/intent"] === true ||
     result.categories["violence/graphic"] === true ||
     result.categories["hate/threatening"] === true;
 
-  if (hasSevereFlag) {
+  if (severe || result.flagged || maxScore >= 0.75) {
     return {
       statusToUse: "submitted",
       aiRiskLevel: "high",
       aiSuggestedAction: "review",
       aiSummary:
-        "AI Assist found a serious safety flag. This upload should be reviewed by an admin before it appears publicly.",
-      aiFlags: flags,
-    };
-  }
-
-  if (result.flagged || maxScore >= 0.75) {
-    return {
-      statusToUse: "submitted",
-      aiRiskLevel: "high",
-      aiSuggestedAction: "review",
-      aiSummary:
-        "AI Assist found one or more safety flags. This upload should be reviewed by an admin.",
+        "AI Assist found a safety flag. This upload should be reviewed by an admin.",
       aiFlags: flags.length > 0 ? flags : ["high_score"],
     };
   }
@@ -81,15 +55,13 @@ function buildDecision(result: ModerationResult) {
 
 export async function POST(request: Request) {
   try {
-   const rawApiKey = process.env.OPENAI_API_KEY ?? "";
-const apiKeyMatch = rawApiKey.match(/sk-[A-Za-z0-9_-]+/);
-const apiKey = apiKeyMatch?.[0];
+    const rawApiKey = process.env.OPENAI_API_KEY ?? "";
+    const apiKeyMatch = rawApiKey.match(/sk-[A-Za-z0-9_-]+/);
+    const apiKey = apiKeyMatch?.[0];
 
     if (!apiKey) {
       return NextResponse.json(
-        {
-          error: "Missing OPENAI_API_KEY environment variable.",
-        },
+        { error: "Missing OPENAI_API_KEY environment variable." },
         { status: 500 }
       );
     }
@@ -131,51 +103,48 @@ const apiKey = apiKeyMatch?.[0];
       }
     );
 
-if (!moderationResponse.ok) {
-  const errorText = await moderationResponse.text();
+    if (!moderationResponse.ok) {
+      const errorText = await moderationResponse.text();
 
-  console.error(
-    "OpenAI moderation request failed:",
-    moderationResponse.status,
-    errorText.slice(0, 300)
-  );
+      console.error(
+        "OpenAI moderation request failed:",
+        moderationResponse.status,
+        errorText.slice(0, 300)
+      );
 
-  return NextResponse.json(
-    {
-      error: "OpenAI moderation request failed.",
-      status: moderationResponse.status,
-      details: errorText.slice(0, 300),
-    },
-    { status: 500 }
-  );
-}
+      return NextResponse.json(
+        {
+          error: "OpenAI moderation request failed.",
+          status: moderationResponse.status,
+          details: errorText.slice(0, 300),
+        },
+        { status: 500 }
+      );
+    }
 
     const moderationData = await moderationResponse.json();
     const result = moderationData.results?.[0] as ModerationResult | undefined;
 
     if (!result) {
       return NextResponse.json(
-        {
-          error: "No moderation result returned.",
-        },
+        { error: "No moderation result returned." },
         { status: 500 }
       );
     }
 
-    const decision = buildDecision(result);
+    const decision = getDecision(result);
 
     return NextResponse.json({
       ...decision,
       aiReviewStatus: "completed",
       rawFlagged: result.flagged,
     });
-} catch {
-  console.error("AI moderation error occurred.");
+  } catch {
+    console.error("AI moderation error occurred.");
 
-  return NextResponse.json(
-    {
-      error: "AI moderation failed.",
-    },
-    { status: 500 }
-  );
+    return NextResponse.json(
+      { error: "AI moderation failed." },
+      { status: 500 }
+    );
+  }
 }
