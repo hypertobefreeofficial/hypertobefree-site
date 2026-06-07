@@ -149,6 +149,50 @@ export default function AdminPage() {
     setReports(reportsWithStories);
   }
 
+  function getVideoStoragePath(videoUrl: string | null) {
+    if (!videoUrl) return null;
+
+    if (videoUrl.includes("story-videos/")) {
+      const afterBucket = videoUrl.split("story-videos/")[1];
+      const pathOnly = afterBucket.split("?")[0];
+
+      return decodeURIComponent(pathOnly);
+    }
+
+    if (videoUrl.startsWith("http")) {
+      return null;
+    }
+
+    return videoUrl;
+  }
+
+  async function openStoryVideo(story: Story | null | undefined) {
+    setMessage("");
+
+    if (!story?.video_url) {
+      setMessage("No video found for this story.");
+      return;
+    }
+
+    const storagePath = getVideoStoragePath(story.video_url);
+
+    if (!storagePath) {
+      window.open(story.video_url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const { data, error } = await supabase.storage
+      .from("story-videos")
+      .createSignedUrl(storagePath, 60 * 10);
+
+    if (error || !data?.signedUrl) {
+      setMessage(`Could not open video: ${error?.message ?? "Unknown error"}`);
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
   async function updateStoryStatus(storyId: string, newStatus: string) {
     setMessage("");
 
@@ -324,45 +368,20 @@ export default function AdminPage() {
   }
 
   function statusStyle(status: string | null) {
-    if (status === "approved") {
-      return "bg-green-50 text-green-700";
-    }
-
-    if (status === "rejected") {
-      return "bg-red-50 text-red-700";
-    }
-
-    if (status === "needs_review") {
-      return "bg-blue-50 text-blue-700";
-    }
-
-    if (status === "removed") {
-      return "bg-slate-100 text-slate-700";
-    }
-
-    if (status === "submitted") {
-      return "bg-amber-50 text-amber-700";
-    }
+    if (status === "approved") return "bg-green-50 text-green-700";
+    if (status === "rejected") return "bg-red-50 text-red-700";
+    if (status === "needs_review") return "bg-blue-50 text-blue-700";
+    if (status === "removed") return "bg-slate-100 text-slate-700";
+    if (status === "submitted") return "bg-amber-50 text-amber-700";
 
     return "bg-amber-50 text-amber-700";
   }
 
   function reportStatusStyle(status: string | null) {
-    if (status === "open") {
-      return "bg-red-50 text-red-700";
-    }
-
-    if (status === "reviewing") {
-      return "bg-blue-50 text-blue-700";
-    }
-
-    if (status === "dismissed") {
-      return "bg-slate-100 text-slate-700";
-    }
-
-    if (status === "action_taken") {
-      return "bg-green-50 text-green-700";
-    }
+    if (status === "open") return "bg-red-50 text-red-700";
+    if (status === "reviewing") return "bg-blue-50 text-blue-700";
+    if (status === "dismissed") return "bg-slate-100 text-slate-700";
+    if (status === "action_taken") return "bg-green-50 text-green-700";
 
     return "bg-amber-50 text-amber-700";
   }
@@ -451,6 +470,7 @@ export default function AdminPage() {
                 <FileText className="h-5 w-5 text-[#0b63ce]" />
                 Submissions
               </div>
+
               <p className="mt-2 text-slate-600">
                 {stories.length} total submission
                 {stories.length === 1 ? "" : "s"} found.
@@ -462,6 +482,7 @@ export default function AdminPage() {
                 <Flag className="h-5 w-5 text-red-600" />
                 Open Reports
               </div>
+
               <p className="mt-2 text-red-700">
                 {openReports.length} report
                 {openReports.length === 1 ? "" : "s"} need attention.
@@ -473,6 +494,7 @@ export default function AdminPage() {
                 <Video className="h-5 w-5 text-slate-600" />
                 Total Reports
               </div>
+
               <p className="mt-2 text-slate-600">
                 {reports.length} total report
                 {reports.length === 1 ? "" : "s"} recorded.
@@ -483,6 +505,7 @@ export default function AdminPage() {
           <section className="mt-12">
             <div className="mb-5 flex items-center gap-2">
               <Flag className="h-5 w-5 text-red-600" />
+
               <h2 className="text-2xl font-black text-[#062a57]">
                 Reported content
               </h2>
@@ -531,12 +554,14 @@ export default function AdminPage() {
 
                         <div className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
                           <div>Reported {formatDate(report.created_at)}</div>
+
                           <div>
                             Reporter ID:{" "}
                             <span className="font-semibold">
                               {report.reporter_user_id || "Unavailable"}
                             </span>
                           </div>
+
                           <div>
                             Posted by user ID:{" "}
                             <span className="font-semibold">
@@ -556,6 +581,7 @@ export default function AdminPage() {
                       <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
                         Report details
                       </div>
+
                       <p className="mt-2 leading-7 text-slate-700">
                         {report.details || "No additional details provided."}
                       </p>
@@ -585,15 +611,14 @@ export default function AdminPage() {
                       </p>
 
                       {report.story?.video_url && (
-                        <a
-                          href={report.story.video_url}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openStoryVideo(report.story)}
                           className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-bold text-white hover:bg-[#084f9f]"
                         >
                           <Video className="h-4 w-4" />
                           Open Video
-                        </a>
+                        </button>
                       )}
                     </div>
 
@@ -637,6 +662,7 @@ export default function AdminPage() {
           <section className="mt-12">
             <div className="mb-5 flex items-center gap-2">
               <FileText className="h-5 w-5 text-[#0b63ce]" />
+
               <h2 className="text-2xl font-black text-[#062a57]">
                 All submitted stories
               </h2>
@@ -704,15 +730,14 @@ export default function AdminPage() {
 
                     {story.video_url && (
                       <div className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-600">
-                        <a
-                          href={story.video_url}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => openStoryVideo(story)}
                           className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-bold text-white hover:bg-[#084f9f]"
                         >
                           <Video className="h-4 w-4" />
                           Open Video
-                        </a>
+                        </button>
                       </div>
                     )}
 
