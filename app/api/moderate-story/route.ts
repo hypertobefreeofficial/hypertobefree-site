@@ -131,14 +131,24 @@ export async function POST(request: Request) {
       }
     );
 
-    if (!moderationResponse.ok) {
-      return NextResponse.json(
-        {
-          error: "OpenAI moderation request failed.",
-        },
-        { status: 500 }
-      );
-    }
+if (!moderationResponse.ok) {
+  const errorText = await moderationResponse.text();
+
+  console.error(
+    "OpenAI moderation request failed:",
+    moderationResponse.status,
+    errorText.slice(0, 300)
+  );
+
+  return NextResponse.json(
+    {
+      error: "OpenAI moderation request failed.",
+      status: moderationResponse.status,
+      details: errorText.slice(0, 300),
+    },
+    { status: 500 }
+  );
+}
 
     const moderationData = await moderationResponse.json();
     const result = moderationData.results?.[0] as ModerationResult | undefined;
