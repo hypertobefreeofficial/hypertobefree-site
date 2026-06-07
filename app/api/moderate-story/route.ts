@@ -77,7 +77,7 @@ function buildDecision(result: ModerationResult) {
 
 export async function POST(request: Request) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY?.trim().replace(/^Bearer\s+/i, "");
 
     if (!apiKey) {
       return NextResponse.json(
@@ -153,12 +153,14 @@ export async function POST(request: Request) {
       rawFlagged: result.flagged,
       categoryScores: result.category_scores,
     });
-  } catch (error) {
-    console.error("AI moderation error:", error);
+} catch (error) {
+  console.error(
+    "AI moderation error:",
+    error instanceof Error ? error.message : "Unknown error"
+  );
 
-    return NextResponse.json(
-      { error: "AI moderation failed." },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(
+    { error: "AI moderation failed." },
+    { status: 500 }
+  );
 }
