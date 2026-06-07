@@ -10,6 +10,7 @@ import {
   FileText,
   Flag,
   Lock,
+  ShieldAlert,
   ShieldCheck,
   UserCircle,
   Video,
@@ -47,10 +48,25 @@ type ContentReport = {
   story?: Story | null;
 };
 
+type AccountDeletionRequest = {
+  id: string;
+  user_id: string;
+  email: string | null;
+  reason: string | null;
+  status: string | null;
+  admin_notes: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string | null;
+};
+
 export default function AdminPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
+  const [deletionRequests, setDeletionRequests] = useState<
+    AccountDeletionRequest[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [notAllowed, setNotAllowed] = useState(false);
   const [message, setMessage] = useState("");
@@ -80,7 +96,7 @@ export default function AdminPage() {
       return;
     }
 
-    await Promise.all([loadStories(), loadReports()]);
+    await Promise.all([loadStories(), loadReports(), loadDeletionRequests()]);
 
     setLoading(false);
   }
@@ -148,6 +164,22 @@ export default function AdminPage() {
     }));
 
     setReports(reportsWithStories);
+  }
+
+  async function loadDeletionRequests() {
+    const { data, error } = await supabase
+      .from("account_deletion_requests")
+      .select(
+        "id, user_id, email, reason, status, admin_notes, reviewed_at, reviewed_by, created_at"
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(`Could not load account deletion requests: ${error.message}`);
+      return;
+    }
+
+    setDeletionRequests((data as AccountDeletionRequest[]) ?? []);
   }
 
   function openVideoReviewPage(storyId: string | null | undefined) {
@@ -304,6 +336,83 @@ export default function AdminPage() {
     setMessage("Reported content removed and report marked as action taken.");
   }
 
+  async function markDeletionReviewing(requestId: string) {
+    setMessage("");
+
+    const { error } = await supabase
+      .from("account_deletion_requests")
+      .update({
+        status: "reviewing",
+        reviewed_by: null,
+        admin_notes: "Account deletion request marked as reviewing by admin.",
+      })
+      .eq("id", requestId);
+
+    if (error) {
+      setMessage(`Could not mark deletion request as reviewing: ${error.message}`);
+      return;
+    }
+
+    setDeletionRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status: "reviewing",
+              admin_notes:
+                request.admin_notes ||
+                "Account deletion request marked as reviewing by admin.",
+            }
+          : request
+      )
+    );
+
+    setMessage("Account deletion request marked as reviewing.");
+  }
+
+  async function completeDeletionRequest(requestId: string) {
+    setMessage("");
+
+    const confirmed = window.confirm(
+      "Mark this account deletion request as completed? This only closes the request. It does not delete the user yet."
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("account_deletion_requests")
+      .update({
+        status: "completed",
+        reviewed_at: new Date().toISOString(),
+        admin_notes:
+          "Account deletion request marked completed by admin. Actual account deletion must be handled separately.",
+      })
+      .eq("id", requestId);
+
+    if (error) {
+      setMessage(`Could not complete deletion request: ${error.message}`);
+      return;
+    }
+
+    setDeletionRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status: "completed",
+              reviewed_at: new Date().toISOString(),
+              admin_notes:
+                "Account deletion request marked completed by admin. Actual account deletion must be handled separately.",
+            }
+          : request
+      )
+    );
+
+    setMessage(
+      "Account deletion request marked completed. Account deletion itself has not been automated yet."
+    );
+  }
+
   function formatDate(value: string | null) {
     if (!value) return "Date unavailable";
 
@@ -343,6 +452,8 @@ export default function AdminPage() {
     if (status === "needs_review") return "bg-blue-50 text-blue-700";
     if (status === "removed") return "bg-slate-100 text-slate-700";
     if (status === "submitted") return "bg-amber-50 text-amber-700";
+    if (status === "reviewing") return "bg-blue-50 text-blue-700";
+    if (status === "completed") return "bg-green-50 text-green-700";
 
     return "bg-amber-50 text-amber-700";
   }
@@ -358,6 +469,10 @@ export default function AdminPage() {
 
   const openReports = reports.filter(
     (report) => report.status === "open" || report.status === "reviewing"
+  );
+
+  const activeDeletionRequests = deletionRequests.filter(
+    (request) => request.status === "submitted" || request.status === "reviewing"
   );
 
   if (loading) {
@@ -434,7 +549,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="mt-8 grid gap-4 md:grid-cols-4">
             <div className="rounded-3xl bg-blue-50 p-5">
               <div className="flex items-center gap-2 font-black text-[#062a57]">
                 <FileText className="h-5 w-5 text-[#0b63ce]" />
@@ -459,6 +574,18 @@ export default function AdminPage() {
               </p>
             </div>
 
+            <div className="rounded-3xl bg-orange-50 p-5">
+              <div className="flex items-center gap-2 font-black text-orange-800">
+                <ShieldAlert className="h-5 w-5 text-orange-600" />
+                Delete Requests
+              </div>
+
+              <p className="mt-2 text-orange-700">
+                {activeDeletionRequests.length} active request
+                {activeDeletionRequests.length === 1 ? "" : "s"}.
+              </p>
+            </div>
+
             <div className="rounded-3xl bg-slate-50 p-5">
               <div className="flex items-center gap-2 font-black text-[#062a57]">
                 <Video className="h-5 w-5 text-slate-600" />
@@ -471,6 +598,109 @@ export default function AdminPage() {
               </p>
             </div>
           </div>
+
+          <section className="mt-12">
+            <div className="mb-5 flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-orange-600" />
+
+              <h2 className="text-2xl font-black text-[#062a57]">
+                Account deletion requests
+              </h2>
+            </div>
+
+            {deletionRequests.length === 0 ? (
+              <div className="rounded-2xl bg-slate-50 p-5 text-slate-600">
+                No account deletion requests yet.
+              </div>
+            ) : (
+              <div className="grid gap-5">
+                {deletionRequests.map((request) => (
+                  <article
+                    key={request.id}
+                    className="rounded-3xl border border-orange-100 bg-orange-50/60 p-5"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-orange-700">
+                            Account Deletion
+                          </span>
+
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                              request.status
+                            )}`}
+                          >
+                            {statusLabel(request.status)}
+                          </span>
+                        </div>
+
+                        <h3 className="mt-4 text-2xl font-black text-[#062a57]">
+                          {request.email || "Email unavailable"}
+                        </h3>
+
+                        <div className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
+                          <div>Requested {formatDate(request.created_at)}</div>
+                          <div>
+                            User ID:{" "}
+                            <span className="font-semibold">
+                              {request.user_id}
+                            </span>
+                          </div>
+                          {request.reviewed_at && (
+                            <div>
+                              Reviewed {formatDate(request.reviewed_at)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm font-bold text-orange-700">
+                        <ShieldAlert className="h-4 w-4" />
+                        User request
+                      </div>
+                    </div>
+
+                    <div className="mt-5 rounded-2xl bg-white p-5">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                        User reason
+                      </div>
+
+                      <p className="mt-2 leading-7 text-slate-700">
+                        {request.reason || "No reason provided."}
+                      </p>
+                    </div>
+
+                    {request.admin_notes && (
+                      <div className="mt-4 rounded-2xl bg-slate-100 p-4 text-sm font-semibold leading-6 text-slate-700">
+                        Admin notes: {request.admin_notes}
+                      </div>
+                    )}
+
+                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                      <button
+                        onClick={() => markDeletionReviewing(request.id)}
+                        disabled={request.status === "completed"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        Mark Reviewing
+                      </button>
+
+                      <button
+                        onClick={() => completeDeletionRequest(request.id)}
+                        disabled={request.status === "completed"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Mark Completed
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="mt-12">
             <div className="mb-5 flex items-center gap-2">
