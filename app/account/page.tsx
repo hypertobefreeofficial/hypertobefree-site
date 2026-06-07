@@ -14,7 +14,6 @@ import {
   ShieldAlert,
   Sparkles,
   UserCircle,
-  Video,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -47,11 +46,21 @@ type ProfileRow = {
   allow_journey_messages: boolean | null;
 };
 
+type AccountDeletionRequest = {
+  id: string;
+  user_id: string;
+  email: string | null;
+  reason: string | null;
+  status: string | null;
+  created_at: string | null;
+};
+
 const USERNAME_COOLDOWN_DAYS = 30;
 
 export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [requestingDeletion, setRequestingDeletion] = useState(false);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -83,6 +92,9 @@ export default function AccountPage() {
   const [allowVideoResponses, setAllowVideoResponses] = useState(true);
   const [allowPrayerMessages, setAllowPrayerMessages] = useState(true);
   const [allowJourneyMessages, setAllowJourneyMessages] = useState(true);
+
+  const [deletionRequest, setDeletionRequest] =
+    useState<AccountDeletionRequest | null>(null);
 
   const [message, setMessage] = useState("");
 
@@ -175,6 +187,19 @@ export default function AccountPage() {
       setAllowVideoResponses(profile?.allow_video_responses ?? true);
       setAllowPrayerMessages(profile?.allow_prayer_messages ?? true);
       setAllowJourneyMessages(profile?.allow_journey_messages ?? true);
+
+      const { data: deletionData, error: deletionError } = await supabase
+        .from("account_deletion_requests")
+        .select("id, user_id, email, reason, status, created_at")
+        .eq("user_id", user.id)
+        .in("status", ["submitted", "reviewing"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!deletionError && deletionData) {
+        setDeletionRequest(deletionData as AccountDeletionRequest);
+      }
 
       setLoading(false);
     }
@@ -320,9 +345,70 @@ export default function AccountPage() {
     setMessage("Account settings saved.");
   }
 
+  async function requestAccountDeletion() {
+    setMessage("");
+
+    if (!userId) {
+      setMessage("Please sign in again before requesting account deletion.");
+      return;
+    }
+
+    if (deletionRequest) {
+      setMessage("Your account deletion request is already submitted.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to request account deletion? This will submit a request to HTBF admin for review. Your account will not be deleted instantly."
+    );
+
+    if (!confirmed) return;
+
+    const reason = window.prompt(
+      "Optional: Tell us why you want to delete your account. You can leave this blank."
+    );
+
+    if (reason === null) return;
+
+    setRequestingDeletion(true);
+
+    const { data, error } = await supabase
+      .from("account_deletion_requests")
+      .insert({
+        user_id: userId,
+        email: email || null,
+        reason: reason.trim() || null,
+        status: "submitted",
+      })
+      .select("id, user_id, email, reason, status, created_at")
+      .single();
+
+    setRequestingDeletion(false);
+
+    if (error) {
+      setMessage(`Could not submit deletion request: ${error.message}`);
+      return;
+    }
+
+    setDeletionRequest(data as AccountDeletionRequest);
+    setMessage(
+      "Your account deletion request was submitted. HTBF admin will review it."
+    );
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     window.location.href = "/";
+  }
+
+  function formatDate(value: string | null) {
+    if (!value) return "date unavailable";
+
+    return new Date(value).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   }
 
   if (loading) {
@@ -372,12 +458,22 @@ export default function AccountPage() {
           {message && (
             <div
               className={`mt-5 rounded-2xl p-4 text-sm font-bold ${
-                message.includes("saved")
+                message.includes("saved") ||
+                message.includes("submitted") ||
+                message.includes("already submitted")
                   ? "bg-emerald-50 text-emerald-700"
                   : "bg-red-50 text-red-700"
               }`}
             >
               {message}
+            </div>
+          )}
+
+          {deletionRequest && (
+            <div className="mt-5 rounded-2xl bg-red-50 p-4 text-sm font-bold leading-6 text-red-700 ring-1 ring-red-100">
+              Account deletion request submitted on{" "}
+              {formatDate(deletionRequest.created_at)}. Status:{" "}
+              {deletionRequest.status || "submitted"}.
             </div>
           )}
         </section>
@@ -621,13 +717,19 @@ export default function AccountPage() {
               Sign Out
             </button>
 
-            <a
-              href="mailto:info@hypertobefree.com?subject=Account%20Deletion%20Request"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-red-50 px-5 py-3 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
+            <button
+              type="button"
+              onClick={requestAccountDeletion}
+              disabled={requestingDeletion || Boolean(deletionRequest)}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-red-50 px-5 py-3 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <ShieldAlert className="h-4 w-4" />
-              Request Account Deletion
-            </a>
+              {requestingDeletion
+                ? "Submitting Request..."
+                : deletionRequest
+                  ? "Deletion Request Submitted"
+                  : "Request Account Deletion"}
+            </button>
           </div>
         </section>
 
