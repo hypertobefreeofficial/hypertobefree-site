@@ -597,7 +597,7 @@ export default function VideoFeedPage() {
                   eagerLoad={index === 0}
                 />
 
-                <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
+          <div className="absolute bottom-40 right-2 top-24 z-50 flex flex-col justify-between gap-1 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:justify-start sm:gap-3">
                   <VideoActionButton
                     label="Amen"
                     count={story.reaction_counts.amen}
@@ -1166,7 +1166,7 @@ function AutoPlayReelVideo({
         </div>
       )}
 
-      <div className="absolute bottom-28 right-3 z-40 flex flex-col gap-2">
+   <div className="absolute bottom-20 right-3 z-40 flex flex-col gap-2 sm:bottom-28">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
