@@ -15,6 +15,7 @@ import {
   Send,
   Share2,
   Sparkles,
+  Trash2,
   Video,
   Volume2,
   VolumeX,
@@ -396,6 +397,50 @@ export default function VideoFeedPage() {
     setMessage("Response sent.");
   }
 
+  async function removeMyVideo(story: VideoStory) {
+    setMessage("");
+
+    if (!userId) {
+      setMessage("Please sign in to remove your video.");
+      return;
+    }
+
+    if (story.user_id !== userId) {
+      setMessage("You can only remove your own videos.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Remove this video from HTBF? It will no longer appear in the video feed, search, or your public posts."
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase.rpc("remove_my_video_story", {
+      story_id: story.id,
+    });
+
+    if (error) {
+      setMessage(`Could not remove video: ${error.message}`);
+      return;
+    }
+
+    setStories((currentStories) =>
+      currentStories.filter((item) => item.id !== story.id)
+    );
+
+    if (selectedStoryId === story.id) {
+      setSelectedStoryId(null);
+    }
+
+    if (replyStory?.id === story.id) {
+      setReplyStory(null);
+      setReplyText("");
+    }
+
+    setMessage("Video removed from public view.");
+  }
+
   async function shareStory(story: VideoStory) {
     setMessage("");
 
@@ -465,6 +510,8 @@ export default function VideoFeedPage() {
           {orderedStories.map((story, index) => {
             if (!story.signed_video_url) return null;
 
+            const isOwner = Boolean(userId && story.user_id === userId);
+
             return (
               <article
                 key={story.id}
@@ -521,6 +568,10 @@ export default function VideoFeedPage() {
                     onClick={() => shareStory(story)}
                     icon={<Share2 className="h-5 w-5" />}
                   />
+
+                  {isOwner && (
+                    <RemoveVideoButton onClick={() => removeMyVideo(story)} />
+                  )}
                 </div>
 
                 <VideoInfoOverlay story={story} />
@@ -1152,6 +1203,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
     </>
   );
 }
+
 function VideoActionButton({
   label,
   count,
@@ -1168,7 +1220,11 @@ function VideoActionButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
       className="group flex flex-col items-center gap-1 text-white"
       aria-label={label}
       title={label}
@@ -1195,3 +1251,36 @@ function VideoActionButton({
     </button>
   );
 }
+
+function RemoveVideoButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className="group flex flex-col items-center gap-1 text-white"
+      aria-label="Remove video"
+      title="Remove video"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500/80 text-white ring-1 ring-white/25 backdrop-blur-md transition group-hover:bg-red-600">
+        <Trash2 className="h-5 w-5" />
+      </span>
+
+      <span className="text-[10px] font-black leading-none text-white/90 drop-shadow">
+        Remove
+      </span>
+    </button>
+  );
+}select
+  id,
+  user_id,
+  status,
+  removed_at,
+  removed_by,
+  created_at
+from public.stories
+order by created_at desc
+limit 10;
