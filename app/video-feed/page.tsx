@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
+  Flag,
   Globe2,
   HandHeart,
   HeartHandshake,
@@ -24,6 +25,17 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
+
+type ReportReason =
+  | "inappropriate"
+  | "harassment_hate"
+  | "violence_harm"
+  | "sexual_content"
+  | "spam_scam"
+  | "copyright"
+  | "privacy"
+  | "not_aligned"
+  | "other";
 
 type StoryRow = {
   id: string;
@@ -62,6 +74,21 @@ type VideoStory = StoryRow & {
   reply_count: number;
 };
 
+const reportReasons: {
+  label: string;
+  value: ReportReason;
+}[] = [
+  { label: "Inappropriate content", value: "inappropriate" },
+  { label: "Harassment or hate", value: "harassment_hate" },
+  { label: "Violence or harmful content", value: "violence_harm" },
+  { label: "Sexual content", value: "sexual_content" },
+  { label: "Spam or scam", value: "spam_scam" },
+  { label: "Copyright issue", value: "copyright" },
+  { label: "Privacy concern", value: "privacy" },
+  { label: "Not aligned with HTBF community", value: "not_aligned" },
+  { label: "Other", value: "other" },
+];
+
 export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -72,6 +99,12 @@ export default function VideoFeedPage() {
   const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+
+  const [reportStory, setReportStory] = useState<VideoStory | null>(null);
+  const [reportReason, setReportReason] =
+    useState<ReportReason>("inappropriate");
+  const [reportDetails, setReportDetails] = useState("");
+  const [sendingReport, setSendingReport] = useState(false);
 
   const [soundOn, setSoundOn] = useState(false);
 
@@ -441,6 +474,46 @@ export default function VideoFeedPage() {
     setMessage("Video removed from public view.");
   }
 
+  function openReportModal(story: VideoStory) {
+    setReportStory(story);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    setMessage("");
+  }
+
+  async function submitReport() {
+    if (!userId || !reportStory) {
+      setMessage("Please sign in to report a video.");
+      return;
+    }
+
+    setSendingReport(true);
+    setMessage("");
+
+    const cleanDetails = reportDetails.trim();
+
+    const { error } = await supabase.from("content_reports").insert({
+      story_id: reportStory.id,
+      reporter_user_id: userId,
+      reported_user_id: reportStory.user_id,
+      reason: reportReason,
+      details: cleanDetails || null,
+      status: "open",
+    });
+
+    setSendingReport(false);
+
+    if (error) {
+      setMessage(`Could not submit report: ${error.message}`);
+      return;
+    }
+
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    setMessage("Report submitted. Thank you for helping keep HTBF safe.");
+  }
+
   async function shareStory(story: VideoStory) {
     setMessage("");
 
@@ -569,6 +642,14 @@ export default function VideoFeedPage() {
                     icon={<Share2 className="h-5 w-5" />}
                   />
 
+                  <VideoActionButton
+                    label="Report"
+                    count={null}
+                    active={false}
+                    onClick={() => openReportModal(story)}
+                    icon={<Flag className="h-5 w-5" />}
+                  />
+
                   {isOwner && (
                     <RemoveVideoButton onClick={() => removeMyVideo(story)} />
                   )}
@@ -624,6 +705,86 @@ export default function VideoFeedPage() {
             >
               {sendingReply ? "Sending..." : "Send Response"}
               <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reportStory && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-red-600">
+                  Report Video
+                </div>
+
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  Flag for moderator review
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Reports help keep HTBF safe. This does not automatically
+                  remove the video, but it sends it to the admin review queue.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setReportStory(null);
+                  setReportReason("inappropriate");
+                  setReportDetails("");
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Close report box"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <label className="block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
+                Why are you reporting this?
+              </div>
+
+              <select
+                value={reportReason}
+                onChange={(event) =>
+                  setReportReason(event.target.value as ReportReason)
+                }
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              >
+                {reportReasons.map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="mt-4 block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
+                Details, optional
+              </div>
+
+              <textarea
+                value={reportDetails}
+                onChange={(event) => setReportDetails(event.target.value)}
+                rows={4}
+                placeholder="Add any details that may help the moderator..."
+                className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+            </label>
+
+            <button
+              type="button"
+              disabled={sendingReport}
+              onClick={submitReport}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-base font-black text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {sendingReport ? "Submitting..." : "Submit Report"}
+              <Flag className="h-4 w-4" />
             </button>
           </div>
         </div>
