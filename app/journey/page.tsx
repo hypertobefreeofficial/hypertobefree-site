@@ -1,12 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -48,6 +43,8 @@ type StoryRow = {
   prayer_status: string | null;
   answered_text: string | null;
   created_at: string | null;
+  edited_at?: string | null;
+  removed_at?: string | null;
 };
 
 type ReactionRow = {
@@ -82,11 +79,14 @@ export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [stories, setStories] = useState<StoryRow[]>([]);
+  const [myUploads, setMyUploads] = useState<StoryRow[]>([]);
   const [reactions, setReactions] = useState<ReactionRow[]>([]);
   const [reflection, setReflection] = useState("");
   const [message, setMessage] = useState("");
 
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [controlCenterOpen, setControlCenterOpen] = useState(false);
+
   const [activeInboxTab, setActiveInboxTab] =
     useState<JourneyInboxTab>("received");
   const [videoReplies, setVideoReplies] = useState<VideoReplyRow[]>([]);
@@ -96,6 +96,11 @@ export default function JourneyPage() {
   const [replyTarget, setReplyTarget] = useState<VideoReplyRow | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+
+  const [editingStory, setEditingStory] = useState<StoryRow | null>(null);
+  const [editStoryText, setEditStoryText] = useState("");
+  const [savingStoryEdit, setSavingStoryEdit] = useState(false);
+  const [removingStoryId, setRemovingStoryId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadJourney() {
@@ -124,7 +129,7 @@ export default function JourneyPage() {
       const { data: storyData, error: storyError } = await supabase
         .from("stories")
         .select(
-          "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at"
+          "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at, edited_at, removed_at"
         )
         .eq("status", "approved")
         .order("created_at", { ascending: false })
@@ -138,6 +143,8 @@ export default function JourneyPage() {
 
       const approvedStories = (storyData as StoryRow[]) ?? [];
       setStories(approvedStories);
+
+      await loadMyUploads(user.id);
 
       const storyIds = approvedStories.map((story) => story.id);
 
@@ -164,7 +171,7 @@ export default function JourneyPage() {
     loadJourney();
 
     const channel = supabase
-      .channel("journey-inbox-updates")
+      .channel("journey-page-updates")
       .on(
         "postgres_changes",
         {
@@ -182,12 +189,47 @@ export default function JourneyPage() {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "stories",
+        },
+        async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (user) {
+            await loadMyUploads(user.id);
+          }
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  async function loadMyUploads(currentUserId: string) {
+    const { data, error } = await supabase
+      .from("stories")
+      .select(
+        "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at, edited_at, removed_at"
+      )
+      .eq("user_id", currentUserId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      setMessage(`Could not load your uploads: ${error.message}`);
+      return;
+    }
+
+    setMyUploads((data as StoryRow[]) ?? []);
+  }
 
   async function loadVideoReplies(currentUserId: string) {
     const { data, error } = await supabase
@@ -252,8 +294,8 @@ export default function JourneyPage() {
   }
 
   const myStories = useMemo(() => {
-    return stories.filter((story) => story.user_id === userId);
-  }, [stories, userId]);
+    return myUploads.filter((story) => story.status === "approved");
+  }, [myUploads]);
 
   const myPrayerWatchlist = useMemo(() => {
     const storyIdsIPrayedFor = reactions
@@ -317,6 +359,18 @@ export default function JourneyPage() {
     encouragementImpact.total,
   ]);
 
+  const uploadTotals = useMemo(() => {
+    return {
+      total: myUploads.length,
+      approved: myUploads.filter((story) => story.status === "approved").length,
+      pending: myUploads.filter(
+        (story) => story.status === "pending" || story.status === "submitted"
+      ).length,
+      removed: myUploads.filter((story) => story.status === "removed").length,
+      videos: myUploads.filter((story) => Boolean(story.video_url)).length,
+    };
+  }, [myUploads]);
+
   const receivedReplies = useMemo(() => {
     return videoReplies.filter((reply) => reply.recipient_user_id === userId);
   }, [videoReplies, userId]);
@@ -373,7 +427,9 @@ export default function JourneyPage() {
   function getStoryPreview(storyId: string | null) {
     if (!storyId) return "Video testimony";
 
-    const story = stories.find((item) => item.id === storyId);
+    const story =
+      stories.find((item) => item.id === storyId) ||
+      myUploads.find((item) => item.id === storyId);
 
     if (!story) return "Video testimony";
 
@@ -401,6 +457,129 @@ export default function JourneyPage() {
 
       await loadVideoReplies(userId);
     }
+  }
+
+  function openControlCenter() {
+    setControlCenterOpen(true);
+    setMessage("");
+  }
+
+  function startEditingStory(story: StoryRow) {
+    if (story.status === "removed") {
+      setMessage("Removed uploads cannot be edited.");
+      return;
+    }
+
+    setEditingStory(story);
+    setEditStoryText(story.story_text ?? "");
+    setMessage("");
+  }
+
+  async function saveStoryEdit() {
+    if (!userId || !editingStory) {
+      setMessage("Please sign in to edit your upload.");
+      return;
+    }
+
+    const cleanText = editStoryText.trim();
+
+    if (!cleanText) {
+      setMessage("Please enter text before saving.");
+      return;
+    }
+
+    setSavingStoryEdit(true);
+    setMessage("");
+
+    const { error } = await supabase.rpc("edit_my_story", {
+      story_id: editingStory.id,
+      new_story_text: cleanText,
+    });
+
+    setSavingStoryEdit(false);
+
+    if (error) {
+      setMessage(`Could not save edit: ${error.message}`);
+      return;
+    }
+
+    setMyUploads((currentUploads) =>
+      currentUploads.map((story) =>
+        story.id === editingStory.id
+          ? {
+              ...story,
+              story_text: cleanText,
+              edited_at: new Date().toISOString(),
+            }
+          : story
+      )
+    );
+
+    setStories((currentStories) =>
+      currentStories.map((story) =>
+        story.id === editingStory.id
+          ? {
+              ...story,
+              story_text: cleanText,
+              edited_at: new Date().toISOString(),
+            }
+          : story
+      )
+    );
+
+    setEditingStory(null);
+    setEditStoryText("");
+    setMessage("Upload updated.");
+  }
+
+  async function removeMyUpload(story: StoryRow) {
+    if (!userId) {
+      setMessage("Please sign in to remove your upload.");
+      return;
+    }
+
+    if (story.user_id !== userId) {
+      setMessage("You can only remove your own uploads.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Remove this upload from HTBF? It will no longer appear in public feeds, search, or video areas."
+    );
+
+    if (!confirmed) return;
+
+    setRemovingStoryId(story.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("remove_my_story", {
+      story_id: story.id,
+    });
+
+    setRemovingStoryId(null);
+
+    if (error) {
+      setMessage(`Could not remove upload: ${error.message}`);
+      return;
+    }
+
+    setMyUploads((currentUploads) =>
+      currentUploads.map((item) =>
+        item.id === story.id
+          ? {
+              ...item,
+              status: "removed",
+              removed_at: new Date().toISOString(),
+            }
+          : item
+      )
+    );
+
+    setStories((currentStories) =>
+      currentStories.filter((item) => item.id !== story.id)
+    );
+
+    setMessage("Upload removed from public view.");
   }
 
   async function sendReply() {
@@ -559,6 +738,85 @@ export default function JourneyPage() {
         {message && (
           <section className="rounded-[2rem] bg-blue-50 p-5 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
             {message}
+          </section>
+        )}
+
+        <button
+          type="button"
+          onClick={openControlCenter}
+          className="w-full rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
+        >
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <Compass className="h-6 w-6" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
+                My Control Center
+              </div>
+              <h2 className="text-2xl font-black text-[#062a57]">
+                Manage my uploads
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                View, edit, and remove your videos, testimonies, praise reports,
+                and prayer requests from one place.
+              </p>
+            </div>
+
+            <ChevronRight className="h-5 w-5 text-slate-400" />
+          </div>
+        </button>
+
+        {controlCenterOpen && (
+          <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
+                  Control Center
+                </div>
+                <h2 className="text-2xl font-black text-[#062a57]">
+                  My Uploads
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  This is where you manage what you have shared on HTBF.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setControlCenterOpen(false)}
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <MiniUploadStat label="Total" number={uploadTotals.total} />
+              <MiniUploadStat label="Approved" number={uploadTotals.approved} />
+              <MiniUploadStat label="Pending" number={uploadTotals.pending} />
+              <MiniUploadStat label="Removed" number={uploadTotals.removed} />
+              <MiniUploadStat label="Videos" number={uploadTotals.videos} />
+            </div>
+
+            <div className="space-y-4">
+              {myUploads.length === 0 ? (
+                <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
+                  You have not uploaded anything yet.
+                </div>
+              ) : (
+                myUploads.map((story) => (
+                  <MyUploadCard
+                    key={story.id}
+                    story={story}
+                    removing={removingStoryId === story.id}
+                    onEdit={() => startEditingStory(story)}
+                    onRemove={() => removeMyUpload(story)}
+                  />
+                ))
+              )}
+            </div>
           </section>
         )}
 
@@ -1005,6 +1263,54 @@ export default function JourneyPage() {
           </div>
         </div>
       )}
+
+      {editingStory && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
+                  Edit Upload
+                </div>
+
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  Update your story text
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingStory(null);
+                  setEditStoryText("");
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Close edit box"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <textarea
+              value={editStoryText}
+              onChange={(event) => setEditStoryText(event.target.value)}
+              rows={7}
+              placeholder="Update your testimony, praise report, prayer request, or video description..."
+              className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+            />
+
+            <button
+              type="button"
+              disabled={savingStoryEdit}
+              onClick={saveStoryEdit}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingStoryEdit ? "Saving..." : "Save Changes"}
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -1024,6 +1330,151 @@ function MiniStat({
       </div>
     </div>
   );
+}
+
+function MiniUploadStat({
+  number,
+  label,
+}: {
+  number: string | number;
+  label: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3 text-center ring-1 ring-slate-100">
+      <div className="text-xl font-black text-[#062a57]">{number}</div>
+      <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function MyUploadCard({
+  story,
+  removing,
+  onEdit,
+  onRemove,
+}: {
+  story: StoryRow;
+  removing: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const isRemoved = story.status === "removed";
+  const isApproved = story.status === "approved";
+  const hasVideo = Boolean(story.video_url);
+
+  const preview =
+    story.story_text?.trim() ||
+    story.story_type ||
+    "No description added yet.";
+
+  return (
+    <article className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StoryStatusBadge status={story.status} />
+
+            {hasVideo && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black text-[#0b63ce] ring-1 ring-blue-100">
+                <Video className="h-3 w-3" />
+                Video
+              </span>
+            )}
+          </div>
+
+          <div className="mt-2 text-sm font-black text-[#062a57]">
+            {story.story_type || "HTBF Upload"}
+          </div>
+
+          <div className="mt-1 text-xs font-bold text-slate-500">
+            Submitted {formatShortDate(story.created_at)}
+            {story.edited_at ? ` • Edited ${formatShortDate(story.edited_at)}` : ""}
+          </div>
+        </div>
+      </div>
+
+      <p
+        className="whitespace-pre-line text-sm font-semibold leading-6 text-slate-700"
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {preview.length > 220 ? `${preview.slice(0, 220)}...` : preview}
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          disabled={isRemoved}
+          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] ring-1 ring-slate-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <NotebookPen className="h-4 w-4" />
+          Edit
+        </button>
+
+        {isApproved && hasVideo && (
+          <Link
+            href={`/video-feed?story=${story.id}&from=control-center`}
+            className="inline-flex items-center gap-2 rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
+          >
+            <Play className="h-4 w-4" />
+            View
+          </Link>
+        )}
+
+        {!isRemoved && (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={removing}
+            className="inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Trash2 className="h-4 w-4" />
+            {removing ? "Removing..." : "Remove"}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function StoryStatusBadge({ status }: { status: string | null }) {
+  const normalized = status || "pending";
+
+  const style =
+    normalized === "approved"
+      ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+      : normalized === "removed"
+        ? "bg-red-50 text-red-700 ring-red-100"
+        : "bg-amber-50 text-amber-700 ring-amber-100";
+
+  const label =
+    normalized === "approved"
+      ? "Approved"
+      : normalized === "removed"
+        ? "Removed"
+        : "Pending";
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ring-1 ${style}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function formatShortDate(value: string | null) {
+  if (!value) return "";
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
 }
 
 function InboxTabButton({
