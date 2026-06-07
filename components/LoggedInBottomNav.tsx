@@ -11,8 +11,30 @@ import {
   Video,
 } from "lucide-react";
 
+const hiddenNavPaths = [
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/forgot-username",
+  "/reset-password",
+  "/privacy",
+  "/terms",
+  "/content-rules",
+  "/copyright",
+];
+
 export default function LoggedInBottomNav() {
   const pathname = usePathname();
+
+  const shouldHideNav =
+    hiddenNavPaths.includes(pathname) ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api");
+
+  if (shouldHideNav) {
+    return null;
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur-xl">
