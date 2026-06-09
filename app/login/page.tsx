@@ -28,13 +28,25 @@ export default function LoginPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (user) {
-        await ensureProfileExists(user);
+      if (!user) {
+        setCheckingSession(false);
+        return;
+      }
+
+      await ensureProfileExists(user);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("profile_completed")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile?.profile_completed) {
         window.location.href = "/feed";
         return;
       }
 
-      setCheckingSession(false);
+      window.location.href = "/account?setup=1";
     }
 
     checkExistingSession();
@@ -49,30 +61,39 @@ export default function LoginPage() {
   }
 
   async function ensureProfileExists(user: User) {
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (existingProfile) return;
+
     const metadata = user.user_metadata || {};
-
-    const savedDisplayName =
-      metadata.display_name || metadata.displayName || displayName || null;
-
-    const savedUsername =
-      metadata.username || cleanUsername(username) || null;
-
-    const savedLocation = metadata.location || location || null;
-
     const now = new Date().toISOString();
 
-    await supabase.from("profiles").upsert({
+    const savedDisplayName =
+      metadata.display_name ||
+      metadata.displayName ||
+      user.email?.split("@")[0] ||
+      null;
+
+    const savedUsername = metadata.username || null;
+    const savedLocation = metadata.location || null;
+
+    await supabase.from("profiles").insert({
       id: user.id,
       email: user.email ?? null,
       display_name: savedDisplayName,
       username: savedUsername,
       location: savedLocation,
-      age_confirmed: metadata.age_confirmed ?? ageConfirmed ?? false,
+      age_confirmed: metadata.age_confirmed ?? false,
       terms_accepted_at: metadata.terms_accepted_at ?? now,
       privacy_accepted_at: metadata.privacy_accepted_at ?? now,
       guidelines_accepted_at: metadata.guidelines_accepted_at ?? now,
       profile_status: "active",
       role: "user",
+      profile_completed: false,
       updated_at: now,
     });
   }
@@ -92,57 +113,10 @@ export default function LoginPage() {
   async function handleSubmit() {
     setLoading(true);
     setMessage("");
-    async function handleSubmit() {
-  setMessage("");
-  setLoading(true);
 
-  const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
 
-  if (!cleanEmail || !password) {
-    setMessage("Please enter your email and password.");
-    setLoading(false);
-    return;
-  }
-
-  if (mode === "login") {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
-
-    if (error) {
-      setMessage(error.message);
-      setLoading(false);
-      return;
-    }
-
-    const user = data.user;
-
-    if (!user) {
-      setMessage("Could not confirm your account. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("profile_completed")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profile?.profile_completed) {
-      window.location.href = "/feed";
-      return;
-    }
-
-    window.location.href = "/account?setup=1";
-    return;
-  }
-
-  // your signup logic continues here
-}
-
-    if (!email || !password) {
+    if (!cleanEmail || !password) {
       setMessage("Please enter your email and password.");
       setLoading(false);
       return;
@@ -151,6 +125,43 @@ export default function LoginPage() {
     if (password.length < 6) {
       setMessage("Password must be at least 6 characters.");
       setLoading(false);
+      return;
+    }
+
+    if (mode === "login") {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (error) {
+        setMessage(error.message);
+        setLoading(false);
+        return;
+      }
+
+      const user = data.user;
+
+      if (!user) {
+        setMessage("Could not confirm your account. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      await ensureProfileExists(user);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("profile_completed")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile?.profile_completed) {
+        window.location.href = "/feed";
+        return;
+      }
+
+      window.location.href = "/account?setup=1";
       return;
     }
 
@@ -193,10 +204,11 @@ export default function LoginPage() {
 
       const now = new Date().toISOString();
 
-      const { error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/account?setup=1`,
           data: {
             display_name: displayName.trim(),
             username: cleanedUsername,
@@ -206,56 +218,40 @@ export default function LoginPage() {
             privacy_accepted_at: now,
             guidelines_accepted_at: now,
           },
-emailRedirectTo: "https://hypertobefree-site.vercel.app/profile-setup",
         },
       });
 
       if (error) {
         setMessage(error.message);
-      } else {
-        setMessage(
-          "Account created. Check your email to confirm your account, then you can start posting."
-        );
+        setLoading(false);
+        return;
       }
+
+      if (data.user) {
+        await supabase.from("profiles").upsert({
+          id: data.user.id,
+          email: cleanEmail,
+          display_name: displayName.trim(),
+          username: cleanedUsername,
+          location: location.trim() || null,
+          age_confirmed: true,
+          terms_accepted_at: now,
+          privacy_accepted_at: now,
+          guidelines_accepted_at: now,
+          profile_status: "active",
+          role: "user",
+          profile_completed: false,
+          updated_at: now,
+        });
+      }
+
+      setMessage(
+        "Account created. Check your email to confirm your account, then complete your profile setup."
+      );
 
       setLoading(false);
       return;
     }
-
-   if (mode === "login") {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: cleanEmail,
-    password,
-  });
-
-  if (error) {
-    setMessage(error.message);
-    setLoading(false);
-    return;
-  }
-
-  const user = data.user;
-
-  if (!user) {
-    setMessage("Could not confirm your account. Please try again.");
-    setLoading(false);
-    return;
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("profile_completed")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profile?.profile_completed) {
-    window.location.href = "/feed";
-    return;
-  }
-
-  window.location.href = "/account?setup=1";
-  return;
-}
 
     setLoading(false);
   }
@@ -356,7 +352,8 @@ emailRedirectTo: "https://hypertobefree-site.vercel.app/profile-setup",
                     }
                   />
                   <p className="mt-2 text-xs text-slate-500">
-                    Your public handle will show as @{cleanUsername(username) || "username"}.
+                    Your public handle will show as @
+                    {cleanUsername(username) || "username"}.
                   </p>
                 </div>
 
@@ -434,8 +431,8 @@ emailRedirectTo: "https://hypertobefree-site.vercel.app/profile-setup",
               {loading
                 ? "Please wait..."
                 : mode === "login"
-                ? "Sign In"
-                : "Create Account"}
+                  ? "Sign In"
+                  : "Create Account"}
             </button>
 
             <button
@@ -449,19 +446,26 @@ emailRedirectTo: "https://hypertobefree-site.vercel.app/profile-setup",
                 ? "Need an account? Create one"
                 : "Already have an account? Sign in"}
             </button>
+
             {mode === "login" && (
-  <div className="mt-4 flex flex-col gap-2 text-center text-sm font-bold sm:flex-row sm:justify-center">
-    <Link href="/forgot-password" className="text-[#0b63ce] hover:underline">
-      Forgot password?
-    </Link>
+              <div className="mt-4 flex flex-col gap-2 text-center text-sm font-bold sm:flex-row sm:justify-center">
+                <Link
+                  href="/forgot-password"
+                  className="text-[#0b63ce] hover:underline"
+                >
+                  Forgot password?
+                </Link>
 
-    <span className="hidden text-slate-300 sm:inline">|</span>
+                <span className="hidden text-slate-300 sm:inline">|</span>
 
-    <Link href="/forgot-username" className="text-[#0b63ce] hover:underline">
-      Forgot username?
-    </Link>
-  </div>
-)}
+                <Link
+                  href="/forgot-username"
+                  className="text-[#0b63ce] hover:underline"
+                >
+                  Forgot username?
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </section>
