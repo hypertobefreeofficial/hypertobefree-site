@@ -114,11 +114,15 @@ export default function CopyrightRemovalPage() {
               copyright@hypertobefree.com
             </a>
 
-            <p className="mt-5 text-sm leading-6 text-slate-500">
-              You can later create a dedicated alias like
-              copyright@hypertobefree.com or reports@hypertobefree.com, but
-              using info@hypertobefree.com is fine for now.
-            </p>
+         <p className="mt-5 leading-7 text-slate-600">
+  Copyright removal requests should be sent to{" "}
+  <span className="font-black text-[#0b63ce]">
+    copyright@hypertobefree.com
+  </span>
+  . Please include the content link, a description of the copyrighted work,
+  proof that you own or represent the rights holder, and your contact
+  information.
+</p>
           </div>
         </div>
       </section>
