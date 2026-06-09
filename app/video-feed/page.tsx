@@ -106,26 +106,17 @@ export default function VideoFeedPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
 
-  const [soundOn, setSoundOn] = useState(false);
+ const [soundOn, setSoundOn] = useState(false);
 
-  useEffect(() => {
-    let currentUserId: string | null = null;
+useEffect(() => {
+  if (!message) return;
 
-    async function loadPage() {
-      setCheckingUser(true);
-      setMessage("");
+  const timer = window.setTimeout(() => {
+    setMessage("");
+  }, 2500);
 
-      const params = new URLSearchParams(window.location.search);
-      setSelectedStoryId(params.get("story"));
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
+  return () => window.clearTimeout(timer);
+}, [message]);
 
       currentUserId = user.id;
       setUserId(user.id);
