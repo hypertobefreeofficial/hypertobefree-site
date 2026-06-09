@@ -173,24 +173,40 @@ emailRedirectTo: "https://hypertobefree-site.vercel.app/profile-setup",
       return;
     }
 
-    if (mode === "login") {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+   if (mode === "login") {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: cleanEmail,
+    password,
+  });
 
-      if (error) {
-        setMessage(error.message);
-        setLoading(false);
-        return;
-      }
+  if (error) {
+    setMessage(error.message);
+    setLoading(false);
+    return;
+  }
 
-      if (data.user) {
-        await ensureProfileExists(data.user);
-      }
+  const user = data.user;
 
-      window.location.href = "/feed";
-    }
+  if (!user) {
+    setMessage("Could not confirm your account. Please try again.");
+    setLoading(false);
+    return;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("profile_completed")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.profile_completed) {
+    window.location.href = "/feed";
+    return;
+  }
+
+  window.location.href = "/account?setup=1";
+  return;
+}
 
     setLoading(false);
   }
