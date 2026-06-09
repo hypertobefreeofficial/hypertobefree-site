@@ -41,6 +41,7 @@ const categories = [
 export default function SearchPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [stories, setStories] = useState<StoryRow[]>([]);
+  const [brokenVideoIds, setBrokenVideoIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("For you");
   const [message, setMessage] = useState("");
@@ -61,7 +62,10 @@ export default function SearchPage() {
 
       const { data, error } = await supabase
         .from("stories")
-        .select("*")
+        .select(
+          "id, user_id, name, location, story_type, story_text, video_url, thumbnail_url, status, created_at"
+        )
+        .eq("status", "approved")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -70,7 +74,13 @@ export default function SearchPage() {
         return;
       }
 
-      setStories((data as StoryRow[]) ?? []);
+      const cleanStories = ((data as StoryRow[]) ?? []).filter((story) => {
+        const hasText = Boolean(story.story_text?.trim());
+        const hasVideo = Boolean(story.video_url?.trim());
+        return hasText || hasVideo;
+      });
+
+      setStories(cleanStories);
       setCheckingUser(false);
     }
 
@@ -101,7 +111,6 @@ export default function SearchPage() {
     }
 
     const storagePath = getVideoStoragePath(videoUrl);
-
     if (!storagePath) return null;
 
     const { data } = supabase.storage
@@ -115,6 +124,8 @@ export default function SearchPage() {
     const cleanQuery = query.trim().toLowerCase();
 
     return stories.filter((story) => {
+      if (brokenVideoIds.includes(story.id)) return false;
+
       const type = story.story_type?.toLowerCase() ?? "";
       const text = story.story_text?.toLowerCase() ?? "";
       const name = story.name?.toLowerCase() ?? "";
@@ -195,7 +206,13 @@ export default function SearchPage() {
 
       return matchesQuery && matchesCategory;
     });
-  }, [stories, query, activeCategory]);
+  }, [stories, query, activeCategory, brokenVideoIds]);
+
+  function markBrokenVideo(storyId: string) {
+    setBrokenVideoIds((current) =>
+      current.includes(storyId) ? current : [...current, storyId]
+    );
+  }
 
   function getCardTitle(story: StoryRow) {
     if (story.story_text) {
@@ -204,9 +221,7 @@ export default function SearchPage() {
         : story.story_text;
     }
 
-    if (story.video_url) {
-      return "Video testimony";
-    }
+    if (story.video_url) return "Video testimony";
 
     return "Story of encouragement";
   }
@@ -236,7 +251,6 @@ export default function SearchPage() {
           <div className="flex items-center gap-2">
             <div className="flex min-h-12 flex-1 items-center rounded-full bg-slate-100 px-4 ring-1 ring-slate-200">
               <Search className="h-5 w-5 text-slate-500" />
-
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -299,6 +313,7 @@ export default function SearchPage() {
                       title={getCardTitle(story)}
                       location={story.location || "Video testimony"}
                       isLarge={isLarge}
+                      onBrokenVideo={markBrokenVideo}
                     />
                   );
                 }
@@ -363,6 +378,7 @@ function VideoExploreTile({
   title,
   location,
   isLarge,
+  onBrokenVideo,
 }: {
   storyId: string;
   videoSource: string;
@@ -370,6 +386,7 @@ function VideoExploreTile({
   title: string;
   location: string;
   isLarge: boolean;
+  onBrokenVideo: (storyId: string) => void;
 }) {
   return (
     <Link
@@ -382,6 +399,7 @@ function VideoExploreTile({
         <img
           src={thumbnailUrl}
           alt={title}
+          onError={() => onBrokenVideo(storyId)}
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
@@ -391,7 +409,8 @@ function VideoExploreTile({
           autoPlay
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
+          onError={() => onBrokenVideo(storyId)}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       )}
