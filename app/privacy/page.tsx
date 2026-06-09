@@ -39,12 +39,12 @@ export default function PrivacyPage() {
               <div className="mb-3 flex items-center gap-3">
                 <FileText className="h-6 w-6 text-[#0b63ce]" />
                 <h2 className="text-2xl font-black text-[#062a57]">
-                  rmation We May Collect
+                  Information We May Collect
                 </h2>
               </div>
 
               <p className="leading-7 text-slate-600">
-                Hyper to Be Free may collect rmation that visitors choose to
+                Hyper to Be Free may collect information that visitors choose to
                 submit, such as a name or first name, email address, optional
                 location, story type, testimony, praise report, prayer
                 encouragement, or other written content submitted through the
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
               <div className="mb-3 flex items-center gap-3">
                 <ShieldCheck className="h-6 w-6 text-[#0b63ce]" />
                 <h2 className="text-2xl font-black text-[#062a57]">
-                  How We May Use rmation
+                  How We May Use Information
                 </h2>
               </div>
 
