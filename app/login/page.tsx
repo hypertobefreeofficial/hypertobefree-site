@@ -92,6 +92,55 @@ export default function LoginPage() {
   async function handleSubmit() {
     setLoading(true);
     setMessage("");
+    async function handleSubmit() {
+  setMessage("");
+  setLoading(true);
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (!cleanEmail || !password) {
+    setMessage("Please enter your email and password.");
+    setLoading(false);
+    return;
+  }
+
+  if (mode === "login") {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
+    const user = data.user;
+
+    if (!user) {
+      setMessage("Could not confirm your account. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("profile_completed")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.profile_completed) {
+      window.location.href = "/feed";
+      return;
+    }
+
+    window.location.href = "/account?setup=1";
+    return;
+  }
+
+  // your signup logic continues here
+}
 
     if (!email || !password) {
       setMessage("Please enter your email and password.");
