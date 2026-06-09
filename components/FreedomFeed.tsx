@@ -241,9 +241,7 @@ export default function FreedomFeed({
     if (activeFilter === "all") return stories;
 
     if (activeFilter === "videos") {
-      return stories.filter(
-        (story) => story.signed_video_url || story.video_url
-      );
+      return stories.filter((story) => story.signed_video_url || story.video_url);
     }
 
     if (activeFilter === "testimony") {
@@ -429,10 +427,7 @@ export default function FreedomFeed({
 
     if (isPrayerStory(story) && story.prayer_status === "answered") {
       shareText = story.answered_text
-        ? `God did it. Read this answered prayer: ${story.answered_text.slice(
-            0,
-            140
-          )}`
+        ? `God did it. Read this answered prayer: ${story.answered_text.slice(0, 140)}`
         : "God did it. Read this answered prayer on Hyper to Be Free.";
     } else if (isPrayerStory(story)) {
       shareText = story.story_text
@@ -606,20 +601,20 @@ export default function FreedomFeed({
                   className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
                 >
                   <div className="p-5">
-                    <div className="flex items-start gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-black text-[#0b63ce]">
                         {(story.name || "H").charAt(0).toUpperCase()}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <div className="font-black text-slate-900">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <div className="min-w-0 max-w-full break-words font-black text-slate-900">
                             {story.name || "HTBF Community"}
                           </div>
 
                           <span className="text-sm text-slate-400">•</span>
 
-                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
+                          <span className="max-w-full break-words rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
                             {story.story_type || "Story"}
                           </span>
 
@@ -630,15 +625,23 @@ export default function FreedomFeed({
                           )}
                         </div>
 
-                        <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-slate-500">
-                          <Globe2 className="h-4 w-4" />
-                          {story.location || "Location not shared"}
+                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-medium text-slate-500">
+                          <Globe2 className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 break-words">
+                            {story.location || "Location not shared"}
+                          </span>
                         </div>
                       </div>
                     </div>
 
                     {story.story_text && (
-                      <p className="mt-4 whitespace-pre-line text-[17px] leading-7 text-slate-800">
+                      <p
+                        className="mt-4 max-w-full whitespace-pre-wrap text-[17px] leading-7 text-slate-800"
+                        style={{
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                        }}
+                      >
                         {story.story_text}
                       </p>
                     )}
@@ -683,7 +686,14 @@ export default function FreedomFeed({
                             </div>
 
                             {story.answered_text ? (
-                              <div className="mt-3 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100">
+                              <div
+                                className="mt-3 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
+                                style={{
+                                  overflowWrap: "anywhere",
+                                  wordBreak: "break-word",
+                                  whiteSpace: "pre-wrap",
+                                }}
+                              >
                                 “{story.answered_text}”
                               </div>
                             ) : (
@@ -765,12 +775,14 @@ export default function FreedomFeed({
                       </>
                     ) : (
                       <>
-                        <div className="mb-3 grid grid-cols-3 gap-2 text-center text-sm font-semibold text-slate-500 sm:flex sm:items-center sm:gap-4 sm:text-left">
-                          <span>{story.reaction_counts.amen} Amen</span>
-                          <span>
+                        <div className="mb-3 grid grid-cols-3 gap-2 text-center text-sm font-semibold text-slate-500 sm:flex sm:flex-wrap sm:items-center sm:gap-4 sm:text-left">
+                          <span className="min-w-0 break-words">
+                            {story.reaction_counts.amen} Amen
+                          </span>
+                          <span className="min-w-0 break-words">
                             {story.reaction_counts.praise_god} Praise God
                           </span>
-                          <span>
+                          <span className="min-w-0 break-words">
                             {story.reaction_counts.encouraged} Encouraged
                           </span>
                         </div>
@@ -867,7 +879,14 @@ function ReactionButton({
           : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
       }`}
     >
-      {label}
+      <span
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {label}
+      </span>
     </button>
   );
 }
