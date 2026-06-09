@@ -61,7 +61,7 @@ export default function PrivacyPage() {
               </div>
 
               <p className="leading-7 text-slate-600">
-                Submitted rmation may be used to review stories, respond to
+                Submitted Information may be used to review stories, respond to
                 messages, contact submitters when needed, improve the website,
                 and consider whether a story may be shared on the platform.
                 Stories are intended to be reviewed before anything is shared
@@ -95,12 +95,17 @@ export default function PrivacyPage() {
               </div>
 
               <p className="leading-7 text-slate-600">
-                Questions about privacy or submitted rmation can be sent to:
+                Questions about privacy or submitted Information can be sent to:
               </p>
 
-              <p className="mt-3 font-bold text-[#0b63ce]">
-                privacy@hypertobefree.com
-              </p>
+             <p className="mt-3">
+  <a
+    href="mailto:privacy@hypertobefree.com?subject=HTBF%20Privacy%20Question"
+    className="font-black text-[#0b63ce] underline hover:text-[#084f9f]"
+  >
+    privacy@hypertobefree.com
+  </a>
+</p>
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
