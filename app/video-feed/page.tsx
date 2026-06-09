@@ -561,7 +561,7 @@ export default function VideoFeedPage() {
       </div>
 
   useEffect(() => {
-    let currentUserId: string | null = null;
+      let currentUserId: string | null = null;
 
     async function loadPage() {
       setCheckingUser(true);
