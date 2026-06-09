@@ -106,17 +106,36 @@ export default function VideoFeedPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
 
- const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
 
-useEffect(() => {
-  if (!message) return;
+  useEffect(() => {
+    if (!message) return;
 
-  const timer = window.setTimeout(() => {
-    setMessage("");
-  }, 2500);
+    const timer = window.setTimeout(() => {
+      setMessage("");
+    }, 2500);
 
-  return () => window.clearTimeout(timer);
-}, [message]);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  useEffect(() => {
+    let currentUserId: string | null = null;
+
+    async function loadPage() {
+      setCheckingUser(true);
+      setMessage("");
+
+      const params = new URLSearchParams(window.location.search);
+      setSelectedStoryId(params.get("story"));
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.href = "/login";
+        return;
+      }
 
       currentUserId = user.id;
       setUserId(user.id);
@@ -126,42 +145,6 @@ useEffect(() => {
     }
 
     loadPage();
-
-    const channel = supabase
-      .channel("video-feed-live-updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "story_reactions",
-        },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "story_video_replies",
-        },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "stories",
-        },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
       .subscribe();
 
     return () => {
