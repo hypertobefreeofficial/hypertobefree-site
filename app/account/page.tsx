@@ -739,12 +739,14 @@ export default function AccountPage() {
             Need help?
           </div>
           Contact HTBF at{" "}
-          <a
-            href="mailto:info@hypertobefree.com"
-            className="font-black underline"
-          >
-            info@hypertobefree.com
-          </a>
+         Contact HTBF support at{" "}
+<a
+  href="mailto:support@hypertobefree.com?subject=HTBF%20Account%20Support"
+  className="font-black underline"
+>
+  support@hypertobefree.com
+</a>
+.
           .
         </section>
       </div>
