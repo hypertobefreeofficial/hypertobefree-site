@@ -746,7 +746,7 @@ export default function AccountPage() {
   support@hypertobefree.com
 </a>
 .
-          .
+          
         </section>
       </div>
     </main>
