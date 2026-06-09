@@ -560,63 +560,7 @@ export default function VideoFeedPage() {
         </Link>
       </div>
 
-  useEffect(() => {
-      let currentUserId: string | null = null;
 
-    async function loadPage() {
-      setCheckingUser(true);
-      setMessage("");
-
-      const params = new URLSearchParams(window.location.search);
-      setSelectedStoryId(params.get("story"));
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        window.location.href = "/login";
-        return;
-      }
-
-      currentUserId = user.id;
-      setUserId(user.id);
-
-      await loadVideoStories(user.id);
-      setCheckingUser(false);
-    }
-
-    loadPage();
-
-    const channel = supabase
-      .channel("video-feed-live-updates")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "story_reactions" },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "story_video_replies" },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "stories" },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
       {orderedStories.length === 0 ? (
         <div className="flex min-h-[100dvh] items-center justify-center px-6 text-center">
