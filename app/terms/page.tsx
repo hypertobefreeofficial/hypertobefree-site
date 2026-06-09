@@ -104,9 +104,14 @@ export default function TermsPage() {
             <p className="leading-7 text-slate-600">
               Questions about these terms can be sent to:
             </p>
-            <p className="mt-3 font-bold text-[#0b63ce]">
-              info@hypertobefree.com
-            </p>
+         <p className="mt-3">
+  <a
+    href="mailto:support@hypertobefree.com?subject=HTBF%20Terms%20Question"
+    className="font-black text-[#0b63ce] underline hover:text-[#084f9f]"
+  >
+    support@hypertobefree.com
+  </a>
+</p>
           </div>
 
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
