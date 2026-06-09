@@ -144,7 +144,31 @@ export default function VideoFeedPage() {
       setCheckingUser(false);
     }
 
+    loadPage();
 
+    const channel = supabase
+      .channel("video-feed-live-updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "story_reactions" },
+        async () => {
+          await loadVideoStories(currentUserId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "story_video_replies" },
+        async () => {
+          await loadVideoStories(currentUserId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "stories" },
+        async () => {
+          await loadVideoStories(currentUserId);
+        }
+      )
       .subscribe();
 
     return () => {
