@@ -144,7 +144,7 @@ export default function VideoFeedPage() {
       setCheckingUser(false);
     }
 
-    loadPage();
+
       .subscribe();
 
     return () => {
