@@ -560,7 +560,11 @@ export default function VideoFeedPage() {
         </Link>
       </div>
 
-
+{message && (
+  <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm font-black text-slate-900 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+    {message}
+  </div>
+)}
 
       {orderedStories.length === 0 ? (
         <div className="flex min-h-[100dvh] items-center justify-center px-6 text-center">
