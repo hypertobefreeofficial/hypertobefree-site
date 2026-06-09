@@ -108,10 +108,10 @@ export default function CopyrightRemovalPage() {
             </p>
 
             <a
-              href="mailto:info@hypertobefree.com?subject=Copyright%20Removal%20Request"
+              href="mailto:copyright@hypertobefree.com?subject=Copyright%20Removal%20Request"
               className="mt-5 inline-flex rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-[#084f9f]"
             >
-              info@hypertobefree.com
+              copyright@hypertobefree.com
             </a>
 
             <p className="mt-5 text-sm leading-6 text-slate-500">
