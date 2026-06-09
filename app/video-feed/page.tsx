@@ -597,7 +597,7 @@ export default function VideoFeedPage() {
                   eagerLoad={index === 0}
                 />
 
-          <div className="absolute bottom-40 right-2 top-24 z-50 flex flex-col justify-between gap-1 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:justify-start sm:gap-3">
+         <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
                   <VideoActionButton
                     label="Amen"
                     count={story.reaction_counts.amen}
@@ -1165,8 +1165,7 @@ function AutoPlayReelVideo({
           Loading video
         </div>
       )}
-
-   <div className="absolute bottom-20 right-3 z-40 flex flex-col gap-2 sm:bottom-28">
+<div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col gap-2 sm:bottom-28">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1209,9 +1208,9 @@ function AutoPlayReelVideo({
       )}
 
       {!soundOn && (
-        <div className="pointer-events-none absolute left-1/2 bottom-28 z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
-          Tap speaker for sound
-        </div>
+    <div className="pointer-events-none absolute left-1/2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
+  Tap speaker for sound
+</div>
       )}
     </div>
   );
@@ -1233,7 +1232,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           event.stopPropagation();
           setHidden(false);
         }}
-        className="absolute bottom-32 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+      className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
         aria-label="Show video details"
         title="Show video details"
       >
@@ -1244,7 +1243,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
   return (
     <>
-      <div className="absolute bottom-0 left-0 z-30 w-[calc(100%-7rem)] max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-32 md:w-[55%] md:p-5 md:pb-32">
+    <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[calc(100%-6.25rem)] max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 md:w-[55%] md:p-5">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
