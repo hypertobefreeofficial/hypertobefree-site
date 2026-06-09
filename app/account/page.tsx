@@ -342,7 +342,9 @@ export default function AccountPage() {
     setUsername(cleanUsernameValue);
     setUsernameLastChangedAt(usernameChangeTimestamp);
 
-    setMessage("Account settings saved.");
+    setMessage("Account settings saved. Taking you to the feed...");
+
+    window.location.href = "/feed";
   }
 
   async function requestAccountDeletion() {
@@ -489,10 +491,6 @@ export default function AccountPage() {
               disabled
               className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500"
             />
-            <p className="mt-2 text-xs font-semibold text-slate-500">
-              Your email comes from your sign-in provider and cannot be changed
-              here.
-            </p>
           </Field>
 
           <Field label="Real name">
@@ -514,7 +512,7 @@ export default function AccountPage() {
           </Field>
 
           <Field label="Username">
-            <div className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-200 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50">
+            <div className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4">
               <span className="font-black text-slate-400">@</span>
               <input
                 value={username}
@@ -524,19 +522,6 @@ export default function AccountPage() {
                 placeholder="example_username"
                 className="w-full bg-transparent px-1 py-3 outline-none"
               />
-            </div>
-
-            <div className="mt-2 rounded-2xl bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800 ring-1 ring-amber-100">
-              Your username is how people recognize you on HTBF. You can change
-              it, but only once every {USERNAME_COOLDOWN_DAYS} days.
-              {usernameCooldownInfo.locked && !usernameChanged && (
-                <>
-                  {" "}
-                  You can change it again in{" "}
-                  {usernameCooldownInfo.daysRemaining} day
-                  {usernameCooldownInfo.daysRemaining === 1 ? "" : "s"}.
-                </>
-              )}
             </div>
           </Field>
 
@@ -739,14 +724,13 @@ export default function AccountPage() {
             Need help?
           </div>
           Contact HTBF at{" "}
-<a
-  href="mailto:support@hypertobefree.com?subject=HTBF%20Account%20Support"
-  className="font-black underline"
->
-  support@hypertobefree.com
-</a>
-.
-          
+          <a
+            href="mailto:support@hypertobefree.com?subject=HTBF%20Account%20Support"
+            className="font-black underline"
+          >
+            support@hypertobefree.com
+          </a>
+          .
         </section>
       </div>
     </main>
