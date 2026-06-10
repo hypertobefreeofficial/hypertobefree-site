@@ -1032,7 +1032,7 @@ function PrayerCircleOverlay({
 }: {
   prayerCount: number;
   userIsPraying: boolean;
-}: {
+}) {
   return (
     <div className="absolute left-4 top-20 z-30 max-w-[240px] rounded-2xl bg-black/45 p-3 text-white ring-1 ring-white/15 backdrop-blur-md">
       <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-blue-100">
