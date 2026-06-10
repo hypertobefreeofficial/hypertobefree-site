@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
+  Captions,
   Eye,
   EyeOff,
   Flag,
+  Gauge,
   Globe2,
   HandHeart,
   HeartHandshake,
   MessageCircleHeart,
+  MoreVertical,
   Pause,
   Play,
   Send,
@@ -89,6 +92,8 @@ const reportReasons: {
   { label: "Other", value: "other" },
 ];
 
+const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
 export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -107,6 +112,10 @@ export default function VideoFeedPage() {
   const [sendingReport, setSendingReport] = useState(false);
 
   const [soundOn, setSoundOn] = useState(false);
+  const [cleanView, setCleanView] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
     if (!message) return;
@@ -119,7 +128,17 @@ export default function VideoFeedPage() {
   }, [message]);
 
   useEffect(() => {
-  let currentUserId: string | null = null;
+    if (cleanView || optionsOpen) return;
+
+    const timer = window.setTimeout(() => {
+      setControlsVisible(false);
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [controlsVisible, cleanView, optionsOpen]);
+
+  useEffect(() => {
+    let currentUserId: string | null = null;
 
     async function loadPage() {
       setCheckingUser(true);
@@ -175,6 +194,20 @@ export default function VideoFeedPage() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  function revealControls() {
+    setControlsVisible(true);
+
+    if (cleanView) {
+      setCleanView(false);
+    }
+  }
+
+  function enterCleanView() {
+    setOptionsOpen(false);
+    setControlsVisible(false);
+    setCleanView(true);
+  }
 
   function getVideoStoragePath(videoUrl: string | null) {
     if (!videoUrl) return null;
@@ -509,7 +542,7 @@ export default function VideoFeedPage() {
     setReportStory(null);
     setReportReason("inappropriate");
     setReportDetails("");
-    setMessage("Report submitted. Thank you for helping keep HTBF safe.");
+    setMessage("Report submitted.");
   }
 
   async function shareStory(story: VideoStory) {
@@ -553,18 +586,18 @@ export default function VideoFeedPage() {
       <div className="fixed left-4 top-4 z-50">
         <Link
           href="/search"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur transition hover:bg-black/60 hover:text-white"
           aria-label="Back to search"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
       </div>
 
-{message && (
-  <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm font-black text-slate-900 shadow-lg ring-1 ring-slate-200 backdrop-blur">
-    {message}
-  </div>
-)}
+      {message && (
+        <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm font-black text-slate-900 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          {message}
+        </div>
+      )}
 
       {orderedStories.length === 0 ? (
         <div className="flex min-h-[100dvh] items-center justify-center px-6 text-center">
@@ -582,10 +615,12 @@ export default function VideoFeedPage() {
             if (!story.signed_video_url) return null;
 
             const isOwner = Boolean(userId && story.user_id === userId);
+            const showUi = controlsVisible && !cleanView;
 
             return (
               <article
                 key={story.id}
+                onClick={revealControls}
                 className="relative flex h-[100dvh] snap-start items-center justify-center overflow-hidden bg-black"
               >
                 <AutoPlayReelVideo
@@ -593,67 +628,106 @@ export default function VideoFeedPage() {
                   soundOn={soundOn}
                   onSoundChange={setSoundOn}
                   eagerLoad={index === 0}
+                  playbackRate={playbackRate}
+                  showMiniControls={showUi}
                 />
 
-         <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
-                  <VideoActionButton
-                    label="Amen"
-                    count={story.reaction_counts.amen}
-                    active={story.user_reactions.includes("amen")}
-                    onClick={() => toggleReaction(story.id, "amen")}
-                    icon={<HeartHandshake className="h-5 w-5" />}
-                  />
-
-                  <VideoActionButton
-                    label="Praying"
-                    count={story.reaction_counts.praying}
-                    active={story.user_reactions.includes("praying")}
-                    onClick={() => toggleReaction(story.id, "praying")}
-                    icon={<HandHeart className="h-5 w-5" />}
-                  />
-
-                  <VideoActionButton
-                    label="Praise"
-                    count={story.reaction_counts.praise_god}
-                    active={story.user_reactions.includes("praise_god")}
-                    onClick={() => toggleReaction(story.id, "praise_god")}
-                    icon={<Sparkles className="h-5 w-5" />}
-                  />
-
-                  <VideoActionButton
-                    label="Respond"
-                    count={story.reply_count}
-                    active={false}
-                    onClick={() => {
-                      setReplyStory(story);
-                      setReplyText("");
-                      setMessage("");
+                {cleanView && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCleanView(false);
+                      setControlsVisible(true);
                     }}
-                    icon={<MessageCircleHeart className="h-5 w-5" />}
-                  />
+                    className="fixed right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white/80 backdrop-blur transition hover:bg-black/60 hover:text-white"
+                    aria-label="Show controls"
+                  >
+                    <Eye className="h-5 w-5" />
+                  </button>
+                )}
 
-                  <VideoActionButton
-                    label="Share"
-                    count={null}
-                    active={false}
-                    onClick={() => shareStory(story)}
-                    icon={<Share2 className="h-5 w-5" />}
-                  />
+                {showUi && (
+                  <div className="absolute right-4 top-4 z-50">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setOptionsOpen((current) => !current);
+                        setControlsVisible(true);
+                      }}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white/85 backdrop-blur transition hover:bg-black/60 hover:text-white"
+                      aria-label="More video controls"
+                    >
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
 
-                  <VideoActionButton
-                    label="Report"
-                    count={null}
-                    active={false}
-                    onClick={() => openReportModal(story)}
-                    icon={<Flag className="h-5 w-5" />}
-                  />
+                    {optionsOpen && (
+                      <VideoOptionsPanel
+                        playbackRate={playbackRate}
+                        setPlaybackRate={setPlaybackRate}
+                        onCleanView={enterCleanView}
+                        onShare={() => shareStory(story)}
+                        onReport={() => openReportModal(story)}
+                        onClose={() => setOptionsOpen(false)}
+                      />
+                    )}
+                  </div>
+                )}
 
-                  {isOwner && (
-                    <RemoveVideoButton onClick={() => removeMyVideo(story)} />
-                  )}
-                </div>
+                {showUi && (
+                  <div className="absolute right-2 top-[18dvh] z-40 flex max-h-[58dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
+                    <VideoActionButton
+                      label="Amen"
+                      count={story.reaction_counts.amen}
+                      active={story.user_reactions.includes("amen")}
+                      onClick={() => toggleReaction(story.id, "amen")}
+                      icon={<HeartHandshake className="h-5 w-5" />}
+                    />
 
-                <VideoInfoOverlay story={story} />
+                    <VideoActionButton
+                      label="Praying"
+                      count={story.reaction_counts.praying}
+                      active={story.user_reactions.includes("praying")}
+                      onClick={() => toggleReaction(story.id, "praying")}
+                      icon={<HandHeart className="h-5 w-5" />}
+                    />
+
+                    <VideoActionButton
+                      label="Praise"
+                      count={story.reaction_counts.praise_god}
+                      active={story.user_reactions.includes("praise_god")}
+                      onClick={() => toggleReaction(story.id, "praise_god")}
+                      icon={<Sparkles className="h-5 w-5" />}
+                    />
+
+                    <VideoActionButton
+                      label="Respond"
+                      count={story.reply_count}
+                      active={false}
+                      onClick={() => {
+                        setReplyStory(story);
+                        setReplyText("");
+                        setMessage("");
+                      }}
+                      icon={<MessageCircleHeart className="h-5 w-5" />}
+                    />
+
+                    <VideoActionButton
+                      label="Share"
+                      count={null}
+                      active={false}
+                      onClick={() => shareStory(story)}
+                      icon={<Share2 className="h-5 w-5" />}
+                    />
+
+                    {isOwner && (
+                      <RemoveVideoButton onClick={() => removeMyVideo(story)} />
+                    )}
+                  </div>
+                )}
+
+                {showUi && <VideoInfoOverlay story={story} />}
               </article>
             );
           })}
@@ -722,8 +796,8 @@ export default function VideoFeedPage() {
                 </h2>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Reports help keep HTBF safe. This does not automatically
-                  remove the video, but it sends it to the admin review queue.
+                  Reports help keep HTBF safe. This sends the video to the admin
+                  review queue.
                 </p>
               </div>
 
@@ -791,16 +865,115 @@ export default function VideoFeedPage() {
   );
 }
 
+function VideoOptionsPanel({
+  playbackRate,
+  setPlaybackRate,
+  onCleanView,
+  onShare,
+  onReport,
+  onClose,
+}: {
+  playbackRate: number;
+  setPlaybackRate: (value: number) => void;
+  onCleanView: () => void;
+  onShare: () => void;
+  onReport: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      onClick={(event) => event.stopPropagation()}
+      className="absolute right-0 top-12 w-64 rounded-[1.5rem] bg-white/95 p-4 text-slate-900 shadow-2xl ring-1 ring-slate-200 backdrop-blur"
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="text-sm font-black text-[#062a57]">
+          Video Controls
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={onCleanView}
+        className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+      >
+        <EyeOff className="h-4 w-4" />
+        Clean screen mode
+      </button>
+
+      <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+        <Gauge className="h-4 w-4" />
+        Playback Speed
+      </div>
+
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        {playbackSpeeds.map((speed) => (
+          <button
+            key={speed}
+            type="button"
+            onClick={() => setPlaybackRate(speed)}
+            className={`rounded-xl px-2 py-2 text-xs font-black ${
+              playbackRate === speed
+                ? "bg-[#0b63ce] text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+            }`}
+          >
+            {speed}x
+          </button>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        disabled
+        className="mb-3 flex w-full cursor-not-allowed items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-400"
+      >
+        <Captions className="h-4 w-4" />
+        Captions coming soon
+      </button>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onShare}
+          className="rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+        >
+          Share
+        </button>
+
+        <button
+          type="button"
+          onClick={onReport}
+          className="rounded-2xl bg-red-50 px-3 py-2.5 text-sm font-black text-red-700 hover:bg-red-100"
+        >
+          Report
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AutoPlayReelVideo({
   videoUrl,
   soundOn,
   onSoundChange,
   eagerLoad,
+  playbackRate,
+  showMiniControls,
 }: {
   videoUrl: string;
   soundOn: boolean;
   onSoundChange: (nextValue: boolean) => void;
   eagerLoad: boolean;
+  playbackRate: number;
+  showMiniControls: boolean;
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -814,6 +987,14 @@ function AutoPlayReelVideo({
   const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerInsideRef = useRef(false);
   const pressPausedRef = useRef(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) return;
+
+    video.playbackRate = playbackRate;
+  }, [playbackRate]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -847,6 +1028,7 @@ function AutoPlayReelVideo({
 
     video.muted = !soundOn;
     video.playsInline = true;
+    video.playbackRate = playbackRate;
 
     const playObserver = new IntersectionObserver(
       ([entry]) => {
@@ -858,6 +1040,7 @@ function AutoPlayReelVideo({
         if (isMostlyVisible) {
           if (!userPaused) {
             video.muted = !soundOn;
+            video.playbackRate = playbackRate;
 
             video
               .play()
@@ -890,7 +1073,14 @@ function AutoPlayReelVideo({
       playObserver.disconnect();
       video.pause();
     };
-  }, [videoUrl, soundOn, userPaused, shouldLoadVideo, onSoundChange]);
+  }, [
+    videoUrl,
+    soundOn,
+    userPaused,
+    shouldLoadVideo,
+    onSoundChange,
+    playbackRate,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1061,6 +1251,7 @@ function AutoPlayReelVideo({
       pressPausedRef.current = false;
       setUserPaused(false);
       video.muted = !soundOn;
+      video.playbackRate = playbackRate;
 
       video
         .play()
@@ -1085,6 +1276,7 @@ function AutoPlayReelVideo({
     if (video.paused) {
       setUserPaused(false);
       video.muted = !soundOn;
+      video.playbackRate = playbackRate;
 
       video
         .play()
@@ -1117,6 +1309,7 @@ function AutoPlayReelVideo({
 
     if (nextSoundOn) {
       video.volume = 1;
+      video.playbackRate = playbackRate;
 
       video
         .play()
@@ -1163,41 +1356,44 @@ function AutoPlayReelVideo({
           Loading video
         </div>
       )}
-<div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col gap-2 sm:bottom-28">
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            toggleSound();
-          }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-          aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
-        >
-          {soundOn ? (
-            <Volume2 className="h-4 w-4" />
-          ) : (
-            <VolumeX className="h-4 w-4" />
-          )}
-        </button>
 
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            togglePlayButton();
-          }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-          aria-label={paused ? "Play video" : "Pause video"}
-        >
-          {paused ? (
-            <Play className="h-4 w-4 fill-slate-900" />
-          ) : (
-            <Pause className="h-4 w-4 fill-slate-900" />
-          )}
-        </button>
-      </div>
+      {showMiniControls && (
+        <div className="absolute right-3 top-20 z-40 flex flex-col gap-2">
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleSound();
+            }}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+            aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
+          >
+            {soundOn ? (
+              <Volume2 className="h-4 w-4" />
+            ) : (
+              <VolumeX className="h-4 w-4" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              togglePlayButton();
+            }}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+            aria-label={paused ? "Play video" : "Pause video"}
+          >
+            {paused ? (
+              <Play className="h-4 w-4 fill-slate-900" />
+            ) : (
+              <Pause className="h-4 w-4 fill-slate-900" />
+            )}
+          </button>
+        </div>
+      )}
 
       {zoomScale > 1 && (
         <div className="pointer-events-none absolute left-1/2 top-6 z-40 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
@@ -1205,10 +1401,10 @@ function AutoPlayReelVideo({
         </div>
       )}
 
-      {!soundOn && (
-    <div className="pointer-events-none absolute left-1/2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
-  Tap speaker for sound
-</div>
+      {!soundOn && showMiniControls && (
+        <div className="pointer-events-none absolute left-1/2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
+          Tap speaker for sound
+        </div>
       )}
     </div>
   );
@@ -1218,9 +1414,9 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
   const [hidden, setHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-const rawStoryText = story.story_text?.trim() || "";
-const storyText =
-  rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
+  const rawStoryText = story.story_text?.trim() || "";
+  const storyText =
+    rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
   const isLongText = storyText.length > 70;
 
   if (hidden) {
@@ -1232,7 +1428,7 @@ const storyText =
           event.stopPropagation();
           setHidden(false);
         }}
-      className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+        className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
         aria-label="Show video details"
         title="Show video details"
       >
@@ -1243,7 +1439,7 @@ const storyText =
 
   return (
     <>
-<div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
+      <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1272,20 +1468,20 @@ const storyText =
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
-<h1
-  className="mt-1.5 line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
-  style={{
-    display: "-webkit-box",
-    WebkitLineClamp: 3,
-    WebkitBoxOrient: "vertical",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    overflowWrap: "anywhere",
-    wordBreak: "break-all",
-  }}
->
-  {storyText}
-</h1>
+              <h1
+                className="line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-all",
+                }}
+              >
+                {storyText}
+              </h1>
 
               {isLongText && (
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
@@ -1394,10 +1590,10 @@ function VideoActionButton({
       title={label}
     >
       <span
-        className={`flex h-11 w-11 items-center justify-center rounded-full ring-1 backdrop-blur-md transition ${
+        className={`flex h-10 w-10 items-center justify-center rounded-full ring-1 backdrop-blur-md transition ${
           active
             ? "bg-white text-[#0b63ce] ring-white"
-            : "bg-white/20 text-white ring-white/25 group-hover:bg-white/30"
+            : "bg-white/15 text-white/85 ring-white/20 group-hover:bg-white/25"
         }`}
       >
         {icon}
@@ -1409,7 +1605,7 @@ function VideoActionButton({
         </span>
       )}
 
-      <span className="text-[10px] font-black leading-none text-white/85 drop-shadow">
+      <span className="text-[10px] font-black leading-none text-white/80 drop-shadow">
         {label}
       </span>
     </button>
@@ -1429,7 +1625,7 @@ function RemoveVideoButton({ onClick }: { onClick: () => void }) {
       aria-label="Remove video"
       title="Remove video"
     >
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500/80 text-white ring-1 ring-white/25 backdrop-blur-md transition group-hover:bg-red-600">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/75 text-white ring-1 ring-white/25 backdrop-blur-md transition group-hover:bg-red-600">
         <Trash2 className="h-5 w-5" />
       </span>
 
