@@ -615,7 +615,6 @@ export default function VideoFeedPage() {
   onClick={() => toggleReaction(story.id, "praying")}
 icon={<HandHeart className="h-5 w-5" />}
 />          
-
                   <VideoActionButton
                     label="Praise"
                     count={story.reaction_counts.praise_god}
