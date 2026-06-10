@@ -209,6 +209,17 @@ export default function VideoFeedPage() {
     setCleanView(true);
   }
 
+  function isPrayerVideo(story: VideoStory) {
+    const type = story.story_type?.toLowerCase() ?? "";
+    const text = story.story_text?.toLowerCase() ?? "";
+
+    return (
+      type.includes("prayer") ||
+      text.includes("pray") ||
+      text.includes("prayer")
+    );
+  }
+
   function getVideoStoragePath(videoUrl: string | null) {
     if (!videoUrl) return null;
 
@@ -616,6 +627,8 @@ export default function VideoFeedPage() {
 
             const isOwner = Boolean(userId && story.user_id === userId);
             const showUi = controlsVisible && !cleanView;
+            const prayerVideo = isPrayerVideo(story);
+            const userIsPraying = story.user_reactions.includes("praying");
 
             return (
               <article
@@ -670,6 +683,10 @@ export default function VideoFeedPage() {
                         onShare={() => shareStory(story)}
                         onReport={() => openReportModal(story)}
                         onClose={() => setOptionsOpen(false)}
+                        prayerVideo={prayerVideo}
+                        prayerCount={story.reaction_counts.praying}
+                        userIsPraying={userIsPraying}
+                        onPray={() => toggleReaction(story.id, "praying")}
                       />
                     )}
                   </div>
@@ -686,9 +703,15 @@ export default function VideoFeedPage() {
                     />
 
                     <VideoActionButton
-                      label="Praying"
+                      label={
+                        prayerVideo
+                          ? userIsPraying
+                            ? "Praying"
+                            : "Pray Now"
+                          : "Praying"
+                      }
                       count={story.reaction_counts.praying}
-                      active={story.user_reactions.includes("praying")}
+                      active={userIsPraying}
                       onClick={() => toggleReaction(story.id, "praying")}
                       icon={<HandHeart className="h-5 w-5" />}
                     />
@@ -725,6 +748,13 @@ export default function VideoFeedPage() {
                       <RemoveVideoButton onClick={() => removeMyVideo(story)} />
                     )}
                   </div>
+                )}
+
+                {showUi && prayerVideo && (
+                  <PrayerCircleOverlay
+                    prayerCount={story.reaction_counts.praying}
+                    userIsPraying={userIsPraying}
+                  />
                 )}
 
                 {showUi && <VideoInfoOverlay story={story} />}
@@ -872,6 +902,10 @@ function VideoOptionsPanel({
   onShare,
   onReport,
   onClose,
+  prayerVideo,
+  prayerCount,
+  userIsPraying,
+  onPray,
 }: {
   playbackRate: number;
   setPlaybackRate: (value: number) => void;
@@ -879,6 +913,10 @@ function VideoOptionsPanel({
   onShare: () => void;
   onReport: () => void;
   onClose: () => void;
+  prayerVideo: boolean;
+  prayerCount: number;
+  userIsPraying: boolean;
+  onPray: () => void;
 }) {
   return (
     <div
@@ -907,6 +945,34 @@ function VideoOptionsPanel({
         <EyeOff className="h-4 w-4" />
         Clean screen mode
       </button>
+
+      {prayerVideo && (
+        <div className="mb-3 rounded-2xl bg-blue-50 p-3 ring-1 ring-blue-100">
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+            Prayer Circle
+          </div>
+
+          <div className="mt-1 text-sm font-black text-[#062a57]">
+            {prayerCount === 0
+              ? "Be the first to pray"
+              : prayerCount === 1
+                ? "1 person is praying"
+                : `${prayerCount} people are praying`}
+          </div>
+
+          <button
+            type="button"
+            onClick={onPray}
+            className={`mt-3 w-full rounded-2xl px-3 py-2.5 text-sm font-black ${
+              userIsPraying
+                ? "bg-[#0b63ce] text-white"
+                : "bg-white text-[#0b63ce] ring-1 ring-blue-100"
+            }`}
+          >
+            {userIsPraying ? "You’re Praying" : "Pray Now"}
+          </button>
+        </div>
+      )}
 
       <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
         <Gauge className="h-4 w-4" />
@@ -960,678 +1026,33 @@ function VideoOptionsPanel({
   );
 }
 
-function AutoPlayReelVideo({
-  videoUrl,
-  soundOn,
-  onSoundChange,
-  eagerLoad,
-  playbackRate,
-  showMiniControls,
+function PrayerCircleOverlay({
+  prayerCount,
+  userIsPraying,
 }: {
-  videoUrl: string;
-  soundOn: boolean;
-  onSoundChange: (nextValue: boolean) => void;
-  eagerLoad: boolean;
-  playbackRate: number;
-  showMiniControls: boolean;
+  prayerCount: number;
+  userIsPraying: boolean;
 }) {
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  const [paused, setPaused] = useState(true);
-  const [userPaused, setUserPaused] = useState(false);
-  const [zoomScale, setZoomScale] = useState(1);
-  const [shouldLoadVideo, setShouldLoadVideo] = useState(eagerLoad);
-
-  const pinchStartDistanceRef = useRef<number | null>(null);
-  const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pointerInsideRef = useRef(false);
-  const pressPausedRef = useRef(false);
-
-  useEffect(() => {
-    const video = videoRef.current;
-
-    if (!video) return;
-
-    video.playbackRate = playbackRate;
-  }, [playbackRate]);
-
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-
-    if (!wrapper) return;
-
-    const loadObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setShouldLoadVideo(true);
-        }
-      },
-      {
-        rootMargin: "700px 0px",
-        threshold: 0.01,
-      }
-    );
-
-    loadObserver.observe(wrapper);
-
-    return () => {
-      loadObserver.disconnect();
-    };
-  }, []);
-
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-    const video = videoRef.current;
-
-    if (!wrapper || !video || !shouldLoadVideo) return;
-
-    video.muted = !soundOn;
-    video.playsInline = true;
-    video.playbackRate = playbackRate;
-
-    const playObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (!video) return;
-
-        const isMostlyVisible =
-          entry.isIntersecting && entry.intersectionRatio >= 0.65;
-
-        if (isMostlyVisible) {
-          if (!userPaused) {
-            video.muted = !soundOn;
-            video.playbackRate = playbackRate;
-
-            video
-              .play()
-              .then(() => {
-                setPaused(false);
-              })
-              .catch(() => {
-                video.muted = true;
-                onSoundChange(false);
-
-                video
-                  .play()
-                  .then(() => setPaused(false))
-                  .catch(() => setPaused(true));
-              });
-          }
-        } else {
-          video.pause();
-          setPaused(true);
-        }
-      },
-      {
-        threshold: [0, 0.25, 0.65, 1],
-      }
-    );
-
-    playObserver.observe(wrapper);
-
-    return () => {
-      playObserver.disconnect();
-      video.pause();
-    };
-  }, [
-    videoUrl,
-    soundOn,
-    userPaused,
-    shouldLoadVideo,
-    onSoundChange,
-    playbackRate,
-  ]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-
-    if (!video) return;
-
-    video.muted = !soundOn;
-
-    if (soundOn) {
-      video.volume = 1;
-    }
-  }, [soundOn]);
-
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-
-    if (!wrapper) return;
-
-    function getDistance(touches: TouchList) {
-      const firstTouch = touches[0];
-      const secondTouch = touches[1];
-
-      const xDistance = firstTouch.clientX - secondTouch.clientX;
-      const yDistance = firstTouch.clientY - secondTouch.clientY;
-
-      return Math.sqrt(xDistance * xDistance + yDistance * yDistance);
-    }
-
-    function handleTouchStart(event: TouchEvent) {
-      if (event.touches.length === 2) {
-        event.preventDefault();
-        pinchStartDistanceRef.current = getDistance(event.touches);
-      }
-    }
-
-    function handleTouchMove(event: TouchEvent) {
-      if (event.touches.length === 2 && pinchStartDistanceRef.current) {
-        event.preventDefault();
-
-        const currentDistance = getDistance(event.touches);
-        const rawScale = currentDistance / pinchStartDistanceRef.current;
-        const limitedScale = Math.min(Math.max(rawScale, 1), 3);
-
-        setZoomScale(limitedScale);
-      }
-    }
-
-    function handleTouchEnd(event: TouchEvent) {
-      if (event.touches.length < 2) {
-        pinchStartDistanceRef.current = null;
-        setZoomScale(1);
-      }
-    }
-
-    function handlePointerEnter() {
-      pointerInsideRef.current = true;
-    }
-
-    function handlePointerLeave() {
-      pointerInsideRef.current = false;
-      setZoomScale(1);
-      releasePause();
-    }
-
-    wrapper.addEventListener("touchstart", handleTouchStart, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("touchmove", handleTouchMove, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("touchend", handleTouchEnd, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("touchcancel", handleTouchEnd, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("pointerenter", handlePointerEnter);
-    wrapper.addEventListener("pointerleave", handlePointerLeave);
-
-    return () => {
-      wrapper.removeEventListener("touchstart", handleTouchStart);
-      wrapper.removeEventListener("touchmove", handleTouchMove);
-      wrapper.removeEventListener("touchend", handleTouchEnd);
-      wrapper.removeEventListener("touchcancel", handleTouchEnd);
-      wrapper.removeEventListener("pointerenter", handlePointerEnter);
-      wrapper.removeEventListener("pointerleave", handlePointerLeave);
-    };
-  }, []);
-
-  useEffect(() => {
-    function handleWheelZoom(event: WheelEvent) {
-      const wrapper = wrapperRef.current;
-
-      if (!wrapper) return;
-
-      const target = event.target as Node | null;
-      const eventStartedInsideVideo = target ? wrapper.contains(target) : false;
-      const isTrackpadPinchOrBrowserZoom = event.ctrlKey || event.metaKey;
-
-      if (!eventStartedInsideVideo && !pointerInsideRef.current) return;
-      if (!isTrackpadPinchOrBrowserZoom) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      setZoomScale((currentScale) => {
-        const zoomChange = event.deltaY < 0 ? 0.12 : -0.12;
-        const nextScale = currentScale + zoomChange;
-
-        return Math.min(Math.max(nextScale, 1), 3);
-      });
-
-      if (wheelZoomTimeoutRef.current) {
-        clearTimeout(wheelZoomTimeoutRef.current);
-      }
-
-      wheelZoomTimeoutRef.current = setTimeout(() => {
-        setZoomScale(1);
-      }, 220);
-    }
-
-    window.addEventListener("wheel", handleWheelZoom, {
-      passive: false,
-      capture: true,
-    });
-
-    return () => {
-      window.removeEventListener("wheel", handleWheelZoom, {
-        capture: true,
-      } as AddEventListenerOptions);
-
-      if (wheelZoomTimeoutRef.current) {
-        clearTimeout(wheelZoomTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  function isControlClick(target: EventTarget | null) {
-    if (!(target instanceof HTMLElement)) return false;
-
-    return Boolean(target.closest("button, a, textarea, input"));
-  }
-
-  function pressPause(target: EventTarget | null) {
-    if (isControlClick(target)) return;
-
-    const video = videoRef.current;
-
-    if (!video) return;
-
-    if (!video.paused) {
-      pressPausedRef.current = true;
-      video.pause();
-      setPaused(true);
-    }
-  }
-
-  function releasePause() {
-    const video = videoRef.current;
-
-    if (!video) return;
-
-    if (pressPausedRef.current) {
-      pressPausedRef.current = false;
-      setUserPaused(false);
-      video.muted = !soundOn;
-      video.playbackRate = playbackRate;
-
-      video
-        .play()
-        .then(() => setPaused(false))
-        .catch(() => {
-          video.muted = true;
-          onSoundChange(false);
-
-          video
-            .play()
-            .then(() => setPaused(false))
-            .catch(() => setPaused(true));
-        });
-    }
-  }
-
-  function togglePlayButton() {
-    const video = videoRef.current;
-
-    if (!video) return;
-
-    if (video.paused) {
-      setUserPaused(false);
-      video.muted = !soundOn;
-      video.playbackRate = playbackRate;
-
-      video
-        .play()
-        .then(() => setPaused(false))
-        .catch(() => {
-          video.muted = true;
-          onSoundChange(false);
-
-          video
-            .play()
-            .then(() => setPaused(false))
-            .catch(() => setPaused(true));
-        });
-    } else {
-      setUserPaused(true);
-      video.pause();
-      setPaused(true);
-    }
-  }
-
-  function toggleSound() {
-    const video = videoRef.current;
-
-    if (!video) return;
-
-    const nextSoundOn = !soundOn;
-
-    onSoundChange(nextSoundOn);
-    video.muted = !nextSoundOn;
-
-    if (nextSoundOn) {
-      video.volume = 1;
-      video.playbackRate = playbackRate;
-
-      video
-        .play()
-        .then(() => {
-          setPaused(false);
-          setUserPaused(false);
-        })
-        .catch(() => {
-          video.muted = true;
-          onSoundChange(false);
-          setPaused(true);
-        });
-    }
-  }
-
   return (
-    <div
-      ref={wrapperRef}
-      className="relative h-full w-full overflow-hidden bg-black [touch-action:pan-y]"
-      onPointerDown={(event) => pressPause(event.target)}
-      onPointerUp={releasePause}
-      onPointerCancel={releasePause}
-      onMouseLeave={releasePause}
-    >
-      {shouldLoadVideo ? (
-        <video
-          ref={videoRef}
-          key={videoUrl}
-          src={videoUrl}
-          muted={!soundOn}
-          loop
-          playsInline
-          preload="metadata"
-          className="h-full w-full bg-black object-cover transition-transform duration-150 ease-out will-change-transform md:object-contain"
-          style={{
-            transform: `scale(${zoomScale})`,
-            transformOrigin: "center center",
-          }}
-          onPlay={() => setPaused(false)}
-          onPause={() => setPaused(true)}
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
-          Loading video
-        </div>
-      )}
+    <div className="absolute left-4 top-20 z-30 max-w-[240px] rounded-2xl bg-black/45 p-3 text-white ring-1 ring-white/15 backdrop-blur-md">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-blue-100">
+        <HandHeart className="h-4 w-4" />
+        Prayer Circle
+      </div>
 
-      {showMiniControls && (
-        <div className="absolute right-3 top-20 z-40 flex flex-col gap-2">
-          <button
-            type="button"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleSound();
-            }}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-            aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
-          >
-            {soundOn ? (
-              <Volume2 className="h-4 w-4" />
-            ) : (
-              <VolumeX className="h-4 w-4" />
-            )}
-          </button>
+      <div className="mt-1 text-sm font-black">
+        {prayerCount === 0
+          ? "Be the first to pray"
+          : prayerCount === 1
+            ? "1 person is praying"
+            : `${prayerCount} people are praying`}
+      </div>
 
-          <button
-            type="button"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              togglePlayButton();
-            }}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-            aria-label={paused ? "Play video" : "Pause video"}
-          >
-            {paused ? (
-              <Play className="h-4 w-4 fill-slate-900" />
-            ) : (
-              <Pause className="h-4 w-4 fill-slate-900" />
-            )}
-          </button>
-        </div>
-      )}
-
-      {zoomScale > 1 && (
-        <div className="pointer-events-none absolute left-1/2 top-6 z-40 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
-          Zoom {zoomScale.toFixed(1)}x
-        </div>
-      )}
-
-      {!soundOn && showMiniControls && (
-        <div className="pointer-events-none absolute left-1/2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
-          Tap speaker for sound
+      {userIsPraying && (
+        <div className="mt-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white">
+          You’re praying with this testimony
         </div>
       )}
     </div>
-  );
-}
-
-function VideoInfoOverlay({ story }: { story: VideoStory }) {
-  const [hidden, setHidden] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-
-  const rawStoryText = story.story_text?.trim() || "";
-  const storyText =
-    rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
-  const isLongText = storyText.length > 70;
-
-  if (hidden) {
-    return (
-      <button
-        type="button"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          setHidden(false);
-        }}
-        className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
-        aria-label="Show video details"
-        title="Show video details"
-      >
-        <Eye className="h-4 w-4" />
-      </button>
-    );
-  }
-
-  return (
-    <>
-      <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            setHidden(true);
-          }}
-          className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
-          aria-label="Hide video details"
-          title="Hide video details"
-        >
-          <EyeOff className="h-4 w-4" />
-        </button>
-
-        <div className="pointer-events-none max-w-full overflow-hidden">
-          <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
-            <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-            <span className="min-w-0 truncate">
-              {story.location || "HTBF Community"}
-            </span>
-          </div>
-
-          <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
-            {story.story_type || "Video Testimony"}
-          </div>
-
-          {storyText && (
-            <div className="relative mt-1.5 max-w-full overflow-hidden">
-              <h1
-                className="line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
-                style={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-all",
-                }}
-              >
-                {storyText}
-              </h1>
-
-              {isLongText && (
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
-              )}
-            </div>
-          )}
-
-          {story.name && (
-            <p className="mt-1.5 max-w-full truncate text-xs font-bold text-white/70 md:text-sm">
-              Shared by {story.name}
-            </p>
-          )}
-        </div>
-
-        {isLongText && (
-          <button
-            type="button"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              setExpanded(true);
-            }}
-            className="mt-2 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-slate-900 shadow-md backdrop-blur md:text-xs"
-          >
-            More
-          </button>
-        )}
-      </div>
-
-      {expanded && (
-        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="max-h-[75dvh] w-full max-w-lg overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  {story.story_type || "Video Testimony"}
-                </div>
-
-                <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  Video Details
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setExpanded(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label="Close video details"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="max-h-[55dvh] overflow-y-auto p-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
-                <Globe2 className="h-4 w-4" />
-                {story.location || "HTBF Community"}
-              </div>
-
-              <p
-                className="whitespace-pre-line text-base font-bold leading-7 text-slate-800"
-                style={{
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
-                }}
-              >
-                {storyText}
-              </p>
-
-              {story.name && (
-                <p className="mt-5 text-sm font-bold text-slate-500">
-                  Shared by {story.name}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function VideoActionButton({
-  label,
-  count,
-  icon,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number | null;
-  icon: ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-      className="group flex flex-col items-center gap-1 text-white"
-      aria-label={label}
-      title={label}
-    >
-      <span
-        className={`flex h-10 w-10 items-center justify-center rounded-full ring-1 backdrop-blur-md transition ${
-          active
-            ? "bg-white text-[#0b63ce] ring-white"
-            : "bg-white/15 text-white/85 ring-white/20 group-hover:bg-white/25"
-        }`}
-      >
-        {icon}
-      </span>
-
-      {count !== null && (
-        <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 backdrop-blur">
-          {count}
-        </span>
-      )}
-
-      <span className="text-[10px] font-black leading-none text-white/80 drop-shadow">
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function RemoveVideoButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-      className="group flex flex-col items-center gap-1 text-white"
-      aria-label="Remove video"
-      title="Remove video"
-    >
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/75 text-white ring-1 ring-white/25 backdrop-blur-md transition group-hover:bg-red-600">
-        <Trash2 className="h-5 w-5" />
-      </span>
-
-      <span className="text-[10px] font-black leading-none text-white/90 drop-shadow">
-        Remove
-      </span>
-    </button>
   );
 }
