@@ -1218,7 +1218,9 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
   const [hidden, setHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const storyText = story.story_text?.trim() || "";
+const rawStoryText = story.story_text?.trim() || "";
+const storyText =
+  rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
   const isLongText = storyText.length > 70;
 
   if (hidden) {
@@ -1241,7 +1243,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
   return (
     <>
-    <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[calc(100%-6.25rem)] max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 md:w-[55%] md:p-5">
+   <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-full max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 pr-28 md:w-[55%] md:p-5 md:pr-5">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
