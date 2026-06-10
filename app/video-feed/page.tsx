@@ -605,15 +605,11 @@ export default function VideoFeedPage() {
                   />
 
 <VideoActionButton
-  label={
-    story.user_reactions.includes("praying")
-      ? "Praying"
-      : "Pray Now"
-  }
+  label="Pray Now"
   count={story.reaction_counts.praying}
   active={story.user_reactions.includes("praying")}
   onClick={() => toggleReaction(story.id, "praying")}
-  icon={<HandHeart className="h-5 w-5" />}
+  icon={<HeartHandshake className="h-5 w-5" />}
 />
 
                   <VideoActionButton
@@ -1302,6 +1298,13 @@ const storyText =
               Shared by {story.name}
             </p>
           )}
+{story.story_type?.toLowerCase().includes("prayer") &&
+  story.reaction_counts.praying > 0 && (
+    <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
+      <HeartHandshake className="h-3.5 w-3.5" />
+      {story.reaction_counts.praying} people praying
+    </div>
+)}
         </div>
 
         {isLongText && (
