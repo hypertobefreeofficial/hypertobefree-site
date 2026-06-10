@@ -1243,7 +1243,7 @@ const storyText =
 
   return (
     <>
-   <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-full max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 pr-28 md:w-[55%] md:p-5 md:pr-5">
+<div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[72vw] max-w-[420px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 md:w-[42vw] md:max-w-[520px]">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1272,16 +1272,16 @@ const storyText =
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
-              <h1
-                className="max-h-[4.25rem] max-w-full overflow-hidden text-sm font-black leading-snug text-white md:max-h-[5rem] md:text-base"
-                style={{
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
-                  whiteSpace: "normal",
-                }}
-              >
-                {storyText}
-              </h1>
+           <h1
+  className="max-h-[4.25rem] w-full max-w-full overflow-hidden text-sm font-black leading-snug text-white md:max-h-[5rem] md:text-base"
+  style={{
+    overflowWrap: "anywhere",
+    wordBreak: "break-all",
+    whiteSpace: "normal",
+  }}
+>
+  {storyText}
+</h1>
 
               {isLongText && (
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
