@@ -606,11 +606,9 @@ export default function VideoFeedPage() {
 
 <VideoActionButton
   label={
-    story.story_type?.toLowerCase().includes("prayer")
-      ? story.user_reactions.includes("praying")
-        ? "Praying"
-        : "Pray Now"
-      : "Praying"
+    story.user_reactions.includes("praying")
+      ? "Praying"
+      : "Pray Now"
   }
   count={story.reaction_counts.praying}
   active={story.user_reactions.includes("praying")}
