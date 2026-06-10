@@ -1243,7 +1243,7 @@ const storyText =
 
   return (
     <>
-<div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[72vw] max-w-[420px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 md:w-[42vw] md:max-w-[520px]">
+<div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1272,12 +1272,16 @@ const storyText =
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
-           <h1
-  className="max-h-[4.25rem] w-full max-w-full overflow-hidden text-sm font-black leading-snug text-white md:max-h-[5rem] md:text-base"
+<h1
+  className="mt-1.5 line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
   style={{
+    display: "-webkit-box",
+    WebkitLineClamp: 3,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
     overflowWrap: "anywhere",
     wordBreak: "break-all",
-    whiteSpace: "normal",
   }}
 >
   {storyText}
