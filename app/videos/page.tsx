@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
+  Flag,
   Globe2,
   HandHeart,
   HeartHandshake,
@@ -15,6 +16,7 @@ import {
   Send,
   Share2,
   Sparkles,
+  Trash2,
   Video,
   Volume2,
   VolumeX,
@@ -23,6 +25,17 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
+
+type ReportReason =
+  | "inappropriate"
+  | "harassment_hate"
+  | "violence_harm"
+  | "sexual_content"
+  | "spam_scam"
+  | "copyright"
+  | "privacy"
+  | "not_aligned"
+  | "other";
 
 type StoryRow = {
   id: string;
@@ -61,6 +74,21 @@ type VideoStory = StoryRow & {
   reply_count: number;
 };
 
+const reportReasons: {
+  label: string;
+  value: ReportReason;
+}[] = [
+  { label: "Inappropriate content", value: "inappropriate" },
+  { label: "Harassment or hate", value: "harassment_hate" },
+  { label: "Violence or harmful content", value: "violence_harm" },
+  { label: "Sexual content", value: "sexual_content" },
+  { label: "Spam or scam", value: "spam_scam" },
+  { label: "Copyright issue", value: "copyright" },
+  { label: "Privacy concern", value: "privacy" },
+  { label: "Not aligned with HTBF community", value: "not_aligned" },
+  { label: "Other", value: "other" },
+];
+
 export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -72,10 +100,26 @@ export default function VideoFeedPage() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
+  const [reportStory, setReportStory] = useState<VideoStory | null>(null);
+  const [reportReason, setReportReason] =
+    useState<ReportReason>("inappropriate");
+  const [reportDetails, setReportDetails] = useState("");
+  const [sendingReport, setSendingReport] = useState(false);
+
   const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
-    let currentUserId: string | null = null;
+    if (!message) return;
+
+    const timer = window.setTimeout(() => {
+      setMessage("");
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
+  useEffect(() => {
+  let currentUserId: string | null = null;
 
     async function loadPage() {
       setCheckingUser(true);
@@ -106,33 +150,21 @@ export default function VideoFeedPage() {
       .channel("video-feed-live-updates")
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "story_reactions",
-        },
+        { event: "*", schema: "public", table: "story_reactions" },
         async () => {
           await loadVideoStories(currentUserId);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "story_video_replies",
-        },
+        { event: "*", schema: "public", table: "story_video_replies" },
         async () => {
           await loadVideoStories(currentUserId);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "stories",
-        },
+        { event: "*", schema: "public", table: "stories" },
         async () => {
           await loadVideoStories(currentUserId);
         }
@@ -396,6 +428,90 @@ export default function VideoFeedPage() {
     setMessage("Response sent.");
   }
 
+  async function removeMyVideo(story: VideoStory) {
+    setMessage("");
+
+    if (!userId) {
+      setMessage("Please sign in to remove your video.");
+      return;
+    }
+
+    if (story.user_id !== userId) {
+      setMessage("You can only remove your own videos.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Remove this video from HTBF? It will no longer appear in the video feed, search, or your public posts."
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase.rpc("remove_my_video_story", {
+      story_id: story.id,
+    });
+
+    if (error) {
+      setMessage(`Could not remove video: ${error.message}`);
+      return;
+    }
+
+    setStories((currentStories) =>
+      currentStories.filter((item) => item.id !== story.id)
+    );
+
+    if (selectedStoryId === story.id) {
+      setSelectedStoryId(null);
+    }
+
+    if (replyStory?.id === story.id) {
+      setReplyStory(null);
+      setReplyText("");
+    }
+
+    setMessage("Video removed from public view.");
+  }
+
+  function openReportModal(story: VideoStory) {
+    setReportStory(story);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    setMessage("");
+  }
+
+  async function submitReport() {
+    if (!userId || !reportStory) {
+      setMessage("Please sign in to report a video.");
+      return;
+    }
+
+    setSendingReport(true);
+    setMessage("");
+
+    const cleanDetails = reportDetails.trim();
+
+    const { error } = await supabase.from("content_reports").insert({
+      story_id: reportStory.id,
+      reporter_user_id: userId,
+      reported_user_id: reportStory.user_id,
+      reason: reportReason,
+      details: cleanDetails || null,
+      status: "open",
+    });
+
+    setSendingReport(false);
+
+    if (error) {
+      setMessage(`Could not submit report: ${error.message}`);
+      return;
+    }
+
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    setMessage("Report submitted. Thank you for helping keep HTBF safe.");
+  }
+
   async function shareStory(story: VideoStory) {
     setMessage("");
 
@@ -444,11 +560,11 @@ export default function VideoFeedPage() {
         </Link>
       </div>
 
-      {message && (
-        <div className="fixed left-4 right-4 top-20 z-50 rounded-2xl bg-white/90 p-4 text-sm font-bold text-slate-900">
-          {message}
-        </div>
-      )}
+{message && (
+  <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm font-black text-slate-900 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+    {message}
+  </div>
+)}
 
       {orderedStories.length === 0 ? (
         <div className="flex min-h-[100dvh] items-center justify-center px-6 text-center">
@@ -465,6 +581,8 @@ export default function VideoFeedPage() {
           {orderedStories.map((story, index) => {
             if (!story.signed_video_url) return null;
 
+            const isOwner = Boolean(userId && story.user_id === userId);
+
             return (
               <article
                 key={story.id}
@@ -477,7 +595,7 @@ export default function VideoFeedPage() {
                   eagerLoad={index === 0}
                 />
 
-                <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-3">
+         <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
                   <VideoActionButton
                     label="Amen"
                     count={story.reaction_counts.amen}
@@ -521,6 +639,18 @@ export default function VideoFeedPage() {
                     onClick={() => shareStory(story)}
                     icon={<Share2 className="h-5 w-5" />}
                   />
+
+                  <VideoActionButton
+                    label="Report"
+                    count={null}
+                    active={false}
+                    onClick={() => openReportModal(story)}
+                    icon={<Flag className="h-5 w-5" />}
+                  />
+
+                  {isOwner && (
+                    <RemoveVideoButton onClick={() => removeMyVideo(story)} />
+                  )}
                 </div>
 
                 <VideoInfoOverlay story={story} />
@@ -573,6 +703,86 @@ export default function VideoFeedPage() {
             >
               {sendingReply ? "Sending..." : "Send Response"}
               <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reportStory && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-red-600">
+                  Report Video
+                </div>
+
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  Flag for moderator review
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Reports help keep HTBF safe. This does not automatically
+                  remove the video, but it sends it to the admin review queue.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setReportStory(null);
+                  setReportReason("inappropriate");
+                  setReportDetails("");
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label="Close report box"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <label className="block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
+                Why are you reporting this?
+              </div>
+
+              <select
+                value={reportReason}
+                onChange={(event) =>
+                  setReportReason(event.target.value as ReportReason)
+                }
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              >
+                {reportReasons.map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="mt-4 block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
+                Details, optional
+              </div>
+
+              <textarea
+                value={reportDetails}
+                onChange={(event) => setReportDetails(event.target.value)}
+                rows={4}
+                placeholder="Add any details that may help the moderator..."
+                className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+            </label>
+
+            <button
+              type="button"
+              disabled={sendingReport}
+              onClick={submitReport}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-base font-black text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {sendingReport ? "Submitting..." : "Submit Report"}
+              <Flag className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -953,8 +1163,7 @@ function AutoPlayReelVideo({
           Loading video
         </div>
       )}
-
-      <div className="absolute bottom-28 right-3 z-40 flex flex-col gap-2">
+<div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col gap-2 sm:bottom-28">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -997,9 +1206,9 @@ function AutoPlayReelVideo({
       )}
 
       {!soundOn && (
-        <div className="pointer-events-none absolute left-1/2 bottom-28 z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
-          Tap speaker for sound
-        </div>
+    <div className="pointer-events-none absolute left-1/2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
+  Tap speaker for sound
+</div>
       )}
     </div>
   );
@@ -1021,7 +1230,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           event.stopPropagation();
           setHidden(false);
         }}
-        className="absolute bottom-32 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+      className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
         aria-label="Show video details"
         title="Show video details"
       >
@@ -1032,7 +1241,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
   return (
     <>
-      <div className="absolute bottom-0 left-0 z-30 w-[calc(100%-7rem)] max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-32 md:w-[55%] md:p-5 md:pb-32">
+    <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[calc(100%-6.25rem)] max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 md:w-[55%] md:p-5">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1152,6 +1361,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
     </>
   );
 }
+
 function VideoActionButton({
   label,
   count,
@@ -1168,7 +1378,11 @@ function VideoActionButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
       className="group flex flex-col items-center gap-1 text-white"
       aria-label={label}
       title={label}
@@ -1191,6 +1405,30 @@ function VideoActionButton({
 
       <span className="text-[10px] font-black leading-none text-white/85 drop-shadow">
         {label}
+      </span>
+    </button>
+  );
+}
+
+function RemoveVideoButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className="group flex flex-col items-center gap-1 text-white"
+      aria-label="Remove video"
+      title="Remove video"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500/80 text-white ring-1 ring-white/25 backdrop-blur-md transition group-hover:bg-red-600">
+        <Trash2 className="h-5 w-5" />
+      </span>
+
+      <span className="text-[10px] font-black leading-none text-white/90 drop-shadow">
+        Remove
       </span>
     </button>
   );
