@@ -1218,7 +1218,9 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
   const [hidden, setHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  const storyText = story.story_text?.trim() || "";
+const rawStoryText = story.story_text?.trim() || "";
+const storyText =
+  rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
   const isLongText = storyText.length > 70;
 
   if (hidden) {
@@ -1241,7 +1243,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
   return (
     <>
-    <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[calc(100%-6.25rem)] max-w-[520px] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4 md:w-[55%] md:p-5">
+<div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1270,16 +1272,20 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
-              <h1
-                className="max-h-[4.25rem] max-w-full overflow-hidden text-sm font-black leading-snug text-white md:max-h-[5rem] md:text-base"
-                style={{
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
-                  whiteSpace: "normal",
-                }}
-              >
-                {storyText}
-              </h1>
+<h1
+  className="mt-1.5 line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
+  style={{
+    display: "-webkit-box",
+    WebkitLineClamp: 3,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    overflowWrap: "anywhere",
+    wordBreak: "break-all",
+  }}
+>
+  {storyText}
+</h1>
 
               {isLongText && (
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
