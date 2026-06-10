@@ -602,7 +602,9 @@ export default function VideoFeedPage() {
                     active={story.user_reactions.includes("amen")}
                     onClick={() => toggleReaction(story.id, "amen")}
                     icon={<HeartHandshake className="h-5 w-5" />}
-           <VideoActionButton
+                  />
+
+<VideoActionButton
   label={
     story.story_type?.toLowerCase().includes("prayer")
       ? story.user_reactions.includes("praying")
@@ -613,8 +615,9 @@ export default function VideoFeedPage() {
   count={story.reaction_counts.praying}
   active={story.user_reactions.includes("praying")}
   onClick={() => toggleReaction(story.id, "praying")}
-icon={<HandHeart className="h-5 w-5" />}
-/>          
+  icon={<HandHeart className="h-5 w-5" />}
+/>
+
                   <VideoActionButton
                     label="Praise"
                     count={story.reaction_counts.praise_god}
