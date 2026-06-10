@@ -1298,6 +1298,15 @@ const storyText =
               Shared by {story.name}
             </p>
           )}
+          {story.reaction_counts.praying > 0 && (
+  <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
+    <HandHeart className="h-3.5 w-3.5" />
+    Prayer Circle ·{" "}
+    {story.reaction_counts.praying === 1
+      ? "1 person praying"
+      : `${story.reaction_counts.praying} people praying`}
+  </div>
+)}
 {story.story_type?.toLowerCase().includes("prayer") &&
   story.reaction_counts.praying > 0 && (
     <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
