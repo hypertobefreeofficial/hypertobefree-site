@@ -106,7 +106,8 @@ export default function VideoFeedPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
 
-  const [soundOn, setSoundOn] = useState(false);
+  const [, setSoundOn] = useState(false);
+  const [beStillMode, setBeStillMode] = useState(false);
 
   useEffect(() => {
     if (!message) return;
@@ -594,8 +595,8 @@ export default function VideoFeedPage() {
                   onSoundChange={setSoundOn}
                   eagerLoad={index === 0}
                 />
-
-         <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
+{!beStillMode && (
+  <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
                   <VideoActionButton
                     label="Amen"
                     count={story.reaction_counts.amen}
@@ -609,7 +610,7 @@ export default function VideoFeedPage() {
   count={story.reaction_counts.praying}
   active={story.user_reactions.includes("praying")}
   onClick={() => toggleReaction(story.id, "praying")}
-  icon={<HeartHandshake className="h-5 w-5" />}
+icon={<HandHeart className="h-5 w-5" />}
 />
 
                   <VideoActionButton
