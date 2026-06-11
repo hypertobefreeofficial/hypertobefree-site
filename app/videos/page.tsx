@@ -1433,27 +1433,30 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
         >
           <EyeOff className="h-4 w-4" />
         </button>
+     
+<div className="pointer-events-none max-w-full overflow-hidden">
+  {story.reaction_counts.praying > 0 && (
+    <div className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs font-black text-white shadow-md ring-1 ring-white/15 backdrop-blur">
+      <HandHeart className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">
+        Prayer Circle ·{" "}
+        {story.reaction_counts.praying === 1
+          ? "1 person praying"
+          : `${story.reaction_counts.praying} people praying`}
+      </span>
+    </div>
+  )}
 
-          {story.reaction_counts.praying > 0 && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
-              <HandHeart className="h-3.5 w-3.5" />
-              Prayer Circle ·{" "}
-              {story.reaction_counts.praying === 1
-                ? "1 person praying"
-                : `${story.reaction_counts.praying} people praying`}
-            </div>
-          )}
-        <div className="pointer-events-none max-w-full overflow-hidden">
-     className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs font-black text-white shadow-md ring-1 ring-white/15 backdrop-blur"
-            <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-            <span className="min-w-0 truncate">
-              {story.location || "HTBF Community"}
-            </span>
-          </div>
+  <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
+    <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
+    <span className="min-w-0 truncate">
+      {story.location || "HTBF Community"}
+    </span>
+  </div>
 
-          <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
-            {story.story_type || "Video Testimony"}
-          </div>
+  <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
+    {story.story_type || "Video Testimony"}
+  </div>
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
@@ -1483,7 +1486,6 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
               Shared by {story.name}
             </p>
           )}
-
         </div>
 
         {isLongText && (
