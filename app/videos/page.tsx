@@ -1475,9 +1475,9 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
                 {storyText}
               </h1>
 
-              {isLongText && (
-              
-              )}
+             {isLongText && !expanded && (
+  <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-black/35 to-transparent" />
+)}
             </div>
           )}
 
