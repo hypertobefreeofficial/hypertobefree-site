@@ -588,22 +588,14 @@ export default function VideoFeedPage() {
               <article
                 key={story.id}
                 className="relative flex h-[100dvh] snap-start items-center justify-center overflow-hidden bg-black"
-              >
-                <AutoPlayReelVideo
-                  videoUrl={story.signed_video_url}
-                  soundOn={soundOn}
-                  onSoundChange={setSoundOn}
-                  eagerLoad={index === 0}
-                />
-{!beStillMode && (
-  <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
-    <VideoActionButton
-      label="Amen"
-      count={story.reaction_counts.amen}
-      active={story.user_reactions.includes("amen")}
-      onClick={() => toggleReaction(story.id, "amen")}
-      icon={<HeartHandshake className="h-5 w-5" />}
-    />
+     <AutoPlayReelVideo
+  videoUrl={story.signed_video_url}
+  soundOn={soundOn}
+  onSoundChange={setSoundOn}
+  eagerLoad={index === 0}
+  beStillMode={beStillMode}
+/>
+
 
     <VideoActionButton
       label="Pray Now"
