@@ -597,70 +597,83 @@ export default function VideoFeedPage() {
                 />
 {!beStillMode && (
   <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
-                  <VideoActionButton
-                    label="Amen"
-                    count={story.reaction_counts.amen}
-                    active={story.user_reactions.includes("amen")}
-                    onClick={() => toggleReaction(story.id, "amen")}
-                    icon={<HeartHandshake className="h-5 w-5" />}
-                  />
+    <VideoActionButton
+      label="Amen"
+      count={story.reaction_counts.amen}
+      active={story.user_reactions.includes("amen")}
+      onClick={() => toggleReaction(story.id, "amen")}
+      icon={<HeartHandshake className="h-5 w-5" />}
+    />
 
-<VideoActionButton
-  label="Pray Now"
-  count={story.reaction_counts.praying}
-  active={story.user_reactions.includes("praying")}
-  onClick={() => toggleReaction(story.id, "praying")}
-icon={<HandHeart className="h-5 w-5" />}
-/>
+    <VideoActionButton
+      label="Pray Now"
+      count={story.reaction_counts.praying}
+      active={story.user_reactions.includes("praying")}
+      onClick={() => toggleReaction(story.id, "praying")}
+      icon={<HandHeart className="h-5 w-5" />}
+    />
 
-                  <VideoActionButton
-                    label="Praise"
-                    count={story.reaction_counts.praise_god}
-                    active={story.user_reactions.includes("praise_god")}
-                    onClick={() => toggleReaction(story.id, "praise_god")}
-                    icon={<Sparkles className="h-5 w-5" />}
-                  />
+    <VideoActionButton
+      label="Praise"
+      count={story.reaction_counts.praise_god}
+      active={story.user_reactions.includes("praise_god")}
+      onClick={() => toggleReaction(story.id, "praise_god")}
+      icon={<Sparkles className="h-5 w-5" />}
+    />
 
-                  <VideoActionButton
-                    label="Respond"
-                    count={story.reply_count}
-                    active={false}
-                    onClick={() => {
-                      setReplyStory(story);
-                      setReplyText("");
-                      setMessage("");
-                    }}
-                    icon={<MessageCircleHeart className="h-5 w-5" />}
-                  />
+    <VideoActionButton
+      label="Respond"
+      count={story.reply_count}
+      active={false}
+      onClick={() => {
+        setReplyStory(story);
+        setReplyText("");
+        setMessage("");
+      }}
+      icon={<MessageCircleHeart className="h-5 w-5" />}
+    />
 
-                  <VideoActionButton
-                    label="Share"
-                    count={null}
-                    active={false}
-                    onClick={() => shareStory(story)}
-                    icon={<Share2 className="h-5 w-5" />}
-                  />
+    <VideoActionButton
+      label="Share"
+      count={null}
+      active={false}
+      onClick={() => shareStory(story)}
+      icon={<Share2 className="h-5 w-5" />}
+    />
 
-                  <VideoActionButton
-                    label="Report"
-                    count={null}
-                    active={false}
-                    onClick={() => openReportModal(story)}
-                    icon={<Flag className="h-5 w-5" />}
-                  />
+    <VideoActionButton
+      label="Report"
+      count={null}
+      active={false}
+      onClick={() => openReportModal(story)}
+      icon={<Flag className="h-5 w-5" />}
+    />
 
-                  {isOwner && (
-                    <RemoveVideoButton onClick={() => removeMyVideo(story)} />
-                  )}
-                </div>
+    <VideoActionButton
+      label="Be Still"
+      count={null}
+      active={beStillMode}
+      onClick={() => setBeStillMode(true)}
+      icon={<EyeOff className="h-5 w-5" />}
+    />
 
-                <VideoInfoOverlay story={story} />
-              </article>
-            );
-          })}
-        </section>
-      )}
+    {isOwner && (
+      <RemoveVideoButton onClick={() => removeMyVideo(story)} />
+    )}
+  </div>
+)}
 
+{!beStillMode && <VideoInfoOverlay story={story} />}
+
+{beStillMode && (
+  <button
+    type="button"
+    onClick={() => setBeStillMode(false)}
+    className="absolute bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs font-black text-white backdrop-blur"
+  >
+    Tap to Exit Be Still Mode
+  </button>
+)}
       {replyStory && (
         <div className="fixed inset-0 z-[80] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
           <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
