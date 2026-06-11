@@ -74,10 +74,7 @@ type VideoStory = StoryRow & {
   reply_count: number;
 };
 
-const reportReasons: {
-  label: string;
-  value: ReportReason;
-}[] = [
+const reportReasons: { label: string; value: ReportReason }[] = [
   { label: "Inappropriate content", value: "inappropriate" },
   { label: "Harassment or hate", value: "harassment_hate" },
   { label: "Violence or harmful content", value: "violence_harm" },
@@ -106,7 +103,7 @@ export default function VideoFeedPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
 
-  const [, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
   const [beStillMode, setBeStillMode] = useState(false);
 
   useEffect(() => {
@@ -120,7 +117,7 @@ export default function VideoFeedPage() {
   }, [message]);
 
   useEffect(() => {
-  let currentUserId: string | null = null;
+    let currentUserId: string | null = null;
 
     async function loadPage() {
       setCheckingUser(true);
@@ -551,21 +548,23 @@ export default function VideoFeedPage() {
 
   return (
     <main className="min-h-[100dvh] bg-black text-white">
-      <div className="fixed left-4 top-4 z-50">
-        <Link
-          href="/search"
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
-          aria-label="Back to search"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-      </div>
+      {!beStillMode && (
+        <div className="fixed left-4 top-4 z-50">
+          <Link
+            href="/search"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
+            aria-label="Back to search"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        </div>
+      )}
 
-{message && (
-  <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm font-black text-slate-900 shadow-lg ring-1 ring-slate-200 backdrop-blur">
-    {message}
-  </div>
-)}
+      {message && !beStillMode && (
+        <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm font-black text-slate-900 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          {message}
+        </div>
+      )}
 
       {orderedStories.length === 0 ? (
         <div className="flex min-h-[100dvh] items-center justify-center px-6 text-center">
@@ -588,84 +587,100 @@ export default function VideoFeedPage() {
               <article
                 key={story.id}
                 className="relative flex h-[100dvh] snap-start items-center justify-center overflow-hidden bg-black"
-     <AutoPlayReelVideo
-  videoUrl={story.signed_video_url}
-  soundOn={soundOn}
-  onSoundChange={setSoundOn}
-  eagerLoad={index === 0}
-  beStillMode={beStillMode}
-/>
+              >
+                <AutoPlayReelVideo
+                  videoUrl={story.signed_video_url}
+                  soundOn={soundOn}
+                  onSoundChange={setSoundOn}
+                  eagerLoad={index === 0}
+                  beStillMode={beStillMode}
+                />
 
+                {!beStillMode && (
+                  <div className="absolute right-2 top-[12dvh] z-50 flex max-h-[64dvh] flex-col items-center justify-start gap-2 overflow-hidden sm:top-1/2 sm:-translate-y-1/2 sm:gap-3">
+                    <VideoActionButton
+                      label="Amen"
+                      count={story.reaction_counts.amen}
+                      active={story.user_reactions.includes("amen")}
+                      onClick={() => toggleReaction(story.id, "amen")}
+                      icon={<HeartHandshake className="h-5 w-5" />}
+                    />
 
-    <VideoActionButton
-      label="Pray Now"
-      count={story.reaction_counts.praying}
-      active={story.user_reactions.includes("praying")}
-      onClick={() => toggleReaction(story.id, "praying")}
-      icon={<HandHeart className="h-5 w-5" />}
-    />
+                    <VideoActionButton
+                      label="Pray Now"
+                      count={story.reaction_counts.praying}
+                      active={story.user_reactions.includes("praying")}
+                      onClick={() => toggleReaction(story.id, "praying")}
+                      icon={<HandHeart className="h-5 w-5" />}
+                    />
 
-    <VideoActionButton
-      label="Praise"
-      count={story.reaction_counts.praise_god}
-      active={story.user_reactions.includes("praise_god")}
-      onClick={() => toggleReaction(story.id, "praise_god")}
-      icon={<Sparkles className="h-5 w-5" />}
-    />
+                    <VideoActionButton
+                      label="Praise"
+                      count={story.reaction_counts.praise_god}
+                      active={story.user_reactions.includes("praise_god")}
+                      onClick={() => toggleReaction(story.id, "praise_god")}
+                      icon={<Sparkles className="h-5 w-5" />}
+                    />
 
-    <VideoActionButton
-      label="Respond"
-      count={story.reply_count}
-      active={false}
-      onClick={() => {
-        setReplyStory(story);
-        setReplyText("");
-        setMessage("");
-      }}
-      icon={<MessageCircleHeart className="h-5 w-5" />}
-    />
+                    <VideoActionButton
+                      label="Respond"
+                      count={story.reply_count}
+                      active={false}
+                      onClick={() => {
+                        setReplyStory(story);
+                        setReplyText("");
+                        setMessage("");
+                      }}
+                      icon={<MessageCircleHeart className="h-5 w-5" />}
+                    />
 
-    <VideoActionButton
-      label="Share"
-      count={null}
-      active={false}
-      onClick={() => shareStory(story)}
-      icon={<Share2 className="h-5 w-5" />}
-    />
+                    <VideoActionButton
+                      label="Share"
+                      count={null}
+                      active={false}
+                      onClick={() => shareStory(story)}
+                      icon={<Share2 className="h-5 w-5" />}
+                    />
 
-    <VideoActionButton
-      label="Report"
-      count={null}
-      active={false}
-      onClick={() => openReportModal(story)}
-      icon={<Flag className="h-5 w-5" />}
-    />
+                    <VideoActionButton
+                      label="Report"
+                      count={null}
+                      active={false}
+                      onClick={() => openReportModal(story)}
+                      icon={<Flag className="h-5 w-5" />}
+                    />
 
-    <VideoActionButton
-      label="Be Still"
-      count={null}
-      active={beStillMode}
-      onClick={() => setBeStillMode(true)}
-      icon={<EyeOff className="h-5 w-5" />}
-    />
+                    <VideoActionButton
+                      label="Be Still"
+                      count={null}
+                      active={beStillMode}
+                      onClick={() => setBeStillMode(true)}
+                      icon={<EyeOff className="h-5 w-5" />}
+                    />
 
-    {isOwner && (
-      <RemoveVideoButton onClick={() => removeMyVideo(story)} />
-    )}
-  </div>
-)}
+                    {isOwner && (
+                      <RemoveVideoButton onClick={() => removeMyVideo(story)} />
+                    )}
+                  </div>
+                )}
 
-{!beStillMode && <VideoInfoOverlay story={story} />}
+                {!beStillMode && <VideoInfoOverlay story={story} />}
 
-{beStillMode && (
-  <button
-    type="button"
-    onClick={() => setBeStillMode(false)}
-    className="absolute bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs font-black text-white backdrop-blur"
-  >
-    Tap to Exit Be Still Mode
-  </button>
-)}
+                {beStillMode && (
+                  <button
+                    type="button"
+                    onClick={() => setBeStillMode(false)}
+                    className="absolute bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/40 px-4 py-2 text-xs font-black text-white backdrop-blur"
+                  >
+                    Tap to Exit Be Still Mode
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </section>
+      )}
+
       {replyStory && (
         <div className="fixed inset-0 z-[80] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
           <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
@@ -802,11 +817,13 @@ function AutoPlayReelVideo({
   soundOn,
   onSoundChange,
   eagerLoad,
+  beStillMode,
 }: {
   videoUrl: string;
   soundOn: boolean;
   onSoundChange: (nextValue: boolean) => void;
   eagerLoad: boolean;
+  beStillMode: boolean;
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -909,134 +926,6 @@ function AutoPlayReelVideo({
       video.volume = 1;
     }
   }, [soundOn]);
-
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-
-    if (!wrapper) return;
-
-    function getDistance(touches: TouchList) {
-      const firstTouch = touches[0];
-      const secondTouch = touches[1];
-
-      const xDistance = firstTouch.clientX - secondTouch.clientX;
-      const yDistance = firstTouch.clientY - secondTouch.clientY;
-
-      return Math.sqrt(xDistance * xDistance + yDistance * yDistance);
-    }
-
-    function handleTouchStart(event: TouchEvent) {
-      if (event.touches.length === 2) {
-        event.preventDefault();
-        pinchStartDistanceRef.current = getDistance(event.touches);
-      }
-    }
-
-    function handleTouchMove(event: TouchEvent) {
-      if (event.touches.length === 2 && pinchStartDistanceRef.current) {
-        event.preventDefault();
-
-        const currentDistance = getDistance(event.touches);
-        const rawScale = currentDistance / pinchStartDistanceRef.current;
-        const limitedScale = Math.min(Math.max(rawScale, 1), 3);
-
-        setZoomScale(limitedScale);
-      }
-    }
-
-    function handleTouchEnd(event: TouchEvent) {
-      if (event.touches.length < 2) {
-        pinchStartDistanceRef.current = null;
-        setZoomScale(1);
-      }
-    }
-
-    function handlePointerEnter() {
-      pointerInsideRef.current = true;
-    }
-
-    function handlePointerLeave() {
-      pointerInsideRef.current = false;
-      setZoomScale(1);
-      releasePause();
-    }
-
-    wrapper.addEventListener("touchstart", handleTouchStart, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("touchmove", handleTouchMove, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("touchend", handleTouchEnd, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("touchcancel", handleTouchEnd, {
-      passive: false,
-    });
-
-    wrapper.addEventListener("pointerenter", handlePointerEnter);
-    wrapper.addEventListener("pointerleave", handlePointerLeave);
-
-    return () => {
-      wrapper.removeEventListener("touchstart", handleTouchStart);
-      wrapper.removeEventListener("touchmove", handleTouchMove);
-      wrapper.removeEventListener("touchend", handleTouchEnd);
-      wrapper.removeEventListener("touchcancel", handleTouchEnd);
-      wrapper.removeEventListener("pointerenter", handlePointerEnter);
-      wrapper.removeEventListener("pointerleave", handlePointerLeave);
-    };
-  }, []);
-
-  useEffect(() => {
-    function handleWheelZoom(event: WheelEvent) {
-      const wrapper = wrapperRef.current;
-
-      if (!wrapper) return;
-
-      const target = event.target as Node | null;
-      const eventStartedInsideVideo = target ? wrapper.contains(target) : false;
-      const isTrackpadPinchOrBrowserZoom = event.ctrlKey || event.metaKey;
-
-      if (!eventStartedInsideVideo && !pointerInsideRef.current) return;
-      if (!isTrackpadPinchOrBrowserZoom) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      setZoomScale((currentScale) => {
-        const zoomChange = event.deltaY < 0 ? 0.12 : -0.12;
-        const nextScale = currentScale + zoomChange;
-
-        return Math.min(Math.max(nextScale, 1), 3);
-      });
-
-      if (wheelZoomTimeoutRef.current) {
-        clearTimeout(wheelZoomTimeoutRef.current);
-      }
-
-      wheelZoomTimeoutRef.current = setTimeout(() => {
-        setZoomScale(1);
-      }, 220);
-    }
-
-    window.addEventListener("wheel", handleWheelZoom, {
-      passive: false,
-      capture: true,
-    });
-
-    return () => {
-      window.removeEventListener("wheel", handleWheelZoom, {
-        capture: true,
-      } as AddEventListenerOptions);
-
-      if (wheelZoomTimeoutRef.current) {
-        clearTimeout(wheelZoomTimeoutRef.current);
-      }
-    };
-  }, []);
 
   function isControlClick(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false;
@@ -1169,41 +1058,44 @@ function AutoPlayReelVideo({
           Loading video
         </div>
       )}
-<div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col gap-2 sm:bottom-28">
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            toggleSound();
-          }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-          aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
-        >
-          {soundOn ? (
-            <Volume2 className="h-4 w-4" />
-          ) : (
-            <VolumeX className="h-4 w-4" />
-          )}
-        </button>
 
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            togglePlayButton();
-          }}
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
-          aria-label={paused ? "Play video" : "Pause video"}
-        >
-          {paused ? (
-            <Play className="h-4 w-4 fill-slate-900" />
-          ) : (
-            <Pause className="h-4 w-4 fill-slate-900" />
-          )}
-        </button>
-      </div>
+      {!beStillMode && (
+        <div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col gap-2 sm:bottom-28">
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleSound();
+            }}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+            aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
+          >
+            {soundOn ? (
+              <Volume2 className="h-4 w-4" />
+            ) : (
+              <VolumeX className="h-4 w-4" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              togglePlayButton();
+            }}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-md backdrop-blur transition hover:bg-white"
+            aria-label={paused ? "Play video" : "Pause video"}
+          >
+            {paused ? (
+              <Play className="h-4 w-4 fill-slate-900" />
+            ) : (
+              <Pause className="h-4 w-4 fill-slate-900" />
+            )}
+          </button>
+        </div>
+      )}
 
       {zoomScale > 1 && (
         <div className="pointer-events-none absolute left-1/2 top-6 z-40 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
@@ -1211,10 +1103,10 @@ function AutoPlayReelVideo({
         </div>
       )}
 
-      {!soundOn && (
-    <div className="pointer-events-none absolute left-1/2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
-  Tap speaker for sound
-</div>
+      {!soundOn && !beStillMode && (
+        <div className="pointer-events-none absolute left-1/2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-30 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
+          Tap speaker for sound
+        </div>
       )}
     </div>
   );
@@ -1224,9 +1116,8 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
   const [hidden, setHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-const rawStoryText = story.story_text?.trim() || "";
-const storyText =
-  rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
+  const rawStoryText = story.story_text?.trim() || "";
+  const storyText = rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
   const isLongText = storyText.length > 70;
 
   if (hidden) {
@@ -1238,7 +1129,7 @@ const storyText =
           event.stopPropagation();
           setHidden(false);
         }}
-      className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+        className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
         aria-label="Show video details"
         title="Show video details"
       >
@@ -1249,7 +1140,7 @@ const storyText =
 
   return (
     <>
-<div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
+      <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -1278,20 +1169,20 @@ const storyText =
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
-<h1
-  className="mt-1.5 line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
-  style={{
-    display: "-webkit-box",
-    WebkitLineClamp: 3,
-    WebkitBoxOrient: "vertical",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    overflowWrap: "anywhere",
-    wordBreak: "break-all",
-  }}
->
-  {storyText}
-</h1>
+              <h1
+                className="mt-1.5 line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-all",
+                }}
+              >
+                {storyText}
+              </h1>
 
               {isLongText && (
                 <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
@@ -1304,13 +1195,16 @@ const storyText =
               Shared by {story.name}
             </p>
           )}
-{story.story_type?.toLowerCase().includes("prayer") &&
-  story.reaction_counts.praying > 0 && (
-    <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
-      <HeartHandshake className="h-3.5 w-3.5" />
-      {story.reaction_counts.praying} people praying
-    </div>
-)}
+
+          {story.reaction_counts.praying > 0 && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
+              <HandHeart className="h-3.5 w-3.5" />
+              Prayer Circle ·{" "}
+              {story.reaction_counts.praying === 1
+                ? "1 person praying"
+                : `${story.reaction_counts.praying} people praying`}
+            </div>
+          )}
         </div>
 
         {isLongText && (
