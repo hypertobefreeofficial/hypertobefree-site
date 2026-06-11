@@ -74,7 +74,7 @@ type VideoStory = StoryRow & {
   reply_count: number;
 };
 
-const reportReasons: {
+ reportReasons: {
   label: string;
   value: ReportReason;
 }[] = [
@@ -90,24 +90,24 @@ const reportReasons: {
 ];
 
 export default function VideoFeedPage() {
-  const [checkingUser, setCheckingUser] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [stories, setStories] = useState<VideoStory[]>([]);
-  const [message, setMessage] = useState("");
-  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+   [checkingUser, setCheckingUser] = useState(true);
+   [userId, setUserId] = useState<string | null>(null);
+   [stories, setStories] = useState<VideoStory[]>([]);
+   [message, setMessage] = useState("");
+   [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
 
-  const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
-  const [replyText, setReplyText] = useState("");
-  const [sendingReply, setSendingReply] = useState(false);
+   [replyStory, setReplyStory] = useState<VideoStory | null>(null);
+   [replyText, setReplyText] = useState("");
+   [sendingReply, setSendingReply] = useState(false);
 
-  const [reportStory, setReportStory] = useState<VideoStory | null>(null);
-  const [reportReason, setReportReason] =
+   [reportStory, setReportStory] = useState<VideoStory | null>(null);
+   [reportReason, setReportReason] =
     useState<ReportReason>("inappropriate");
-  const [reportDetails, setReportDetails] = useState("");
-  const [sendingReport, setSendingReport] = useState(false);
+   [reportDetails, setReportDetails] = useState("");
+   [sendingReport, setSendingReport] = useState(false);
 
-  const [soundOn, setSoundOn] = useState(false);
-
+const [soundOn, setSoundOn] = useState(false);
+const [beStillMode, setBeStillMode] = useState(false);
   useEffect(() => {
     if (!message) return;
 
@@ -647,6 +647,13 @@ export default function VideoFeedPage() {
                     onClick={() => openReportModal(story)}
                     icon={<Flag className="h-5 w-5" />}
                   />
+           <VideoActionButton
+  label="Be Still"
+  count={null}
+  active={beStillMode}
+  onClick={() => setBeStillMode(!beStillMode)}
+  icon={<EyeOff className="h-5 w-5" />}
+/>
 
                   {isOwner && (
                     <RemoveVideoButton onClick={() => removeMyVideo(story)} />
