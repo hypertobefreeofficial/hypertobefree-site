@@ -79,6 +79,7 @@ export default function FreedomFeed({
     useState<ApprovedStory | null>(null);
   const [photoActionSheetOpen, setPhotoActionSheetOpen] = useState(false);
   const [photoViewerMessage, setPhotoViewerMessage] = useState("");
+  const [photoCaptionExpanded, setPhotoCaptionExpanded] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
   const feedReloadInFlightRef = useRef(false);
   const feedReloadQueuedRef = useRef(false);
@@ -561,12 +562,15 @@ export default function FreedomFeed({
     setPhotoViewerStory(story);
     setPhotoActionSheetOpen(false);
     setPhotoViewerMessage("");
+    setPhotoCaptionExpanded(false);
   }
 
   function closePhotoViewer() {
     setPhotoViewerStory(null);
+  }
+
+  function closePhotoActionSheet() {
     setPhotoActionSheetOpen(false);
-    setPhotoViewerMessage("");
   }
 
   function openVideoStory(storyId: string) {
@@ -704,8 +708,13 @@ export default function FreedomFeed({
       : lockedFilter && defaultFilter === "prayer"
         ? "No approved prayer requests are showing yet. Approved prayer requests will appear here after review."
         : lockedFilter && defaultFilter === "answered"
-          ? "No answered prayers are showing yet. When someone marks a prayer request as answered, it will appear here."
-          : "No approved stories are showing yet. Approved stories will appear here after review.";
+        ? "No answered prayers are showing yet. When someone marks a prayer request as answered, it will appear here."
+        : "No approved stories are showing yet. Approved stories will appear here after review.";
+
+  const photoViewerText = photoViewerStory?.story_text?.trim() ?? "";
+  const photoViewerTextIsLong =
+    photoViewerText.length > 120 ||
+    photoViewerText.split(/\r\n|\r|\n/).length > 3;
 
   return (
     <section
@@ -856,13 +865,13 @@ export default function FreedomFeed({
                       <button
                         type="button"
                         onClick={() => openPhotoViewer(story)}
-                        className="mt-4 block max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        className="mt-4 block w-full max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
                         aria-label="Open photo"
                       >
                         <img
                           src={story.signed_image_url}
                           alt={story.story_type || "HTBF photo story"}
-                          className="block max-h-[560px] w-full max-w-full object-cover"
+                          className="block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
                         />
                       </button>
                     )}
@@ -1138,10 +1147,10 @@ export default function FreedomFeed({
               />
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/85 to-transparent p-5 pt-16">
-              <div className="mx-auto max-w-3xl">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-4 pt-16 sm:p-6 sm:pt-20">
+              <div className="mx-auto max-w-2xl rounded-[1.5rem] bg-black/55 p-4 ring-1 ring-white/10 backdrop-blur-md">
                 <div
-                  className="max-w-full overflow-hidden break-words text-base font-black"
+                  className="max-w-full overflow-hidden break-words text-sm font-black sm:text-base"
                   style={{
                     overflowWrap: "anywhere",
                     wordBreak: "break-word",
@@ -1150,16 +1159,32 @@ export default function FreedomFeed({
                   {photoViewerStory.name || "HTBF Community"}
                 </div>
 
-                {photoViewerStory.story_text && (
-                  <p
-                    className="mt-2 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-white/85"
-                    style={{
-                      overflowWrap: "anywhere",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {photoViewerStory.story_text}
-                  </p>
+                {photoViewerText && (
+                  <>
+                    <p
+                      className={`mt-2 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-white/85 ${
+                        photoCaptionExpanded ? "max-h-[40vh] overflow-y-auto" : "max-h-[4.5rem]"
+                      }`}
+                      style={{
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {photoViewerText}
+                    </p>
+
+                    {photoViewerTextIsLong && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPhotoCaptionExpanded((current) => !current)
+                        }
+                        className="mt-2 text-sm font-black text-blue-200 underline-offset-4 hover:underline"
+                      >
+                        {photoCaptionExpanded ? "See less" : "See more"}
+                      </button>
+                    )}
+                  </>
                 )}
 
                 {photoViewerMessage && (
@@ -1171,8 +1196,14 @@ export default function FreedomFeed({
             </div>
 
             {photoActionSheetOpen && (
-              <div className="fixed inset-0 z-[60] flex items-end bg-black/45 p-3 backdrop-blur-sm">
-                <div className="w-full rounded-[2rem] bg-white p-3 text-slate-900 shadow-2xl">
+              <div
+                className="fixed inset-0 z-[60] flex items-end justify-center bg-black/35 p-4 backdrop-blur-sm"
+                onClick={closePhotoActionSheet}
+              >
+                <div
+                  className="w-full max-w-sm rounded-[1.5rem] bg-white p-2 text-slate-900 shadow-2xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <div className="px-4 pb-2 pt-3 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
                     Photo Options
                   </div>
@@ -1201,8 +1232,8 @@ export default function FreedomFeed({
 
                   <button
                     type="button"
-                    onClick={() => setPhotoActionSheetOpen(false)}
-                    className="mt-2 flex w-full items-center justify-center rounded-2xl bg-slate-100 px-4 py-3 text-base font-black text-slate-700 transition hover:bg-slate-200"
+                    onClick={closePhotoActionSheet}
+                    className="mt-2 flex w-full items-center justify-center rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200"
                   >
                     Cancel
                   </button>
@@ -1339,14 +1370,14 @@ function PhotoActionButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-base font-black transition ${
+      className={`flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm font-black transition ${
         danger
           ? "text-red-700 hover:bg-red-50"
           : "text-slate-800 hover:bg-blue-50"
       }`}
     >
       <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
           danger ? "bg-red-50 text-red-700" : "bg-blue-50 text-[#0b63ce]"
         }`}
       >
