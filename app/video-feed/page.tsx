@@ -363,6 +363,7 @@ const reportReasons: {
 ];
 
 const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const prayerCircleJoinedMessage = "You joined the Prayer Circle.";
 
 const languageOptions: { label: string; value: VideoLanguage }[] = [
   { label: "Español", value: "spanish" },
@@ -397,9 +398,11 @@ export default function VideoFeedPage() {
   useEffect(() => {
     if (!message) return;
 
+    const timeout = message === prayerCircleJoinedMessage ? 2000 : 2500;
+
     const timer = window.setTimeout(() => {
       setMessage("");
-    }, 2500);
+    }, timeout);
 
     return () => window.clearTimeout(timer);
   }, [message]);
@@ -635,6 +638,10 @@ export default function VideoFeedPage() {
     }
 
     updateLocalReaction(storyId, reactionType, "add");
+
+    if (reactionType === "praying") {
+      setMessage(prayerCircleJoinedMessage);
+    }
   }
 
   function updateLocalReaction(
@@ -950,7 +957,11 @@ export default function VideoFeedPage() {
                     />
 
                     <VideoActionButton
-                      label={copy.prayNow}
+                      label={
+                        story.user_reactions.includes("praying")
+                          ? "Praying"
+                          : copy.prayNow
+                      }
                       count={story.reaction_counts.praying}
                       active={story.user_reactions.includes("praying")}
                       onClick={() => toggleReaction(story.id, "praying")}
