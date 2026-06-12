@@ -110,6 +110,7 @@ export default function PrayerPage() {
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
   );
+  const prayerCircleInboxKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -338,6 +339,50 @@ export default function PrayerPage() {
     );
   }
 
+  async function notifyPrayerCircleOwner(story: PrayerStory) {
+    if (!userId || !story.user_id || story.user_id === userId) return;
+
+    const notificationKey = `${story.user_id}:${userId}:${story.id}:prayer_circle`;
+
+    if (prayerCircleInboxKeysRef.current.has(notificationKey)) return;
+
+    prayerCircleInboxKeysRef.current.add(notificationKey);
+
+    const { data: existingMessages, error: existingError } = await supabase
+      .from("inbox_messages")
+      .select("id")
+      .eq("user_id", story.user_id)
+      .eq("sender_user_id", userId)
+      .eq("story_id", story.id)
+      .eq("message_type", "prayer_circle")
+      .limit(1);
+
+    if (existingError) {
+      console.error("Could not check Prayer Circle inbox message:", existingError);
+      prayerCircleInboxKeysRef.current.delete(notificationKey);
+      return;
+    }
+
+    if (Array.isArray(existingMessages) && existingMessages.length > 0) return;
+
+    const { error } = await supabase.from("inbox_messages").insert({
+      user_id: story.user_id,
+      sender_user_id: userId,
+      title: "Someone joined your Prayer Circle",
+      body: "A believer prayed with your request.",
+      category: "prayer",
+      message_type: "prayer_circle",
+      story_id: story.id,
+      action_url: "/prayer",
+      read: false,
+    });
+
+    if (error) {
+      console.error("Could not create Prayer Circle inbox message:", error);
+      prayerCircleInboxKeysRef.current.delete(notificationKey);
+    }
+  }
+
   async function toggleReaction(
     storyId: string,
     reactionType: ReactionType,
@@ -383,6 +428,10 @@ export default function PrayerPage() {
     }
 
     updateLocalReaction(storyId, reactionType, "add");
+
+    if (reactionType === "praying" && story) {
+      void notifyPrayerCircleOwner(story);
+    }
 
     if (reactionType === "praying" && showPrayingMessage) {
       setMessage("You joined the Prayer Circle.");
