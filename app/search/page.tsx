@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   Globe2,
-  HeartHandshake,
   Play,
   Search,
   Sparkles,
@@ -166,7 +165,7 @@ export default function SearchPage() {
           "id, user_id, name, location, story_type, story_text, video_url, thumbnail_url, status, created_at"
         )
         .eq("status", "approved")
-        .or("video_url.not.is.null,story_text.not.is.null")
+        .not("video_url", "is", null)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -176,10 +175,9 @@ export default function SearchPage() {
       }
 
       const cleanStories = ((data as StoryRow[]) ?? []).filter((story) => {
-        const hasText = Boolean(story.story_text?.trim());
         const hasVideo = Boolean(story.video_url?.trim());
 
-        return hasText || hasVideo;
+        return hasVideo;
       });
 
       setStories(cleanStories);
@@ -296,10 +294,6 @@ export default function SearchPage() {
     return story.story_type || "Testimony";
   }
 
-  function getInitial(story: StoryRow) {
-    return story.name?.trim()?.charAt(0)?.toUpperCase() || "H";
-  }
-
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[#f8fbff] px-6 py-12 text-slate-900">
@@ -397,61 +391,22 @@ export default function SearchPage() {
                 const videoSource = getVideoSource(story.video_url);
                 const isLarge = index % 7 === 0;
 
-                if (videoSource) {
-                  return (
-                    <VideoDiscoveryTile
-                      key={story.id}
-                      storyId={story.id}
-                      videoSource={videoSource}
-                      thumbnailUrl={story.thumbnail_url}
-                      title={getCardTitle(story)}
-                      storyType={getStoryType(story)}
-                      location={story.location || "Video testimony"}
-                      isLarge={isLarge}
-                      onBrokenVideo={markBrokenVideo}
-                    />
-                  );
+                if (!videoSource) {
+                  return null;
                 }
 
                 return (
-                  <Link
+                  <VideoDiscoveryTile
                     key={story.id}
-                    href="/feed"
-                    className={`relative overflow-hidden rounded-[1.5rem] bg-white shadow-sm ring-1 ring-slate-200 ${
-                      isLarge
-                        ? "col-span-2 min-h-72 sm:row-span-2"
-                        : "min-h-52"
-                    }`}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-emerald-50" />
-
-                    <div className="absolute left-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-sm font-black text-[#0b63ce] shadow-sm">
-                      {getInitial(story)}
-                    </div>
-
-                    <div className="absolute right-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-                      Testimony
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#062a57]/95 via-[#062a57]/45 to-transparent p-4 text-white">
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/80">
-                        {getStoryType(story)}
-                      </div>
-
-                      <p className="mt-1 line-clamp-4 text-sm font-black leading-snug">
-                        {getCardTitle(story)}
-                      </p>
-
-                      <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur">
-                        {getStoryType(story).toLowerCase().includes("prayer") ? (
-                          <HeartHandshake className="h-3.5 w-3.5" />
-                        ) : (
-                          <Globe2 className="h-3.5 w-3.5" />
-                        )}
-                        Open in feed
-                      </div>
-                    </div>
-                  </Link>
+                    storyId={story.id}
+                    videoSource={videoSource}
+                    thumbnailUrl={story.thumbnail_url}
+                    title={getCardTitle(story)}
+                    storyType={getStoryType(story)}
+                    location={story.location || "Video testimony"}
+                    isLarge={isLarge}
+                    onBrokenVideo={markBrokenVideo}
+                  />
                 );
               })}
             </div>
