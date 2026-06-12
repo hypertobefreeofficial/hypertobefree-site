@@ -485,11 +485,7 @@ export default function ShareYourStoryPage() {
       throw new Error(photoUploadError.message);
     }
 
-    const { data: photoPublicData } = supabase.storage
-      .from(STORY_IMAGE_BUCKET)
-      .getPublicUrl(photoFileName);
-
-    return photoPublicData.publicUrl;
+    return photoFileName;
   }
 
   async function uploadVideoIfNeeded(currentUserId: string) {
@@ -614,7 +610,7 @@ export default function ShareYourStoryPage() {
 
       setMessage("Uploading your post...");
 
-      const imageUrl = hasPhoto ? await uploadPhotoIfNeeded(userId) : null;
+      const imagePath = hasPhoto ? await uploadPhotoIfNeeded(userId) : null;
       const { videoUrl, thumbnailUrl } = hasVideo
         ? await uploadVideoIfNeeded(userId)
         : { videoUrl: null, thumbnailUrl: null };
@@ -625,7 +621,7 @@ export default function ShareYourStoryPage() {
         location: getPostingLocation(),
         story_type: finalStoryType,
         story_text: cleanStoryText || null,
-        image_url: imageUrl,
+        image_url: imagePath,
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
         text_size: textSize,
