@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Globe2,
@@ -66,22 +66,54 @@ export default function FreedomFeed({
   const [answeringPrayerStory, setAnsweringPrayerStory] =
     useState<ApprovedStory | null>(null);
   const [answeredPrayerText, setAnsweredPrayerText] = useState("");
+  const currentUserIdRef = useRef<string | null>(null);
+  const feedReloadInFlightRef = useRef(false);
+  const feedReloadQueuedRef = useRef(false);
+  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
+    null
+  );
 
   useEffect(() => {
-    let currentUserId: string | null = null;
+    let cancelled = false;
+
+    async function reloadFeed() {
+      if (cancelled) return;
+
+      if (feedReloadInFlightRef.current) {
+        feedReloadQueuedRef.current = true;
+        return;
+      }
+
+      feedReloadInFlightRef.current = true;
+
+      try {
+        await loadApprovedStories(currentUserIdRef.current);
+      } finally {
+        feedReloadInFlightRef.current = false;
+
+        if (feedReloadQueuedRef.current && !cancelled) {
+          feedReloadQueuedRef.current = false;
+          void reloadFeed();
+        }
+      }
+    }
 
     async function loadPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      currentUserId = user?.id ?? null;
-      setUserId(currentUserId);
+      currentUserIdRef.current = user?.id ?? null;
+      setUserId(currentUserIdRef.current);
 
-      await loadApprovedStories(currentUserId);
+      await reloadFeed();
     }
 
-    loadPage();
+    void loadPage();
+
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+    }
 
     const channel = supabase
       .channel("freedom-feed-live-updates")
@@ -92,8 +124,8 @@ export default function FreedomFeed({
           schema: "public",
           table: "story_reactions",
         },
-        async () => {
-          await loadApprovedStories(currentUserId);
+        () => {
+          void reloadFeed();
         }
       )
       .on(
@@ -103,14 +135,20 @@ export default function FreedomFeed({
           schema: "public",
           table: "stories",
         },
-        async () => {
-          await loadApprovedStories(currentUserId);
+        () => {
+          void reloadFeed();
         }
       )
       .subscribe();
 
+    realtimeChannelRef.current = channel;
+
     return () => {
+      cancelled = true;
+      feedReloadQueuedRef.current = false;
+      feedReloadInFlightRef.current = false;
       supabase.removeChannel(channel);
+      realtimeChannelRef.current = null;
     };
   }, []);
 
