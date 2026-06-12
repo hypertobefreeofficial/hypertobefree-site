@@ -28,6 +28,7 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
+type VideoLanguage = "spanish" | "english";
 
 type ReportReason =
   | "inappropriate"
@@ -77,19 +78,296 @@ type VideoStory = StoryRow & {
   reply_count: number;
 };
 
-const reportReasons: { label: string; value: ReportReason }[] = [
-  { label: "Inappropriate content", value: "inappropriate" },
-  { label: "Harassment or hate", value: "harassment_hate" },
-  { label: "Violence or harmful content", value: "violence_harm" },
-  { label: "Sexual content", value: "sexual_content" },
-  { label: "Spam or scam", value: "spam_scam" },
-  { label: "Copyright issue", value: "copyright" },
-  { label: "Privacy concern", value: "privacy" },
-  { label: "Not aligned with HTBF community", value: "not_aligned" },
-  { label: "Other", value: "other" },
+type VideoFeedCopy = {
+  loadingFeed: string;
+  backToSearch: string;
+  loadVideosError: string;
+  unknownError: string;
+  signInToReact: string;
+  reactionRemoveError: string;
+  reactionAddError: string;
+  signInToRespond: string;
+  writeResponseFirst: string;
+  sendResponseError: string;
+  responseSent: string;
+  signInToRemove: string;
+  removeOwnVideoOnly: string;
+  removeVideoConfirm: string;
+  removeVideoError: string;
+  videoRemoved: string;
+  signInToReport: string;
+  reportSubmitError: string;
+  reportSubmitted: string;
+  shareTitle: string;
+  shareWithTextPrefix: string;
+  shareFallback: string;
+  shareLinkCopied: string;
+  noVideosTitle: string;
+  noVideosBody: string;
+  moreOptions: string;
+  exitBeStill: string;
+  amen: string;
+  prayNow: string;
+  praise: string;
+  respond: string;
+  replyEyebrow: string;
+  replyTitle: string;
+  closeResponseBox: string;
+  replyPlaceholder: string;
+  sending: string;
+  sendResponse: string;
+  reportEyebrow: string;
+  reportTitle: string;
+  reportBody: string;
+  closeReportBox: string;
+  reportQuestion: string;
+  reportDetailsLabel: string;
+  reportDetailsPlaceholder: string;
+  submitting: string;
+  submitReport: string;
+  videoOptions: string;
+  beStillMode: string;
+  playbackSpeed: string;
+  language: string;
+  captionsComingSoon: string;
+  share: string;
+  report: string;
+  removeVideo: string;
+  loadingVideo: string;
+  playVideo: string;
+  pauseVideo: string;
+  turnSoundOff: string;
+  turnSoundOn: string;
+  zoom: string;
+  showVideoDetails: string;
+  hideVideoDetails: string;
+  community: string;
+  videoTestimony: string;
+  sharedBy: string;
+  prayerCircle: string;
+  personPraying: string;
+  peoplePraying: string;
+  more: string;
+  videoDetails: string;
+  closeVideoDetails: string;
+  languageSelected: string;
+  testimonyTranslationComingSoon: string;
+};
+
+const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
+  english: {
+    loadingFeed: "Loading video feed...",
+    backToSearch: "Back to search",
+    loadVideosError: "Could not load videos",
+    unknownError: "Unknown error",
+    signInToReact: "Please sign in to react.",
+    reactionRemoveError: "Could not remove reaction",
+    reactionAddError: "Could not add reaction",
+    signInToRespond: "Please sign in to respond.",
+    writeResponseFirst: "Please write a response first.",
+    sendResponseError: "Could not send response",
+    responseSent: "Response sent.",
+    signInToRemove: "Please sign in to remove your video.",
+    removeOwnVideoOnly: "You can only remove your own videos.",
+    removeVideoConfirm:
+      "Remove this video from HTBF? It will no longer appear in the video feed, search, or your public posts.",
+    removeVideoError: "Could not remove video",
+    videoRemoved: "Video removed from public view.",
+    signInToReport: "Please sign in to report a video.",
+    reportSubmitError: "Could not submit report",
+    reportSubmitted: "Report submitted. Thank you for helping keep HTBF safe.",
+    shareTitle: "HTBF Video Testimony",
+    shareWithTextPrefix: "Watch this video testimony",
+    shareFallback: "Watch this video testimony on Hyper to Be Free.",
+    shareLinkCopied: "Share link copied.",
+    noVideosTitle: "No videos yet",
+    noVideosBody: "Approved video testimonies will appear here after review.",
+    moreOptions: "More video options",
+    exitBeStill: "Tap to Exit Be Still Mode",
+    amen: "Amén",
+    prayNow: "Pray Now",
+    praise: "Praise",
+    respond: "Respond",
+    replyEyebrow: "Respond with encouragement",
+    replyTitle: "Send a message",
+    closeResponseBox: "Close response box",
+    replyPlaceholder: "Write a kind response, prayer, or encouragement...",
+    sending: "Sending...",
+    sendResponse: "Send Response",
+    reportEyebrow: "Report Video",
+    reportTitle: "Flag for moderator review",
+    reportBody:
+      "Reports help keep HTBF safe. This does not automatically remove the video, but it sends it to the admin review queue.",
+    closeReportBox: "Close report box",
+    reportQuestion: "Why are you reporting this?",
+    reportDetailsLabel: "Details, optional",
+    reportDetailsPlaceholder: "Add any details that may help the moderator...",
+    submitting: "Submitting...",
+    submitReport: "Submit Report",
+    videoOptions: "Video Options",
+    beStillMode: "Be Still Mode",
+    playbackSpeed: "Playback Speed",
+    language: "Language",
+    captionsComingSoon: "Captions coming soon",
+    share: "Share",
+    report: "Report",
+    removeVideo: "Remove Video",
+    loadingVideo: "Loading video",
+    playVideo: "Play video",
+    pauseVideo: "Pause video",
+    turnSoundOff: "Turn sound off",
+    turnSoundOn: "Turn sound on",
+    zoom: "Zoom",
+    showVideoDetails: "Show video details",
+    hideVideoDetails: "Hide video details",
+    community: "HTBF Community",
+    videoTestimony: "Video Testimony",
+    sharedBy: "Shared by",
+    prayerCircle: "Prayer Circle",
+    personPraying: "1 person praying",
+    peoplePraying: "people praying",
+    more: "More",
+    videoDetails: "Video Details",
+    closeVideoDetails: "Close video details",
+    languageSelected: "English selected.",
+    testimonyTranslationComingSoon: "Testimony translation support coming soon.",
+  },
+  spanish: {
+    loadingFeed: "Cargando videos...",
+    backToSearch: "Volver a la búsqueda",
+    loadVideosError: "No se pudieron cargar los videos",
+    unknownError: "Error desconocido",
+    signInToReact: "Inicia sesión para reaccionar.",
+    reactionRemoveError: "No se pudo quitar la reacción",
+    reactionAddError: "No se pudo agregar la reacción",
+    signInToRespond: "Inicia sesión para responder.",
+    writeResponseFirst: "Escribe una respuesta primero.",
+    sendResponseError: "No se pudo enviar la respuesta",
+    responseSent: "Respuesta enviada.",
+    signInToRemove: "Inicia sesión para quitar tu video.",
+    removeOwnVideoOnly: "Solo puedes quitar tus propios videos.",
+    removeVideoConfirm:
+      "¿Quitar este video de HTBF? Ya no aparecerá en el feed de videos, la búsqueda ni tus publicaciones públicas.",
+    removeVideoError: "No se pudo quitar el video",
+    videoRemoved: "Video quitado de la vista pública.",
+    signInToReport: "Inicia sesión para reportar un video.",
+    reportSubmitError: "No se pudo enviar el reporte",
+    reportSubmitted: "Reporte enviado. Gracias por ayudar a cuidar HTBF.",
+    shareTitle: "Testimonio en video de HTBF",
+    shareWithTextPrefix: "Mira este testimonio en video",
+    shareFallback: "Mira este testimonio en video en Hyper to Be Free.",
+    shareLinkCopied: "Enlace copiado.",
+    noVideosTitle: "Aún no hay videos",
+    noVideosBody:
+      "Los testimonios en video aprobados aparecerán aquí después de la revisión.",
+    moreOptions: "Más opciones de video",
+    exitBeStill: "Toca para salir del modo quietud",
+    amen: "Amen",
+    prayNow: "Orar ahora",
+    praise: "Alabanza",
+    respond: "Responder",
+    replyEyebrow: "Responde con ánimo",
+    replyTitle: "Enviar un mensaje",
+    closeResponseBox: "Cerrar respuesta",
+    replyPlaceholder: "Escribe una respuesta amable, oración o ánimo...",
+    sending: "Enviando...",
+    sendResponse: "Enviar respuesta",
+    reportEyebrow: "Reportar video",
+    reportTitle: "Enviar a revisión",
+    reportBody:
+      "Los reportes ayudan a cuidar HTBF. Esto no quita el video automáticamente, pero lo envía a la cola de revisión del administrador.",
+    closeReportBox: "Cerrar reporte",
+    reportQuestion: "¿Por qué reportas esto?",
+    reportDetailsLabel: "Detalles, opcional",
+    reportDetailsPlaceholder:
+      "Agrega cualquier detalle que pueda ayudar al moderador...",
+    submitting: "Enviando...",
+    submitReport: "Enviar reporte",
+    videoOptions: "Opciones de video",
+    beStillMode: "Modo quietud",
+    playbackSpeed: "Velocidad",
+    language: "Idioma",
+    captionsComingSoon: "Subtítulos próximamente",
+    share: "Compartir",
+    report: "Reportar",
+    removeVideo: "Quitar video",
+    loadingVideo: "Cargando video",
+    playVideo: "Reproducir video",
+    pauseVideo: "Pausar video",
+    turnSoundOff: "Apagar sonido",
+    turnSoundOn: "Activar sonido",
+    zoom: "Zoom",
+    showVideoDetails: "Mostrar detalles del video",
+    hideVideoDetails: "Ocultar detalles del video",
+    community: "Comunidad HTBF",
+    videoTestimony: "Testimonio en video",
+    sharedBy: "Compartido por",
+    prayerCircle: "Círculo de oración",
+    personPraying: "1 persona orando",
+    peoplePraying: "personas orando",
+    more: "Más",
+    videoDetails: "Detalles del video",
+    closeVideoDetails: "Cerrar detalles del video",
+    languageSelected: "Español seleccionado.",
+    testimonyTranslationComingSoon:
+      "La traducción de testimonios llegará pronto.",
+  },
+};
+
+const reportReasons: {
+  labels: Record<VideoLanguage, string>;
+  value: ReportReason;
+}[] = [
+  {
+    labels: {
+      english: "Inappropriate content",
+      spanish: "Contenido inapropiado",
+    },
+    value: "inappropriate",
+  },
+  {
+    labels: { english: "Harassment or hate", spanish: "Acoso u odio" },
+    value: "harassment_hate",
+  },
+  {
+    labels: {
+      english: "Violence or harmful content",
+      spanish: "Violencia o contenido dañino",
+    },
+    value: "violence_harm",
+  },
+  {
+    labels: { english: "Sexual content", spanish: "Contenido sexual" },
+    value: "sexual_content",
+  },
+  {
+    labels: { english: "Spam or scam", spanish: "Spam o estafa" },
+    value: "spam_scam",
+  },
+  {
+    labels: { english: "Copyright issue", spanish: "Problema de copyright" },
+    value: "copyright",
+  },
+  {
+    labels: { english: "Privacy concern", spanish: "Privacidad" },
+    value: "privacy",
+  },
+  {
+    labels: {
+      english: "Not aligned with HTBF community",
+      spanish: "No alineado con la comunidad HTBF",
+    },
+    value: "not_aligned",
+  },
+  { labels: { english: "Other", spanish: "Otro" }, value: "other" },
 ];
 
 const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+const languageOptions: { label: string; value: VideoLanguage }[] = [
+  { label: "Español", value: "spanish" },
+  { label: "English", value: "english" },
+];
 
 export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
@@ -110,8 +388,11 @@ export default function VideoFeedPage() {
 
   const [soundOn, setSoundOn] = useState(false);
   const [beStillMode, setBeStillMode] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [optionsStoryId, setOptionsStoryId] = useState<string | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [selectedLanguage, setSelectedLanguage] =
+    useState<VideoLanguage>("english");
+  const copy = videoFeedCopy[selectedLanguage];
 
   useEffect(() => {
     if (!message) return;
@@ -210,7 +491,9 @@ export default function VideoFeedPage() {
       .limit(15);
 
     if (error || !data) {
-      setMessage(`Could not load videos: ${error?.message ?? "Unknown error"}`);
+      setMessage(
+        `${copy.loadVideosError}: ${error?.message ?? copy.unknownError}`
+      );
       return;
     }
 
@@ -316,7 +599,7 @@ export default function VideoFeedPage() {
     setMessage("");
 
     if (!userId) {
-      setMessage("Please sign in to react.");
+      setMessage(copy.signInToReact);
       return;
     }
 
@@ -332,7 +615,7 @@ export default function VideoFeedPage() {
         .eq("reaction_type", reactionType);
 
       if (error) {
-        setMessage(`Could not remove reaction: ${error.message}`);
+        setMessage(`${copy.reactionRemoveError}: ${error.message}`);
         return;
       }
 
@@ -347,7 +630,7 @@ export default function VideoFeedPage() {
     });
 
     if (error) {
-      setMessage(`Could not add reaction: ${error.message}`);
+      setMessage(`${copy.reactionAddError}: ${error.message}`);
       return;
     }
 
@@ -389,14 +672,14 @@ export default function VideoFeedPage() {
 
   async function sendVideoReply() {
     if (!userId || !replyStory) {
-      setMessage("Please sign in to respond.");
+      setMessage(copy.signInToRespond);
       return;
     }
 
     const cleanReply = replyText.trim();
 
     if (!cleanReply) {
-      setMessage("Please write a response first.");
+      setMessage(copy.writeResponseFirst);
       return;
     }
 
@@ -411,7 +694,7 @@ export default function VideoFeedPage() {
     });
 
     if (error) {
-      setMessage(`Could not send response: ${error.message}`);
+      setMessage(`${copy.sendResponseError}: ${error.message}`);
       setSendingReply(false);
       return;
     }
@@ -430,25 +713,23 @@ export default function VideoFeedPage() {
     setReplyText("");
     setReplyStory(null);
     setSendingReply(false);
-    setMessage("Response sent.");
+    setMessage(copy.responseSent);
   }
 
   async function removeMyVideo(story: VideoStory) {
     setMessage("");
 
     if (!userId) {
-      setMessage("Please sign in to remove your video.");
+      setMessage(copy.signInToRemove);
       return;
     }
 
     if (story.user_id !== userId) {
-      setMessage("You can only remove your own videos.");
+      setMessage(copy.removeOwnVideoOnly);
       return;
     }
 
-    const confirmed = window.confirm(
-      "Remove this video from HTBF? It will no longer appear in the video feed, search, or your public posts."
-    );
+    const confirmed = window.confirm(copy.removeVideoConfirm);
 
     if (!confirmed) return;
 
@@ -457,7 +738,7 @@ export default function VideoFeedPage() {
     });
 
     if (error) {
-      setMessage(`Could not remove video: ${error.message}`);
+      setMessage(`${copy.removeVideoError}: ${error.message}`);
       return;
     }
 
@@ -474,7 +755,7 @@ export default function VideoFeedPage() {
       setReplyText("");
     }
 
-    setMessage("Video removed from public view.");
+    setMessage(copy.videoRemoved);
   }
 
   function openReportModal(story: VideoStory) {
@@ -486,7 +767,7 @@ export default function VideoFeedPage() {
 
   async function submitReport() {
     if (!userId || !reportStory) {
-      setMessage("Please sign in to report a video.");
+      setMessage(copy.signInToReport);
       return;
     }
 
@@ -507,29 +788,29 @@ export default function VideoFeedPage() {
     setSendingReport(false);
 
     if (error) {
-      setMessage(`Could not submit report: ${error.message}`);
+      setMessage(`${copy.reportSubmitError}: ${error.message}`);
       return;
     }
 
     setReportStory(null);
     setReportReason("inappropriate");
     setReportDetails("");
-    setMessage("Report submitted. Thank you for helping keep HTBF safe.");
+    setMessage(copy.reportSubmitted);
   }
 
   async function shareStory(story: VideoStory) {
     setMessage("");
 
     const shareText = story.story_text
-      ? `Watch this video testimony: ${story.story_text.slice(0, 140)}`
-      : "Watch this video testimony on Hyper to Be Free.";
+      ? `${copy.shareWithTextPrefix}: ${story.story_text.slice(0, 140)}`
+      : copy.shareFallback;
 
     const shareUrl = `${window.location.origin}/video-feed?story=${story.id}&from=share`;
 
     try {
       if (navigator.share) {
         await navigator.share({
-          title: "HTBF Video Testimony",
+          title: copy.shareTitle,
           text: shareText,
           url: shareUrl,
         });
@@ -537,7 +818,7 @@ export default function VideoFeedPage() {
       }
 
       await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
-      setMessage("Share link copied.");
+      setMessage(copy.shareLinkCopied);
     } catch (error) {
       console.error("Share failed:", error);
     }
@@ -547,7 +828,7 @@ export default function VideoFeedPage() {
     return (
       <main className="min-h-screen bg-black px-6 py-12 text-white">
         <div className="mx-auto max-w-3xl rounded-[2rem] bg-white/10 p-8">
-          Loading video feed...
+          {copy.loadingFeed}
         </div>
       </main>
     );
@@ -560,7 +841,7 @@ export default function VideoFeedPage() {
           <Link
             href="/search"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
-            aria-label="Back to search"
+            aria-label={copy.backToSearch}
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
@@ -577,9 +858,9 @@ export default function VideoFeedPage() {
         <div className="flex min-h-[100dvh] items-center justify-center px-6 text-center">
           <div>
             <Video className="mx-auto mb-4 h-10 w-10 text-white/70" />
-            <div className="text-xl font-black">No videos yet</div>
+            <div className="text-xl font-black">{copy.noVideosTitle}</div>
             <p className="mt-2 text-sm text-white/60">
-              Approved video testimonies will appear here after review.
+              {copy.noVideosBody}
             </p>
           </div>
         </div>
@@ -602,6 +883,7 @@ export default function VideoFeedPage() {
                   eagerLoad={index === 0}
                   beStillMode={beStillMode}
                   playbackRate={playbackRate}
+                  copy={copy}
                 />
 
                 {!beStillMode && (
@@ -609,44 +891,58 @@ export default function VideoFeedPage() {
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      setOptionsOpen((current) => !current);
+                      setOptionsStoryId((currentStoryId) =>
+                        currentStoryId === story.id ? null : story.id
+                      );
                     }}
                     className="absolute right-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
-                    aria-label="More video options"
+                    aria-label={copy.moreOptions}
                   >
                     <MoreVertical className="h-5 w-5" />
                   </button>
                 )}
 
-                {optionsOpen && !beStillMode && (
+                {optionsStoryId === story.id && !beStillMode && (
                   <VideoOptionsMenu
                     isOwner={isOwner}
                     playbackRate={playbackRate}
                     setPlaybackRate={setPlaybackRate}
+                    selectedLanguage={selectedLanguage}
+                    onLanguageSelect={(language) => {
+                      const nextCopy = videoFeedCopy[language];
+
+                      setSelectedLanguage(language);
+                      setMessage(
+                        language === "spanish"
+                          ? `${nextCopy.languageSelected} ${nextCopy.testimonyTranslationComingSoon}`
+                          : nextCopy.languageSelected
+                      );
+                    }}
+                    copy={copy}
                     onBeStill={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       setBeStillMode(true);
                     }}
                     onShare={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       shareStory(story);
                     }}
                     onReport={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       openReportModal(story);
                     }}
                     onRemove={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       removeMyVideo(story);
                     }}
-                    onClose={() => setOptionsOpen(false)}
+                    onClose={() => setOptionsStoryId(null)}
                   />
                 )}
 
                 {!beStillMode && (
                   <div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col items-center gap-3">
                     <VideoActionButton
-                      label="Amen"
+                      label={copy.amen}
                       count={story.reaction_counts.amen}
                       active={story.user_reactions.includes("amen")}
                       onClick={() => toggleReaction(story.id, "amen")}
@@ -654,7 +950,7 @@ export default function VideoFeedPage() {
                     />
 
                     <VideoActionButton
-                      label="Pray Now"
+                      label={copy.prayNow}
                       count={story.reaction_counts.praying}
                       active={story.user_reactions.includes("praying")}
                       onClick={() => toggleReaction(story.id, "praying")}
@@ -662,7 +958,7 @@ export default function VideoFeedPage() {
                     />
 
                     <VideoActionButton
-                      label="Praise"
+                      label={copy.praise}
                       count={story.reaction_counts.praise_god}
                       active={story.user_reactions.includes("praise_god")}
                       onClick={() => toggleReaction(story.id, "praise_god")}
@@ -670,7 +966,7 @@ export default function VideoFeedPage() {
                     />
 
                     <VideoActionButton
-                      label="Respond"
+                      label={copy.respond}
                       count={story.reply_count}
                       active={false}
                       onClick={() => {
@@ -683,7 +979,7 @@ export default function VideoFeedPage() {
                   </div>
                 )}
 
-                {!beStillMode && <VideoInfoOverlay story={story} />}
+                {!beStillMode && <VideoInfoOverlay story={story} copy={copy} />}
 
                 {beStillMode && (
                   <button
@@ -691,7 +987,7 @@ export default function VideoFeedPage() {
                     onClick={() => setBeStillMode(false)}
                     className="absolute bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-black/35 px-4 py-2 text-xs font-black text-white/80 backdrop-blur"
                   >
-                    Tap to Exit Be Still Mode
+                    {copy.exitBeStill}
                   </button>
                 )}
               </article>
@@ -706,11 +1002,11 @@ export default function VideoFeedPage() {
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  Respond with encouragement
+                  {copy.replyEyebrow}
                 </div>
 
                 <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  Send a message
+                  {copy.replyTitle}
                 </h2>
               </div>
 
@@ -721,7 +1017,7 @@ export default function VideoFeedPage() {
                   setReplyText("");
                 }}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label="Close response box"
+                aria-label={copy.closeResponseBox}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -731,7 +1027,7 @@ export default function VideoFeedPage() {
               value={replyText}
               onChange={(event) => setReplyText(event.target.value)}
               rows={5}
-              placeholder="Write a kind response, prayer, or encouragement..."
+              placeholder={copy.replyPlaceholder}
               className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
             />
 
@@ -741,7 +1037,7 @@ export default function VideoFeedPage() {
               onClick={sendVideoReply}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {sendingReply ? "Sending..." : "Send Response"}
+              {sendingReply ? copy.sending : copy.sendResponse}
               <Send className="h-4 w-4" />
             </button>
           </div>
@@ -754,16 +1050,15 @@ export default function VideoFeedPage() {
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-red-600">
-                  Report Video
+                  {copy.reportEyebrow}
                 </div>
 
                 <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  Flag for moderator review
+                  {copy.reportTitle}
                 </h2>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Reports help keep HTBF safe. This does not automatically
-                  remove the video, but it sends it to the admin review queue.
+                  {copy.reportBody}
                 </p>
               </div>
 
@@ -775,7 +1070,7 @@ export default function VideoFeedPage() {
                   setReportDetails("");
                 }}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label="Close report box"
+                aria-label={copy.closeReportBox}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -783,7 +1078,7 @@ export default function VideoFeedPage() {
 
             <label className="block">
               <div className="mb-2 text-sm font-black text-[#062a57]">
-                Why are you reporting this?
+                {copy.reportQuestion}
               </div>
 
               <select
@@ -795,7 +1090,7 @@ export default function VideoFeedPage() {
               >
                 {reportReasons.map((reason) => (
                   <option key={reason.value} value={reason.value}>
-                    {reason.label}
+                    {reason.labels[selectedLanguage]}
                   </option>
                 ))}
               </select>
@@ -803,14 +1098,14 @@ export default function VideoFeedPage() {
 
             <label className="mt-4 block">
               <div className="mb-2 text-sm font-black text-[#062a57]">
-                Details, optional
+                {copy.reportDetailsLabel}
               </div>
 
               <textarea
                 value={reportDetails}
                 onChange={(event) => setReportDetails(event.target.value)}
                 rows={4}
-                placeholder="Add any details that may help the moderator..."
+                placeholder={copy.reportDetailsPlaceholder}
                 className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
               />
             </label>
@@ -821,7 +1116,7 @@ export default function VideoFeedPage() {
               onClick={submitReport}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-base font-black text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {sendingReport ? "Submitting..." : "Submit Report"}
+              {sendingReport ? copy.submitting : copy.submitReport}
               <Flag className="h-4 w-4" />
             </button>
           </div>
@@ -835,6 +1130,9 @@ function VideoOptionsMenu({
   isOwner,
   playbackRate,
   setPlaybackRate,
+  selectedLanguage,
+  onLanguageSelect,
+  copy,
   onBeStill,
   onShare,
   onReport,
@@ -844,6 +1142,9 @@ function VideoOptionsMenu({
   isOwner: boolean;
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
+  selectedLanguage: VideoLanguage;
+  onLanguageSelect: (language: VideoLanguage) => void;
+  copy: VideoFeedCopy;
   onBeStill: () => void;
   onShare: () => void;
   onReport: () => void;
@@ -856,7 +1157,9 @@ function VideoOptionsMenu({
       className="absolute right-4 top-16 z-[70] w-72 rounded-[2rem] bg-white/95 p-4 text-slate-900 shadow-2xl ring-1 ring-slate-200 backdrop-blur"
     >
       <div className="mb-3 flex items-center justify-between">
-        <div className="text-sm font-black text-[#062a57]">Video Options</div>
+        <div className="text-sm font-black text-[#062a57]">
+          {copy.videoOptions}
+        </div>
 
         <button
           type="button"
@@ -873,12 +1176,12 @@ function VideoOptionsMenu({
         className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
       >
         <EyeOff className="h-4 w-4" />
-        Be Still Mode
+        {copy.beStillMode}
       </button>
 
       <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
         <Gauge className="h-4 w-4" />
-        Playback Speed
+        {copy.playbackSpeed}
       </div>
 
       <div className="mb-3 grid grid-cols-3 gap-2">
@@ -898,13 +1201,36 @@ function VideoOptionsMenu({
         ))}
       </div>
 
+      <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+        <Globe2 className="h-4 w-4" />
+        {copy.language}
+      </div>
+
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        {languageOptions.map((language) => (
+          <button
+            key={language.value}
+            type="button"
+            onClick={() => onLanguageSelect(language.value)}
+            aria-pressed={selectedLanguage === language.value}
+            className={`rounded-xl px-2 py-2 text-xs font-black ${
+              selectedLanguage === language.value
+                ? "bg-[#0b63ce] text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+            }`}
+          >
+            {language.label}
+          </button>
+        ))}
+      </div>
+
       <button
         type="button"
         disabled
         className="mb-3 flex w-full cursor-not-allowed items-center gap-2 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-400"
       >
         <Captions className="h-4 w-4" />
-        Captions coming soon
+        {copy.captionsComingSoon}
       </button>
 
       <button
@@ -913,7 +1239,7 @@ function VideoOptionsMenu({
         className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
       >
         <Share2 className="h-4 w-4" />
-        Share
+        {copy.share}
       </button>
 
       <button
@@ -922,7 +1248,7 @@ function VideoOptionsMenu({
         className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-red-50 px-3 py-3 text-sm font-black text-red-700 hover:bg-red-100"
       >
         <Flag className="h-4 w-4" />
-        Report
+        {copy.report}
       </button>
 
       {isOwner && (
@@ -932,7 +1258,7 @@ function VideoOptionsMenu({
           className="flex w-full items-center gap-2 rounded-2xl bg-red-600 px-3 py-3 text-sm font-black text-white hover:bg-red-700"
         >
           <Trash2 className="h-4 w-4" />
-          Remove Video
+          {copy.removeVideo}
         </button>
       )}
     </div>
@@ -946,6 +1272,7 @@ function AutoPlayReelVideo({
   eagerLoad,
   beStillMode,
   playbackRate,
+  copy,
 }: {
   videoUrl: string;
   soundOn: boolean;
@@ -953,6 +1280,7 @@ function AutoPlayReelVideo({
   eagerLoad: boolean;
   beStillMode: boolean;
   playbackRate: number;
+  copy: VideoFeedCopy;
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1338,7 +1666,7 @@ function AutoPlayReelVideo({
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
-          Loading video
+          {copy.loadingVideo}
         </div>
       )}
 
@@ -1353,7 +1681,7 @@ function AutoPlayReelVideo({
                 togglePlayButton();
               }}
               className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900 shadow-md"
-              aria-label={paused ? "Play video" : "Pause video"}
+              aria-label={paused ? copy.playVideo : copy.pauseVideo}
             >
               {paused ? (
                 <Play className="h-6 w-6 fill-slate-900" />
@@ -1370,7 +1698,7 @@ function AutoPlayReelVideo({
                 toggleSound();
               }}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md"
-              aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
+              aria-label={soundOn ? copy.turnSoundOff : copy.turnSoundOn}
             >
               {soundOn ? (
                 <Volume2 className="h-5 w-5" />
@@ -1384,14 +1712,20 @@ function AutoPlayReelVideo({
 
       {zoomScale > 1 && (
         <div className="pointer-events-none absolute left-1/2 top-6 z-40 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-xs font-black text-white backdrop-blur">
-          Zoom {zoomScale.toFixed(1)}x
+          {copy.zoom} {zoomScale.toFixed(1)}x
         </div>
       )}
     </div>
   );
 }
 
-function VideoInfoOverlay({ story }: { story: VideoStory }) {
+function VideoInfoOverlay({
+  story,
+  copy,
+}: {
+  story: VideoStory;
+  copy: VideoFeedCopy;
+}) {
   const [hidden, setHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -1409,8 +1743,8 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
           setHidden(false);
         }}
         className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
-        aria-label="Show video details"
-        title="Show video details"
+        aria-label={copy.showVideoDetails}
+        title={copy.showVideoDetails}
       >
         <Eye className="h-4 w-4" />
       </button>
@@ -1428,35 +1762,23 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
             setHidden(true);
           }}
           className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
-          aria-label="Hide video details"
-          title="Hide video details"
+          aria-label={copy.hideVideoDetails}
+          title={copy.hideVideoDetails}
         >
           <EyeOff className="h-4 w-4" />
         </button>
-     
-<div className="pointer-events-none max-w-full overflow-hidden">
-  {story.reaction_counts.praying > 0 && (
-    <div className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs font-black text-white shadow-md ring-1 ring-white/15 backdrop-blur">
-      <HandHeart className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">
-        Prayer Circle ·{" "}
-        {story.reaction_counts.praying === 1
-          ? "1 person praying"
-          : `${story.reaction_counts.praying} people praying`}
-      </span>
-    </div>
-  )}
 
-  <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
-    <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-    <span className="min-w-0 truncate">
-      {story.location || "HTBF Community"}
-    </span>
-  </div>
+        <div className="pointer-events-none max-w-full overflow-hidden">
+          <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
+            <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
+            <span className="min-w-0 truncate">
+              {story.location || copy.community}
+            </span>
+          </div>
 
-  <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
-    {story.story_type || "Video Testimony"}
-  </div>
+          <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
+            {story.story_type || copy.videoTestimony}
+          </div>
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
@@ -1475,16 +1797,26 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
                 {storyText}
               </h1>
 
-             {isLongText && !expanded && (
-  <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-black/35 to-transparent" />
-)}
+              {isLongText && (
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
+              )}
             </div>
           )}
 
           {story.name && (
             <p className="mt-1.5 max-w-full truncate text-xs font-bold text-white/70 md:text-sm">
-              Shared by {story.name}
+              {copy.sharedBy} {story.name}
             </p>
+          )}
+
+          {story.reaction_counts.praying > 0 && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
+              <HandHeart className="h-3.5 w-3.5" />
+              {copy.prayerCircle} ·{" "}
+              {story.reaction_counts.praying === 1
+                ? copy.personPraying
+                : `${story.reaction_counts.praying} ${copy.peoplePraying}`}
+            </div>
           )}
         </div>
 
@@ -1498,7 +1830,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
             }}
             className="mt-2 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-slate-900 shadow-md backdrop-blur md:text-xs"
           >
-            More
+            {copy.more}
           </button>
         )}
       </div>
@@ -1509,11 +1841,11 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  {story.story_type || "Video Testimony"}
+                  {story.story_type || copy.videoTestimony}
                 </div>
 
                 <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  Video Details
+                  {copy.videoDetails}
                 </h2>
               </div>
 
@@ -1521,7 +1853,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
                 type="button"
                 onClick={() => setExpanded(false)}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label="Close video details"
+                aria-label={copy.closeVideoDetails}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1530,7 +1862,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
             <div className="max-h-[55dvh] overflow-y-auto p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
                 <Globe2 className="h-4 w-4" />
-                {story.location || "HTBF Community"}
+                {story.location || copy.community}
               </div>
 
               <p
@@ -1545,7 +1877,7 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
 
               {story.name && (
                 <p className="mt-5 text-sm font-bold text-slate-500">
-                  Shared by {story.name}
+                  {copy.sharedBy} {story.name}
                 </p>
               )}
             </div>
