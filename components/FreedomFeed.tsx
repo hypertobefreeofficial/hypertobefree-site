@@ -734,7 +734,7 @@ export default function FreedomFeed({
     setPhotoViewerStory((currentStory) => {
       if (!currentStory || currentStory.id !== story.id) return currentStory;
 
-      const nextReactions = alreadyPraying
+      const nextReactions: ReactionType[] = alreadyPraying
         ? currentStory.user_reactions.filter((reaction) => reaction !== "praying")
         : [...currentStory.user_reactions, "praying"];
 
