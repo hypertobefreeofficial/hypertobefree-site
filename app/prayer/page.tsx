@@ -104,6 +104,8 @@ export default function PrayerPage() {
   const [answeringStory, setAnsweringStory] = useState<PrayerStory | null>(
     null
   );
+  const [prayerMomentStory, setPrayerMomentStory] =
+    useState<PrayerStory | null>(null);
   const [answeredPrayerText, setAnsweredPrayerText] = useState("");
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
@@ -336,12 +338,17 @@ export default function PrayerPage() {
     );
   }
 
-  async function toggleReaction(storyId: string, reactionType: ReactionType) {
+  async function toggleReaction(
+    storyId: string,
+    reactionType: ReactionType,
+    options: { showPrayingMessage?: boolean } = {}
+  ): Promise<"added" | "removed" | "blocked" | "error"> {
+    const { showPrayingMessage = true } = options;
     setMessage("");
 
     if (!userId) {
       setMessage("Please sign in to respond to prayer requests.");
-      return;
+      return "blocked";
     }
 
     const story = stories.find((item) => item.id === storyId);
@@ -357,11 +364,11 @@ export default function PrayerPage() {
 
       if (error) {
         setMessage(`Could not update response: ${error.message}`);
-        return;
+        return "error";
       }
 
       updateLocalReaction(storyId, reactionType, "remove");
-      return;
+      return "removed";
     }
 
     const { error } = await supabase.from("story_reactions").insert({
@@ -372,13 +379,26 @@ export default function PrayerPage() {
 
     if (error) {
       setMessage(`Could not update response: ${error.message}`);
-      return;
+      return "error";
     }
 
     updateLocalReaction(storyId, reactionType, "add");
 
-    if (reactionType === "praying") {
+    if (reactionType === "praying" && showPrayingMessage) {
       setMessage("You joined the Prayer Circle.");
+    }
+
+    return "added";
+  }
+
+  async function handlePrayNow(story: PrayerStory) {
+    const alreadyPraying = story.user_reactions.includes("praying");
+    const result = await toggleReaction(story.id, "praying", {
+      showPrayingMessage: alreadyPraying,
+    });
+
+    if (!alreadyPraying && result === "added") {
+      setPrayerMomentStory(story);
     }
   }
 
@@ -504,7 +524,7 @@ export default function PrayerPage() {
         <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100 ring-1 ring-white/15">
             <Sparkles className="h-4 w-4" />
-            Prayer Room
+            PRAYER ROOM
           </div>
 
           <h1 className="mt-4 max-w-2xl text-4xl font-black leading-tight tracking-tight sm:text-5xl">
@@ -649,7 +669,7 @@ export default function PrayerPage() {
                     key={story.id}
                     story={story}
                     owner={isOriginalPoster(story)}
-                    onPray={() => toggleReaction(story.id, "praying")}
+                    onPray={() => handlePrayNow(story)}
                     onEncourage={() => toggleReaction(story.id, "encouraged")}
                     onShare={() => shareStory(story)}
                     onGodDidIt={() => {
@@ -664,6 +684,35 @@ export default function PrayerPage() {
           )}
         </section>
       </div>
+
+      {prayerMomentStory && (
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-[2rem] bg-white p-5 shadow-2xl">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+              PRAYER MOMENT
+            </div>
+
+            <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
+              Take 15 seconds to pray
+            </h3>
+
+            <p className="mt-3 rounded-2xl bg-blue-50 p-4 text-base font-bold leading-7 text-[#082f63] ring-1 ring-blue-100">
+              Lord, strengthen this person and remind them they are not alone.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPrayerMomentStory(null);
+                setMessage("You joined the Prayer Circle.");
+              }}
+              className="mt-5 flex w-full items-center justify-center rounded-2xl bg-[#0b63ce] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084f9f]"
+            >
+              I Prayed
+            </button>
+          </div>
+        </div>
+      )}
 
       {answeringStory && (
         <div className="fixed inset-0 z-50 flex items-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
