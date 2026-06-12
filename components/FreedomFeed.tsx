@@ -37,6 +37,7 @@ type ApprovedStory = {
   story_type: string | null;
   story_text: string | null;
   image_url: string | null;
+  signed_image_url: string | null;
   video_url: string | null;
   signed_video_url: string | null;
   status: string | null;
@@ -52,6 +53,8 @@ type ApprovedStory = {
   };
   user_reactions: ReactionType[];
 };
+
+const STORY_IMAGE_BUCKET = "story-images";
 
 export default function FreedomFeed({
   defaultFilter = "all",
@@ -169,6 +172,22 @@ export default function FreedomFeed({
     return videoUrl;
   }
 
+  function getPhotoStoragePath(imageUrl: string) {
+    if (!imageUrl) return null;
+
+    if (imageUrl.startsWith("http")) {
+      return null;
+    }
+
+    if (imageUrl.includes(`${STORY_IMAGE_BUCKET}/`)) {
+      const afterBucket = imageUrl.split(`${STORY_IMAGE_BUCKET}/`)[1];
+      const pathOnly = afterBucket.split("?")[0];
+      return decodeURIComponent(pathOnly);
+    }
+
+    return imageUrl;
+  }
+
   function isPrayerStory(story: ApprovedStory) {
     return story.story_type?.toLowerCase().includes("prayer") ?? false;
   }
@@ -207,7 +226,27 @@ export default function FreedomFeed({
 
     const updatedStories: ApprovedStory[] = await Promise.all(
       data.map(async (story) => {
+        let signedImageUrl: string | null = null;
         let signedVideoUrl: string | null = null;
+
+        if (story.image_url) {
+          const storagePath = getPhotoStoragePath(story.image_url);
+
+          if (storagePath) {
+            const { data: signedData, error: signedError } =
+              await supabase.storage
+                .from(STORY_IMAGE_BUCKET)
+                .createSignedUrl(storagePath, 60 * 60);
+
+            if (signedError) {
+              console.error("Could not create signed photo URL:", signedError);
+            }
+
+            signedImageUrl = signedData?.signedUrl ?? null;
+          } else if (story.image_url.startsWith("http")) {
+            signedImageUrl = story.image_url;
+          }
+        }
 
         if (story.video_url) {
           const storagePath = getVideoStoragePath(story.video_url);
@@ -251,6 +290,7 @@ export default function FreedomFeed({
           story_type: story.story_type,
           story_text: story.story_text,
           image_url: story.image_url,
+          signed_image_url: signedImageUrl,
           video_url: story.video_url,
           signed_video_url: signedVideoUrl,
           status: story.status,
@@ -678,10 +718,10 @@ export default function FreedomFeed({
                       </div>
                     </div>
 
-                    {story.image_url && (
+                    {story.signed_image_url && (
                       <div className="mt-4 max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200">
                         <img
-                          src={story.image_url}
+                          src={story.signed_image_url}
                           alt={story.story_type || "HTBF photo story"}
                           className="block max-h-[560px] w-full max-w-full object-cover"
                         />
