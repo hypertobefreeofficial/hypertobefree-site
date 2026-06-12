@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -20,6 +20,18 @@ import { supabase } from "../../lib/supabaseClient";
 
 const ADMIN_EMAIL = "hypertobefree@gmail.com";
 
+const storyFilters: { label: string; value: StoryFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
+  { label: "Approved", value: "approved" },
+  { label: "Removed", value: "removed" },
+  { label: "Videos", value: "videos" },
+  { label: "Photos", value: "photos" },
+  { label: "Prayer", value: "prayer" },
+  { label: "Testimonies", value: "testimonies" },
+  { label: "Praise", value: "praise" },
+];
+
 type Story = {
   id: string;
   user_id: string | null;
@@ -28,10 +40,23 @@ type Story = {
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  image_url: string | null;
   video_url: string | null;
+  thumbnail_url: string | null;
   status: string | null;
   created_at: string | null;
 };
+
+type StoryFilter =
+  | "all"
+  | "pending"
+  | "approved"
+  | "removed"
+  | "videos"
+  | "photos"
+  | "prayer"
+  | "testimonies"
+  | "praise";
 
 type ContentReport = {
   id: string;
@@ -67,9 +92,15 @@ export default function AdminPage() {
   const [deletionRequests, setDeletionRequests] = useState<
     AccountDeletionRequest[]
   >([]);
+  const [storyImageUrls, setStoryImageUrls] = useState<Record<string, string>>(
+    {}
+  );
   const [loading, setLoading] = useState(true);
   const [notAllowed, setNotAllowed] = useState(false);
   const [message, setMessage] = useState("");
+  const [activeFilter, setActiveFilter] = useState<StoryFilter>("pending");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [expandedStoryId, setExpandedStoryId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAdminPage();
@@ -105,7 +136,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, email, location, story_type, story_text, video_url, status, created_at"
+        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, created_at"
       )
       .order("created_at", { ascending: false });
 
@@ -114,7 +145,10 @@ export default function AdminPage() {
       return;
     }
 
-    setStories((data as Story[]) ?? []);
+    const loadedStories = (data as Story[]) ?? [];
+
+    setStories(loadedStories);
+    void loadStoryImageUrls(loadedStories);
   }
 
   async function loadReports() {
@@ -144,7 +178,7 @@ export default function AdminPage() {
     const { data: storyData, error: storyError } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, email, location, story_type, story_text, video_url, status, created_at"
+        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, created_at"
       )
       .in("id", storyIds);
 
@@ -193,6 +227,50 @@ export default function AdminPage() {
       "_blank",
       "noopener,noreferrer"
     );
+  }
+
+  function getStoryImageStoragePath(imageUrl: string | null) {
+    if (!imageUrl) return null;
+
+    if (imageUrl.includes("story-images/")) {
+      const afterBucket = imageUrl.split("story-images/")[1];
+      const pathOnly = afterBucket.split("?")[0];
+
+      return decodeURIComponent(pathOnly);
+    }
+
+    if (imageUrl.startsWith("http")) return null;
+
+    return imageUrl;
+  }
+
+  async function loadStoryImageUrls(loadedStories: Story[]) {
+    const nextImageUrls: Record<string, string> = {};
+
+    await Promise.all(
+      loadedStories.map(async (story) => {
+        if (!story.image_url) return;
+
+        if (story.image_url.startsWith("http")) {
+          nextImageUrls[story.id] = story.image_url;
+          return;
+        }
+
+        const storagePath = getStoryImageStoragePath(story.image_url);
+
+        if (!storagePath) return;
+
+        const { data, error } = await supabase.storage
+          .from("story-images")
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          nextImageUrls[story.id] = data.signedUrl;
+        }
+      })
+    );
+
+    setStoryImageUrls(nextImageUrls);
   }
 
   async function createApprovalInboxMessage(story: Story | null | undefined) {
@@ -510,13 +588,145 @@ export default function AdminPage() {
     return "bg-amber-50 text-amber-700";
   }
 
-  const openReports = reports.filter(
-    (report) => report.status === "open" || report.status === "reviewing"
+  function isPendingStatus(status: string | null) {
+    return !status || status === "pending" || status === "submitted" || status === "needs_review";
+  }
+
+  function storyHasVideo(story: Story) {
+    return Boolean(story.video_url);
+  }
+
+  function storyHasPhoto(story: Story) {
+    return Boolean(story.image_url || story.thumbnail_url);
+  }
+
+  function storyMatchesFilter(story: Story, filter: StoryFilter) {
+    const storyType = story.story_type?.toLowerCase() ?? "";
+
+    if (filter === "all") return true;
+    if (filter === "pending") return isPendingStatus(story.status);
+    if (filter === "approved") return story.status === "approved";
+    if (filter === "removed") return story.status === "removed";
+    if (filter === "videos") return storyHasVideo(story);
+    if (filter === "photos") return storyHasPhoto(story);
+    if (filter === "prayer") return storyType.includes("prayer");
+    if (filter === "testimonies") return storyType.includes("testimony");
+    if (filter === "praise") return storyType.includes("praise");
+
+    return true;
+  }
+
+  function storyMatchesSearch(story: Story, search: string) {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    if (!normalizedSearch) return true;
+
+    return [
+      story.name,
+      story.email,
+      story.location,
+      story.story_type,
+      story.story_text,
+      story.id,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearch);
+  }
+
+  const openReports = useMemo(
+    () =>
+      reports.filter(
+        (report) => report.status === "open" || report.status === "reviewing"
+      ),
+    [reports]
   );
 
-  const activeDeletionRequests = deletionRequests.filter(
-    (request) => request.status === "submitted" || request.status === "reviewing"
+  const activeDeletionRequests = useMemo(
+    () =>
+      deletionRequests.filter(
+        (request) =>
+          request.status === "submitted" || request.status === "reviewing"
+      ),
+    [deletionRequests]
   );
+
+  const reportCountsByStory = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    reports.forEach((report) => {
+      if (!report.story_id) return;
+
+      counts.set(report.story_id, (counts.get(report.story_id) ?? 0) + 1);
+    });
+
+    return counts;
+  }, [reports]);
+
+  const adminStats = useMemo(
+    () => ({
+      pendingReview: stories.filter((story) => isPendingStatus(story.status)).length,
+      approved: stories.filter((story) => story.status === "approved").length,
+      removed: stories.filter((story) => story.status === "removed").length,
+      videos: stories.filter(storyHasVideo).length,
+      prayerRequests: stories.filter((story) =>
+        story.story_type?.toLowerCase().includes("prayer")
+      ).length,
+      reportsAndRequests: openReports.length + activeDeletionRequests.length,
+    }),
+    [activeDeletionRequests.length, openReports.length, stories]
+  );
+
+  const filteredStories = useMemo(
+    () =>
+      stories.filter(
+        (story) =>
+          storyMatchesFilter(story, activeFilter) &&
+          storyMatchesSearch(story, searchTerm)
+      ),
+    [activeFilter, searchTerm, stories]
+  );
+
+  const visiblePendingStories = useMemo(
+    () => filteredStories.filter((story) => isPendingStatus(story.status)),
+    [filteredStories]
+  );
+
+  function getStoryReportCount(storyId: string) {
+    return reportCountsByStory.get(storyId) ?? 0;
+  }
+
+  async function copyStoryId(storyId: string) {
+    try {
+      await navigator.clipboard.writeText(storyId);
+      setMessage("Story ID copied.");
+    } catch {
+      setMessage("Could not copy story ID.");
+    }
+  }
+
+  async function approveAllVisiblePending() {
+    if (visiblePendingStories.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Approve ${visiblePendingStories.length} visible pending item${
+        visiblePendingStories.length === 1 ? "" : "s"
+      }? This will make them live on HTBF.`
+    );
+
+    if (!confirmed) return;
+
+    for (const story of visiblePendingStories) {
+      await updateStoryStatus(story.id, "approved");
+    }
+
+    setMessage(
+      `${visiblePendingStories.length} visible pending item${
+        visiblePendingStories.length === 1 ? "" : "s"
+      } approved.`
+    );
+  }
 
   if (loading) {
     return (
@@ -562,373 +772,200 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#f8fbff] text-slate-900">
-      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
         <Link
           href="/dashboard"
-          className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-[#0b63ce] hover:text-[#084f9f]"
+          className="mb-6 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] shadow-sm ring-1 ring-blue-100 hover:bg-blue-50"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
         </Link>
 
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:rounded-[2.5rem] sm:p-8 md:p-12">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-[#0b63ce]">
+        <header className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10 sm:p-8 md:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100 ring-1 ring-white/15">
             <ShieldCheck className="h-4 w-4" />
-            Admin Review
+            ADMIN CONTROL CENTER
           </div>
 
-          <h1 className="text-4xl font-black tracking-tight text-[#062a57] md:text-5xl">
-            Review submitted stories.
+          <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-tight md:text-5xl">
+            Review and manage HTBF content
           </h1>
 
-          <p className="mt-4 leading-7 text-slate-600">
-            Signed in as{" "}
-            <span className="font-bold text-[#0b63ce]">{email}</span>
+          <p className="mt-3 max-w-3xl text-base font-semibold leading-7 text-blue-100">
+            Approve stories, videos, prayer requests, reports, and account
+            requests from one place.
           </p>
 
-          {message && (
-            <div className="mt-6 rounded-2xl bg-blue-50 p-4 text-sm font-semibold leading-6 text-[#082f63]">
-              {message}
-            </div>
-          )}
+          <p className="mt-5 text-sm font-bold text-blue-100">
+            Signed in as <span className="text-white">{email}</span>
+          </p>
+        </header>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-4">
-            <div className="rounded-3xl bg-blue-50 p-5">
-              <div className="flex items-center gap-2 font-black text-[#062a57]">
-                <FileText className="h-5 w-5 text-[#0b63ce]" />
-                Submissions
+        {message && (
+          <div className="mt-5 rounded-[1.5rem] bg-white p-4 text-sm font-bold leading-6 text-[#082f63] shadow-sm ring-1 ring-blue-100">
+            {message}
+          </div>
+        )}
+
+        <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <AdminStatCard
+            icon={<AlertCircle className="h-5 w-5" />}
+            label="Pending Review"
+            value={adminStats.pendingReview}
+          />
+          <AdminStatCard
+            icon={<CheckCircle className="h-5 w-5" />}
+            label="Approved"
+            value={adminStats.approved}
+          />
+          <AdminStatCard
+            icon={<EyeOff className="h-5 w-5" />}
+            label="Removed"
+            value={adminStats.removed}
+          />
+          <AdminStatCard
+            icon={<Video className="h-5 w-5" />}
+            label="Videos"
+            value={adminStats.videos}
+          />
+          <AdminStatCard
+            icon={<FileText className="h-5 w-5" />}
+            label="Prayer Requests"
+            value={adminStats.prayerRequests}
+          />
+          <AdminStatCard
+            icon={<Flag className="h-5 w-5" />}
+            label="Reports / Requests"
+            value={adminStats.reportsAndRequests}
+          />
+        </section>
+
+        <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <AdminNavCard
+            title="Content Review"
+            description={`${adminStats.pendingReview} item${
+              adminStats.pendingReview === 1 ? "" : "s"
+            } waiting`}
+            onClick={() => setActiveFilter("pending")}
+          />
+          <AdminNavCard
+            title="Video Review"
+            description={`${adminStats.videos} video item${
+              adminStats.videos === 1 ? "" : "s"
+            }`}
+            onClick={() => setActiveFilter("videos")}
+          />
+          <AdminNavCard
+            title="Reports"
+            description={`${openReports.length} open`}
+            href="#reports"
+          />
+          <AdminNavCard
+            title="Account Requests"
+            description={`${activeDeletionRequests.length} active`}
+            href="#account-requests"
+          />
+          <AdminNavCard
+            title="Removed Content"
+            description={`${adminStats.removed} removed`}
+            onClick={() => setActiveFilter("removed")}
+          />
+          <AdminNavCard
+            title="Approved Content"
+            description={`${adminStats.approved} live`}
+            onClick={() => setActiveFilter("approved")}
+          />
+        </section>
+
+        <section
+          id="content-review"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                Content Review
               </div>
-
-              <p className="mt-2 text-slate-600">
-                {stories.length} total submission
-                {stories.length === 1 ? "" : "s"} found.
+              <h2 className="mt-1 text-3xl font-black text-[#062a57]">
+                Review queue
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Search, filter, approve, reject, remove, or open media from one
+                focused queue.
               </p>
             </div>
 
-            <div className="rounded-3xl bg-red-50 p-5">
-              <div className="flex items-center gap-2 font-black text-red-800">
-                <Flag className="h-5 w-5 text-red-600" />
-                Open Reports
-              </div>
+            {visiblePendingStories.length > 0 && (
+              <button
+                type="button"
+                onClick={approveAllVisiblePending}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-green-700"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Approve All Visible Pending
+              </button>
+            )}
+          </div>
 
-              <p className="mt-2 text-red-700">
-                {openReports.length} report
-                {openReports.length === 1 ? "" : "s"} need attention.
-              </p>
-            </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+            <label className="block">
+              <span className="sr-only">Search content</span>
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by name, story text, type, or location..."
+                className="w-full rounded-full border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+            </label>
 
-            <div className="rounded-3xl bg-orange-50 p-5">
-              <div className="flex items-center gap-2 font-black text-orange-800">
-                <ShieldAlert className="h-5 w-5 text-orange-600" />
-                Delete Requests
-              </div>
-
-              <p className="mt-2 text-orange-700">
-                {activeDeletionRequests.length} active request
-                {activeDeletionRequests.length === 1 ? "" : "s"}.
-              </p>
-            </div>
-
-            <div className="rounded-3xl bg-slate-50 p-5">
-              <div className="flex items-center gap-2 font-black text-[#062a57]">
-                <Video className="h-5 w-5 text-slate-600" />
-                Total Reports
-              </div>
-
-              <p className="mt-2 text-slate-600">
-                {reports.length} total report
-                {reports.length === 1 ? "" : "s"} recorded.
-              </p>
+            <div className="text-sm font-bold text-slate-500">
+              Showing {filteredStories.length} of {stories.length}
             </div>
           </div>
 
-          <section className="mt-12">
-            <div className="mb-5 flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-orange-600" />
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {storyFilters.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setActiveFilter(filter.value)}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-black transition ${
+                  activeFilter === filter.value
+                    ? "bg-[#0b63ce] text-white shadow-sm"
+                    : "bg-slate-50 text-slate-700 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
 
-              <h2 className="text-2xl font-black text-[#062a57]">
-                Account deletion requests
-              </h2>
-            </div>
-
-            {deletionRequests.length === 0 ? (
-              <div className="rounded-2xl bg-slate-50 p-5 text-slate-600">
-                No account deletion requests yet.
+          <div className="mt-6 grid gap-4">
+            {filteredStories.length === 0 ? (
+              <div className="rounded-[1.5rem] bg-slate-50 p-6 text-center text-sm font-bold text-slate-600">
+                No content matches this view.
               </div>
             ) : (
-              <div className="grid gap-5">
-                {deletionRequests.map((request) => (
+              filteredStories.map((story) => {
+                const reportCount = getStoryReportCount(story.id);
+                const isExpanded = expandedStoryId === story.id;
+                const mediaPreview =
+                  story.thumbnail_url || storyImageUrls[story.id] || null;
+                const previewText =
+                  story.story_text || "No story text available.";
+
+                return (
                   <article
-                    key={request.id}
-                    className="rounded-3xl border border-orange-100 bg-orange-50/60 p-5"
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-orange-700">
-                            Account Deletion
-                          </span>
-
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
-                              request.status
-                            )}`}
-                          >
-                            {statusLabel(request.status)}
-                          </span>
-                        </div>
-
-                        <h3 className="mt-4 text-2xl font-black text-[#062a57]">
-                          {request.email || "Email unavailable"}
-                        </h3>
-
-                        <div className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
-                          <div>Requested {formatDate(request.created_at)}</div>
-                          <div>
-                            User ID:{" "}
-                            <span className="font-semibold">
-                              {request.user_id}
-                            </span>
-                          </div>
-                          {request.reviewed_at && (
-                            <div>
-                              Reviewed {formatDate(request.reviewed_at)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm font-bold text-orange-700">
-                        <ShieldAlert className="h-4 w-4" />
-                        User request
-                      </div>
-                    </div>
-
-                    <div className="mt-5 rounded-2xl bg-white p-5">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-                        User reason
-                      </div>
-
-                      <p className="mt-2 leading-7 text-slate-700">
-                        {request.reason || "No reason provided."}
-                      </p>
-                    </div>
-
-                    {request.admin_notes && (
-                      <div className="mt-4 rounded-2xl bg-slate-100 p-4 text-sm font-semibold leading-6 text-slate-700">
-                        Admin notes: {request.admin_notes}
-                      </div>
-                    )}
-
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                      <button
-                        onClick={() => markDeletionReviewing(request.id)}
-                        disabled={request.status === "completed"}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <AlertCircle className="h-4 w-4" />
-                        Mark Reviewing
-                      </button>
-
-                      <button
-                        onClick={() => completeDeletionRequest(request.id)}
-                        disabled={request.status === "completed"}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Mark Completed
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="mt-12">
-            <div className="mb-5 flex items-center gap-2">
-              <Flag className="h-5 w-5 text-red-600" />
-
-              <h2 className="text-2xl font-black text-[#062a57]">
-                Reported content
-              </h2>
-            </div>
-
-            {reports.length === 0 ? (
-              <div className="rounded-2xl bg-slate-50 p-5 text-slate-600">
-                No reports yet.
-              </div>
-            ) : (
-              <div className="grid gap-5">
-                {reports.map((report) => (
-                  <article
-                    key={report.id}
-                    className="rounded-3xl border border-red-100 bg-red-50/50 p-5"
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-red-700">
-                            {reasonLabel(report.reason)}
-                          </span>
-
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${reportStatusStyle(
-                              report.status
-                            )}`}
-                          >
-                            {statusLabel(report.status)}
-                          </span>
-
-                          {report.story?.status && (
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
-                                report.story.status
-                              )}`}
-                            >
-                              Story: {statusLabel(report.story.status)}
-                            </span>
-                          )}
-                        </div>
-
-                        <h3 className="mt-4 text-2xl font-black text-[#062a57]">
-                          {report.story?.name || "Reported content"}
-                        </h3>
-
-                        <div className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
-                          <div>Reported {formatDate(report.created_at)}</div>
-
-                          <div>
-                            Reporter ID:{" "}
-                            <span className="font-semibold">
-                              {report.reporter_user_id || "Unavailable"}
-                            </span>
-                          </div>
-
-                          <div>
-                            Posted by user ID:{" "}
-                            <span className="font-semibold">
-                              {report.reported_user_id || "Unavailable"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm font-bold text-red-700">
-                        <Flag className="h-4 w-4" />
-                        User report
-                      </div>
-                    </div>
-
-                    <div className="mt-5 rounded-2xl bg-white p-5">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-                        Report details
-                      </div>
-
-                      <p className="mt-2 leading-7 text-slate-700">
-                        {report.details || "No additional details provided."}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 rounded-2xl bg-white p-5">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-                        Reported story
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-                          {report.story?.story_type || "Story"}
-                        </span>
-
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
-                            report.story?.status || null
-                          )}`}
-                        >
-                          {statusLabel(report.story?.status || null)}
-                        </span>
-                      </div>
-
-                      <p className="mt-4 whitespace-pre-line leading-7 text-slate-700">
-                        {report.story?.story_text || "No story text available."}
-                      </p>
-
-                      {report.story?.video_url && (
-                        <button
-                          type="button"
-                          onClick={() => openVideoReviewPage(report.story?.id)}
-                          className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-bold text-white hover:bg-[#084f9f]"
-                        >
-                          <Video className="h-4 w-4" />
-                          Open Video
-                        </button>
-                      )}
-                    </div>
-
-                    {report.admin_notes && (
-                      <div className="mt-4 rounded-2xl bg-slate-100 p-4 text-sm font-semibold leading-6 text-slate-700">
-                        Admin notes: {report.admin_notes}
-                      </div>
-                    )}
-
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                      <button
-                        onClick={() => markReportReviewing(report.id)}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
-                      >
-                        <AlertCircle className="h-4 w-4" />
-                        Mark Reviewing
-                      </button>
-
-                      <button
-                        onClick={() => dismissReport(report.id)}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Dismiss Report
-                      </button>
-
-                      <button
-                        onClick={() => removeReportedContent(report)}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700"
-                      >
-                        <EyeOff className="h-4 w-4" />
-                        Remove Content
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="mt-12">
-            <div className="mb-5 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-[#0b63ce]" />
-
-              <h2 className="text-2xl font-black text-[#062a57]">
-                All submitted stories
-              </h2>
-            </div>
-
-            <div className="grid gap-5">
-              {stories.length === 0 ? (
-                <div className="rounded-2xl bg-slate-50 p-5 text-slate-600">
-                  No submitted stories yet.
-                </div>
-              ) : (
-                stories.map((story) => (
-                  <article
+                    id={`story-${story.id}`}
                     key={story.id}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
+                    className="rounded-[2rem] bg-slate-50 p-4 ring-1 ring-slate-200 sm:p-5"
                   >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
                             {story.story_type || "Story"}
                           </span>
-
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
                               story.status
@@ -936,96 +973,448 @@ export default function AdminPage() {
                           >
                             {statusLabel(story.status)}
                           </span>
+                          {storyHasVideo(story) && (
+                            <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
+                              Video
+                            </span>
+                          )}
+                          {storyHasPhoto(story) && (
+                            <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-sky-700">
+                              Photo
+                            </span>
+                          )}
                         </div>
 
-                        <h2 className="mt-4 text-2xl font-black text-[#062a57]">
+                        <h3 className="mt-4 text-2xl font-black text-[#062a57]">
                           {story.name || "Name not provided"}
-                        </h2>
+                        </h3>
 
-                        <div className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
-                          <div>
-                            Email:{" "}
-                            <span className="font-semibold">
-                              {story.email || "Not provided"}
-                            </span>
-                          </div>
-
-                          <div>
-                            Location:{" "}
-                            <span className="font-semibold">
-                              {story.location || "Not provided"}
-                            </span>
-                          </div>
-
+                        <div className="mt-2 grid gap-1 text-sm font-semibold text-slate-500 sm:grid-cols-2">
+                          <div>Email: {story.email || "Not provided"}</div>
+                          <div>Location: {story.location || "Not provided"}</div>
                           <div>Submitted {formatDate(story.created_at)}</div>
+                          <div>
+                            Reports:{" "}
+                            <span className="font-black text-slate-700">
+                              {reportCount}
+                            </span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-2 text-sm font-bold text-slate-500">
-                        <UserCircle className="h-4 w-4" />
-                        User story
-                      </div>
-                    </div>
-
-                    <div className="mt-5 rounded-2xl bg-white p-5 leading-7 text-slate-700">
-                      {story.story_text || "No story text available."}
-                    </div>
-
-                    {story.video_url && (
-                      <div className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-600">
-                        <button
-                          type="button"
-                          onClick={() => openVideoReviewPage(story.id)}
-                          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-bold text-white hover:bg-[#084f9f]"
+                        <p
+                          className={`mt-4 whitespace-pre-wrap rounded-[1.25rem] bg-white p-4 text-sm leading-7 text-slate-700 ring-1 ring-slate-100 ${
+                            isExpanded ? "" : "line-clamp-4"
+                          }`}
+                          style={{
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
+                          }}
                         >
-                          <Video className="h-4 w-4" />
-                          Open Video
-                        </button>
-                      </div>
-                    )}
+                          {previewText}
+                        </p>
 
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                        {isExpanded && (
+                          <div className="mt-3 rounded-2xl bg-white p-4 text-xs font-bold text-slate-500 ring-1 ring-slate-100">
+                            Story ID: {story.id}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200">
+                        {mediaPreview ? (
+                          <img
+                            src={mediaPreview}
+                            alt={story.story_type || "Story preview"}
+                            className="h-48 w-full object-cover"
+                          />
+                        ) : story.video_url ? (
+                          <div className="flex h-48 items-center justify-center bg-slate-950 text-white/80">
+                            <div className="text-center text-sm font-bold">
+                              <Video className="mx-auto mb-2 h-8 w-8" />
+                              Video testimony
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex h-48 items-center justify-center bg-blue-50 text-[#0b63ce]">
+                            <div className="text-center text-sm font-black">
+                              <FileText className="mx-auto mb-2 h-8 w-8" />
+                              Text post
+                            </div>
+                          </div>
+                        )}
+
+                        {story.video_url && (
+                          <button
+                            type="button"
+                            onClick={() => openVideoReviewPage(story.id)}
+                            className="flex w-full items-center justify-center gap-2 bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800"
+                          >
+                            <Video className="h-4 w-4" />
+                            Open Video Review
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                       <button
+                        type="button"
                         onClick={() => updateStoryStatus(story.id, "approved")}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
                       >
                         <CheckCircle className="h-4 w-4" />
                         Approve
                       </button>
 
                       <button
-                        onClick={() =>
-                          updateStoryStatus(story.id, "needs_review")
-                        }
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700"
-                      >
-                        <AlertCircle className="h-4 w-4" />
-                        Needs Review
-                      </button>
-
-                      <button
+                        type="button"
                         onClick={() => updateStoryStatus(story.id, "rejected")}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
                       >
                         <XCircle className="h-4 w-4" />
                         Reject
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => updateStoryStatus(story.id, "removed")}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-black text-white hover:bg-slate-800"
                       >
                         <EyeOff className="h-4 w-4" />
-                        Remove from Feed
+                        Remove
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedStoryId(isExpanded ? null : story.id)
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-50 px-5 py-3 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+                      >
+                        <UserCircle className="h-4 w-4" />
+                        {isExpanded ? "Hide Details" : "View"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => copyStoryId(story.id)}
+                        className="inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
+                      >
+                        Copy ID
                       </button>
                     </div>
                   </article>
-                ))
-              )}
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section
+          id="reports"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                Reports
+              </div>
+              <h2 className="mt-1 text-3xl font-black text-[#062a57]">
+                Reported content
+              </h2>
             </div>
-          </section>
-        </div>
+
+            <div className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100">
+              {openReports.length} open
+            </div>
+          </div>
+
+          {reports.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
+              No reports yet.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {reports.map((report) => (
+                <article
+                  key={report.id}
+                  className="rounded-[1.75rem] bg-red-50/60 p-5 ring-1 ring-red-100"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-red-700">
+                          {reasonLabel(report.reason)}
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${reportStatusStyle(
+                            report.status
+                          )}`}
+                        >
+                          {statusLabel(report.status)}
+                        </span>
+                        {report.story?.status && (
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                              report.story.status
+                            )}`}
+                          >
+                            Story: {statusLabel(report.story.status)}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="mt-4 text-2xl font-black text-[#062a57]">
+                        {report.story?.name || "Reported content"}
+                      </h3>
+
+                      <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                        <div>Reported {formatDate(report.created_at)}</div>
+                        <div>Reporter ID: {report.reporter_user_id || "Unavailable"}</div>
+                        <div>Posted by: {report.reported_user_id || "Unavailable"}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm font-black text-red-700">
+                      <Flag className="h-4 w-4" />
+                      User report
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-2xl bg-white p-5">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                        Report details
+                      </div>
+                      <p className="mt-2 leading-7 text-slate-700">
+                        {report.details || "No additional details provided."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white p-5">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                        Reported story
+                      </div>
+                      <p className="mt-2 line-clamp-4 whitespace-pre-line leading-7 text-slate-700">
+                        {report.story?.story_text || "No story text available."}
+                      </p>
+                      {report.story?.video_url && (
+                        <button
+                          type="button"
+                          onClick={() => openVideoReviewPage(report.story?.id)}
+                          className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
+                        >
+                          <Video className="h-4 w-4" />
+                          Open Video
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {report.admin_notes && (
+                    <div className="mt-4 rounded-2xl bg-white/80 p-4 text-sm font-semibold leading-6 text-slate-700">
+                      Admin notes: {report.admin_notes}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => markReportReviewing(report.id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      Mark Reviewing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dismissReport(report.id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-black text-white hover:bg-slate-800"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Dismiss Report
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeReportedContent(report)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+                    >
+                      <EyeOff className="h-4 w-4" />
+                      Remove Content
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          id="account-requests"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                Account Requests
+              </div>
+              <h2 className="mt-1 text-3xl font-black text-[#062a57]">
+                Account deletion requests
+              </h2>
+            </div>
+
+            <div className="rounded-full bg-orange-50 px-4 py-2 text-sm font-black text-orange-700 ring-1 ring-orange-100">
+              {activeDeletionRequests.length} active
+            </div>
+          </div>
+
+          {deletionRequests.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
+              No account deletion requests yet.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {deletionRequests.map((request) => (
+                <article
+                  key={request.id}
+                  className="rounded-[1.75rem] bg-orange-50/70 p-5 ring-1 ring-orange-100"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-orange-700">
+                          Account Deletion
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                            request.status
+                          )}`}
+                        >
+                          {statusLabel(request.status)}
+                        </span>
+                      </div>
+
+                      <h3 className="mt-4 text-2xl font-black text-[#062a57]">
+                        {request.email || "Email unavailable"}
+                      </h3>
+
+                      <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                        <div>Requested {formatDate(request.created_at)}</div>
+                        <div>User ID: {request.user_id}</div>
+                        {request.reviewed_at && (
+                          <div>Reviewed {formatDate(request.reviewed_at)}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm font-black text-orange-700">
+                      <ShieldAlert className="h-4 w-4" />
+                      User request
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl bg-white p-5">
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                      User reason
+                    </div>
+                    <p className="mt-2 leading-7 text-slate-700">
+                      {request.reason || "No reason provided."}
+                    </p>
+                  </div>
+
+                  {request.admin_notes && (
+                    <div className="mt-4 rounded-2xl bg-white/80 p-4 text-sm font-semibold leading-6 text-slate-700">
+                      Admin notes: {request.admin_notes}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => markDeletionReviewing(request.id)}
+                      disabled={request.status === "completed"}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      Mark Reviewing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => completeDeletionRequest(request.id)}
+                      disabled={request.status === "completed"}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Mark Completed
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </section>
     </main>
+  );
+}
+
+function AdminStatCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-[1.5rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+          {icon}
+        </div>
+        <div className="text-3xl font-black text-[#062a57]">{value}</div>
+      </div>
+      <div className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function AdminNavCard({
+  title,
+  description,
+  href,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  href?: string;
+  onClick?: () => void;
+}) {
+  const className =
+    "block rounded-[1.5rem] bg-white p-4 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50 hover:ring-blue-100";
+  const content = (
+    <>
+      <div className="text-sm font-black text-[#062a57]">{title}</div>
+      <div className="mt-1 text-xs font-bold leading-5 text-slate-500">
+        {description}
+      </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
   );
 }
