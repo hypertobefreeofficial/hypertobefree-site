@@ -1247,12 +1247,12 @@ export default function FreedomFeed({
         </div>
 
         {photoViewerStory?.signed_image_url && (
-          <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black text-white">
-            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent p-4">
+          <div className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white">
+            <div className="fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex items-center justify-between">
               <button
                 type="button"
                 onClick={closePhotoViewer}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-white/20"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-black/60"
                 aria-label="Close photo viewer"
               >
                 <X className="h-6 w-6" />
@@ -1264,7 +1264,7 @@ export default function FreedomFeed({
                   setPhotoActionSheetOpen(true);
                   setPhotoViewerMessage("");
                 }}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-white/20"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-black/60"
                 aria-label="Open photo actions"
               >
                 <MoreHorizontal className="h-6 w-6" />
