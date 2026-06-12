@@ -838,7 +838,7 @@ export default function JourneyPage() {
               active={myStories.length > 0}
               number="01"
               icon={<Lightbulb className="h-5 w-5" />}
-              title="God moved"
+              title="God Moved"
               text="Something happened that was worth remembering."
             />
 
@@ -846,11 +846,11 @@ export default function JourneyPage() {
               active={myStories.length > 0}
               number="02"
               icon={<Send className="h-5 w-5" />}
-              title="You shared"
+              title="You Shared"
               text={
                 myStories.length > 0
-                  ? `You have shared ${myStories.length} approved story${
-                      myStories.length === 1 ? "" : "ies"
+                  ? `You have shared ${myStories.length} approved ${
+                      myStories.length === 1 ? "story" : "stories"
                     }.`
                   : "Share a testimony, praise report, prayer request, or video."
               }
@@ -860,7 +860,7 @@ export default function JourneyPage() {
               active={encouragementImpact.total > 0}
               number="03"
               icon={<Users className="h-5 w-5" />}
-              title="Others responded"
+              title="The Community Responded"
               text={
                 encouragementImpact.total > 0
                   ? `Your stories have received ${encouragementImpact.total} response${
@@ -877,8 +877,10 @@ export default function JourneyPage() {
               title="God Did It"
               text={
                 myGodDidItMoments.length > 0
-                  ? `${myGodDidItMoments.length} of your prayer request${
-                      myGodDidItMoments.length === 1 ? " has" : "s have"
+                  ? `${myGodDidItMoments.length} of your prayer ${
+                      myGodDidItMoments.length === 1
+                        ? "request has"
+                        : "requests have"
                     } been marked answered.`
                   : "Answered prayer moments will appear here."
               }
@@ -888,11 +890,13 @@ export default function JourneyPage() {
               active={encouragementImpact.encouraged > 0}
               number="05"
               icon={<Flame className="h-5 w-5" />}
-              title="Someone else was strengthened"
+              title="Lives Were Encouraged"
               text={
                 encouragementImpact.encouraged > 0
-                  ? `${encouragementImpact.encouraged} person${
-                      encouragementImpact.encouraged === 1 ? " was" : "s were"
+                  ? `${encouragementImpact.encouraged} ${
+                      encouragementImpact.encouraged === 1 ? "person" : "people"
+                    } ${
+                      encouragementImpact.encouraged === 1 ? "was" : "were"
                     } encouraged by your stories.`
                   : "Encouragement impact will grow as people respond."
               }
