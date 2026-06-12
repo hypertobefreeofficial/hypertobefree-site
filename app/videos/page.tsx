@@ -28,6 +28,7 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
+type VideoLanguage = "spanish" | "english";
 
 type ReportReason =
   | "inappropriate"
@@ -91,6 +92,11 @@ const reportReasons: { label: string; value: ReportReason }[] = [
 
 const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+const languageOptions: { label: string; value: VideoLanguage }[] = [
+  { label: "Spanish", value: "spanish" },
+  { label: "English", value: "english" },
+];
+
 export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -110,8 +116,10 @@ export default function VideoFeedPage() {
 
   const [soundOn, setSoundOn] = useState(false);
   const [beStillMode, setBeStillMode] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [optionsStoryId, setOptionsStoryId] = useState<string | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [selectedLanguage, setSelectedLanguage] =
+    useState<VideoLanguage>("english");
 
   useEffect(() => {
     if (!message) return;
@@ -609,7 +617,9 @@ export default function VideoFeedPage() {
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      setOptionsOpen((current) => !current);
+                      setOptionsStoryId((currentStoryId) =>
+                        currentStoryId === story.id ? null : story.id
+                      );
                     }}
                     className="absolute right-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
                     aria-label="More video options"
@@ -618,28 +628,37 @@ export default function VideoFeedPage() {
                   </button>
                 )}
 
-                {optionsOpen && !beStillMode && (
+                {optionsStoryId === story.id && !beStillMode && (
                   <VideoOptionsMenu
                     isOwner={isOwner}
                     playbackRate={playbackRate}
                     setPlaybackRate={setPlaybackRate}
+                    selectedLanguage={selectedLanguage}
+                    onLanguageSelect={(language) => {
+                      setSelectedLanguage(language);
+                      setMessage(
+                        language === "spanish"
+                          ? "Spanish selected. Translation support coming soon."
+                          : "English selected."
+                      );
+                    }}
                     onBeStill={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       setBeStillMode(true);
                     }}
                     onShare={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       shareStory(story);
                     }}
                     onReport={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       openReportModal(story);
                     }}
                     onRemove={() => {
-                      setOptionsOpen(false);
+                      setOptionsStoryId(null);
                       removeMyVideo(story);
                     }}
-                    onClose={() => setOptionsOpen(false)}
+                    onClose={() => setOptionsStoryId(null)}
                   />
                 )}
 
@@ -835,6 +854,8 @@ function VideoOptionsMenu({
   isOwner,
   playbackRate,
   setPlaybackRate,
+  selectedLanguage,
+  onLanguageSelect,
   onBeStill,
   onShare,
   onReport,
@@ -844,6 +865,8 @@ function VideoOptionsMenu({
   isOwner: boolean;
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
+  selectedLanguage: VideoLanguage;
+  onLanguageSelect: (language: VideoLanguage) => void;
   onBeStill: () => void;
   onShare: () => void;
   onReport: () => void;
@@ -894,6 +917,29 @@ function VideoOptionsMenu({
             }`}
           >
             {speed}x
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+        <Globe2 className="h-4 w-4" />
+        Language
+      </div>
+
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        {languageOptions.map((language) => (
+          <button
+            key={language.value}
+            type="button"
+            onClick={() => onLanguageSelect(language.value)}
+            aria-pressed={selectedLanguage === language.value}
+            className={`rounded-xl px-2 py-2 text-xs font-black ${
+              selectedLanguage === language.value
+                ? "bg-[#0b63ce] text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+            }`}
+          >
+            {language.label}
           </button>
         ))}
       </div>
@@ -1433,30 +1479,18 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
         >
           <EyeOff className="h-4 w-4" />
         </button>
-     
-<div className="pointer-events-none max-w-full overflow-hidden">
-  {story.reaction_counts.praying > 0 && (
-    <div className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs font-black text-white shadow-md ring-1 ring-white/15 backdrop-blur">
-      <HandHeart className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">
-        Prayer Circle ·{" "}
-        {story.reaction_counts.praying === 1
-          ? "1 person praying"
-          : `${story.reaction_counts.praying} people praying`}
-      </span>
-    </div>
-  )}
 
-  <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
-    <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-    <span className="min-w-0 truncate">
-      {story.location || "HTBF Community"}
-    </span>
-  </div>
+        <div className="pointer-events-none max-w-full overflow-hidden">
+          <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
+            <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
+            <span className="min-w-0 truncate">
+              {story.location || "HTBF Community"}
+            </span>
+          </div>
 
-  <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
-    {story.story_type || "Video Testimony"}
-  </div>
+          <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
+            {story.story_type || "Video Testimony"}
+          </div>
 
           {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
@@ -1475,9 +1509,9 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
                 {storyText}
               </h1>
 
-             {isLongText && !expanded && (
-  <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-black/35 to-transparent" />
-)}
+              {isLongText && (
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-black/90 to-transparent" />
+              )}
             </div>
           )}
 
@@ -1485,6 +1519,16 @@ function VideoInfoOverlay({ story }: { story: VideoStory }) {
             <p className="mt-1.5 max-w-full truncate text-xs font-bold text-white/70 md:text-sm">
               Shared by {story.name}
             </p>
+          )}
+
+          {story.reaction_counts.praying > 0 && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
+              <HandHeart className="h-3.5 w-3.5" />
+              Prayer Circle ·{" "}
+              {story.reaction_counts.praying === 1
+                ? "1 person praying"
+                : `${story.reaction_counts.praying} people praying`}
+            </div>
           )}
         </div>
 
