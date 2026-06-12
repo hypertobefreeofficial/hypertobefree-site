@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
+  Camera,
   CheckCircle2,
+  FileText,
   Globe2,
   HeartHandshake,
   ImagePlus,
@@ -14,7 +16,6 @@ import {
   Video,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 
 type ProfileRow = {
   id: string;
@@ -26,6 +27,8 @@ type ProfileRow = {
   profile_completed: boolean | null;
 };
 
+type MediaMode = "text" | "photo" | "video";
+
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
   aiRiskLevel: "low" | "medium" | "high";
@@ -34,6 +37,34 @@ type AiModerationDecision = {
   aiFlags: string[];
   aiReviewStatus: string;
 };
+
+const STORY_IMAGE_BUCKET = "story-images";
+
+const mediaOptions: {
+  label: string;
+  value: MediaMode;
+  icon: typeof FileText;
+  description: string;
+}[] = [
+  {
+    label: "Text story only",
+    value: "text",
+    icon: FileText,
+    description: "Share a written testimony, praise report, or prayer request.",
+  },
+  {
+    label: "Photo story",
+    value: "photo",
+    icon: Camera,
+    description: "Upload a photo and add the story behind it.",
+  },
+  {
+    label: "Video story",
+    value: "video",
+    icon: Video,
+    description: "Upload a video testimony or encouragement.",
+  },
+];
 
 const storyTypes = [
   {
@@ -54,12 +85,6 @@ const storyTypes = [
     icon: HeartHandshake,
     description: "Ask the HTBF community to pray with you.",
   },
-  {
-    label: "Video Story",
-    value: "Video Testimony",
-    icon: Video,
-    description: "Upload a video testimony or encouragement.",
-  },
 ];
 
 const emojiOptions = ["🙏", "❤️", "✝️", "🙌", "🕊️", "🔥", "😭", "✨", "🤍"];
@@ -70,8 +95,11 @@ export default function ShareYourStoryPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
 
+  const [mediaMode, setMediaMode] = useState<MediaMode>("text");
   const [storyType, setStoryType] = useState("Testimony");
   const [storyText, setStoryText] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -131,7 +159,11 @@ export default function ShareYourStoryPage() {
       const typeParam = params.get("type");
 
       if (typeParam === "video") {
-        setStoryType("Video Testimony");
+        setMediaMode("video");
+      }
+
+      if (typeParam === "photo") {
+        setMediaMode("photo");
       }
 
       if (typeParam === "prayer") {
@@ -143,6 +175,20 @@ export default function ShareYourStoryPage() {
 
     loadPage();
   }, []);
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(photoFile);
+    setPhotoPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [photoFile]);
 
   useEffect(() => {
     if (!videoFile) {
@@ -171,6 +217,19 @@ export default function ShareYourStoryPage() {
     return profile?.location?.trim() || null;
   }
 
+  function selectMediaMode(nextMode: MediaMode) {
+    setMediaMode(nextMode);
+    setMessage("");
+
+    if (nextMode !== "photo") {
+      removePhoto();
+    }
+
+    if (nextMode !== "video") {
+      removeVideo();
+    }
+  }
+
   function addEmoji(emoji: string) {
     setStoryText((current) => {
       if (!current.trim()) {
@@ -181,19 +240,53 @@ export default function ShareYourStoryPage() {
     });
   }
 
+  function removePhoto() {
+    setPhotoFile(null);
+    setPhotoPreviewUrl(null);
+  }
+
   function removeVideo() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
+  }
+
+  function handlePhotoSelect(file: File | null) {
+    if (!file) {
+      setPhotoFile(null);
+      return;
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+    if (!allowedTypes.includes(file.type)) {
+      setMessage("Please upload a JPEG, PNG, or WebP photo.");
+      return;
+    }
+
+    setMessage("");
+    setPhotoFile(file);
+    setMediaMode("photo");
+  }
+
+  function handleVideoSelect(file: File | null) {
+    setMessage("");
+    setVideoFile(file);
+
+    if (file) {
+      setMediaMode("video");
+    }
   }
 
   async function moderateStoryText({
     finalStoryType,
     cleanStoryText,
     hasVideo,
+    hasPhoto,
   }: {
     finalStoryType: string;
     cleanStoryText: string;
     hasVideo: boolean;
+    hasPhoto: boolean;
   }): Promise<AiModerationDecision> {
     try {
       const response = await fetch("/api/moderate-story", {
@@ -205,6 +298,7 @@ export default function ShareYourStoryPage() {
           story_type: finalStoryType,
           story_text: cleanStoryText,
           has_video: hasVideo,
+          has_photo: hasPhoto,
         }),
       });
 
@@ -316,6 +410,32 @@ export default function ShareYourStoryPage() {
     });
   }
 
+  async function uploadPhotoIfNeeded(currentUserId: string) {
+    if (!photoFile) return null;
+
+    const fileExtension = photoFile.name.split(".").pop() || "jpg";
+    const cleanExtension = fileExtension.toLowerCase();
+    const photoFileName = `${currentUserId}/${Date.now()}-${crypto.randomUUID()}.${cleanExtension}`;
+
+    const { error: photoUploadError } = await supabase.storage
+      .from(STORY_IMAGE_BUCKET)
+      .upload(photoFileName, photoFile, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: photoFile.type || "image/jpeg",
+      });
+
+    if (photoUploadError) {
+      throw new Error(photoUploadError.message);
+    }
+
+    const { data: photoPublicData } = supabase.storage
+      .from(STORY_IMAGE_BUCKET)
+      .getPublicUrl(photoFileName);
+
+    return photoPublicData.publicUrl;
+  }
+
   async function uploadVideoIfNeeded(currentUserId: string) {
     if (!videoFile) {
       return {
@@ -395,11 +515,23 @@ export default function ShareYourStoryPage() {
     }
 
     const cleanStoryText = storyText.trim();
+    const hasPhoto = Boolean(photoFile);
+    const hasVideo = Boolean(videoFile);
 
-    if (!cleanStoryText && !videoFile) {
+    if (!cleanStoryText && !hasPhoto && !hasVideo) {
       setMessage(
-        "Please write a story, prayer request, praise report, or upload a video."
+        "Please write a story, prayer request, praise report, or upload a photo or video."
       );
+      return;
+    }
+
+    if (mediaMode === "photo" && !hasPhoto) {
+      setMessage("Please upload a photo or choose text story only.");
+      return;
+    }
+
+    if (mediaMode === "video" && !hasVideo) {
+      setMessage("Please upload a video or choose text story only.");
       return;
     }
 
@@ -407,18 +539,25 @@ export default function ShareYourStoryPage() {
     setMessage("");
 
     try {
-      const finalStoryType = videoFile ? "Video Testimony" : storyType;
+      const finalStoryType =
+        mediaMode === "video"
+          ? "Video Testimony"
+          : mediaMode === "photo"
+            ? "Photo Story"
+            : storyType;
 
       setMessage("Checking your post...");
 
       const moderationDecision = await moderateStoryText({
         finalStoryType,
         cleanStoryText,
-        hasVideo: Boolean(videoFile),
+        hasVideo,
+        hasPhoto,
       });
 
       setMessage("Uploading your post...");
 
+      const imageUrl = await uploadPhotoIfNeeded(userId);
       const { videoUrl, thumbnailUrl } = await uploadVideoIfNeeded(userId);
 
       const { error } = await supabase.from("stories").insert({
@@ -427,6 +566,7 @@ export default function ShareYourStoryPage() {
         location: getPostingLocation(),
         story_type: finalStoryType,
         story_text: cleanStoryText || null,
+        image_url: imageUrl,
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
         text_size: textSize,
@@ -449,8 +589,11 @@ export default function ShareYourStoryPage() {
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
 
       setStoryText("");
+      setPhotoFile(null);
+      setPhotoPreviewUrl(null);
       setVideoFile(null);
       setVideoPreviewUrl(null);
+      setMediaMode("text");
       setStoryType("Testimony");
       setTextSize("text-medium");
       setTextStyle("style-clean");
@@ -483,39 +626,39 @@ export default function ShareYourStoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
-      <div className="mx-auto max-w-3xl px-4 pt-5">
+    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+      <div className="mx-auto max-w-3xl px-4 py-6">
         <div className="mb-5 flex items-center justify-between">
           <Link
-            href="/feed"
+            href="/journey"
             className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
           >
             <ArrowLeft className="h-4 w-4" />
-            Feed
+            Cancel
           </Link>
 
           <div className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-            Share
+            SHARE YOUR STORY
           </div>
         </div>
 
-        <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5">
-            <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce]">
-              <Sparkles className="h-4 w-4" />
-              Share with HTBF
-            </div>
-
-            <h1 className="mt-4 text-4xl font-black tracking-tight text-[#062a57]">
-              Share your story.
-            </h1>
-
-            <p className="mt-3 text-base leading-7 text-slate-600">
-              Share a testimony, praise report, prayer request, or video
-              encouragement with the HTBF community.
-            </p>
+        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
+            <Sparkles className="h-4 w-4" />
+            SHARE YOUR STORY
           </div>
 
+          <h1 className="mt-4 text-4xl font-black tracking-tight">
+            What has God done?
+          </h1>
+
+          <p className="mt-3 max-w-2xl leading-7 text-blue-100">
+            Share a testimony, praise report, prayer request, photo, or video
+            with the HTBF community.
+          </p>
+        </section>
+
+        <section className="mt-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <div className="mb-5 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
             <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
               Posting as
@@ -533,29 +676,24 @@ export default function ShareYourStoryPage() {
                 </span>
               )}
             </div>
-
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              Account details are managed from Profile. This page only submits
-              your story, prayer request, praise report, or video.
-            </p>
           </div>
 
           <form onSubmit={submitStory} className="space-y-5">
             <div>
               <label className="mb-2 block text-sm font-black text-[#062a57]">
-                What are you sharing?
+                Choose your story format
               </label>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {storyTypes.map((item) => {
+              <div className="grid gap-3 sm:grid-cols-3">
+                {mediaOptions.map((item) => {
                   const Icon = item.icon;
-                  const selected = storyType === item.value;
+                  const selected = mediaMode === item.value;
 
                   return (
                     <button
                       key={item.value}
                       type="button"
-                      onClick={() => setStoryType(item.value)}
+                      onClick={() => selectMediaMode(item.value)}
                       className={`rounded-[1.5rem] p-4 text-left ring-1 transition ${
                         selected
                           ? "bg-blue-50 ring-blue-200"
@@ -587,6 +725,46 @@ export default function ShareYourStoryPage() {
               </div>
             </div>
 
+            {mediaMode === "text" && (
+              <div>
+                <label className="mb-2 block text-sm font-black text-[#062a57]">
+                  What are you sharing?
+                </label>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {storyTypes.map((item) => {
+                    const Icon = item.icon;
+                    const selected = storyType === item.value;
+
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setStoryType(item.value)}
+                        className={`rounded-[1.5rem] p-4 text-left ring-1 transition ${
+                          selected
+                            ? "bg-blue-50 ring-blue-200"
+                            : "bg-white ring-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <Icon
+                          className={`h-5 w-5 ${
+                            selected ? "text-[#0b63ce]" : "text-slate-500"
+                          }`}
+                        />
+                        <div className="mt-2 font-black text-[#062a57]">
+                          {item.label}
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                          {item.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="mb-2 block text-sm font-black text-[#062a57]">
                 Message
@@ -614,51 +792,120 @@ export default function ShareYourStoryPage() {
               </div>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-black text-[#062a57]">
-                Video, optional
-              </label>
-
-              <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-4">
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-[1.25rem] bg-white px-4 py-6 text-center ring-1 ring-slate-200 hover:bg-slate-50">
-                  <Upload className="h-8 w-8 text-[#0b63ce]" />
-
-                  <div className="mt-3 text-sm font-black text-[#062a57]">
-                    Upload a video
-                  </div>
-
-                  <div className="mt-1 text-xs font-semibold text-slate-500">
-                    iPhone videos, MOV, MP4, and normal phone videos are okay.
-                  </div>
-
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={(event) =>
-                      setVideoFile(event.target.files?.[0] ?? null)
-                    }
-                    className="hidden"
-                  />
+            {mediaMode === "photo" && (
+              <div>
+                <label className="mb-2 block text-sm font-black text-[#062a57]">
+                  Photo
                 </label>
 
-                {videoFile && (
-                  <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-[#082f63]">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <ImagePlus className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{videoFile.name}</span>
+                <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-4">
+                  <label className="flex cursor-pointer flex-col items-center justify-center rounded-[1.25rem] bg-white px-4 py-6 text-center ring-1 ring-slate-200 hover:bg-slate-50">
+                    <ImagePlus className="h-8 w-8 text-[#0b63ce]" />
+
+                    <div className="mt-3 text-sm font-black text-[#062a57]">
+                      Upload a photo
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={removeVideo}
-                      className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-red-600 ring-1 ring-red-100"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
+                    <div className="mt-1 text-xs font-semibold text-slate-500">
+                      JPEG, PNG, and WebP images are supported.
+                    </div>
+
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(event) =>
+                        handlePhotoSelect(event.target.files?.[0] ?? null)
+                      }
+                      className="hidden"
+                    />
+                  </label>
+
+                  {photoFile && (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-[#082f63]">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <ImagePlus className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{photoFile.name}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={removePhoto}
+                        className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-red-600 ring-1 ring-red-100"
+                      >
+                        Remove Photo
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {photoPreviewUrl && (
+              <div className="rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                <div className="mb-3">
+                  <div className="text-sm font-black text-[#062a57]">
+                    Photo preview
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    This photo will be submitted with your story for review.
+                  </p>
+                </div>
+
+                <img
+                  src={photoPreviewUrl}
+                  alt="Selected story photo preview"
+                  className="max-h-[560px] w-full rounded-[1.5rem] object-cover ring-1 ring-slate-200"
+                />
+              </div>
+            )}
+
+            {mediaMode === "video" && (
+              <div>
+                <label className="mb-2 block text-sm font-black text-[#062a57]">
+                  Video
+                </label>
+
+                <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-4">
+                  <label className="flex cursor-pointer flex-col items-center justify-center rounded-[1.25rem] bg-white px-4 py-6 text-center ring-1 ring-slate-200 hover:bg-slate-50">
+                    <Upload className="h-8 w-8 text-[#0b63ce]" />
+
+                    <div className="mt-3 text-sm font-black text-[#062a57]">
+                      Upload a video
+                    </div>
+
+                    <div className="mt-1 text-xs font-semibold text-slate-500">
+                      iPhone videos, MOV, MP4, and normal phone videos are okay.
+                    </div>
+
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(event) =>
+                        handleVideoSelect(event.target.files?.[0] ?? null)
+                      }
+                      className="hidden"
+                    />
+                  </label>
+
+                  {videoFile && (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-[#082f63]">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <ImagePlus className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{videoFile.name}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={removeVideo}
+                        className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-red-600 ring-1 ring-red-100"
+                      >
+                        Remove Video
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {videoPreviewUrl && (
               <div className="rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
@@ -686,71 +933,51 @@ export default function ShareYourStoryPage() {
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Text Size
-                    </label>
-                    <select
-                      value={textSize}
-                      onChange={(event) => setTextSize(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
-                    >
-                      <option value="text-small">Small</option>
-                      <option value="text-medium">Medium</option>
-                      <option value="text-large">Large</option>
-                    </select>
-                  </div>
+                  <VideoTextSelect
+                    label="Text Size"
+                    value={textSize}
+                    onChange={setTextSize}
+                    options={[
+                      ["text-small", "Small"],
+                      ["text-medium", "Medium"],
+                      ["text-large", "Large"],
+                    ]}
+                  />
 
-                  <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Text Style
-                    </label>
-                    <select
-                      value={textStyle}
-                      onChange={(event) => setTextStyle(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
-                    >
-                      <option value="style-clean">Clean</option>
-                      <option value="style-bold">Bold</option>
-                      <option value="style-scripture">Scripture</option>
-                      <option value="style-testimony">Testimony</option>
-                    </select>
-                  </div>
+                  <VideoTextSelect
+                    label="Text Style"
+                    value={textStyle}
+                    onChange={setTextStyle}
+                    options={[
+                      ["style-clean", "Clean"],
+                      ["style-bold", "Bold"],
+                      ["style-scripture", "Scripture"],
+                      ["style-testimony", "Testimony"],
+                    ]}
+                  />
 
-                  <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Text Position
-                    </label>
-                    <select
-                      value={textPosition}
-                      onChange={(event) => setTextPosition(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
-                    >
-                      <option value="position-bottom-left">Bottom Left</option>
-                      <option value="position-bottom-center">
-                        Bottom Center
-                      </option>
-                      <option value="position-center">Center</option>
-                    </select>
-                  </div>
+                  <VideoTextSelect
+                    label="Text Position"
+                    value={textPosition}
+                    onChange={setTextPosition}
+                    options={[
+                      ["position-bottom-left", "Bottom Left"],
+                      ["position-bottom-center", "Bottom Center"],
+                      ["position-center", "Center"],
+                    ]}
+                  />
 
-                  <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                      Text Background
-                    </label>
-                    <select
-                      value={textBackground}
-                      onChange={(event) =>
-                        setTextBackground(event.target.value)
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
-                    >
-                      <option value="background-none">None</option>
-                      <option value="background-dark">Soft Dark</option>
-                      <option value="background-blur">Blur</option>
-                      <option value="background-gold">Gold Glow</option>
-                    </select>
-                  </div>
+                  <VideoTextSelect
+                    label="Text Background"
+                    value={textBackground}
+                    onChange={setTextBackground}
+                    options={[
+                      ["background-none", "None"],
+                      ["background-dark", "Soft Dark"],
+                      ["background-blur", "Blur"],
+                      ["background-gold", "Gold Glow"],
+                    ]}
+                  />
                 </div>
               </div>
             )}
@@ -769,19 +996,26 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "Submitting..." : "Submit to HTBF"}
-              <Send className="h-4 w-4" />
-            </button>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <Link
+                href="/journey"
+                className="inline-flex items-center justify-center rounded-full bg-slate-100 px-6 py-4 text-base font-black text-slate-700 hover:bg-slate-200"
+              >
+                Not Yet
+              </Link>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-48"
+              >
+                {submitting ? "Submitting..." : "Submit for Review"}
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
           </form>
         </section>
       </div>
-
-      <LoggedInBottomNav />
 
       <style jsx global>{`
         .text-small {
@@ -802,7 +1036,6 @@ export default function ShareYourStoryPage() {
 
         .style-bold {
           font-weight: 950;
-          letter-spacing: -0.02em;
         }
 
         .style-scripture {
@@ -857,5 +1090,36 @@ export default function ShareYourStoryPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+function VideoTextSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
+      >
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
