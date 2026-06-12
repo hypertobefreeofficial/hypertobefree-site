@@ -146,7 +146,22 @@ export default function ShareYourStoryPage() {
     return storyText.trim() || "Your story text will preview here...";
   }, [storyText]);
 
-  // TODO: Persist media captions and display styles when stories has dedicated columns.
+  const photoFeedText = useMemo(() => {
+    const cleanStoryText = storyText.trim();
+    const cleanPhotoCaption = photoCaption.trim();
+
+    if (
+      cleanStoryText &&
+      cleanPhotoCaption &&
+      cleanStoryText !== cleanPhotoCaption
+    ) {
+      return `${cleanPhotoCaption}\n\n${cleanStoryText}`;
+    }
+
+    return cleanStoryText || cleanPhotoCaption;
+  }, [photoCaption, storyText]);
+
+  // TODO: Persist media captions and display styles as separate fields when stories has dedicated columns.
 
   useEffect(() => {
     async function loadPage() {
@@ -555,7 +570,8 @@ export default function ShareYourStoryPage() {
       return;
     }
 
-    const cleanStoryText = storyText.trim();
+    const cleanStoryText =
+      mediaMode === "photo" ? photoFeedText.trim() : storyText.trim();
     const hasPhoto = mediaMode === "photo" && Boolean(photoFile);
     const hasVideo = mediaMode === "video" && Boolean(videoFile);
 
@@ -926,11 +942,16 @@ export default function ShareYourStoryPage() {
                   <label className="mb-2 block text-sm font-black text-[#062a57]">
                     Caption
                   </label>
-                  <input
+                  <textarea
                     value={photoCaption}
                     onChange={(event) => setPhotoCaption(event.target.value)}
                     placeholder="Add a short caption for this photo..."
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                    rows={3}
+                    className="max-w-full w-full resize-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
                   />
                 </div>
 
@@ -947,19 +968,74 @@ export default function ShareYourStoryPage() {
                   />
                 </div>
 
-                <div className={getPhotoPreviewFrameClass(photoDisplayStyle)}>
-                  <img
-                    src={photoPreviewUrl}
-                    alt="Selected story photo preview"
-                    className={getPhotoPreviewImageClass(photoDisplayStyle)}
-                  />
-                </div>
+                <div className="max-w-full overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+                  <div className="p-5">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-black text-[#0b63ce]">
+                        {getPostingName().charAt(0).toUpperCase()}
+                      </div>
 
-                {photoCaption.trim() && (
-                  <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-600 ring-1 ring-slate-200">
-                    {photoCaption}
-                  </p>
-                )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          <div
+                            className="min-w-0 max-w-full break-words font-black text-slate-900"
+                            style={{
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {getPostingName()}
+                          </div>
+
+                          <span className="text-sm text-slate-400">•</span>
+
+                          <span className="max-w-full break-words rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
+                            Photo Story
+                          </span>
+                        </div>
+
+                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-medium text-slate-500">
+                          <Globe2 className="h-4 w-4 shrink-0" />
+                          <span
+                            className="min-w-0 max-w-full break-words"
+                            style={{
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {getPostingLocation() || "Location not shared"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className={getPhotoFeedPreviewFrameClass(
+                      photoDisplayStyle
+                    )}
+                  >
+                    <img
+                      src={photoPreviewUrl}
+                      alt="Selected story photo preview"
+                      className={getPhotoPreviewImageClass(photoDisplayStyle)}
+                    />
+                  </div>
+
+                  {photoFeedText && (
+                    <div className="p-5 pt-4">
+                      <p
+                        className="max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-2xl bg-slate-50 px-4 py-3 text-[17px] leading-7 text-slate-800 ring-1 ring-slate-200"
+                        style={{
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {photoFeedText}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1316,30 +1392,46 @@ function SegmentedOptionGroup<T extends string>({
 
 function getPhotoPreviewFrameClass(style: PhotoDisplayStyle) {
   if (style === "framed") {
-    return "rounded-[2rem] bg-[#082f63] p-3 shadow-sm ring-1 ring-blue-100";
+    return "max-w-full overflow-hidden rounded-[2rem] bg-[#082f63] p-3 shadow-sm ring-1 ring-blue-100";
   }
 
   if (style === "full-width") {
-    return "-mx-4 overflow-hidden bg-slate-100 sm:mx-0 sm:rounded-[1.5rem]";
+    return "-mx-4 max-w-full overflow-hidden bg-slate-100 sm:mx-0 sm:rounded-[1.5rem]";
   }
 
-  return "overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
+  return "max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
+}
+
+function getPhotoFeedPreviewFrameClass(style: PhotoDisplayStyle) {
+  if (style === "framed") {
+    return "mx-5 max-w-full overflow-hidden rounded-[1.5rem] bg-[#082f63] p-2 ring-1 ring-blue-100";
+  }
+
+  if (style === "original") {
+    return "max-w-full overflow-hidden bg-slate-100 px-4 py-4";
+  }
+
+  if (style === "full-width") {
+    return "max-w-full overflow-hidden bg-slate-100";
+  }
+
+  return "mx-5 max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
 }
 
 function getPhotoPreviewImageClass(style: PhotoDisplayStyle) {
   if (style === "original") {
-    return "mx-auto max-h-[560px] w-auto max-w-full object-contain";
+    return "mx-auto block max-h-[560px] w-auto max-w-full object-contain";
   }
 
   if (style === "full-width") {
-    return "max-h-[560px] w-full object-cover";
+    return "block max-h-[560px] w-full max-w-full object-cover";
   }
 
   if (style === "framed") {
-    return "max-h-[560px] w-full rounded-[1.5rem] object-cover";
+    return "block max-h-[560px] w-full max-w-full rounded-[1.5rem] object-cover";
   }
 
-  return "max-h-[560px] w-full rounded-[2rem] object-cover";
+  return "block max-h-[560px] w-full max-w-full rounded-[2rem] object-cover";
 }
 
 function getVideoPreviewFrameClass(style: VideoDisplayStyle) {
