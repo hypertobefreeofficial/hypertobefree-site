@@ -75,6 +75,10 @@ type ProfileRow = {
   real_name: string | null;
 };
 
+type ClearRemovedRequest =
+  | { mode: "single"; story: StoryRow }
+  | { mode: "all" };
+
 export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -105,6 +109,8 @@ export default function JourneyPage() {
     string | null
   >(null);
   const [clearingAllRemoved, setClearingAllRemoved] = useState(false);
+  const [clearRemovedRequest, setClearRemovedRequest] =
+    useState<ClearRemovedRequest | null>(null);
 
   useEffect(() => {
     async function loadJourney() {
@@ -591,7 +597,7 @@ export default function JourneyPage() {
     setMessage("Upload removed from public view.");
   }
 
-  async function clearRemovedUpload(story: StoryRow) {
+  function clearRemovedUpload(story: StoryRow) {
     if (!userId) {
       setMessage("Please sign in to clear removed uploads.");
       return;
@@ -607,41 +613,10 @@ export default function JourneyPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "This will permanently remove these removed items from your uploads list. Continue?"
-    );
-
-    if (!confirmed) return;
-
-    setClearingRemovedStoryId(story.id);
-    setMessage("");
-
-    const { error } = await supabase
-      .from("stories")
-      .delete()
-      .eq("id", story.id)
-      .eq("user_id", userId)
-      .eq("status", "removed");
-
-    setClearingRemovedStoryId(null);
-
-    if (error) {
-      setMessage(`Could not clear removed upload: ${error.message}`);
-      return;
-    }
-
-    setMyUploads((currentUploads) =>
-      currentUploads.filter((item) => item.id !== story.id)
-    );
-
-    setStories((currentStories) =>
-      currentStories.filter((item) => item.id !== story.id)
-    );
-
-    setMessage("Removed upload cleared from your uploads list.");
+    setClearRemovedRequest({ mode: "single", story });
   }
 
-  async function clearAllRemovedUploads() {
+  function clearAllRemovedUploads() {
     if (!userId) {
       setMessage("Please sign in to clear removed uploads.");
       return;
@@ -658,12 +633,80 @@ export default function JourneyPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "This will permanently remove these removed items from your uploads list. Continue?"
-    );
+    setClearRemovedRequest({ mode: "all" });
+  }
 
-    if (!confirmed) return;
+  function closeClearRemovedModal() {
+    setClearRemovedRequest(null);
+  }
 
+  async function confirmClearRemovedUploads() {
+    if (!clearRemovedRequest) return;
+
+    if (!userId) {
+      setMessage("Please sign in to clear removed uploads.");
+      setClearRemovedRequest(null);
+      return;
+    }
+
+    if (clearRemovedRequest.mode === "single") {
+      const story = clearRemovedRequest.story;
+
+      if (story.user_id !== userId) {
+        setMessage("You can only clear your own removed uploads.");
+        setClearRemovedRequest(null);
+        return;
+      }
+
+      if (story.status !== "removed") {
+        setMessage("Only removed uploads can be cleared.");
+        setClearRemovedRequest(null);
+        return;
+      }
+
+      setClearRemovedRequest(null);
+      setClearingRemovedStoryId(story.id);
+      setMessage("");
+
+      const { error } = await supabase
+        .from("stories")
+        .delete()
+        .eq("id", story.id)
+        .eq("user_id", userId)
+        .eq("status", "removed");
+
+      setClearingRemovedStoryId(null);
+
+      if (error) {
+        setMessage(`Could not clear removed upload: ${error.message}`);
+        return;
+      }
+
+      setMyUploads((currentUploads) =>
+        currentUploads.filter((item) => item.id !== story.id)
+      );
+
+      setStories((currentStories) =>
+        currentStories.filter((item) => item.id !== story.id)
+      );
+
+      setMessage("Removed upload cleared from your uploads list.");
+      return;
+    }
+
+    const removableIds = removedUploads
+      .filter(
+        (story) => story.user_id === userId && story.status === "removed"
+      )
+      .map((story) => story.id);
+
+    if (removableIds.length === 0) {
+      setMessage("There are no removed uploads to clear.");
+      setClearRemovedRequest(null);
+      return;
+    }
+
+    setClearRemovedRequest(null);
     setClearingAllRemoved(true);
     setMessage("");
 
@@ -1396,6 +1439,46 @@ export default function JourneyPage() {
               {sendingReply ? "Sending..." : "Send Reply"}
               <Send className="h-4 w-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {clearRemovedRequest && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-5">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
+                HYPER TO BE FREE
+              </div>
+
+              <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                Clear removed uploads?
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                This will permanently remove items already marked Removed from
+                your uploads list.
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeClearRemovedModal}
+                className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-200"
+              >
+                Not Yet
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmClearRemovedUploads}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear Removed
+              </button>
+            </div>
           </div>
         </div>
       )}
