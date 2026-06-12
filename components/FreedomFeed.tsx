@@ -3,13 +3,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
+  Copy,
+  Download,
+  Flag,
   Globe2,
+  MoreHorizontal,
   Plus,
   Video,
   MessageCircleHeart,
   Sparkles,
   CheckCircle2,
   Share2,
+  X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -70,6 +75,10 @@ export default function FreedomFeed({
   const [answeringPrayerStory, setAnsweringPrayerStory] =
     useState<ApprovedStory | null>(null);
   const [answeredPrayerText, setAnsweredPrayerText] = useState("");
+  const [photoViewerStory, setPhotoViewerStory] =
+    useState<ApprovedStory | null>(null);
+  const [photoActionSheetOpen, setPhotoActionSheetOpen] = useState(false);
+  const [photoViewerMessage, setPhotoViewerMessage] = useState("");
   const currentUserIdRef = useRef<string | null>(null);
   const feedReloadInFlightRef = useRef(false);
   const feedReloadQueuedRef = useRef(false);
@@ -546,6 +555,131 @@ export default function FreedomFeed({
     }
   }
 
+  function openPhotoViewer(story: ApprovedStory) {
+    if (!story.signed_image_url) return;
+
+    setPhotoViewerStory(story);
+    setPhotoActionSheetOpen(false);
+    setPhotoViewerMessage("");
+  }
+
+  function closePhotoViewer() {
+    setPhotoViewerStory(null);
+    setPhotoActionSheetOpen(false);
+    setPhotoViewerMessage("");
+  }
+
+  function openVideoStory(storyId: string) {
+    window.location.href = `/video-feed?story=${encodeURIComponent(storyId)}`;
+  }
+
+  async function copyPhotoLink(story: ApprovedStory) {
+    setPhotoViewerMessage("");
+
+    if (!story.signed_image_url) {
+      setPhotoViewerMessage("This photo link is not ready yet.");
+      return;
+    }
+
+    try {
+      if (!navigator.clipboard) {
+        setPhotoViewerMessage("Copy is not available in this browser.");
+        return;
+      }
+
+      await navigator.clipboard.writeText(story.signed_image_url);
+      setPhotoViewerMessage("Photo link copied.");
+      setPhotoActionSheetOpen(false);
+    } catch (error) {
+      console.error("Could not copy photo link:", error);
+      setPhotoViewerMessage("Could not copy the photo link.");
+    }
+  }
+
+  function savePhoto(story: ApprovedStory) {
+    setPhotoViewerMessage("");
+
+    if (!story.signed_image_url) {
+      setPhotoViewerMessage("Save Photo is not available for this photo yet.");
+      return;
+    }
+
+    try {
+      const downloadLink = document.createElement("a");
+      downloadLink.href = story.signed_image_url;
+      downloadLink.download = `htbf-photo-${story.id}.jpg`;
+      downloadLink.target = "_blank";
+      downloadLink.rel = "noopener noreferrer";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      setPhotoViewerMessage("Photo download opened.");
+      setPhotoActionSheetOpen(false);
+    } catch (error) {
+      console.error("Could not save photo:", error);
+      window.open(story.signed_image_url, "_blank", "noopener,noreferrer");
+      setPhotoViewerMessage("Photo opened in a new tab.");
+      setPhotoActionSheetOpen(false);
+    }
+  }
+
+  async function sharePhoto(story: ApprovedStory) {
+    setPhotoViewerMessage("");
+
+    if (!story.signed_image_url) {
+      setPhotoViewerMessage("This photo is not ready to share yet.");
+      return;
+    }
+
+    const shareData = {
+      title: `Hyper to Be Free - ${story.story_type || "Photo Story"}`,
+      text: story.story_text
+        ? story.story_text.slice(0, 140)
+        : "See this photo story on Hyper to Be Free.",
+      url: story.signed_image_url,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setPhotoActionSheetOpen(false);
+        return;
+      }
+
+      await copyPhotoLink(story);
+    } catch (error) {
+      console.error("Could not share photo:", error);
+      setPhotoViewerMessage("Could not share this photo.");
+    }
+  }
+
+  async function reportPhoto(story: ApprovedStory) {
+    setPhotoViewerMessage("");
+
+    if (!userId) {
+      setPhotoViewerMessage("Please sign in to report a photo.");
+      return;
+    }
+
+    const { error } = await supabase.from("content_reports").insert({
+      story_id: story.id,
+      reporter_user_id: userId,
+      reported_user_id: story.user_id,
+      reason: "inappropriate",
+      details: "Photo reported from the Home feed photo viewer.",
+    });
+
+    if (error) {
+      setPhotoViewerMessage(`Could not report photo: ${error.message}`);
+      return;
+    }
+
+    setPhotoActionSheetOpen(false);
+    setPhotoViewerMessage(
+      "Report submitted. Thank you for helping keep HTBF safe."
+    );
+  }
+
   const feedLabel =
     lockedFilter && defaultFilter === "videos"
       ? "Video Testimonies"
@@ -719,13 +853,18 @@ export default function FreedomFeed({
                     </div>
 
                     {story.signed_image_url && (
-                      <div className="mt-4 max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => openPhotoViewer(story)}
+                        className="mt-4 block max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        aria-label="Open photo"
+                      >
                         <img
                           src={story.signed_image_url}
                           alt={story.story_type || "HTBF photo story"}
                           className="block max-h-[560px] w-full max-w-full object-cover"
                         />
-                      </div>
+                      </button>
                     )}
 
                     {story.story_text && (
@@ -742,27 +881,41 @@ export default function FreedomFeed({
                   </div>
 
                   {story.signed_video_url && (
-                    <div className="bg-black">
+                    <button
+                      type="button"
+                      onClick={() => openVideoStory(story.id)}
+                      className="relative block w-full overflow-hidden bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200"
+                      aria-label="Open video in Video Feed"
+                    >
                       <video
-                        controls
                         autoPlay
                         muted
                         loop
                         playsInline
                         preload="metadata"
-                        className="max-h-[560px] w-full bg-black object-contain"
+                        className="pointer-events-none max-h-[560px] w-full bg-black object-contain"
                         src={story.signed_video_url}
                       >
                         Your browser does not support the video tag.
                       </video>
-                    </div>
+
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                        <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
+                          Watch in Video Feed
+                        </span>
+                      </div>
+                    </button>
                   )}
 
                   {!story.signed_video_url && story.video_url && (
-                    <div className="mx-5 mb-5 flex h-48 items-center justify-center rounded-[1.5rem] border border-red-100 bg-red-50 p-4 text-center text-sm font-bold text-red-700">
+                    <button
+                      type="button"
+                      onClick={() => openVideoStory(story.id)}
+                      className="mx-5 mb-5 flex h-48 w-[calc(100%-2.5rem)] items-center justify-center rounded-[1.5rem] border border-blue-100 bg-blue-50 p-4 text-center text-sm font-bold text-[#082f63] transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    >
                       Video found, but the secure video link could not be
-                      created.
-                    </div>
+                      created. Tap to open in Video Feed.
+                    </button>
                   )}
 
                   <div className="border-t border-slate-100 px-5 py-3">
@@ -952,6 +1105,113 @@ export default function FreedomFeed({
           )}
         </div>
 
+        {photoViewerStory?.signed_image_url && (
+          <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black text-white">
+            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent p-4">
+              <button
+                type="button"
+                onClick={closePhotoViewer}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-white/20"
+                aria-label="Close photo viewer"
+              >
+                <X className="h-6 w-6" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPhotoActionSheetOpen(true);
+                  setPhotoViewerMessage("");
+                }}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-white/20"
+                aria-label="Open photo actions"
+              >
+                <MoreHorizontal className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="flex min-h-0 flex-1 items-center justify-center px-0 py-20 sm:px-6">
+              <img
+                src={photoViewerStory.signed_image_url}
+                alt={photoViewerStory.story_type || "HTBF photo story"}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/85 to-transparent p-5 pt-16">
+              <div className="mx-auto max-w-3xl">
+                <div
+                  className="max-w-full overflow-hidden break-words text-base font-black"
+                  style={{
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {photoViewerStory.name || "HTBF Community"}
+                </div>
+
+                {photoViewerStory.story_text && (
+                  <p
+                    className="mt-2 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-white/85"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {photoViewerStory.story_text}
+                  </p>
+                )}
+
+                {photoViewerMessage && (
+                  <div className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold text-white ring-1 ring-white/15">
+                    {photoViewerMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {photoActionSheetOpen && (
+              <div className="fixed inset-0 z-[60] flex items-end bg-black/45 p-3 backdrop-blur-sm">
+                <div className="w-full rounded-[2rem] bg-white p-3 text-slate-900 shadow-2xl">
+                  <div className="px-4 pb-2 pt-3 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                    Photo Options
+                  </div>
+
+                  <PhotoActionButton
+                    icon={<Download className="h-5 w-5" />}
+                    label="Save Photo"
+                    onClick={() => savePhoto(photoViewerStory)}
+                  />
+                  <PhotoActionButton
+                    icon={<Copy className="h-5 w-5" />}
+                    label="Copy Photo Link"
+                    onClick={() => copyPhotoLink(photoViewerStory)}
+                  />
+                  <PhotoActionButton
+                    icon={<Share2 className="h-5 w-5" />}
+                    label="Share"
+                    onClick={() => sharePhoto(photoViewerStory)}
+                  />
+                  <PhotoActionButton
+                    icon={<Flag className="h-5 w-5" />}
+                    label="Report Photo"
+                    danger
+                    onClick={() => reportPhoto(photoViewerStory)}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setPhotoActionSheetOpen(false)}
+                    className="mt-2 flex w-full items-center justify-center rounded-2xl bg-slate-100 px-4 py-3 text-base font-black text-slate-700 transition hover:bg-slate-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {answeringPrayerStory && (
           <div className="fixed inset-0 z-50 flex items-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
             <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
@@ -1060,6 +1320,39 @@ function ReactionButton({
       >
         {label}
       </span>
+    </button>
+  );
+}
+
+function PhotoActionButton({
+  icon,
+  label,
+  onClick,
+  danger = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-base font-black transition ${
+        danger
+          ? "text-red-700 hover:bg-red-50"
+          : "text-slate-800 hover:bg-blue-50"
+      }`}
+    >
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+          danger ? "bg-red-50 text-red-700" : "bg-blue-50 text-[#0b63ce]"
+        }`}
+      >
+        {icon}
+      </span>
+      {label}
     </button>
   );
 }
