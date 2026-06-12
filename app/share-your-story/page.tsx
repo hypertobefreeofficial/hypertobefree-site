@@ -29,11 +29,7 @@ type ProfileRow = {
 
 type MediaMode = "text" | "photo" | "video";
 type PhotoDisplayStyle = "original" | "soft-rounded" | "full-width" | "framed";
-type VideoDisplayStyle =
-  | "original"
-  | "full-width"
-  | "cinematic"
-  | "testimony-frame";
+type StoryStyle = "simple" | "testimony" | "praise" | "prayer" | "scripture";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -102,18 +98,44 @@ const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
   { label: "Framed", value: "framed" },
 ];
 
-const videoDisplayOptions: { label: string; value: VideoDisplayStyle }[] = [
-  { label: "Original", value: "original" },
-  { label: "Full Width", value: "full-width" },
-  { label: "Cinematic", value: "cinematic" },
-  { label: "Testimony Frame", value: "testimony-frame" },
+const storyStyleOptions: {
+  label: string;
+  value: StoryStyle;
+  description: string;
+}[] = [
+  {
+    label: "Simple",
+    value: "simple",
+    description: "Clean plain text.",
+  },
+  {
+    label: "Testimony",
+    value: "testimony",
+    description: "Before / God Did / Now prompt feel.",
+  },
+  {
+    label: "Praise",
+    value: "praise",
+    description: "Warmer celebration style.",
+  },
+  {
+    label: "Prayer",
+    value: "prayer",
+    description: "Softer prayer request style.",
+  },
+  {
+    label: "Scripture",
+    value: "scripture",
+    description: "Verse and reflection feel.",
+  },
 ];
 
 const storyPromptIdeas = [
-  "What was life like before?",
   "What did God do?",
   "What changed?",
-  "How can others pray with you?",
+  "What are you thankful for?",
+  "How can others pray?",
+  "What verse encouraged you?",
 ];
 
 export default function ShareYourStoryPage() {
@@ -130,11 +152,10 @@ export default function ShareYourStoryPage() {
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoDisplayStyle, setPhotoDisplayStyle] =
     useState<PhotoDisplayStyle>("soft-rounded");
+  const [storyStyle, setStoryStyle] = useState<StoryStyle>("simple");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoCaption, setVideoCaption] = useState("");
-  const [videoDisplayStyle, setVideoDisplayStyle] =
-    useState<VideoDisplayStyle>("testimony-frame");
   const [message, setMessage] = useState("");
 
   const [textSize, setTextSize] = useState("text-medium");
@@ -160,8 +181,6 @@ export default function ShareYourStoryPage() {
 
     return cleanStoryText || cleanPhotoCaption;
   }, [photoCaption, storyText]);
-
-  // TODO: Persist media captions and display styles as separate fields when stories has dedicated columns.
 
   useEffect(() => {
     async function loadPage() {
@@ -290,6 +309,18 @@ export default function ShareYourStoryPage() {
     });
   }
 
+  function addPromptIdea(idea: string) {
+    setStoryText((current) => {
+      const trimmed = current.trimEnd();
+
+      if (!trimmed) {
+        return `${idea}\n`;
+      }
+
+      return `${trimmed}\n\n${idea}\n`;
+    });
+  }
+
   function removePhoto() {
     setPhotoFile(null);
     setPhotoPreviewUrl(null);
@@ -301,7 +332,6 @@ export default function ShareYourStoryPage() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
     setVideoCaption("");
-    setVideoDisplayStyle("testimony-frame");
   }
 
   function handlePhotoSelect(file: File | null) {
@@ -648,6 +678,7 @@ export default function ShareYourStoryPage() {
       removeVideo();
       setMediaMode("text");
       setStoryType("Testimony");
+      setStoryStyle("simple");
       setTextSize("text-medium");
       setTextStyle("style-clean");
       setTextPosition("position-bottom-left");
@@ -737,12 +768,14 @@ export default function ShareYourStoryPage() {
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {storyPromptIdeas.map((idea) => (
-                <div
+                <button
                   key={idea}
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-600 ring-1 ring-blue-100"
+                  type="button"
+                  onClick={() => addPromptIdea(idea)}
+                  className="rounded-2xl bg-white px-4 py-3 text-left text-sm font-bold text-slate-600 ring-1 ring-blue-100 transition hover:bg-blue-100 hover:text-[#082f63]"
                 >
                   {idea}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -860,6 +893,54 @@ export default function ShareYourStoryPage() {
                 ))}
               </div>
             </div>
+
+            {mediaMode !== "video" && (
+              <div className="rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                <div className="mb-4">
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                    Story Style
+                  </div>
+                  <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                    Shape the writing preview
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    These options only affect this page preview for now. Your
+                    story still submits through the same review flow.
+                  </p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-5">
+                  {storyStyleOptions.map((option) => {
+                    const selected = storyStyle === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setStoryStyle(option.value)}
+                        className={`rounded-[1.25rem] p-3 text-left ring-1 transition ${
+                          selected
+                            ? "bg-blue-50 ring-blue-200"
+                            : "bg-slate-50 ring-slate-200 hover:bg-blue-50"
+                        }`}
+                      >
+                        <div className="text-sm font-black text-[#062a57]">
+                          {option.label}
+                        </div>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                          {option.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <StoryStylePreview
+                  style={storyStyle}
+                  text={mediaMode === "photo" ? photoFeedText : storyText}
+                />
+              </div>
+            )}
 
             {mediaMode === "photo" && (
               <div>
@@ -1020,15 +1101,11 @@ export default function ShareYourStoryPage() {
 
                   {photoFeedText && (
                     <div className="p-5 pt-4">
-                      <p
-                        className="max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-2xl bg-slate-50 px-4 py-3 text-[17px] leading-7 text-slate-800 ring-1 ring-slate-200"
-                        style={{
-                          overflowWrap: "anywhere",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {photoFeedText}
-                      </p>
+                      <StoryStylePreview
+                        style={storyStyle}
+                        text={photoFeedText}
+                        compact
+                      />
                     </div>
                   )}
                 </div>
@@ -1092,8 +1169,8 @@ export default function ShareYourStoryPage() {
                     </div>
                     <div className="mt-1 text-lg font-black">Video Story</div>
                     <p className="mt-1 text-sm leading-6 text-slate-300">
-                      Add a caption and adjust how your message will appear on
-                      your video before submitting.
+                      Add a caption and preview the standard HTBF video format
+                      before submitting.
                     </p>
                   </div>
 
@@ -1118,26 +1195,12 @@ export default function ShareYourStoryPage() {
                   />
                 </div>
 
-                <div className="mb-4">
-                  <div className="mb-2 text-sm font-black text-white">
-                    Display style
-                  </div>
-                  <SegmentedOptionGroup
-                    options={videoDisplayOptions}
-                    value={videoDisplayStyle}
-                    onChange={(value) =>
-                      setVideoDisplayStyle(value as VideoDisplayStyle)
-                    }
-                    dark
-                  />
-                </div>
-
-                <div className={getVideoPreviewFrameClass(videoDisplayStyle)}>
+                <div className="relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[2rem] bg-black p-1 ring-2 ring-blue-300/40">
                   <video
                     src={videoPreviewUrl}
                     controls
                     playsInline
-                    className={getVideoPreviewClass(videoDisplayStyle)}
+                    className="h-full w-full rounded-[1.65rem] object-cover"
                   />
 
                   <div
@@ -1314,6 +1377,114 @@ export default function ShareYourStoryPage() {
   );
 }
 
+function StoryStylePreview({
+  style,
+  text,
+  compact = false,
+}: {
+  style: StoryStyle;
+  text: string;
+  compact?: boolean;
+}) {
+  const meta = getStoryStyleMeta(style);
+  const cleanText = text.trim();
+  const displayText = cleanText || meta.placeholder;
+
+  return (
+    <div
+      className={`${compact ? "" : "mt-4"} max-w-full overflow-hidden rounded-[1.5rem] p-4 ring-1 ${
+        meta.frameClass
+      }`}
+    >
+      <div className={`text-xs font-black uppercase tracking-[0.16em] ${meta.labelClass}`}>
+        {meta.label}
+      </div>
+
+      {style === "testimony" && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {["Before", "God Did", "Now"].map((item) => (
+            <span
+              key={item}
+              className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {style === "scripture" && (
+        <div className="mt-3 rounded-2xl bg-white/80 px-4 py-3 text-sm font-black text-indigo-800 ring-1 ring-indigo-100">
+          Verse / Reflection
+        </div>
+      )}
+
+      <p
+        className={`mt-3 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 ${
+          cleanText ? meta.textClass : "text-slate-400"
+        }`}
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {displayText}
+      </p>
+    </div>
+  );
+}
+
+function getStoryStyleMeta(style: StoryStyle) {
+  if (style === "testimony") {
+    return {
+      label: "Testimony",
+      placeholder:
+        "Before...\n\nGod Did...\n\nNow...",
+      frameClass: "bg-blue-50/80 text-slate-800 ring-blue-100",
+      labelClass: "text-[#0b63ce]",
+      textClass: "font-semibold text-slate-800",
+    };
+  }
+
+  if (style === "praise") {
+    return {
+      label: "Praise",
+      placeholder: "I am thankful because...",
+      frameClass: "bg-amber-50/80 text-amber-950 ring-amber-100",
+      labelClass: "text-amber-700",
+      textClass: "font-bold text-amber-950",
+    };
+  }
+
+  if (style === "prayer") {
+    return {
+      label: "Prayer",
+      placeholder: "Please pray with me for...",
+      frameClass: "bg-emerald-50/80 text-emerald-950 ring-emerald-100",
+      labelClass: "text-emerald-700",
+      textClass: "font-semibold text-emerald-950",
+    };
+  }
+
+  if (style === "scripture") {
+    return {
+      label: "Scripture",
+      placeholder: "A verse that encouraged me...",
+      frameClass: "bg-indigo-50/80 text-indigo-950 ring-indigo-100",
+      labelClass: "text-indigo-700",
+      textClass: "font-serif italic text-indigo-950",
+    };
+  }
+
+  return {
+    label: "Simple",
+    placeholder: "Your words will preview here...",
+    frameClass: "bg-slate-50 text-slate-800 ring-slate-200",
+    labelClass: "text-slate-500",
+    textClass: "font-semibold text-slate-800",
+  };
+}
+
 function VideoTextSelect({
   label,
   value,
@@ -1386,18 +1557,6 @@ function SegmentedOptionGroup<T extends string>({
   );
 }
 
-function getPhotoPreviewFrameClass(style: PhotoDisplayStyle) {
-  if (style === "framed") {
-    return "max-w-full overflow-hidden rounded-[2rem] bg-[#082f63] p-3 shadow-sm ring-1 ring-blue-100";
-  }
-
-  if (style === "full-width") {
-    return "-mx-4 max-w-full overflow-hidden bg-slate-100 sm:mx-0 sm:rounded-[1.5rem]";
-  }
-
-  return "max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
-}
-
 function getPhotoFeedPreviewFrameClass(style: PhotoDisplayStyle) {
   if (style === "framed") {
     return "mx-5 max-w-full overflow-hidden rounded-[1.5rem] bg-[#082f63] p-2 ring-1 ring-blue-100";
@@ -1428,32 +1587,4 @@ function getPhotoPreviewImageClass(style: PhotoDisplayStyle) {
   }
 
   return "block max-h-[560px] w-full max-w-full rounded-[2rem] object-cover";
-}
-
-function getVideoPreviewFrameClass(style: VideoDisplayStyle) {
-  if (style === "cinematic") {
-    return "relative mx-auto aspect-video overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10";
-  }
-
-  if (style === "full-width") {
-    return "relative -mx-4 aspect-video overflow-hidden bg-black sm:mx-0 sm:rounded-[1.5rem]";
-  }
-
-  if (style === "testimony-frame") {
-    return "relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[2rem] bg-black p-1 ring-2 ring-blue-300/40";
-  }
-
-  return "relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10";
-}
-
-function getVideoPreviewClass(style: VideoDisplayStyle) {
-  if (style === "original") {
-    return "h-full w-full object-contain";
-  }
-
-  if (style === "testimony-frame") {
-    return "h-full w-full rounded-[1.65rem] object-cover";
-  }
-
-  return "h-full w-full object-cover";
 }
