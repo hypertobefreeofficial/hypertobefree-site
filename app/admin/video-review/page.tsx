@@ -131,6 +131,40 @@ export default function AdminVideoReviewPage() {
     setLoading(false);
   }
 
+  async function createApprovalInboxMessage(approvedStory: Story) {
+    if (!approvedStory.user_id) return;
+
+    const { data: existingMessages, error: existingError } = await supabase
+      .from("inbox_messages")
+      .select("id")
+      .eq("user_id", approvedStory.user_id)
+      .eq("story_id", approvedStory.id)
+      .eq("message_type", "story_approved")
+      .limit(1);
+
+    if (existingError) {
+      console.error("Could not check approval inbox message:", existingError);
+      return;
+    }
+
+    if (Array.isArray(existingMessages) && existingMessages.length > 0) return;
+
+    const { error } = await supabase.from("inbox_messages").insert({
+      user_id: approvedStory.user_id,
+      title: "Your post was approved",
+      body: "Your post has been approved and is now live on HTBF.",
+      category: "approval",
+      message_type: "story_approved",
+      story_id: approvedStory.id,
+      action_url: "/feed",
+      read: false,
+    });
+
+    if (error) {
+      console.error("Could not create approval inbox message:", error);
+    }
+  }
+
   async function updateStoryStatus(newStatus: string) {
     if (!story) return;
 
@@ -144,6 +178,10 @@ export default function AdminVideoReviewPage() {
     if (error) {
       setMessage(`Could not update story: ${error.message}`);
       return;
+    }
+
+    if (newStatus === "approved") {
+      await createApprovalInboxMessage(story);
     }
 
     setStory({
