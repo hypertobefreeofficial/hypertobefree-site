@@ -685,29 +685,53 @@ export default function FreedomFeed({
                               God did it.
                             </div>
 
+                            {story.story_text && (
+                              <div className="mt-4">
+                                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                                  Original Prayer Request
+                                </div>
+
+                                <div
+                                  className="mt-2 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
+                                  style={{
+                                    overflowWrap: "anywhere",
+                                    wordBreak: "break-word",
+                                    whiteSpace: "pre-wrap",
+                                  }}
+                                >
+                                  {story.story_text}
+                                </div>
+                              </div>
+                            )}
+
+                            {story.reaction_counts.praying > 0 && (
+                              <div className="mt-4 rounded-full bg-white px-3 py-2 text-sm font-black text-emerald-800 ring-1 ring-emerald-100">
+                                Prayer Circle •{" "}
+                                {story.reaction_counts.praying === 1
+                                  ? "1 person prayed"
+                                  : `${story.reaction_counts.praying} people prayed`}
+                              </div>
+                            )}
+
+                            <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                              Answered Prayer
+                            </div>
+
                             {story.answered_text ? (
                               <div
-                                className="mt-3 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
+                                className="mt-2 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
                                 style={{
                                   overflowWrap: "anywhere",
                                   wordBreak: "break-word",
                                   whiteSpace: "pre-wrap",
                                 }}
                               >
-                                “{story.answered_text}”
+                                {story.answered_text}
                               </div>
                             ) : (
                               <p className="mt-2 text-sm leading-6 text-slate-600">
                                 This prayer request was marked answered by the
                                 person who shared it.
-                              </p>
-                            )}
-
-                            {story.reaction_counts.praying > 0 && (
-                              <p className="mt-2 text-sm font-semibold text-slate-500">
-                                {story.reaction_counts.praying === 1
-                                  ? "1 person prayed with this request."
-                                  : `${story.reaction_counts.praying} people prayed with this request.`}
                               </p>
                             )}
 
