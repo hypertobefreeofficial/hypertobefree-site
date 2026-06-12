@@ -63,6 +63,9 @@ export default function FreedomFeed({
   const [userId, setUserId] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState("");
   const [activeFilter, setActiveFilter] = useState<FeedFilter>(defaultFilter);
+  const [answeringPrayerStory, setAnsweringPrayerStory] =
+    useState<ApprovedStory | null>(null);
+  const [answeredPrayerText, setAnsweredPrayerText] = useState("");
 
   useEffect(() => {
     let currentUserId: string | null = null;
@@ -348,7 +351,13 @@ export default function FreedomFeed({
     );
   }
 
-  async function markPrayerAnswered(storyId: string) {
+  function closeAnsweredPrayerModal() {
+    setAnsweringPrayerStory(null);
+    setAnsweredPrayerText("");
+    setReactionMessage("");
+  }
+
+  async function markPrayerAnswered(storyId: string, answeredText: string) {
     setReactionMessage("");
 
     if (!userId) {
@@ -369,12 +378,6 @@ export default function FreedomFeed({
       );
       return;
     }
-
-    const answeredText = window.prompt(
-      "God did it! What happened? Share a short update so others can be encouraged."
-    );
-
-    if (answeredText === null) return;
 
     const cleanAnsweredText = answeredText.trim();
 
@@ -415,6 +418,7 @@ export default function FreedomFeed({
       )
     );
 
+    closeAnsweredPrayerModal();
     setReactionMessage("Prayer request marked as answered. God did it.");
   }
 
@@ -783,7 +787,11 @@ export default function FreedomFeed({
 
                               {originalPoster && (
                                 <button
-                                  onClick={() => markPrayerAnswered(story.id)}
+                                  onClick={() => {
+                                    setAnsweringPrayerStory(story);
+                                    setAnsweredPrayerText("");
+                                    setReactionMessage("");
+                                  }}
                                   className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
                                 >
                                   God Did It
@@ -853,6 +861,61 @@ export default function FreedomFeed({
             })
           )}
         </div>
+
+        {answeringPrayerStory && (
+          <div className="fixed inset-0 z-50 flex items-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                HYPER TO BE FREE
+              </div>
+
+              <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
+                Praise God! How did He answer your prayer?
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Share a short update so others can be encouraged.
+              </p>
+
+              <textarea
+                value={answeredPrayerText}
+                onChange={(event) => setAnsweredPrayerText(event.target.value)}
+                rows={5}
+                placeholder="Share what God did…"
+                className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-50"
+              />
+
+              {reactionMessage && (
+                <div className="mt-3 rounded-2xl bg-blue-50 p-3 text-sm font-semibold text-[#082f63]">
+                  {reactionMessage}
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeAnsweredPrayerModal}
+                  className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    markPrayerAnswered(
+                      answeringPrayerStory.id,
+                      answeredPrayerText
+                    )
+                  }
+                  className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+                >
+                  Share Praise
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
