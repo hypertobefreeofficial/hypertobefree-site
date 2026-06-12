@@ -5,8 +5,11 @@ import Link from "next/link";
 import {
   Copy,
   Download,
+  Eye,
+  EyeOff,
   Flag,
   Globe2,
+  Info,
   MoreHorizontal,
   Plus,
   Video,
@@ -19,6 +22,12 @@ import {
 import { supabase } from "../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
+type ReportReason =
+  | "inappropriate"
+  | "harassment_hate"
+  | "violence_harmful"
+  | "spam"
+  | "other";
 
 type FeedFilter =
   | "all"
@@ -60,6 +69,13 @@ type ApprovedStory = {
 };
 
 const STORY_IMAGE_BUCKET = "story-images";
+const reportReasons: { label: string; value: ReportReason }[] = [
+  { label: "Inappropriate content", value: "inappropriate" },
+  { label: "Harassment or hate", value: "harassment_hate" },
+  { label: "Violence or harmful content", value: "violence_harmful" },
+  { label: "Spam or misleading", value: "spam" },
+  { label: "Other", value: "other" },
+];
 
 export default function FreedomFeed({
   defaultFilter = "all",
@@ -80,6 +96,14 @@ export default function FreedomFeed({
   const [photoActionSheetOpen, setPhotoActionSheetOpen] = useState(false);
   const [photoViewerMessage, setPhotoViewerMessage] = useState("");
   const [photoCaptionExpanded, setPhotoCaptionExpanded] = useState(false);
+  const [photoCaptionHidden, setPhotoCaptionHidden] = useState(false);
+  const [photoDetailsStory, setPhotoDetailsStory] =
+    useState<ApprovedStory | null>(null);
+  const [reportStory, setReportStory] = useState<ApprovedStory | null>(null);
+  const [reportReason, setReportReason] =
+    useState<ReportReason>("inappropriate");
+  const [reportDetails, setReportDetails] = useState("");
+  const [sendingReport, setSendingReport] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
   const feedReloadInFlightRef = useRef(false);
   const feedReloadQueuedRef = useRef(false);
@@ -563,6 +587,11 @@ export default function FreedomFeed({
     setPhotoActionSheetOpen(false);
     setPhotoViewerMessage("");
     setPhotoCaptionExpanded(false);
+    setPhotoCaptionHidden(false);
+    setPhotoDetailsStory(null);
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
   }
 
   function closePhotoViewer() {
@@ -571,6 +600,11 @@ export default function FreedomFeed({
 
   function closePhotoActionSheet() {
     setPhotoActionSheetOpen(false);
+  }
+
+  function openPhotoDetails(story: ApprovedStory) {
+    setPhotoActionSheetOpen(false);
+    setPhotoDetailsStory(story);
   }
 
   function openVideoStory(storyId: string) {
@@ -657,28 +691,126 @@ export default function FreedomFeed({
     }
   }
 
-  async function reportPhoto(story: ApprovedStory) {
+  async function copyPhotoCaption(story: ApprovedStory) {
+    setPhotoViewerMessage("");
+
+    const caption = story.story_text?.trim();
+
+    if (!caption) {
+      setPhotoViewerMessage("There is no caption to copy.");
+      setPhotoActionSheetOpen(false);
+      return;
+    }
+
+    try {
+      if (!navigator.clipboard) {
+        setPhotoViewerMessage("Copy is not available in this browser.");
+        setPhotoActionSheetOpen(false);
+        return;
+      }
+
+      await navigator.clipboard.writeText(caption);
+      setPhotoViewerMessage("Caption copied.");
+      setPhotoActionSheetOpen(false);
+    } catch (error) {
+      console.error("Could not copy caption:", error);
+      setPhotoViewerMessage("Could not copy the caption.");
+      setPhotoActionSheetOpen(false);
+    }
+  }
+
+  async function prayForPhotoStory(story: ApprovedStory) {
     setPhotoActionSheetOpen(false);
-    setPhotoViewerMessage("Sending report...");
+
+    if (!userId) {
+      setPhotoViewerMessage("Please sign in to join the Prayer Circle.");
+      return;
+    }
+
+    const alreadyPraying = story.user_reactions.includes("praying");
+
+    await toggleReaction(story.id, "praying");
+
+    setPhotoViewerStory((currentStory) => {
+      if (!currentStory || currentStory.id !== story.id) return currentStory;
+
+      const nextReactions = alreadyPraying
+        ? currentStory.user_reactions.filter((reaction) => reaction !== "praying")
+        : [...currentStory.user_reactions, "praying"];
+
+      return {
+        ...currentStory,
+        user_reactions: nextReactions,
+        reaction_counts: {
+          ...currentStory.reaction_counts,
+          praying: alreadyPraying
+            ? Math.max(currentStory.reaction_counts.praying - 1, 0)
+            : currentStory.reaction_counts.praying + 1,
+        },
+      };
+    });
+
+    setPhotoViewerMessage(
+      alreadyPraying
+        ? "Prayer Circle reaction removed."
+        : "You joined the Prayer Circle."
+    );
+  }
+
+  function togglePhotoCaption() {
+    setPhotoCaptionHidden((current) => !current);
+    setPhotoActionSheetOpen(false);
+  }
+
+  function reportPhoto(story: ApprovedStory) {
+    setPhotoActionSheetOpen(false);
 
     if (!userId) {
       setPhotoViewerMessage("Please sign in to report a photo.");
       return;
     }
 
+    setReportStory(story);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    setPhotoViewerMessage("");
+  }
+
+  function closeReportModal() {
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    setSendingReport(false);
+  }
+
+  async function submitReport() {
+    if (!userId || !reportStory) {
+      setPhotoViewerMessage("Please sign in to report a photo.");
+      return;
+    }
+
+    setSendingReport(true);
+    setPhotoViewerMessage("");
+
+    const cleanDetails = reportDetails.trim();
+
     const { error } = await supabase.from("content_reports").insert({
-      story_id: story.id,
+      story_id: reportStory.id,
       reporter_user_id: userId,
-      reported_user_id: story.user_id,
-      reason: "inappropriate",
-      details: "Photo reported from the Home feed photo viewer.",
+      reported_user_id: reportStory.user_id,
+      reason: reportReason,
+      details: cleanDetails || null,
+      status: "open",
     });
+
+    setSendingReport(false);
 
     if (error) {
       setPhotoViewerMessage(`Could not report photo: ${error.message}`);
       return;
     }
 
+    closeReportModal();
     setPhotoViewerMessage(
       "Report submitted. Thank you for helping keep HTBF safe."
     );
@@ -1147,41 +1279,46 @@ export default function FreedomFeed({
               />
             </div>
 
-            <div className="absolute inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] px-4 sm:bottom-6 sm:px-6">
-              <div className="mx-auto max-w-2xl rounded-[1.5rem] bg-black/55 p-4 ring-1 ring-white/10 backdrop-blur-md">
-                <div
-                  className="max-w-full overflow-hidden break-words text-sm font-black sm:text-base"
-                  style={{
-                    overflowWrap: "anywhere",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {photoViewerStory.name || "HTBF Community"}
-                </div>
-
-                {photoViewerText && (
+            {(!photoCaptionHidden || photoViewerMessage) && (
+            <div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-4 right-4 md:bottom-8 md:left-1/2 md:right-auto md:w-[min(720px,80vw)] md:-translate-x-1/2">
+              <div className="mx-auto max-w-2xl rounded-[1.5rem] bg-black/55 p-4 ring-1 ring-white/10 backdrop-blur-md md:max-w-xl lg:max-w-2xl">
+                {!photoCaptionHidden && (
                   <>
-                    <p
-                      className="mt-2 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-white/85"
+                    <div
+                      className="max-w-full overflow-hidden break-words text-sm font-black sm:text-base"
                       style={{
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
-                        display: "-webkit-box",
-                        WebkitBoxOrient: "vertical",
-                        WebkitLineClamp: 3,
                       }}
                     >
-                      {photoViewerText}
-                    </p>
+                      {photoViewerStory.name || "HTBF Community"}
+                    </div>
 
-                    {photoViewerTextIsLong && (
-                      <button
-                        type="button"
-                        onClick={() => setPhotoCaptionExpanded(true)}
-                        className="mt-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-black text-blue-100 ring-1 ring-white/15 transition hover:bg-white/15"
-                      >
-                        See more
-                      </button>
+                    {photoViewerText && (
+                      <>
+                        <p
+                          className="mt-2 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-white/85"
+                          style={{
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
+                            display: "-webkit-box",
+                            WebkitBoxOrient: "vertical",
+                            WebkitLineClamp: 3,
+                          }}
+                        >
+                          {photoViewerText}
+                        </p>
+
+                        {photoViewerTextIsLong && (
+                          <button
+                            type="button"
+                            onClick={() => setPhotoCaptionExpanded(true)}
+                            className="mt-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-black text-blue-100 ring-1 ring-white/15 transition hover:bg-white/15"
+                          >
+                            See more
+                          </button>
+                        )}
+                      </>
                     )}
                   </>
                 )}
@@ -1193,6 +1330,7 @@ export default function FreedomFeed({
                 )}
               </div>
             </div>
+            )}
 
             {photoCaptionExpanded && photoViewerText && (
               <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/55 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:pb-4">
@@ -1222,19 +1360,166 @@ export default function FreedomFeed({
               </div>
             )}
 
+            {photoDetailsStory && (
+              <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/55 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4">
+                <div className="w-full max-w-lg rounded-[1.5rem] bg-white p-5 text-slate-900 shadow-2xl">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                    HYPER TO BE FREE
+                  </div>
+
+                  <h3 className="mt-2 text-2xl font-black text-[#062a57]">
+                    Story Details
+                  </h3>
+
+                  <div className="mt-4 grid gap-3 text-sm">
+                    <DetailRow
+                      label="Author"
+                      value={photoDetailsStory.name || "HTBF Community"}
+                    />
+                    <DetailRow
+                      label="Story Type"
+                      value={photoDetailsStory.story_type || "Photo Story"}
+                    />
+                    <DetailRow
+                      label="Location"
+                      value={photoDetailsStory.location || "Location not shared"}
+                    />
+                  </div>
+
+                  {photoDetailsStory.story_text && (
+                    <div
+                      className="mt-4 max-h-[42vh] max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700 ring-1 ring-slate-200"
+                      style={{
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {photoDetailsStory.story_text}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setPhotoDetailsStory(null)}
+                    className="mt-4 flex w-full items-center justify-center rounded-2xl bg-[#0b63ce] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084f9f]"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {reportStory && (
+              <div className="fixed inset-0 z-[65] flex items-end justify-center bg-black/60 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4">
+                <div className="w-full max-w-lg rounded-[1.5rem] bg-white p-5 text-slate-900 shadow-2xl">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                    HYPER TO BE FREE
+                  </div>
+
+                  <h3 className="mt-2 text-2xl font-black text-[#062a57]">
+                    Report Photo
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Reports help keep HTBF safe and send this story to the admin
+                    review queue.
+                  </p>
+
+                  <label className="mt-4 block text-sm font-black text-[#062a57]">
+                    Why are you reporting this?
+                  </label>
+                  <select
+                    value={reportReason}
+                    onChange={(event) =>
+                      setReportReason(event.target.value as ReportReason)
+                    }
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  >
+                    {reportReasons.map((reason) => (
+                      <option key={reason.value} value={reason.value}>
+                        {reason.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label className="mt-4 block text-sm font-black text-[#062a57]">
+                    Details, optional
+                  </label>
+                  <textarea
+                    value={reportDetails}
+                    onChange={(event) => setReportDetails(event.target.value)}
+                    rows={4}
+                    placeholder="Add any details that may help the moderator..."
+                    className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  />
+
+                  <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={closeReportModal}
+                      className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                    >
+                      Not Yet
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={sendingReport}
+                      onClick={submitReport}
+                      className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {sendingReport ? "Submitting..." : "Submit Report"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {photoActionSheetOpen && (
               <div
                 className="fixed inset-0 z-[60] flex items-end justify-center bg-black/35 p-4 backdrop-blur-sm"
                 onClick={closePhotoActionSheet}
               >
                 <div
-                  className="w-full max-w-sm rounded-[1.5rem] bg-white p-2 text-slate-900 shadow-2xl"
+                  className="max-h-[78vh] w-full max-w-sm overflow-y-auto rounded-[1.5rem] bg-white p-2 text-slate-900 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="px-4 pb-2 pt-3 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
                     Photo Options
                   </div>
 
+                  <PhotoActionButton
+                    icon={<Info className="h-5 w-5" />}
+                    label="View Story Details"
+                    onClick={() => openPhotoDetails(photoViewerStory)}
+                  />
+                  {isPrayerStory(photoViewerStory) && (
+                    <PhotoActionButton
+                      icon={<MessageCircleHeart className="h-5 w-5" />}
+                      label={
+                        photoViewerStory.user_reactions.includes("praying")
+                          ? "Prayer Circle Joined"
+                          : "Pray for This"
+                      }
+                      onClick={() => prayForPhotoStory(photoViewerStory)}
+                    />
+                  )}
+                  <PhotoActionButton
+                    icon={<Copy className="h-5 w-5" />}
+                    label="Copy Caption"
+                    onClick={() => copyPhotoCaption(photoViewerStory)}
+                  />
+                  <PhotoActionButton
+                    icon={
+                      photoCaptionHidden ? (
+                        <Eye className="h-5 w-5" />
+                      ) : (
+                        <EyeOff className="h-5 w-5" />
+                      )
+                    }
+                    label={photoCaptionHidden ? "Show Caption" : "Hide Caption"}
+                    onClick={togglePhotoCaption}
+                  />
                   <PhotoActionButton
                     icon={<Download className="h-5 w-5" />}
                     label="Save Photo"
@@ -1389,7 +1674,7 @@ function PhotoActionButton({
   danger = false,
 }: {
   icon: ReactNode;
-  label: string;
+  label: ReactNode;
   onClick: () => void;
   danger?: boolean;
 }) {
@@ -1412,5 +1697,24 @@ function PhotoActionButton({
       </span>
       {label}
     </button>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </div>
+      <div
+        className="mt-1 max-w-full overflow-hidden break-words text-sm font-black text-slate-800"
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+    </div>
   );
 }
