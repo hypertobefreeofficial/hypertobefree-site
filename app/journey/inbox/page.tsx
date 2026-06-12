@@ -12,12 +12,15 @@ type InboxMessage = {
   created_at: string;
 };
 
+type ClearMessageRequest =
+  | { mode: "single"; messages: InboxMessage[] }
+  | { mode: "all"; messages: InboxMessage[] };
+
 export default function JourneyInboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [messageToClear, setMessageToClear] = useState<InboxMessage | null>(
-    null
-  );
+  const [clearMessageRequest, setClearMessageRequest] =
+    useState<ClearMessageRequest | null>(null);
   const [clearingMessage, setClearingMessage] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
 
@@ -63,15 +66,30 @@ export default function JourneyInboxPage() {
 
   function openClearMessageModal(message: InboxMessage) {
     setStatusMessage("");
-    setMessageToClear(message);
+    setClearMessageRequest({ mode: "single", messages: [message] });
+  }
+
+  function openClearAllMessagesModal() {
+    if (messages.length === 0) return;
+
+    setStatusMessage("");
+    setClearMessageRequest({ mode: "all", messages });
   }
 
   function closeClearMessageModal() {
-    setMessageToClear(null);
+    setClearMessageRequest(null);
   }
 
   async function confirmClearMessage() {
-    if (!messageToClear) return;
+    if (!clearMessageRequest) return;
+
+    const messagesToClear = clearMessageRequest.messages;
+    const messageIds = messagesToClear.map((message) => message.id);
+
+    if (messageIds.length === 0) {
+      setClearMessageRequest(null);
+      return;
+    }
 
     setClearingMessage(true);
     setStatusMessage("");
@@ -82,7 +100,7 @@ export default function JourneyInboxPage() {
 
     if (!user) {
       setClearingMessage(false);
-      setMessageToClear(null);
+      setClearMessageRequest(null);
       setStatusMessage("Please sign in to clear messages.");
       return;
     }
@@ -90,8 +108,8 @@ export default function JourneyInboxPage() {
     const { error } = await supabase
       .from("inbox_messages")
       .delete()
-      .eq("id", messageToClear.id)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .in("id", messageIds);
 
     setClearingMessage(false);
 
@@ -101,10 +119,14 @@ export default function JourneyInboxPage() {
     }
 
     setMessages((current) =>
-      current.filter((message) => message.id !== messageToClear.id)
+      current.filter((message) => !messageIds.includes(message.id))
     );
-    setMessageToClear(null);
-    setStatusMessage("Message cleared from your Journey inbox.");
+    setClearMessageRequest(null);
+    setStatusMessage(
+      clearMessageRequest.mode === "all"
+        ? "Messages cleared from your Journey inbox."
+        : "Message cleared from your Journey inbox."
+    );
   }
 
   return (
@@ -129,6 +151,18 @@ export default function JourneyInboxPage() {
         {statusMessage && (
           <div className="mb-4 rounded-2xl border border-white/10 bg-white/10 p-4 text-sm font-semibold text-slate-100">
             {statusMessage}
+          </div>
+        )}
+
+        {!loading && messages.length > 0 && (
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={openClearAllMessagesModal}
+              className="rounded-full border border-red-400/30 bg-red-500/15 px-4 py-2 text-sm font-bold text-red-100 hover:bg-red-500/25"
+            >
+              Clear All
+            </button>
           </div>
         )}
 
@@ -184,7 +218,7 @@ export default function JourneyInboxPage() {
         )}
       </div>
 
-      {messageToClear && (
+      {clearMessageRequest && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
           <div className="w-full max-w-lg rounded-3xl bg-white p-5 text-slate-950 shadow-2xl">
             <div className="mb-5">
@@ -193,12 +227,15 @@ export default function JourneyInboxPage() {
               </div>
 
               <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                Clear this message?
+                {clearMessageRequest.mode === "all"
+                  ? "Clear all messages?"
+                  : "Clear this message?"}
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                This will remove the message from your Journey inbox on your
-                side only.
+                {clearMessageRequest.mode === "all"
+                  ? "This will remove all visible Journey inbox messages from your side only."
+                  : "This will remove this message from your Journey inbox on your side only."}
               </p>
             </div>
 
@@ -218,7 +255,11 @@ export default function JourneyInboxPage() {
                 disabled={clearingMessage}
                 className="rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {clearingMessage ? "Clearing..." : "Clear Message"}
+                {clearingMessage
+                  ? "Clearing..."
+                  : clearMessageRequest.mode === "all"
+                    ? "Clear All"
+                    : "Clear Message"}
               </button>
             </div>
           </div>
