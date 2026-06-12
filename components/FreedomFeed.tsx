@@ -36,6 +36,7 @@ type ApprovedStory = {
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  image_url: string | null;
   video_url: string | null;
   signed_video_url: string | null;
   status: string | null;
@@ -180,7 +181,7 @@ export default function FreedomFeed({
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -249,6 +250,7 @@ export default function FreedomFeed({
           location: story.location,
           story_type: story.story_type,
           story_text: story.story_text,
+          image_url: story.image_url,
           video_url: story.video_url,
           signed_video_url: signedVideoUrl,
           status: story.status,
@@ -676,9 +678,19 @@ export default function FreedomFeed({
                       </div>
                     </div>
 
+                    {story.image_url && (
+                      <div className="mt-4 max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200">
+                        <img
+                          src={story.image_url}
+                          alt={story.story_type || "HTBF photo story"}
+                          className="block max-h-[560px] w-full max-w-full object-cover"
+                        />
+                      </div>
+                    )}
+
                     {story.story_text && (
                       <p
-                        className="mt-4 max-w-full whitespace-pre-wrap text-[17px] leading-7 text-slate-800"
+                        className="mt-4 max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
                         style={{
                           overflowWrap: "anywhere",
                           wordBreak: "break-word",
