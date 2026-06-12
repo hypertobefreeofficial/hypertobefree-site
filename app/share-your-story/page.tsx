@@ -28,6 +28,12 @@ type ProfileRow = {
 };
 
 type MediaMode = "text" | "photo" | "video";
+type PhotoDisplayStyle = "original" | "soft-rounded" | "full-width" | "framed";
+type VideoDisplayStyle =
+  | "original"
+  | "full-width"
+  | "cinematic"
+  | "testimony-frame";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -47,19 +53,19 @@ const mediaOptions: {
   description: string;
 }[] = [
   {
-    label: "Text story only",
+    label: "Text Story",
     value: "text",
     icon: FileText,
     description: "Share a written testimony, praise report, or prayer request.",
   },
   {
-    label: "Photo story",
+    label: "Photo Story",
     value: "photo",
     icon: Camera,
     description: "Upload a photo and add the story behind it.",
   },
   {
-    label: "Video story",
+    label: "Video Story",
     value: "video",
     icon: Video,
     description: "Upload a video testimony or encouragement.",
@@ -89,6 +95,27 @@ const storyTypes = [
 
 const emojiOptions = ["🙏", "❤️", "✝️", "🙌", "🕊️", "🔥", "😭", "✨", "🤍"];
 
+const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
+  { label: "Original", value: "original" },
+  { label: "Soft Rounded", value: "soft-rounded" },
+  { label: "Full Width", value: "full-width" },
+  { label: "Framed", value: "framed" },
+];
+
+const videoDisplayOptions: { label: string; value: VideoDisplayStyle }[] = [
+  { label: "Original", value: "original" },
+  { label: "Full Width", value: "full-width" },
+  { label: "Cinematic", value: "cinematic" },
+  { label: "Testimony Frame", value: "testimony-frame" },
+];
+
+const storyPromptIdeas = [
+  "What was life like before?",
+  "What did God do?",
+  "What changed?",
+  "How can others pray with you?",
+];
+
 export default function ShareYourStoryPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -100,8 +127,14 @@ export default function ShareYourStoryPage() {
   const [storyText, setStoryText] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [photoDisplayStyle, setPhotoDisplayStyle] =
+    useState<PhotoDisplayStyle>("soft-rounded");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [videoCaption, setVideoCaption] = useState("");
+  const [videoDisplayStyle, setVideoDisplayStyle] =
+    useState<VideoDisplayStyle>("testimony-frame");
   const [message, setMessage] = useState("");
 
   const [textSize, setTextSize] = useState("text-medium");
@@ -112,6 +145,8 @@ export default function ShareYourStoryPage() {
   const previewText = useMemo(() => {
     return storyText.trim() || "Your story text will preview here...";
   }, [storyText]);
+
+  // TODO: Persist media captions and display styles when stories has dedicated columns.
 
   useEffect(() => {
     async function loadPage() {
@@ -243,11 +278,15 @@ export default function ShareYourStoryPage() {
   function removePhoto() {
     setPhotoFile(null);
     setPhotoPreviewUrl(null);
+    setPhotoCaption("");
+    setPhotoDisplayStyle("soft-rounded");
   }
 
   function removeVideo() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
+    setVideoCaption("");
+    setVideoDisplayStyle("testimony-frame");
   }
 
   function handlePhotoSelect(file: File | null) {
@@ -410,7 +449,9 @@ export default function ShareYourStoryPage() {
     });
   }
 
-  async function uploadPhotoIfNeeded(currentUserId: string) {
+  async function uploadPhotoIfNeeded(
+    currentUserId: string
+  ): Promise<string | null> {
     if (!photoFile) return null;
 
     const fileExtension = photoFile.name.split(".").pop() || "jpg";
@@ -515,8 +556,8 @@ export default function ShareYourStoryPage() {
     }
 
     const cleanStoryText = storyText.trim();
-    const hasPhoto = Boolean(photoFile);
-    const hasVideo = Boolean(videoFile);
+    const hasPhoto = mediaMode === "photo" && Boolean(photoFile);
+    const hasVideo = mediaMode === "video" && Boolean(videoFile);
 
     if (!cleanStoryText && !hasPhoto && !hasVideo) {
       setMessage(
@@ -557,8 +598,10 @@ export default function ShareYourStoryPage() {
 
       setMessage("Uploading your post...");
 
-      const imageUrl = await uploadPhotoIfNeeded(userId);
-      const { videoUrl, thumbnailUrl } = await uploadVideoIfNeeded(userId);
+      const imageUrl = hasPhoto ? await uploadPhotoIfNeeded(userId) : null;
+      const { videoUrl, thumbnailUrl } = hasVideo
+        ? await uploadVideoIfNeeded(userId)
+        : { videoUrl: null, thumbnailUrl: null };
 
       const { error } = await supabase.from("stories").insert({
         user_id: userId,
@@ -589,10 +632,8 @@ export default function ShareYourStoryPage() {
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
 
       setStoryText("");
-      setPhotoFile(null);
-      setPhotoPreviewUrl(null);
-      setVideoFile(null);
-      setVideoPreviewUrl(null);
+      removePhoto();
+      removeVideo();
       setMediaMode("text");
       setStoryType("Testimony");
       setTextSize("text-medium");
@@ -675,6 +716,22 @@ export default function ShareYourStoryPage() {
                   {getPostingLocation()}
                 </span>
               )}
+            </div>
+          </div>
+
+          <div className="mb-5 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+            <div className="text-sm font-black text-[#062a57]">
+              Need help sharing?
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {storyPromptIdeas.map((idea) => (
+                <div
+                  key={idea}
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-600 ring-1 ring-blue-100"
+                >
+                  {idea}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -842,20 +899,65 @@ export default function ShareYourStoryPage() {
 
             {photoPreviewUrl && (
               <div className="rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                <div className="mb-3">
-                  <div className="text-sm font-black text-[#062a57]">
-                    Photo preview
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                      Preview
+                    </div>
+                    <div className="mt-1 text-lg font-black text-[#062a57]">
+                      Photo Story
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      Add a caption and choose how the photo should feel on the
+                      page.
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">
-                    This photo will be submitted with your story for review.
-                  </p>
+
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="inline-flex shrink-0 items-center justify-center rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
+                  >
+                    Remove Photo
+                  </button>
                 </div>
 
-                <img
-                  src={photoPreviewUrl}
-                  alt="Selected story photo preview"
-                  className="max-h-[560px] w-full rounded-[1.5rem] object-cover ring-1 ring-slate-200"
-                />
+                <div className="mb-4">
+                  <label className="mb-2 block text-sm font-black text-[#062a57]">
+                    Caption
+                  </label>
+                  <input
+                    value={photoCaption}
+                    onChange={(event) => setPhotoCaption(event.target.value)}
+                    placeholder="Add a short caption for this photo..."
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <div className="mb-2 text-sm font-black text-[#062a57]">
+                    Display style
+                  </div>
+                  <SegmentedOptionGroup
+                    options={photoDisplayOptions}
+                    value={photoDisplayStyle}
+                    onChange={setPhotoDisplayStyle}
+                  />
+                </div>
+
+                <div className={getPhotoPreviewFrameClass(photoDisplayStyle)}>
+                  <img
+                    src={photoPreviewUrl}
+                    alt="Selected story photo preview"
+                    className={getPhotoPreviewImageClass(photoDisplayStyle)}
+                  />
+                </div>
+
+                {photoCaption.trim() && (
+                  <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-semibold leading-6 text-slate-600 ring-1 ring-slate-200">
+                    {photoCaption}
+                  </p>
+                )}
               </div>
             )}
 
@@ -909,20 +1011,57 @@ export default function ShareYourStoryPage() {
 
             {videoPreviewUrl && (
               <div className="rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
-                <div className="mb-3">
-                  <div className="text-sm font-black">Preview your story</div>
-                  <p className="mt-1 text-xs font-semibold text-slate-300">
-                    Adjust how your message will appear on your video before
-                    submitting.
-                  </p>
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-blue-200">
+                      Preview
+                    </div>
+                    <div className="mt-1 text-lg font-black">Video Story</div>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">
+                      Add a caption and adjust how your message will appear on
+                      your video before submitting.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={removeVideo}
+                    className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-black text-red-600 ring-1 ring-white/10 hover:bg-red-50"
+                  >
+                    Remove Video
+                  </button>
                 </div>
 
-                <div className="relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                <div className="mb-4">
+                  <label className="mb-2 block text-sm font-black text-white">
+                    Caption
+                  </label>
+                  <input
+                    value={videoCaption}
+                    onChange={(event) => setVideoCaption(event.target.value)}
+                    placeholder="Add a short caption for this video..."
+                    className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-400/20"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <div className="mb-2 text-sm font-black text-white">
+                    Display style
+                  </div>
+                  <SegmentedOptionGroup
+                    options={videoDisplayOptions}
+                    value={videoDisplayStyle}
+                    onChange={setVideoDisplayStyle}
+                    dark
+                  />
+                </div>
+
+                <div className={getVideoPreviewFrameClass(videoDisplayStyle)}>
                   <video
                     src={videoPreviewUrl}
                     controls
                     playsInline
-                    className="h-full w-full object-cover"
+                    className={getVideoPreviewClass(videoDisplayStyle)}
                   />
 
                   <div
@@ -931,6 +1070,12 @@ export default function ShareYourStoryPage() {
                     {previewText}
                   </div>
                 </div>
+
+                {videoCaption.trim() && (
+                  <p className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-slate-200 ring-1 ring-white/10">
+                    {videoCaption}
+                  </p>
+                )}
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <VideoTextSelect
@@ -1122,4 +1267,101 @@ function VideoTextSelect({
       </select>
     </div>
   );
+}
+
+function SegmentedOptionGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  dark = false,
+}: {
+  options: { label: string; value: T }[];
+  value: T;
+  onChange: (value: T) => void;
+  dark?: boolean;
+}) {
+  return (
+    <div
+      className={`grid gap-2 rounded-2xl p-2 sm:grid-cols-4 ${
+        dark ? "bg-white/10 ring-1 ring-white/10" : "bg-slate-50"
+      }`}
+    >
+      {options.map((option) => {
+        const selected = value === option.value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`rounded-full px-3 py-2 text-xs font-black transition ${
+              selected
+                ? "bg-[#0b63ce] text-white shadow-sm"
+                : dark
+                  ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-blue-50"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function getPhotoPreviewFrameClass(style: PhotoDisplayStyle) {
+  if (style === "framed") {
+    return "rounded-[2rem] bg-[#082f63] p-3 shadow-sm ring-1 ring-blue-100";
+  }
+
+  if (style === "full-width") {
+    return "-mx-4 overflow-hidden bg-slate-100 sm:mx-0 sm:rounded-[1.5rem]";
+  }
+
+  return "overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
+}
+
+function getPhotoPreviewImageClass(style: PhotoDisplayStyle) {
+  if (style === "original") {
+    return "mx-auto max-h-[560px] w-auto max-w-full object-contain";
+  }
+
+  if (style === "full-width") {
+    return "max-h-[560px] w-full object-cover";
+  }
+
+  if (style === "framed") {
+    return "max-h-[560px] w-full rounded-[1.5rem] object-cover";
+  }
+
+  return "max-h-[560px] w-full rounded-[2rem] object-cover";
+}
+
+function getVideoPreviewFrameClass(style: VideoDisplayStyle) {
+  if (style === "cinematic") {
+    return "relative mx-auto aspect-video overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10";
+  }
+
+  if (style === "full-width") {
+    return "relative -mx-4 aspect-video overflow-hidden bg-black sm:mx-0 sm:rounded-[1.5rem]";
+  }
+
+  if (style === "testimony-frame") {
+    return "relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[2rem] bg-black p-1 ring-2 ring-blue-300/40";
+  }
+
+  return "relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10";
+}
+
+function getVideoPreviewClass(style: VideoDisplayStyle) {
+  if (style === "original") {
+    return "h-full w-full object-contain";
+  }
+
+  if (style === "testimony-frame") {
+    return "h-full w-full rounded-[1.65rem] object-cover";
+  }
+
+  return "h-full w-full object-cover";
 }
