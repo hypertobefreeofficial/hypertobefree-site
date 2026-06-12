@@ -85,7 +85,21 @@ export default function JourneyInboxPage() {
           .order("created_at", { ascending: false });
 
         if (!error && data) {
-          setMessages((data as InboxMessage[]) ?? []);
+          const nextMessages: InboxMessage[] = Array.isArray(data)
+            ? data.filter((message): message is InboxMessage => {
+                return (
+                  typeof message === "object" &&
+                  message !== null &&
+                  "id" in message &&
+                  "title" in message &&
+                  "body" in message &&
+                  "read" in message &&
+                  "created_at" in message
+                );
+              })
+            : [];
+
+          setMessages(nextMessages);
           setLoading(false);
           return;
         }
