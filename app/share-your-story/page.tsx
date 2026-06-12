@@ -941,7 +941,9 @@ export default function ShareYourStoryPage() {
                   <SegmentedOptionGroup
                     options={photoDisplayOptions}
                     value={photoDisplayStyle}
-                    onChange={setPhotoDisplayStyle}
+                    onChange={(value) =>
+                      setPhotoDisplayStyle(value as PhotoDisplayStyle)
+                    }
                   />
                 </div>
 
@@ -1051,7 +1053,9 @@ export default function ShareYourStoryPage() {
                   <SegmentedOptionGroup
                     options={videoDisplayOptions}
                     value={videoDisplayStyle}
-                    onChange={setVideoDisplayStyle}
+                    onChange={(value) =>
+                      setVideoDisplayStyle(value as VideoDisplayStyle)
+                    }
                     dark
                   />
                 </div>
