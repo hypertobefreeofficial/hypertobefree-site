@@ -702,15 +702,15 @@ export default function FreedomFeed({
 
                             {story.reaction_counts.praying > 0 && (
                               <div className="mt-4 inline-flex rounded-full bg-emerald-100 px-3.5 py-2 text-sm font-black text-emerald-800 ring-1 ring-emerald-200">
-                                🙏 Prayer Circle •{" "}
+                                🙏{" "}
                                 {story.reaction_counts.praying === 1
-                                  ? "1 person prayed"
-                                  : `${story.reaction_counts.praying} people prayed`}
+                                  ? "1 believer prayed with this request"
+                                  : `${story.reaction_counts.praying} believers prayed with this request`}
                               </div>
                             )}
 
                             <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                              Answered Prayer
+                              How God Answered
                             </div>
 
                             {story.answered_text ? (
@@ -736,7 +736,7 @@ export default function FreedomFeed({
                               className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 ring-1 ring-emerald-100 transition hover:bg-emerald-100"
                             >
                               <Share2 className="h-4 w-4" />
-                              Share Answered Prayer
+                              Share Testimony
                             </button>
                           </div>
                         ) : (
@@ -910,4 +910,3 @@ function ReactionButton({
     </button>
   );
 }
-```
