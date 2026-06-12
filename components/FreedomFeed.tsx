@@ -419,7 +419,7 @@ export default function FreedomFeed({
     );
 
     closeAnsweredPrayerModal();
-    setReactionMessage("Prayer request marked as answered. God did it.");
+    setReactionMessage("Praise shared with the community.");
   }
 
   async function shareStory(story: ApprovedStory) {
@@ -880,9 +880,9 @@ export default function FreedomFeed({
               <textarea
                 value={answeredPrayerText}
                 onChange={(event) => setAnsweredPrayerText(event.target.value)}
-                rows={5}
+                rows={7}
                 placeholder="Share what God did…"
-                className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-50"
+                className="mt-4 min-h-[11rem] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-50 sm:min-h-[10rem]"
               />
 
               {reactionMessage && (
@@ -897,7 +897,7 @@ export default function FreedomFeed({
                   onClick={closeAnsweredPrayerModal}
                   className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200"
                 >
-                  Cancel
+                  Not Yet
                 </button>
 
                 <button
