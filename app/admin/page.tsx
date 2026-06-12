@@ -195,8 +195,47 @@ export default function AdminPage() {
     );
   }
 
+  async function createApprovalInboxMessage(story: Story | null | undefined) {
+    if (!story?.user_id) return;
+
+    const { data: existingMessages, error: existingError } = await supabase
+      .from("inbox_messages")
+      .select("id")
+      .eq("user_id", story.user_id)
+      .eq("story_id", story.id)
+      .eq("message_type", "story_approved")
+      .limit(1);
+
+    if (existingError) {
+      console.error("Could not check approval inbox message:", existingError);
+      return;
+    }
+
+    if (Array.isArray(existingMessages) && existingMessages.length > 0) return;
+
+    const { error } = await supabase.from("inbox_messages").insert({
+      user_id: story.user_id,
+      title: "Your post was approved",
+      body: "Your post has been approved and is now live on HTBF.",
+      category: "approval",
+      message_type: "story_approved",
+      story_id: story.id,
+      action_url: "/feed",
+      read: false,
+    });
+
+    if (error) {
+      console.error("Could not create approval inbox message:", error);
+    }
+  }
+
   async function updateStoryStatus(storyId: string, newStatus: string) {
     setMessage("");
+
+    const storyToUpdate =
+      stories.find((story) => story.id === storyId) ??
+      reports.find((report) => report.story?.id === storyId)?.story ??
+      null;
 
     const { error } = await supabase
       .from("stories")
@@ -206,6 +245,10 @@ export default function AdminPage() {
     if (error) {
       setMessage(`Could not update story: ${error.message}`);
       return;
+    }
+
+    if (newStatus === "approved") {
+      await createApprovalInboxMessage(storyToUpdate);
     }
 
     setStories((currentStories) =>
