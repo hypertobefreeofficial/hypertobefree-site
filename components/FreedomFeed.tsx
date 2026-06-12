@@ -658,7 +658,8 @@ export default function FreedomFeed({
   }
 
   async function reportPhoto(story: ApprovedStory) {
-    setPhotoViewerMessage("");
+    setPhotoActionSheetOpen(false);
+    setPhotoViewerMessage("Sending report...");
 
     if (!userId) {
       setPhotoViewerMessage("Please sign in to report a photo.");
@@ -678,7 +679,6 @@ export default function FreedomFeed({
       return;
     }
 
-    setPhotoActionSheetOpen(false);
     setPhotoViewerMessage(
       "Report submitted. Thank you for helping keep HTBF safe."
     );
@@ -713,8 +713,8 @@ export default function FreedomFeed({
 
   const photoViewerText = photoViewerStory?.story_text?.trim() ?? "";
   const photoViewerTextIsLong =
-    photoViewerText.length > 120 ||
-    photoViewerText.split(/\r\n|\r|\n/).length > 3;
+    photoViewerText.length > 80 ||
+    photoViewerText.split(/\r\n|\r|\n/).length > 2;
 
   return (
     <section
@@ -1147,7 +1147,7 @@ export default function FreedomFeed({
               />
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent p-4 pt-16 sm:p-6 sm:pt-20">
+            <div className="absolute inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] px-4 sm:bottom-6 sm:px-6">
               <div className="mx-auto max-w-2xl rounded-[1.5rem] bg-black/55 p-4 ring-1 ring-white/10 backdrop-blur-md">
                 <div
                   className="max-w-full overflow-hidden break-words text-sm font-black sm:text-base"
@@ -1162,12 +1162,13 @@ export default function FreedomFeed({
                 {photoViewerText && (
                   <>
                     <p
-                      className={`mt-2 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-white/85 ${
-                        photoCaptionExpanded ? "max-h-[40vh] overflow-y-auto" : "max-h-[4.5rem]"
-                      }`}
+                      className="mt-2 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 text-white/85"
                       style={{
                         overflowWrap: "anywhere",
                         wordBreak: "break-word",
+                        display: "-webkit-box",
+                        WebkitBoxOrient: "vertical",
+                        WebkitLineClamp: 3,
                       }}
                     >
                       {photoViewerText}
@@ -1176,12 +1177,10 @@ export default function FreedomFeed({
                     {photoViewerTextIsLong && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setPhotoCaptionExpanded((current) => !current)
-                        }
-                        className="mt-2 text-sm font-black text-blue-200 underline-offset-4 hover:underline"
+                        onClick={() => setPhotoCaptionExpanded(true)}
+                        className="mt-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-black text-blue-100 ring-1 ring-white/15 transition hover:bg-white/15"
                       >
-                        {photoCaptionExpanded ? "See less" : "See more"}
+                        See more
                       </button>
                     )}
                   </>
@@ -1194,6 +1193,34 @@ export default function FreedomFeed({
                 )}
               </div>
             </div>
+
+            {photoCaptionExpanded && photoViewerText && (
+              <div className="fixed inset-0 z-[55] flex items-end justify-center bg-black/55 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:pb-4">
+                <div className="w-full max-w-lg rounded-[1.5rem] bg-white p-4 text-slate-900 shadow-2xl">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                    Caption
+                  </div>
+
+                  <div
+                    className="mt-3 max-h-[55vh] max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700 ring-1 ring-slate-200"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {photoViewerText}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPhotoCaptionExpanded(false)}
+                    className="mt-4 flex w-full items-center justify-center rounded-2xl bg-[#0b63ce] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084f9f]"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
 
             {photoActionSheetOpen && (
               <div
