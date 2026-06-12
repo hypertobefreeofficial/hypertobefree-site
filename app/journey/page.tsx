@@ -79,6 +79,10 @@ type ClearRemovedRequest =
   | { mode: "single"; story: StoryRow }
   | { mode: "all" };
 
+type DeleteReplyRequest =
+  | { mode: "single"; replies: VideoReplyRow[] }
+  | { mode: "all"; replies: VideoReplyRow[] };
+
 export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -100,6 +104,8 @@ export default function JourneyPage() {
   const [replyTarget, setReplyTarget] = useState<VideoReplyRow | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [replyDeleteRequest, setReplyDeleteRequest] =
+    useState<DeleteReplyRequest | null>(null);
 
   const [editingStory, setEditingStory] = useState<StoryRow | null>(null);
   const [editStoryText, setEditStoryText] = useState("");
@@ -783,43 +789,75 @@ export default function JourneyPage() {
     await loadVideoReplies(userId);
   }
 
-  async function deleteReply(reply: VideoReplyRow) {
+  function deleteReply(reply: VideoReplyRow) {
     if (!userId) return;
 
-    const confirmed = window.confirm(
-      "Delete this message from your Journey inbox? This only hides it from your side."
-    );
+    setReplyDeleteRequest({ mode: "single", replies: [reply] });
+  }
 
-    if (!confirmed) return;
+  function deleteVisibleReplies() {
+    if (!userId || filteredInboxReplies.length === 0) return;
 
-    const updateData: {
-      deleted_by_sender?: boolean;
-      deleted_by_recipient?: boolean;
-    } = {};
+    setReplyDeleteRequest({ mode: "all", replies: filteredInboxReplies });
+  }
 
-    if (reply.user_id === userId) {
-      updateData.deleted_by_sender = true;
-    }
+  function closeDeleteReplyModal() {
+    setReplyDeleteRequest(null);
+  }
 
-    if (reply.recipient_user_id === userId) {
-      updateData.deleted_by_recipient = true;
-    }
+  async function confirmDeleteReply() {
+    if (!userId || !replyDeleteRequest) return;
 
-    const { error } = await supabase
-      .from("story_video_replies")
-      .update(updateData)
-      .eq("id", reply.id);
+    const replies = replyDeleteRequest.replies;
+    const replyIds = replies.map((reply) => reply.id);
+    const senderReplyIds = replies
+      .filter((reply) => reply.user_id === userId)
+      .map((reply) => reply.id);
+    const recipientReplyIds = replies
+      .filter((reply) => reply.recipient_user_id === userId)
+      .map((reply) => reply.id);
 
-    if (error) {
-      setMessage(`Could not delete message: ${error.message}`);
+    if (replyIds.length === 0) {
+      setReplyDeleteRequest(null);
       return;
     }
 
+    setReplyDeleteRequest(null);
+    setMessage("");
+
+    if (senderReplyIds.length > 0) {
+      const { error } = await supabase
+        .from("story_video_replies")
+        .update({ deleted_by_sender: true })
+        .in("id", senderReplyIds);
+
+      if (error) {
+        setMessage(`Could not delete message: ${error.message}`);
+        return;
+      }
+    }
+
+    if (recipientReplyIds.length > 0) {
+      const { error } = await supabase
+        .from("story_video_replies")
+        .update({ deleted_by_recipient: true })
+        .in("id", recipientReplyIds);
+
+      if (error) {
+        setMessage(`Could not delete message: ${error.message}`);
+        return;
+      }
+    }
+
     setVideoReplies((currentReplies) =>
-      currentReplies.filter((item) => item.id !== reply.id)
+      currentReplies.filter((item) => !replyIds.includes(item.id))
     );
 
-    setMessage("Message deleted from your Journey inbox.");
+    setMessage(
+      replyDeleteRequest.mode === "all"
+        ? "Messages deleted from your Journey inbox."
+        : "Message deleted from your Journey inbox."
+    );
   }
 
   function formatDate(value: string | null) {
@@ -1074,6 +1112,30 @@ export default function JourneyPage() {
                 onClick={() => setActiveInboxTab("all")}
               />
             </div>
+
+            {filteredInboxReplies.length > 0 && (
+              <div className="mb-5 flex flex-col gap-3 rounded-[1.5rem] bg-red-50 p-4 ring-1 ring-red-100 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-black text-red-800">
+                    Clear visible messages
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-red-700">
+                    This will clear {filteredInboxReplies.length} message
+                    {filteredInboxReplies.length === 1 ? "" : "s"} currently
+                    showing in this tab.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={deleteVisibleReplies}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Clear All
+                </button>
+              </div>
+            )}
 
             <div className="space-y-4">
               {filteredInboxReplies.length === 0 ? (
@@ -1439,6 +1501,51 @@ export default function JourneyPage() {
               {sendingReply ? "Sending..." : "Send Reply"}
               <Send className="h-4 w-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {replyDeleteRequest && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-5">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                HYPER TO BE FREE
+              </div>
+
+              <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                {replyDeleteRequest.mode === "all"
+                  ? "Clear all messages?"
+                  : "Clear this message?"}
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {replyDeleteRequest.mode === "all"
+                  ? "This will remove all visible Journey inbox messages from your side only."
+                  : "This will remove this message from your Journey inbox on your side only."}
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeDeleteReplyModal}
+                className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-200"
+              >
+                Not Yet
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteReply}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+                {replyDeleteRequest.mode === "all"
+                  ? "Clear All"
+                  : "Clear Message"}
+              </button>
+            </div>
           </div>
         </div>
       )}
