@@ -1,3 +1,4 @@
+```tsx
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -681,10 +682,6 @@ export default function FreedomFeed({
                               Answered Prayer
                             </div>
 
-                            <div className="mt-2 text-base font-black text-emerald-900">
-                              God did it.
-                            </div>
-
                             {story.story_text && (
                               <div className="mt-4">
                                 <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
@@ -705,8 +702,8 @@ export default function FreedomFeed({
                             )}
 
                             {story.reaction_counts.praying > 0 && (
-                              <div className="mt-4 rounded-full bg-white px-3 py-2 text-sm font-black text-emerald-800 ring-1 ring-emerald-100">
-                                Prayer Circle •{" "}
+                              <div className="mt-4 inline-flex rounded-full bg-emerald-100 px-3.5 py-2 text-sm font-black text-emerald-800 ring-1 ring-emerald-200">
+                                🙏 Prayer Circle •{" "}
                                 {story.reaction_counts.praying === 1
                                   ? "1 person prayed"
                                   : `${story.reaction_counts.praying} people prayed`}
@@ -914,3 +911,4 @@ function ReactionButton({
     </button>
   );
 }
+```
