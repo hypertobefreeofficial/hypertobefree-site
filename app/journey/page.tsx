@@ -23,9 +23,7 @@ import {
   Play,
   Inbox,
   ChevronRight,
-  Reply,
   Trash2,
-  UserCircle,
   Video,
   X,
 } from "lucide-react";
@@ -53,35 +51,9 @@ type ReactionRow = {
   reaction_type: string | null;
 };
 
-type JourneyInboxTab = "received" | "sent" | "all";
-
-type VideoReplyRow = {
-  id: string;
-  story_id: string | null;
-  user_id: string | null;
-  recipient_user_id: string | null;
-  parent_reply_id: string | null;
-  message: string | null;
-  created_at: string | null;
-  deleted_by_sender: boolean | null;
-  deleted_by_recipient: boolean | null;
-  read_at: string | null;
-};
-
-type ProfileRow = {
-  id: string;
-  display_name: string | null;
-  username: string | null;
-  real_name: string | null;
-};
-
 type ClearRemovedRequest =
   | { mode: "single"; story: StoryRow }
   | { mode: "all" };
-
-type DeleteReplyRequest =
-  | { mode: "single"; replies: VideoReplyRow[] }
-  | { mode: "all"; replies: VideoReplyRow[] };
 
 export default function JourneyPage() {
   const [checkingUser, setCheckingUser] = useState(true);
@@ -92,20 +64,8 @@ export default function JourneyPage() {
   const [reflection, setReflection] = useState("");
   const [message, setMessage] = useState("");
 
-  const [inboxOpen, setInboxOpen] = useState(false);
   const [controlCenterOpen, setControlCenterOpen] = useState(false);
-
-  const [activeInboxTab, setActiveInboxTab] =
-    useState<JourneyInboxTab>("received");
-  const [videoReplies, setVideoReplies] = useState<VideoReplyRow[]>([]);
-  const [replyProfiles, setReplyProfiles] = useState<Record<string, ProfileRow>>(
-    {}
-  );
-  const [replyTarget, setReplyTarget] = useState<VideoReplyRow | null>(null);
-  const [replyText, setReplyText] = useState("");
-  const [sendingReply, setSendingReply] = useState(false);
-  const [replyDeleteRequest, setReplyDeleteRequest] =
-    useState<DeleteReplyRequest | null>(null);
+  const [journeyInboxUnreadCount, setJourneyInboxUnreadCount] = useState(0);
 
   const [editingStory, setEditingStory] = useState<StoryRow | null>(null);
   const [editStoryText, setEditStoryText] = useState("");
@@ -179,7 +139,7 @@ export default function JourneyPage() {
         }
       }
 
-      await loadVideoReplies(user.id);
+      await loadJourneyInboxUnreadCount(user.id);
 
       setCheckingUser(false);
     }
@@ -193,7 +153,7 @@ export default function JourneyPage() {
         {
           event: "*",
           schema: "public",
-          table: "story_video_replies",
+          table: "inbox_messages",
         },
         async () => {
           const {
@@ -201,7 +161,7 @@ export default function JourneyPage() {
           } = await supabase.auth.getUser();
 
           if (user) {
-            await loadVideoReplies(user.id);
+            await loadJourneyInboxUnreadCount(user.id);
           }
         }
       )
@@ -247,54 +207,15 @@ export default function JourneyPage() {
     setMyUploads((data as StoryRow[]) ?? []);
   }
 
-  async function loadVideoReplies(currentUserId: string) {
-    const { data, error } = await supabase
-      .from("story_video_replies")
-      .select(
-        "id, story_id, user_id, recipient_user_id, parent_reply_id, message, created_at, deleted_by_sender, deleted_by_recipient, read_at"
-      )
-      .or(`user_id.eq.${currentUserId},recipient_user_id.eq.${currentUserId}`)
-      .order("created_at", { ascending: false });
+  async function loadJourneyInboxUnreadCount(currentUserId: string) {
+    const { count, error } = await supabase
+      .from("inbox_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", currentUserId)
+      .eq("read", false);
 
-    if (error) {
-      setMessage(`Could not load Journey inbox: ${error.message}`);
-      return;
-    }
-
-    const visibleReplies = ((data as VideoReplyRow[]) ?? []).filter((reply) => {
-      const hiddenFromSender =
-        reply.user_id === currentUserId && reply.deleted_by_sender === true;
-
-      const hiddenFromRecipient =
-        reply.recipient_user_id === currentUserId &&
-        reply.deleted_by_recipient === true;
-
-      return !hiddenFromSender && !hiddenFromRecipient;
-    });
-
-    setVideoReplies(visibleReplies);
-
-    const profileIds = Array.from(
-      new Set(
-        visibleReplies
-          .flatMap((reply) => [reply.user_id, reply.recipient_user_id])
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-
-    if (profileIds.length > 0) {
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("id, display_name, username, real_name")
-        .in("id", profileIds);
-
-      const nextProfiles: Record<string, ProfileRow> = {};
-
-      ((profileData as ProfileRow[]) ?? []).forEach((profile) => {
-        nextProfiles[profile.id] = profile;
-      });
-
-      setReplyProfiles(nextProfiles);
+    if (!error) {
+      setJourneyInboxUnreadCount(count ?? 0);
     }
   }
 
@@ -391,94 +312,6 @@ export default function JourneyPage() {
       videos: myUploads.filter((story) => Boolean(story.video_url)).length,
     };
   }, [myUploads, removedUploads.length]);
-
-  const receivedReplies = useMemo(() => {
-    return videoReplies.filter((reply) => reply.recipient_user_id === userId);
-  }, [videoReplies, userId]);
-
-  const sentReplies = useMemo(() => {
-    return videoReplies.filter((reply) => reply.user_id === userId);
-  }, [videoReplies, userId]);
-
-  const unreadInboxCount = useMemo(() => {
-    return videoReplies.filter(
-      (reply) => reply.recipient_user_id === userId && !reply.read_at
-    ).length;
-  }, [videoReplies, userId]);
-
-  const filteredInboxReplies = useMemo(() => {
-    if (activeInboxTab === "received") return receivedReplies;
-    if (activeInboxTab === "sent") return sentReplies;
-    return videoReplies;
-  }, [activeInboxTab, receivedReplies, sentReplies, videoReplies]);
-
-  function getProfileName(profileId: string | null) {
-    if (!profileId) return "HTBF Community";
-
-    const profile = replyProfiles[profileId];
-
-    return (
-      profile?.display_name?.trim() ||
-      profile?.username?.trim() ||
-      profile?.real_name?.trim() ||
-      "HTBF Community"
-    );
-  }
-
-  function getReplyLabel(reply: VideoReplyRow) {
-    if (!userId) return "Message";
-
-    if (reply.user_id === userId) {
-      return `To ${getProfileName(reply.recipient_user_id)}`;
-    }
-
-    return `From ${getProfileName(reply.user_id)}`;
-  }
-
-  function getOtherPerson(reply: VideoReplyRow) {
-    if (!userId) return "HTBF Community";
-
-    if (reply.user_id === userId) {
-      return getProfileName(reply.recipient_user_id);
-    }
-
-    return getProfileName(reply.user_id);
-  }
-
-  function getStoryPreview(storyId: string | null) {
-    if (!storyId) return "Video testimony";
-
-    const story =
-      stories.find((item) => item.id === storyId) ||
-      myUploads.find((item) => item.id === storyId);
-
-    if (!story) return "Video testimony";
-
-    return story.story_text || story.story_type || "Video testimony";
-  }
-
-  async function openInbox() {
-    setInboxOpen(true);
-    setMessage("");
-
-    if (!userId) return;
-
-    const unreadReplies = videoReplies.filter(
-      (reply) => reply.recipient_user_id === userId && !reply.read_at
-    );
-
-    if (unreadReplies.length > 0) {
-      await supabase
-        .from("story_video_replies")
-        .update({ read_at: new Date().toISOString() })
-        .in(
-          "id",
-          unreadReplies.map((reply) => reply.id)
-        );
-
-      await loadVideoReplies(userId);
-    }
-  }
 
   function openControlCenter() {
     setControlCenterOpen(true);
@@ -741,136 +574,6 @@ export default function JourneyPage() {
     setMessage("Removed uploads cleared from your uploads list.");
   }
 
-  async function sendReply() {
-    if (!userId || !replyTarget) {
-      setMessage("Please sign in to reply.");
-      return;
-    }
-
-    const cleanReply = replyText.trim();
-
-    if (!cleanReply) {
-      setMessage("Please write a reply first.");
-      return;
-    }
-
-    const recipientUserId =
-      replyTarget.user_id === userId
-        ? replyTarget.recipient_user_id
-        : replyTarget.user_id;
-
-    if (!recipientUserId) {
-      setMessage("Could not find who to reply to.");
-      return;
-    }
-
-    setSendingReply(true);
-    setMessage("");
-
-    const { error } = await supabase.from("story_video_replies").insert({
-      story_id: replyTarget.story_id,
-      user_id: userId,
-      recipient_user_id: recipientUserId,
-      parent_reply_id: replyTarget.id,
-      message: cleanReply,
-    });
-
-    if (error) {
-      setMessage(`Could not send reply: ${error.message}`);
-      setSendingReply(false);
-      return;
-    }
-
-    setReplyText("");
-    setReplyTarget(null);
-    setSendingReply(false);
-    setMessage("Reply sent.");
-
-    await loadVideoReplies(userId);
-  }
-
-  function deleteReply(reply: VideoReplyRow) {
-    if (!userId) return;
-
-    setReplyDeleteRequest({ mode: "single", replies: [reply] });
-  }
-
-  function deleteVisibleReplies() {
-    if (!userId || filteredInboxReplies.length === 0) return;
-
-    setReplyDeleteRequest({ mode: "all", replies: filteredInboxReplies });
-  }
-
-  function closeDeleteReplyModal() {
-    setReplyDeleteRequest(null);
-  }
-
-  async function confirmDeleteReply() {
-    if (!userId || !replyDeleteRequest) return;
-
-    const replies = replyDeleteRequest.replies;
-    const replyIds = replies.map((reply) => reply.id);
-    const senderReplyIds = replies
-      .filter((reply) => reply.user_id === userId)
-      .map((reply) => reply.id);
-    const recipientReplyIds = replies
-      .filter((reply) => reply.recipient_user_id === userId)
-      .map((reply) => reply.id);
-
-    if (replyIds.length === 0) {
-      setReplyDeleteRequest(null);
-      return;
-    }
-
-    setReplyDeleteRequest(null);
-    setMessage("");
-
-    if (senderReplyIds.length > 0) {
-      const { error } = await supabase
-        .from("story_video_replies")
-        .update({ deleted_by_sender: true })
-        .in("id", senderReplyIds);
-
-      if (error) {
-        setMessage(`Could not delete message: ${error.message}`);
-        return;
-      }
-    }
-
-    if (recipientReplyIds.length > 0) {
-      const { error } = await supabase
-        .from("story_video_replies")
-        .update({ deleted_by_recipient: true })
-        .in("id", recipientReplyIds);
-
-      if (error) {
-        setMessage(`Could not delete message: ${error.message}`);
-        return;
-      }
-    }
-
-    setVideoReplies((currentReplies) =>
-      currentReplies.filter((item) => !replyIds.includes(item.id))
-    );
-
-    setMessage(
-      replyDeleteRequest.mode === "all"
-        ? "Messages deleted from your Journey inbox."
-        : "Message deleted from your Journey inbox."
-    );
-  }
-
-  function formatDate(value: string | null) {
-    if (!value) return "";
-
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date(value));
-  }
-
   if (checkingUser) {
     return (
       <main className="min-h-screen bg-[#f8fbff] px-4 py-10 text-slate-900">
@@ -940,14 +643,14 @@ export default function JourneyPage() {
           <div className="flex items-center gap-3">
             <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
               <Compass className="h-6 w-6" />
-            </div>
+              </div>
 
             <div className="min-w-0 flex-1">
               <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
-                My Control Center
+                Manage My Uploads
               </div>
               <h2 className="text-2xl font-black text-[#062a57]">
-                Manage my uploads
+                My uploads
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 View, edit, and remove your videos, testimonies, praise reports,
@@ -1037,17 +740,16 @@ export default function JourneyPage() {
           </section>
         )}
 
-        <button
-          type="button"
-          onClick={openInbox}
-          className="w-full rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
+        <Link
+          href="/journey/inbox"
+          className="block w-full rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
         >
           <div className="flex items-center gap-3">
             <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
               <Inbox className="h-6 w-6" />
-              {unreadInboxCount > 0 && (
+              {journeyInboxUnreadCount > 0 && (
                 <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white">
-                  {unreadInboxCount}
+                  {journeyInboxUnreadCount}
                 </span>
               )}
             </div>
@@ -1057,179 +759,23 @@ export default function JourneyPage() {
                 Journey Inbox
               </div>
               <h2 className="text-2xl font-black text-[#062a57]">
-                Video responses and encouragement
+                Messages, updates, and milestones
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                {receivedReplies.length === 0
-                  ? "Messages people send from your videos will appear here."
-                  : `${receivedReplies.length} received message${
-                      receivedReplies.length === 1 ? "" : "s"
-                    } connected to video testimonies.`}
+                {journeyInboxUnreadCount > 0
+                  ? `${journeyInboxUnreadCount} unread Journey Inbox message${
+                      journeyInboxUnreadCount === 1 ? "" : "s"
+                    }.`
+                  : "Messages, updates, and milestones from your HTBF journey."}
               </p>
+              <div className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
+                {journeyInboxUnreadCount} unread
+              </div>
             </div>
 
             <ChevronRight className="h-5 w-5 text-slate-400" />
           </div>
-        </button>
-
-        {inboxOpen && (
-          <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  Inbox
-                </div>
-                <h2 className="text-2xl font-black text-[#062a57]">
-                  Video Responses
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setInboxOpen(false)}
-                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mb-5 grid grid-cols-3 gap-2 rounded-[1.5rem] bg-slate-50 p-2">
-              <InboxTabButton
-                label="Received"
-                active={activeInboxTab === "received"}
-                onClick={() => setActiveInboxTab("received")}
-              />
-
-              <InboxTabButton
-                label="Sent"
-                active={activeInboxTab === "sent"}
-                onClick={() => setActiveInboxTab("sent")}
-              />
-
-              <InboxTabButton
-                label="All"
-                active={activeInboxTab === "all"}
-                onClick={() => setActiveInboxTab("all")}
-              />
-            </div>
-
-            {filteredInboxReplies.length > 0 && (
-              <div className="mb-5 flex flex-col gap-3 rounded-[1.5rem] bg-red-50 p-4 ring-1 ring-red-100 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="text-sm font-black text-red-800">
-                    Clear visible messages
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-red-700">
-                    This will clear {filteredInboxReplies.length} message
-                    {filteredInboxReplies.length === 1 ? "" : "s"} currently
-                    showing in this tab.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={deleteVisibleReplies}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-red-700"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Clear All
-                </button>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {filteredInboxReplies.length === 0 ? (
-                <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
-                  No messages here yet.
-                </div>
-              ) : (
-                filteredInboxReplies.map((reply) => {
-                  const storyPreview = getStoryPreview(reply.story_id);
-
-                  return (
-                    <article
-                      key={reply.id}
-                      className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200"
-                    >
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#0b63ce] ring-1 ring-slate-200">
-                            <UserCircle className="h-6 w-6" />
-                          </div>
-
-                          <div>
-                            <div className="text-sm font-black text-[#062a57]">
-                              {getReplyLabel(reply)}
-                            </div>
-
-                            <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-500">
-                              <Video className="h-3.5 w-3.5" />
-                              {formatDate(reply.created_at)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {reply.recipient_user_id === userId && reply.read_at && (
-                          <div className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Read
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mb-3 rounded-2xl bg-white p-3 text-xs font-semibold leading-5 text-slate-500 ring-1 ring-slate-100">
-                        Related video:{" "}
-                        <span className="font-black text-slate-700">
-                          {storyPreview.length > 110
-                            ? `${storyPreview.slice(0, 110)}...`
-                            : storyPreview}
-                        </span>
-                      </div>
-
-                      <p className="whitespace-pre-line text-[15px] leading-7 text-slate-800">
-                        {reply.message}
-                      </p>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplyTarget(reply);
-                            setReplyText("");
-                            setMessage("");
-                          }}
-                          className="inline-flex items-center gap-2 rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-                        >
-                          <Reply className="h-4 w-4" />
-                          Reply
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => deleteReply(reply)}
-                          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-red-600 ring-1 ring-red-100 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </button>
-
-                        {reply.story_id && (
-                          <Link
-                            href={`/video-feed?story=${reply.story_id}&from=journey`}
-                            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] ring-1 ring-slate-200 hover:bg-blue-50"
-                          >
-                            <MessageCircleHeart className="h-4 w-4" />
-                            View Video
-                          </Link>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </div>
-          </section>
-        )}
+        </Link>
 
         <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="mb-5 flex items-center gap-3">
@@ -1456,99 +1002,6 @@ export default function JourneyPage() {
           </div>
         </section>
       </div>
-
-      {replyTarget && (
-        <div className="fixed inset-0 z-[80] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  Reply from Journey
-                </div>
-
-                <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  Reply to {getOtherPerson(replyTarget)}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setReplyTarget(null);
-                  setReplyText("");
-                }}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label="Close reply box"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <textarea
-              value={replyText}
-              onChange={(event) => setReplyText(event.target.value)}
-              rows={5}
-              placeholder="Write a kind reply, prayer, or encouragement..."
-              className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-            />
-
-            <button
-              type="button"
-              disabled={sendingReply}
-              onClick={sendReply}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {sendingReply ? "Sending..." : "Send Reply"}
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {replyDeleteRequest && (
-        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="mb-5">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                HYPER TO BE FREE
-              </div>
-
-              <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                {replyDeleteRequest.mode === "all"
-                  ? "Clear all messages?"
-                  : "Clear this message?"}
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {replyDeleteRequest.mode === "all"
-                  ? "This will remove all visible Journey inbox messages from your side only."
-                  : "This will remove this message from your Journey inbox on your side only."}
-              </p>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeDeleteReplyModal}
-                className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-200"
-              >
-                Not Yet
-              </button>
-
-              <button
-                type="button"
-                onClick={confirmDeleteReply}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                {replyDeleteRequest.mode === "all"
-                  ? "Clear All"
-                  : "Clear Message"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {clearRemovedRequest && (
         <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -1817,30 +1270,6 @@ function formatShortDate(value: string | null) {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
-}
-
-function InboxTabButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full px-3 py-2 text-sm font-black transition ${
-        active
-          ? "bg-white text-[#0b63ce] shadow-sm"
-          : "text-slate-500 hover:bg-white"
-      }`}
-    >
-      {label}
-    </button>
-  );
 }
 
 function MissionButton({
