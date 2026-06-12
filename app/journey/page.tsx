@@ -101,6 +101,10 @@ export default function JourneyPage() {
   const [editStoryText, setEditStoryText] = useState("");
   const [savingStoryEdit, setSavingStoryEdit] = useState(false);
   const [removingStoryId, setRemovingStoryId] = useState<string | null>(null);
+  const [clearingRemovedStoryId, setClearingRemovedStoryId] = useState<
+    string | null
+  >(null);
+  const [clearingAllRemoved, setClearingAllRemoved] = useState(false);
 
   useEffect(() => {
     async function loadJourney() {
@@ -359,6 +363,11 @@ export default function JourneyPage() {
     encouragementImpact.total,
   ]);
 
+  const removedUploads = useMemo(
+    () => myUploads.filter((story) => story.status === "removed"),
+    [myUploads]
+  );
+
   const uploadTotals = useMemo(() => {
     return {
       total: myUploads.length,
@@ -366,10 +375,10 @@ export default function JourneyPage() {
       pending: myUploads.filter(
         (story) => story.status === "pending" || story.status === "submitted"
       ).length,
-      removed: myUploads.filter((story) => story.status === "removed").length,
+      removed: removedUploads.length,
       videos: myUploads.filter((story) => Boolean(story.video_url)).length,
     };
-  }, [myUploads]);
+  }, [myUploads, removedUploads.length]);
 
   const receivedReplies = useMemo(() => {
     return videoReplies.filter((reply) => reply.recipient_user_id === userId);
@@ -580,6 +589,107 @@ export default function JourneyPage() {
     );
 
     setMessage("Upload removed from public view.");
+  }
+
+  async function clearRemovedUpload(story: StoryRow) {
+    if (!userId) {
+      setMessage("Please sign in to clear removed uploads.");
+      return;
+    }
+
+    if (story.user_id !== userId) {
+      setMessage("You can only clear your own removed uploads.");
+      return;
+    }
+
+    if (story.status !== "removed") {
+      setMessage("Only removed uploads can be cleared.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "This will permanently remove these removed items from your uploads list. Continue?"
+    );
+
+    if (!confirmed) return;
+
+    setClearingRemovedStoryId(story.id);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("stories")
+      .delete()
+      .eq("id", story.id)
+      .eq("user_id", userId)
+      .eq("status", "removed");
+
+    setClearingRemovedStoryId(null);
+
+    if (error) {
+      setMessage(`Could not clear removed upload: ${error.message}`);
+      return;
+    }
+
+    setMyUploads((currentUploads) =>
+      currentUploads.filter((item) => item.id !== story.id)
+    );
+
+    setStories((currentStories) =>
+      currentStories.filter((item) => item.id !== story.id)
+    );
+
+    setMessage("Removed upload cleared from your uploads list.");
+  }
+
+  async function clearAllRemovedUploads() {
+    if (!userId) {
+      setMessage("Please sign in to clear removed uploads.");
+      return;
+    }
+
+    const removableIds = removedUploads
+      .filter(
+        (story) => story.user_id === userId && story.status === "removed"
+      )
+      .map((story) => story.id);
+
+    if (removableIds.length === 0) {
+      setMessage("There are no removed uploads to clear.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "This will permanently remove these removed items from your uploads list. Continue?"
+    );
+
+    if (!confirmed) return;
+
+    setClearingAllRemoved(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("stories")
+      .delete()
+      .eq("user_id", userId)
+      .eq("status", "removed")
+      .in("id", removableIds);
+
+    setClearingAllRemoved(false);
+
+    if (error) {
+      setMessage(`Could not clear removed uploads: ${error.message}`);
+      return;
+    }
+
+    setMyUploads((currentUploads) =>
+      currentUploads.filter((item) => !removableIds.includes(item.id))
+    );
+
+    setStories((currentStories) =>
+      currentStories.filter((item) => !removableIds.includes(item.id))
+    );
+
+    setMessage("Removed uploads cleared from your uploads list.");
   }
 
   async function sendReply() {
@@ -800,6 +910,30 @@ export default function JourneyPage() {
               <MiniUploadStat label="Videos" number={uploadTotals.videos} />
             </div>
 
+            {removedUploads.length > 0 && (
+              <div className="mb-5 flex flex-col gap-3 rounded-[1.5rem] bg-red-50 p-4 ring-1 ring-red-100 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-black text-red-800">
+                    Clear removed uploads
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-red-700">
+                    Permanently remove items already marked Removed from this
+                    control center.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={clearAllRemovedUploads}
+                  disabled={clearingAllRemoved}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {clearingAllRemoved ? "Clearing..." : "Clear All Removed"}
+                </button>
+              </div>
+            )}
+
             <div className="space-y-4">
               {myUploads.length === 0 ? (
                 <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
@@ -811,8 +945,10 @@ export default function JourneyPage() {
                     key={story.id}
                     story={story}
                     removing={removingStoryId === story.id}
+                    clearingRemoved={clearingRemovedStoryId === story.id}
                     onEdit={() => startEditingStory(story)}
                     onRemove={() => removeMyUpload(story)}
+                    onClearRemoved={() => clearRemovedUpload(story)}
                   />
                 ))
               )}
@@ -1352,13 +1488,17 @@ function MiniUploadStat({
 function MyUploadCard({
   story,
   removing,
+  clearingRemoved,
   onEdit,
   onRemove,
+  onClearRemoved,
 }: {
   story: StoryRow;
   removing: boolean;
+  clearingRemoved: boolean;
   onEdit: () => void;
   onRemove: () => void;
+  onClearRemoved: () => void;
 }) {
   const isRemoved = story.status === "removed";
   const isApproved = story.status === "approved";
@@ -1435,6 +1575,18 @@ function MyUploadCard({
           >
             <Trash2 className="h-4 w-4" />
             {removing ? "Removing..." : "Remove"}
+          </button>
+        )}
+
+        {isRemoved && (
+          <button
+            type="button"
+            onClick={onClearRemoved}
+            disabled={clearingRemoved}
+            className="inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Trash2 className="h-4 w-4" />
+            {clearingRemoved ? "Deleting..." : "Delete Forever"}
           </button>
         )}
       </div>
