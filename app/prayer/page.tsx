@@ -383,6 +383,82 @@ export default function PrayerPage() {
     }
   }
 
+  async function notifyPrayerCircleAnswered(story: PrayerStory) {
+    if (!userId || !story.user_id) return;
+
+    const { data: reactionData, error: reactionError } = await supabase
+      .from("story_reactions")
+      .select("user_id")
+      .eq("story_id", story.id)
+      .eq("reaction_type", "praying");
+
+    if (reactionError) {
+      console.error("Could not load Prayer Circle users:", reactionError);
+      return;
+    }
+
+    const prayerUserIds = Array.from(
+      new Set(
+        (Array.isArray(reactionData) ? reactionData : [])
+          .map((reaction) =>
+            isRecord(reaction) ? readString(reaction.user_id) : null
+          )
+          .filter(
+            (reactionUserId): reactionUserId is string =>
+              typeof reactionUserId === "string" &&
+              reactionUserId !== story.user_id
+          )
+      )
+    );
+
+    if (prayerUserIds.length === 0) return;
+
+    const { data: existingMessages, error: existingError } = await supabase
+      .from("inbox_messages")
+      .select("user_id")
+      .eq("story_id", story.id)
+      .eq("message_type", "answered_prayer")
+      .in("user_id", prayerUserIds);
+
+    if (existingError) {
+      console.error("Could not check answered prayer inbox messages:", existingError);
+      return;
+    }
+
+    const existingUserIds = new Set(
+      (Array.isArray(existingMessages) ? existingMessages : [])
+        .map((message) =>
+          isRecord(message) ? readString(message.user_id) : null
+        )
+        .filter(
+          (messageUserId): messageUserId is string =>
+            typeof messageUserId === "string"
+        )
+    );
+
+    const nextMessages = prayerUserIds
+      .filter((prayerUserId) => !existingUserIds.has(prayerUserId))
+      .map((prayerUserId) => ({
+        user_id: prayerUserId,
+        sender_user_id: userId,
+        title: "A prayer you joined was answered",
+        body: "God moved. Open the prayer request to see how He answered.",
+        category: "prayer",
+        message_type: "answered_prayer",
+        story_id: story.id,
+        action_url: "/prayer",
+        read: false,
+      }));
+
+    if (nextMessages.length === 0) return;
+
+    const { error } = await supabase.from("inbox_messages").insert(nextMessages);
+
+    if (error) {
+      console.error("Could not create answered prayer inbox messages:", error);
+    }
+  }
+
   async function toggleReaction(
     storyId: string,
     reactionType: ReactionType,
@@ -517,6 +593,8 @@ export default function PrayerPage() {
           : currentStory
       )
     );
+
+    await notifyPrayerCircleAnswered(story);
 
     closeAnsweredPrayerModal();
     setMessage("Praise shared with the community.");
