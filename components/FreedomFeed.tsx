@@ -1169,7 +1169,7 @@ export default function FreedomFeed({
                         loop
                         playsInline
                         preload="metadata"
-                        className="pointer-events-none block h-full w-full bg-black object-contain object-center"
+                        className="pointer-events-none block h-full w-full bg-black object-contain object-center md:h-full md:w-full md:max-h-full md:max-w-none md:object-contain"
                         style={{
                           objectFit: "contain",
                           objectPosition: "center center",
