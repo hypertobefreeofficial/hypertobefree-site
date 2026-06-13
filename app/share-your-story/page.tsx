@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
   Camera,
@@ -43,19 +49,14 @@ type CaptionStyle =
 type CaptionPosition = "top" | "center" | "bottom";
 type CaptionSize = "small" | "medium" | "large" | "extra-large";
 type CaptionAlign = "left" | "center" | "right";
-type CaptionFont =
-  | "htbf-clean"
-  | "bold-testimony"
-  | "soft-scripture"
-  | "praise-handwritten"
-  | "modern-serif";
 type CaptionColor =
   | "white"
-  | "deep-navy"
+  | "black"
   | "soft-gold"
   | "prayer-blue"
   | "warm-cream"
   | "praise-green";
+type TextEditorPanel = "style" | "color" | "align" | "size";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -127,89 +128,30 @@ const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
 const captionStyleOptions: {
   label: string;
   value: CaptionStyle;
-  description: string;
 }[] = [
   {
-    label: "Classic Caption",
+    label: "Classic",
     value: "classic-caption",
-    description: "Simple message below the media.",
   },
   {
-    label: "Bold Center",
+    label: "Bold",
     value: "bold-center",
-    description: "Big centered words over the media.",
   },
   {
-    label: "Bottom Banner",
-    value: "bottom-banner",
-    description: "Readable dark banner.",
-  },
-  {
-    label: "Highlight Box",
-    value: "highlight-box",
-    description: "Bright boxed caption.",
-  },
-  {
-    label: "Scripture Card",
+    label: "Scripture",
     value: "scripture-card",
-    description: "Soft reflection card.",
   },
   {
-    label: "Praise Glow",
+    label: "Praise",
     value: "praise-glow",
-    description: "Warm praise highlight.",
   },
   {
-    label: "Testimony Quote",
+    label: "Testimony",
     value: "testimony-quote",
-    description: "Quote-style testimony.",
   },
   {
-    label: "Minimal White",
+    label: "Minimal",
     value: "minimal-white",
-    description: "Clean white text.",
-  },
-  {
-    label: "Black Outline",
-    value: "black-outline",
-    description: "White text with strong outline.",
-  },
-  {
-    label: "Soft Gradient",
-    value: "soft-gradient",
-    description: "Gentle gradient backing.",
-  },
-];
-
-const captionFontOptions: {
-  label: string;
-  value: CaptionFont;
-  description: string;
-}[] = [
-  {
-    label: "HTBF Clean",
-    value: "htbf-clean",
-    description: "Simple and clear.",
-  },
-  {
-    label: "Bold Testimony",
-    value: "bold-testimony",
-    description: "Strong witness text.",
-  },
-  {
-    label: "Soft Scripture",
-    value: "soft-scripture",
-    description: "Gentle reflection style.",
-  },
-  {
-    label: "Praise Handwritten",
-    value: "praise-handwritten",
-    description: "Warm praise feel.",
-  },
-  {
-    label: "Modern Serif",
-    value: "modern-serif",
-    description: "Polished story text.",
   },
 ];
 
@@ -219,11 +161,30 @@ const captionColorOptions: {
   swatchClass: string;
 }[] = [
   { label: "White", value: "white", swatchClass: "bg-white" },
-  { label: "Deep Navy", value: "deep-navy", swatchClass: "bg-[#062a57]" },
-  { label: "Soft Gold", value: "soft-gold", swatchClass: "bg-amber-200" },
+  { label: "Black", value: "black", swatchClass: "bg-slate-950" },
   { label: "Prayer Blue", value: "prayer-blue", swatchClass: "bg-blue-200" },
+  { label: "Soft Gold", value: "soft-gold", swatchClass: "bg-amber-200" },
   { label: "Warm Cream", value: "warm-cream", swatchClass: "bg-[#fff4d6]" },
   { label: "Praise Green", value: "praise-green", swatchClass: "bg-emerald-200" },
+];
+
+const captionAlignOptions: { label: string; value: CaptionAlign }[] = [
+  { label: "Left", value: "left" },
+  { label: "Center", value: "center" },
+  { label: "Right", value: "right" },
+];
+
+const captionSizeOptions: { label: string; value: CaptionSize }[] = [
+  { label: "Small", value: "small" },
+  { label: "Medium", value: "medium" },
+  { label: "Large", value: "large" },
+  { label: "XL", value: "extra-large" },
+];
+
+const captionPositionOptions: { label: string; value: CaptionPosition }[] = [
+  { label: "Top", value: "top" },
+  { label: "Center", value: "center" },
+  { label: "Bottom", value: "bottom" },
 ];
 
 export default function ShareYourStoryPage() {
@@ -243,8 +204,7 @@ export default function ShareYourStoryPage() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [captionStyle, setCaptionStyle] =
     useState<CaptionStyle>("classic-caption");
-  // TODO: Persist caption font, color, size, position, and alignment when dedicated columns exist.
-  const [captionFont, setCaptionFont] = useState<CaptionFont>("htbf-clean");
+  // TODO: Persist caption color, size, position, and alignment when dedicated columns exist.
   const [captionColor, setCaptionColor] = useState<CaptionColor>("white");
   const [captionPosition, setCaptionPosition] =
     useState<CaptionPosition>("bottom");
@@ -1021,22 +981,6 @@ export default function ShareYourStoryPage() {
                   />
                 </div>
 
-                <CaptionStyleControls
-                  dark={false}
-                  style={captionStyle}
-                  onStyleChange={setCaptionStyle}
-                  font={captionFont}
-                  onFontChange={setCaptionFont}
-                  color={captionColor}
-                  onColorChange={setCaptionColor}
-                  position={captionPosition}
-                  onPositionChange={setCaptionPosition}
-                  size={captionSize}
-                  onSizeChange={setCaptionSize}
-                  align={captionAlign}
-                  onAlignChange={setCaptionAlign}
-                />
-
                 <div className="max-w-full overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
                   <div className="p-5">
                     <div className="flex min-w-0 items-start gap-3">
@@ -1095,7 +1039,6 @@ export default function ShareYourStoryPage() {
                         <CaptionTextOverlay
                           align={captionAlign}
                           color={captionColor}
-                          font={captionFont}
                           position={captionPosition}
                           size={captionSize}
                           style={captionStyle}
@@ -1119,6 +1062,20 @@ export default function ShareYourStoryPage() {
                     </div>
                   )}
                 </div>
+
+                <CaptionStyleControls
+                  dark={false}
+                  style={captionStyle}
+                  onStyleChange={setCaptionStyle}
+                  color={captionColor}
+                  onColorChange={setCaptionColor}
+                  position={captionPosition}
+                  onPositionChange={setCaptionPosition}
+                  size={captionSize}
+                  onSizeChange={setCaptionSize}
+                  align={captionAlign}
+                  onAlignChange={setCaptionAlign}
+                />
               </div>
             )}
 
@@ -1192,22 +1149,6 @@ export default function ShareYourStoryPage() {
                   </button>
                 </div>
 
-                <CaptionStyleControls
-                  dark
-                  style={captionStyle}
-                  onStyleChange={setCaptionStyle}
-                  font={captionFont}
-                  onFontChange={setCaptionFont}
-                  color={captionColor}
-                  onColorChange={setCaptionColor}
-                  position={captionPosition}
-                  onPositionChange={setCaptionPosition}
-                  size={captionSize}
-                  onSizeChange={setCaptionSize}
-                  align={captionAlign}
-                  onAlignChange={setCaptionAlign}
-                />
-
                 <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
                   <div className="relative bg-black">
                     <video
@@ -1221,7 +1162,6 @@ export default function ShareYourStoryPage() {
                       <CaptionTextOverlay
                         align={captionAlign}
                         color={captionColor}
-                        font={captionFont}
                         position={captionPosition}
                         size={captionSize}
                         style={captionStyle}
@@ -1236,6 +1176,20 @@ export default function ShareYourStoryPage() {
                     {previewText}
                   </p>
                 )}
+
+                <CaptionStyleControls
+                  dark
+                  style={captionStyle}
+                  onStyleChange={setCaptionStyle}
+                  color={captionColor}
+                  onColorChange={setCaptionColor}
+                  position={captionPosition}
+                  onPositionChange={setCaptionPosition}
+                  size={captionSize}
+                  onSizeChange={setCaptionSize}
+                  align={captionAlign}
+                  onAlignChange={setCaptionAlign}
+                />
               </div>
             )}
 
@@ -1282,10 +1236,8 @@ function CaptionStyleControls({
   align,
   color,
   dark,
-  font,
   onAlignChange,
   onColorChange,
-  onFontChange,
   onPositionChange,
   onSizeChange,
   onStyleChange,
@@ -1296,10 +1248,8 @@ function CaptionStyleControls({
   align: CaptionAlign;
   color: CaptionColor;
   dark: boolean;
-  font: CaptionFont;
   onAlignChange: (value: CaptionAlign) => void;
   onColorChange: (value: CaptionColor) => void;
-  onFontChange: (value: CaptionFont) => void;
   onPositionChange: (value: CaptionPosition) => void;
   onSizeChange: (value: CaptionSize) => void;
   onStyleChange: (value: CaptionStyle) => void;
@@ -1307,19 +1257,24 @@ function CaptionStyleControls({
   size: CaptionSize;
   style: CaptionStyle;
 }) {
+  const [activePanel, setActivePanel] = useState<TextEditorPanel>("style");
+  const selectedStyleLabel =
+    captionStyleOptions.find((option) => option.value === style)?.label ??
+    "Classic";
+
   return (
     <div
-      className={`mb-4 min-w-0 max-w-full overflow-hidden rounded-[1.5rem] p-3 ring-1 sm:p-4 ${
+      className={`mx-auto mt-4 w-full max-w-md min-w-0 overflow-hidden rounded-[1.5rem] p-3 ring-1 ${
         dark ? "bg-white/10 ring-white/10" : "bg-blue-50 ring-blue-100"
       }`}
     >
-      <div className="mb-3 flex min-w-0 max-w-full items-center justify-between gap-3">
+      <div className="mb-2 flex min-w-0 max-w-full items-center justify-between gap-3">
         <div
-          className={`min-w-0 text-sm font-black ${
+          className={`min-w-0 text-xs font-black uppercase tracking-[0.14em] ${
             dark ? "text-white" : "text-[#062a57]"
           }`}
         >
-          1. Text Style
+          Text tools
         </div>
 
         <div
@@ -1327,214 +1282,239 @@ function CaptionStyleControls({
             dark ? "bg-white/10 text-blue-100" : "bg-white text-[#0b63ce]"
           }`}
         >
-          {captionStyleOptions.find((option) => option.value === style)
-            ?.label ?? "Classic Caption"}
+          {selectedStyleLabel}
         </div>
       </div>
 
-      <div className="w-full max-w-full min-w-0 overflow-hidden">
-        <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-2 sm:overflow-hidden sm:px-0 sm:pb-0 lg:grid-cols-5 [&::-webkit-scrollbar]:hidden">
-          {captionStyleOptions.map((option) => {
-            const selected = style === option.value;
+      <div
+        className={`grid grid-cols-4 gap-1 rounded-full p-1 ${
+          dark ? "bg-black/25" : "bg-white"
+        }`}
+      >
+        <ToolbarButton
+          active={activePanel === "style"}
+          dark={dark}
+          label="Aa"
+          onClick={() => setActivePanel("style")}
+          title="Font and style"
+        />
+        <ToolbarButton
+          active={activePanel === "color"}
+          dark={dark}
+          onClick={() => setActivePanel("color")}
+          title="Text color"
+        >
+          <span
+            className={`h-4 w-4 rounded-full ring-1 ring-black/10 ${
+              captionColorOptions.find((option) => option.value === color)
+                ?.swatchClass ?? "bg-white"
+            }`}
+          />
+        </ToolbarButton>
+        <ToolbarButton
+          active={activePanel === "align"}
+          dark={dark}
+          label={align === "left" ? "≡" : align === "right" ? "≣" : "☰"}
+          onClick={() => setActivePanel("align")}
+          title="Text alignment"
+        />
+        <ToolbarButton
+          active={activePanel === "size"}
+          dark={dark}
+          label={size === "extra-large" ? "XL" : "Tt"}
+          onClick={() => setActivePanel("size")}
+          title="Text size"
+        />
+      </div>
 
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => onStyleChange(option.value)}
-                className={`max-w-[9.5rem] shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-left ring-1 transition sm:max-w-none sm:min-w-0 sm:whitespace-normal ${
-                  selected
-                    ? dark
-                      ? "bg-white text-[#082f63] ring-white"
-                      : "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                    : dark
-                      ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
-                      : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
-                }`}
-              >
-                <div className="text-[11px] font-black sm:text-xs">
+      <div className="mt-3 w-full max-w-full min-w-0 overflow-hidden">
+        {activePanel === "style" && (
+          <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {captionStyleOptions.map((option) => {
+              const selected = style === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onStyleChange(option.value)}
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                    selected
+                      ? dark
+                        ? "bg-white text-[#082f63] ring-white"
+                        : "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                      : dark
+                        ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                        : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
+                  }`}
+                >
                   {option.label}
-                </div>
-                <p className="mt-0.5 hidden text-[10px] font-semibold leading-4 opacity-80 sm:block">
-                  {option.description}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-      <div className="mt-3 grid min-w-0 max-w-full gap-2 lg:grid-cols-2">
-        <CompactOptionRow
-          dark={dark}
-          label="2. Font Style"
-          onChange={onFontChange}
-          options={captionFontOptions}
-          value={font}
-        />
-        <CompactOptionRow
-          dark={dark}
-          label="3. Text Color"
-          onChange={onColorChange}
-          options={captionColorOptions}
-          value={color}
-        />
-      </div>
+        {activePanel === "color" && (
+          <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {captionColorOptions.map((option) => {
+              const selected = color === option.value;
 
-      <div className="mt-3 grid min-w-0 max-w-full gap-2 md:grid-cols-3">
-        <MiniSegmentedControl
-          dark={dark}
-          label="4. Position"
-          onChange={onPositionChange}
-          options={[
-            ["top", "Top"],
-            ["center", "Center"],
-            ["bottom", "Bottom"],
-          ]}
-          value={position}
-        />
-        <MiniSegmentedControl
-          dark={dark}
-          label="5. Size"
-          onChange={onSizeChange}
-          options={[
-            ["small", "Small"],
-            ["medium", "Medium"],
-            ["large", "Large"],
-            ["extra-large", "XL"],
-          ]}
-          value={size}
-        />
-        <MiniSegmentedControl
-          dark={dark}
-          label="6. Alignment"
-          onChange={onAlignChange}
-          options={[
-            ["left", "Left"],
-            ["center", "Center"],
-            ["right", "Right"],
-          ]}
-          value={align}
-        />
-      </div>
-    </div>
-  );
-}
-
-function CompactOptionRow<T extends string>({
-  dark,
-  label,
-  onChange,
-  options,
-  value,
-}: {
-  dark: boolean;
-  label: string;
-  onChange: (value: T) => void;
-  options: {
-    label: string;
-    value: T;
-    description?: string;
-    swatchClass?: string;
-  }[];
-  value: T;
-}) {
-  return (
-    <div className="min-w-0 max-w-full overflow-hidden">
-      <div
-        className={`mb-1.5 text-[11px] font-black uppercase tracking-[0.12em] ${
-          dark ? "text-slate-300" : "text-slate-500"
-        }`}
-      >
-        {label}
-      </div>
-
-      <div className="w-full max-w-full min-w-0 overflow-hidden">
-        <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {options.map((option) => {
-            const selected = value === option.value;
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => onChange(option.value)}
-                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-black ring-1 transition ${
-                  selected
-                    ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                    : dark
-                      ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
-                      : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"
-                }`}
-                title={option.description}
-              >
-                {option.swatchClass && (
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onColorChange(option.value)}
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-2 transition ${
+                    selected
+                      ? dark
+                        ? "ring-white"
+                        : "ring-[#0b63ce]"
+                      : "ring-transparent"
+                  }`}
+                  aria-label={option.label}
+                  title={option.label}
+                >
                   <span
-                    className={`h-3 w-3 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
+                    className={`h-6 w-6 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
                   />
-                )}
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-function MiniSegmentedControl<T extends string>({
-  dark,
-  label,
-  onChange,
-  options,
-  value,
-}: {
-  dark: boolean;
-  label: string;
-  onChange: (value: T) => void;
-  options: [T, string][];
-  value: T;
-}) {
-  return (
-    <div className="min-w-0 max-w-full overflow-hidden">
-      <div
-        className={`mb-1.5 text-[11px] font-black uppercase tracking-[0.12em] ${
-          dark ? "text-slate-300" : "text-slate-500"
-        }`}
-      >
-        {label}
-      </div>
-      <div
-        className={`grid min-w-0 max-w-full ${
-          options.length === 4 ? "grid-cols-4" : "grid-cols-3"
-        } gap-1 rounded-2xl p-1 ${dark ? "bg-black/20" : "bg-white"}`}
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <button
-            key={optionValue}
-            type="button"
-            onClick={() => onChange(optionValue)}
-            className={`min-w-0 rounded-xl px-1.5 py-1.5 text-[10px] font-black transition sm:px-2 sm:py-2 sm:text-xs ${
-              value === optionValue
-                ? "bg-[#0b63ce] text-white"
-                : dark
-                  ? "text-slate-200 hover:bg-white/10"
-                  : "text-slate-600 hover:bg-blue-50"
+        {activePanel === "align" && (
+          <div
+            className={`grid w-full max-w-full grid-cols-3 gap-1 rounded-full p-1 ${
+              dark ? "bg-black/20" : "bg-white/70"
             }`}
           >
-            {optionLabel}
-          </button>
-        ))}
+            {captionAlignOptions.map((option) => (
+              <ToolbarChip
+                key={option.value}
+                active={align === option.value}
+                dark={dark}
+                label={option.label}
+                onClick={() => onAlignChange(option.value)}
+              />
+            ))}
+          </div>
+        )}
+
+        {activePanel === "size" && (
+          <div
+            className={`grid w-full max-w-full grid-cols-4 gap-1 rounded-full p-1 ${
+              dark ? "bg-black/20" : "bg-white/70"
+            }`}
+          >
+            {captionSizeOptions.map((option) => (
+              <ToolbarChip
+                key={option.value}
+                active={size === option.value}
+                dark={dark}
+                label={option.label}
+                onClick={() => onSizeChange(option.value)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 min-w-0 max-w-full overflow-hidden">
+        <div
+          className={`mb-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${
+            dark ? "text-slate-300" : "text-slate-500"
+          }`}
+        >
+          Position
+        </div>
+
+        <div
+          className={`grid grid-cols-3 gap-1 rounded-full p-1 ${
+            dark ? "bg-black/20" : "bg-white"
+          }`}
+        >
+          {captionPositionOptions.map((option) => (
+            <ToolbarChip
+              key={option.value}
+              active={position === option.value}
+              dark={dark}
+              label={option.label}
+              onClick={() => onPositionChange(option.value)}
+            />
+          ))}
+        </div>
       </div>
     </div>
+  );
+}
+
+function ToolbarButton({
+  active,
+  children,
+  dark,
+  label,
+  onClick,
+  title,
+}: {
+  active: boolean;
+  children?: ReactNode;
+  dark: boolean;
+  label?: string;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-10 min-w-0 items-center justify-center rounded-full text-sm font-black transition ${
+        active
+          ? "bg-[#0b63ce] text-white"
+          : dark
+            ? "text-slate-200 hover:bg-white/10"
+            : "text-slate-600 hover:bg-blue-50"
+      }`}
+      aria-label={title}
+      title={title}
+    >
+      {children ?? label}
+    </button>
+  );
+}
+
+function ToolbarChip({
+  active,
+  dark,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  dark: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-w-0 rounded-full px-2.5 py-2 text-[11px] font-black transition ${
+        active
+          ? "bg-[#0b63ce] text-white"
+          : dark
+            ? "text-slate-200 hover:bg-white/10"
+            : "text-slate-600 hover:bg-blue-50"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
 function CaptionTextOverlay({
   align,
   color,
-  font,
   position,
   size,
   style,
@@ -1542,7 +1522,6 @@ function CaptionTextOverlay({
 }: {
   align: CaptionAlign;
   color: CaptionColor;
-  font: CaptionFont;
   position: CaptionPosition;
   size: CaptionSize;
   style: CaptionStyle;
@@ -1552,14 +1531,13 @@ function CaptionTextOverlay({
   const sizeClass = getCaptionSizeClass(size);
   const alignClass = getCaptionAlignClass(align);
   const styleClass = getCaptionStyleClass(style);
-  const fontClass = getCaptionFontClass(font);
   const colorClass = getCaptionColorClass(color);
   const textShadow = getCaptionTextShadow(color);
   const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg ${positionClass} ${sizeClass} ${alignClass} ${styleClass} ${fontClass} ${colorClass}`}
+      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg ${positionClass} ${sizeClass} ${alignClass} ${styleClass} ${colorClass}`}
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
@@ -1623,18 +1601,8 @@ function getCaptionStyleClass(style: CaptionStyle) {
   return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
 }
 
-function getCaptionFontClass(font: CaptionFont) {
-  if (font === "bold-testimony") return "font-sans font-black tracking-tight";
-  if (font === "soft-scripture") return "font-serif font-semibold italic";
-  if (font === "praise-handwritten") {
-    return "font-serif font-black italic tracking-wide";
-  }
-  if (font === "modern-serif") return "font-serif font-bold";
-  return "font-sans font-semibold";
-}
-
 function getCaptionColorClass(color: CaptionColor) {
-  if (color === "deep-navy") return "!text-[#062a57]";
+  if (color === "black") return "!text-slate-950";
   if (color === "soft-gold") return "!text-amber-200";
   if (color === "prayer-blue") return "!text-blue-200";
   if (color === "warm-cream") return "!text-[#fff4d6]";
@@ -1643,7 +1611,7 @@ function getCaptionColorClass(color: CaptionColor) {
 }
 
 function getCaptionTextShadow(color: CaptionColor) {
-  if (color === "deep-navy") {
+  if (color === "black") {
     return "0 1px 10px rgba(255,255,255,0.72)";
   }
 
