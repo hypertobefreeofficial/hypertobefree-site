@@ -57,12 +57,15 @@ type CaptionFont =
   | "modern-serif";
 type CaptionColor =
   | "white"
+  | "black"
   | "deep-navy"
   | "soft-gold"
   | "prayer-blue"
   | "warm-cream"
-  | "praise-green";
+  | "praise-green"
+  | `#${string}`;
 type CaptionSize = "small" | "medium" | "large" | "extra-large";
+type CaptionAlign = "left" | "center" | "right";
 
 type ReactionRow = {
   story_id: string | null;
@@ -81,6 +84,9 @@ type ApprovedStory = {
   overlay_x: number | null;
   overlay_y: number | null;
   caption_style: CaptionStyle | null;
+  caption_color: CaptionColor;
+  caption_size: CaptionSize;
+  caption_align: CaptionAlign;
   image_url: string | null;
   signed_image_url: string | null;
   video_url: string | null;
@@ -281,6 +287,47 @@ export default function FreedomFeed({
     return "classic-caption";
   }
 
+  function getCaptionColor(value: string | null | undefined): CaptionColor {
+    if (
+      value === "white" ||
+      value === "black" ||
+      value === "deep-navy" ||
+      value === "soft-gold" ||
+      value === "prayer-blue" ||
+      value === "warm-cream" ||
+      value === "praise-green"
+    ) {
+      return value;
+    }
+
+    if (value && /^#[0-9a-fA-F]{6}$/.test(value)) {
+      return value as `#${string}`;
+    }
+
+    return "white";
+  }
+
+  function getCaptionSize(value: string | null | undefined): CaptionSize {
+    if (
+      value === "small" ||
+      value === "medium" ||
+      value === "large" ||
+      value === "extra-large"
+    ) {
+      return value;
+    }
+
+    return "medium";
+  }
+
+  function getCaptionAlign(value: string | null | undefined): CaptionAlign {
+    if (value === "left" || value === "center" || value === "right") {
+      return value;
+    }
+
+    return "center";
+  }
+
   function readNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
@@ -298,7 +345,7 @@ export default function FreedomFeed({
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_color, caption_size, caption_align, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -391,6 +438,9 @@ export default function FreedomFeed({
           overlay_x: readNumber(story.overlay_x),
           overlay_y: readNumber(story.overlay_y),
           caption_style: getCaptionStyle(story.caption_style),
+          caption_color: getCaptionColor(story.caption_color),
+          caption_size: getCaptionSize(story.caption_size),
+          caption_align: getCaptionAlign(story.caption_align),
           image_url: story.image_url,
           signed_image_url: signedImageUrl,
           video_url: story.video_url,
@@ -1090,6 +1140,9 @@ export default function FreedomFeed({
                           {story.story_text &&
                             captionStyle !== "classic-caption" && (
                               <FeedCaptionOverlay
+                                align={story.caption_align}
+                                color={story.caption_color}
+                                size={story.caption_size}
                                 style={captionStyle}
                                 text={story.story_text}
                               />
@@ -1116,7 +1169,7 @@ export default function FreedomFeed({
                         loop
                         playsInline
                         preload="metadata"
-                        className="pointer-events-none block h-full w-full bg-black object-contain md:object-cover"
+                        className="pointer-events-none block h-full w-full bg-black object-contain"
                         src={story.signed_video_url}
                       >
                         Your browser does not support the video tag.
@@ -1124,9 +1177,12 @@ export default function FreedomFeed({
 
                       {overlayText && (
                         <FeedCaptionOverlay
+                          align={story.caption_align}
+                          color={story.caption_color}
                           overlayX={story.overlay_x}
                           overlayY={story.overlay_y}
                           reserveBottomAction
+                          size={story.caption_size}
                           style={captionStyle}
                           text={overlayText}
                         />
@@ -1810,6 +1866,7 @@ function CollapsibleStoryText({
 }
 
 function FeedCaptionOverlay({
+  align,
   color,
   font,
   overlayX,
@@ -1819,6 +1876,7 @@ function FeedCaptionOverlay({
   style,
   text,
 }: {
+  align?: CaptionAlign;
   color?: CaptionColor;
   font?: CaptionFont;
   overlayX?: number | null;
@@ -1828,27 +1886,29 @@ function FeedCaptionOverlay({
   style: CaptionStyle;
   text: string;
 }) {
-  // TODO: Pass caption_font, caption_color, and caption_size from stories when those columns exist.
   const hasCustomPosition =
     typeof overlayX === "number" && typeof overlayY === "number";
   const positionClass = hasCustomPosition
-    ? "-translate-x-1/2 -translate-y-1/2 text-center"
+    ? "-translate-x-1/2 -translate-y-1/2"
     : getFeedCaptionPositionClass(style, reserveBottomAction);
   const styleClass = getFeedCaptionStyleClass(style);
   const fontClass = font ? getFeedCaptionFontClass(font) : "";
   const colorClass = color ? getFeedCaptionColorClass(color) : "";
   const sizeClass = getFeedCaptionSizeClass(size);
+  const alignClass = getFeedCaptionAlignClass(align);
+  const inlineColor = color ? getFeedCaptionInlineColor(color) : undefined;
   const textShadow = color ? getFeedCaptionTextShadow(color) : undefined;
   const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-36 max-w-[80%] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass}`}
+      className={`pointer-events-none absolute max-h-36 max-w-[80%] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass} ${alignClass}`}
       style={{
         left: hasCustomPosition ? `${overlayX}%` : undefined,
         top: hasCustomPosition ? `${overlayY}%` : undefined,
         overflowWrap: "anywhere",
         wordBreak: "break-word",
+        color: inlineColor,
         textShadow,
       }}
     >
@@ -1923,12 +1983,26 @@ function getFeedCaptionFontClass(font: CaptionFont) {
 }
 
 function getFeedCaptionColorClass(color: CaptionColor) {
+  if (color.startsWith("#")) return "";
+  if (color === "black") return "!text-slate-950";
   if (color === "deep-navy") return "!text-[#062a57]";
   if (color === "soft-gold") return "!text-amber-200";
   if (color === "prayer-blue") return "!text-blue-200";
   if (color === "warm-cream") return "!text-[#fff4d6]";
   if (color === "praise-green") return "!text-emerald-200";
   return "!text-white";
+}
+
+function getFeedCaptionInlineColor(color: CaptionColor) {
+  if (color.startsWith("#")) return color;
+
+  return undefined;
+}
+
+function getFeedCaptionAlignClass(align?: CaptionAlign) {
+  if (align === "left") return "text-left";
+  if (align === "right") return "text-right";
+  return "text-center";
 }
 
 function getFeedCaptionSizeClass(size?: CaptionSize) {
@@ -1939,11 +2013,22 @@ function getFeedCaptionSizeClass(size?: CaptionSize) {
 }
 
 function getFeedCaptionTextShadow(color: CaptionColor) {
-  if (color === "deep-navy") {
+  if (color === "black" || color === "deep-navy" || isDarkCaptionColor(color)) {
     return "0 1px 10px rgba(255,255,255,0.72)";
   }
 
   return "0 2px 12px rgba(0,0,0,0.62)";
+}
+
+function isDarkCaptionColor(color: CaptionColor) {
+  if (!color.startsWith("#") || color.length !== 7) return false;
+
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return brightness < 100;
 }
 
 function PhotoActionButton({
