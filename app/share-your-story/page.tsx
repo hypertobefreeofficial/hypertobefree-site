@@ -29,12 +29,20 @@ type ProfileRow = {
 
 type MediaMode = "text" | "photo" | "video";
 type PhotoDisplayStyle = "original" | "soft-rounded" | "full-width" | "framed";
-type VideoTextStyle =
-  | "clean-caption"
-  | "lower-banner"
+type CaptionStyle =
+  | "classic-caption"
+  | "bold-center"
+  | "bottom-banner"
+  | "highlight-box"
+  | "scripture-card"
+  | "praise-glow"
   | "testimony-quote"
-  | "scripture-overlay"
-  | "praise-moment";
+  | "minimal-white"
+  | "black-outline"
+  | "soft-gradient";
+type CaptionPosition = "top" | "center" | "bottom";
+type CaptionSize = "small" | "medium" | "large";
+type CaptionAlign = "left" | "center" | "right";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -103,35 +111,60 @@ const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
   { label: "Framed", value: "framed" },
 ];
 
-const videoTextStyleOptions: {
+const captionStyleOptions: {
   label: string;
-  value: VideoTextStyle;
+  value: CaptionStyle;
   description: string;
 }[] = [
   {
-    label: "Clean Caption",
-    value: "clean-caption",
-    description: "Simple caption below the video.",
+    label: "Classic Caption",
+    value: "classic-caption",
+    description: "Simple caption below the media.",
   },
   {
-    label: "Lower Banner",
-    value: "lower-banner",
-    description: "Readable dark bar near the bottom.",
+    label: "Bold Center",
+    value: "bold-center",
+    description: "Big centered words over the media.",
+  },
+  {
+    label: "Bottom Banner",
+    value: "bottom-banner",
+    description: "Readable dark banner.",
+  },
+  {
+    label: "Highlight Box",
+    value: "highlight-box",
+    description: "Bright boxed caption.",
+  },
+  {
+    label: "Scripture Card",
+    value: "scripture-card",
+    description: "Soft reflection card.",
+  },
+  {
+    label: "Praise Glow",
+    value: "praise-glow",
+    description: "Warm praise highlight.",
   },
   {
     label: "Testimony Quote",
     value: "testimony-quote",
-    description: "Centered quote-style overlay.",
+    description: "Quote-style testimony.",
   },
   {
-    label: "Scripture Overlay",
-    value: "scripture-overlay",
-    description: "Soft blue and white reflection style.",
+    label: "Minimal White",
+    value: "minimal-white",
+    description: "Clean white text.",
   },
   {
-    label: "Praise Moment",
-    value: "praise-moment",
-    description: "Celebratory highlight style.",
+    label: "Black Outline",
+    value: "black-outline",
+    description: "White text with strong outline.",
+  },
+  {
+    label: "Soft Gradient",
+    value: "soft-gradient",
+    description: "Gentle gradient backing.",
   },
 ];
 
@@ -152,9 +185,13 @@ export default function ShareYourStoryPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoCaption, setVideoCaption] = useState("");
-  // TODO: Persist video text style when stories has a dedicated column.
-  const [videoTextStyle, setVideoTextStyle] =
-    useState<VideoTextStyle>("clean-caption");
+  const [captionStyle, setCaptionStyle] =
+    useState<CaptionStyle>("classic-caption");
+  // TODO: Persist text position, size, and alignment when dedicated columns exist.
+  const [captionPosition, setCaptionPosition] =
+    useState<CaptionPosition>("bottom");
+  const [captionSize, setCaptionSize] = useState<CaptionSize>("medium");
+  const [captionAlign, setCaptionAlign] = useState<CaptionAlign>("center");
   const [message, setMessage] = useState("");
 
   const photoFeedText = useMemo(() => {
@@ -329,7 +366,6 @@ export default function ShareYourStoryPage() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
     setVideoCaption("");
-    setVideoTextStyle("clean-caption");
   }
 
   function handlePhotoSelect(file: File | null) {
@@ -656,6 +692,10 @@ export default function ShareYourStoryPage() {
         image_url: imagePath,
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
+        caption_style:
+          mediaMode === "photo" || mediaMode === "video"
+            ? captionStyle
+            : null,
         text_size: "text-medium",
         text_style: "style-clean",
         text_position: "position-bottom-left",
@@ -976,6 +1016,18 @@ export default function ShareYourStoryPage() {
                   />
                 </div>
 
+                <CaptionStyleControls
+                  dark={false}
+                  style={captionStyle}
+                  onStyleChange={setCaptionStyle}
+                  position={captionPosition}
+                  onPositionChange={setCaptionPosition}
+                  size={captionSize}
+                  onSizeChange={setCaptionSize}
+                  align={captionAlign}
+                  onAlignChange={setCaptionAlign}
+                />
+
                 <div className="max-w-full overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
                   <div className="p-5">
                     <div className="flex min-w-0 items-start gap-3">
@@ -1023,14 +1075,26 @@ export default function ShareYourStoryPage() {
                       photoDisplayStyle
                     )}
                   >
-                    <img
-                      src={photoPreviewUrl}
-                      alt="Selected story photo preview"
-                      className={getPhotoPreviewImageClass(photoDisplayStyle)}
-                    />
+                    <div className="relative">
+                      <img
+                        src={photoPreviewUrl}
+                        alt="Selected story photo preview"
+                        className={getPhotoPreviewImageClass(photoDisplayStyle)}
+                      />
+
+                      {photoFeedText && captionStyle !== "classic-caption" && (
+                        <CaptionTextOverlay
+                          align={captionAlign}
+                          position={captionPosition}
+                          size={captionSize}
+                          style={captionStyle}
+                          text={photoFeedText}
+                        />
+                      )}
+                    </div>
                   </div>
 
-                  {photoFeedText && (
+                  {photoFeedText && captionStyle === "classic-caption" && (
                     <div className="p-5 pt-4">
                       <p
                         className="max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-2xl bg-slate-50 px-4 py-3 text-[17px] leading-7 text-slate-800 ring-1 ring-slate-200"
@@ -1130,36 +1194,17 @@ export default function ShareYourStoryPage() {
                   />
                 </div>
 
-                <div className="mb-4">
-                  <div className="mb-2 text-sm font-black text-white">
-                    Video Text Style
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-5">
-                    {videoTextStyleOptions.map((option) => {
-                      const selected = videoTextStyle === option.value;
-
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setVideoTextStyle(option.value)}
-                          className={`rounded-2xl p-3 text-left ring-1 transition ${
-                            selected
-                              ? "bg-white text-[#082f63] ring-white"
-                              : "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
-                          }`}
-                        >
-                          <div className="text-xs font-black">
-                            {option.label}
-                          </div>
-                          <p className="mt-1 text-[11px] font-semibold leading-4 opacity-80">
-                            {option.description}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <CaptionStyleControls
+                  dark
+                  style={captionStyle}
+                  onStyleChange={setCaptionStyle}
+                  position={captionPosition}
+                  onPositionChange={setCaptionPosition}
+                  size={captionSize}
+                  onSizeChange={setCaptionSize}
+                  align={captionAlign}
+                  onAlignChange={setCaptionAlign}
+                />
 
                 <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
                   <div className="relative bg-black">
@@ -1170,17 +1215,19 @@ export default function ShareYourStoryPage() {
                       className="max-h-[620px] w-full bg-black object-contain"
                     />
 
-                    {videoPreviewText &&
-                      videoTextStyle !== "clean-caption" && (
-                        <VideoTextOverlay
-                          style={videoTextStyle}
-                          text={videoPreviewText}
-                        />
-                      )}
+                    {videoPreviewText && captionStyle !== "classic-caption" && (
+                      <CaptionTextOverlay
+                        align={captionAlign}
+                        position={captionPosition}
+                        size={captionSize}
+                        style={captionStyle}
+                        text={videoPreviewText}
+                      />
+                    )}
                   </div>
                 </div>
 
-                {videoPreviewText && videoTextStyle === "clean-caption" && (
+                {videoPreviewText && captionStyle === "classic-caption" && (
                   <p className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-slate-200 ring-1 ring-white/10">
                     {videoPreviewText}
                   </p>
@@ -1227,70 +1274,239 @@ export default function ShareYourStoryPage() {
   );
 }
 
-function VideoTextOverlay({
+function CaptionStyleControls({
+  align,
+  dark,
+  onAlignChange,
+  onPositionChange,
+  onSizeChange,
+  onStyleChange,
+  position,
+  size,
+  style,
+}: {
+  align: CaptionAlign;
+  dark: boolean;
+  onAlignChange: (value: CaptionAlign) => void;
+  onPositionChange: (value: CaptionPosition) => void;
+  onSizeChange: (value: CaptionSize) => void;
+  onStyleChange: (value: CaptionStyle) => void;
+  position: CaptionPosition;
+  size: CaptionSize;
+  style: CaptionStyle;
+}) {
+  return (
+    <div
+      className={`mb-4 rounded-[1.5rem] p-4 ring-1 ${
+        dark ? "bg-white/10 ring-white/10" : "bg-blue-50 ring-blue-100"
+      }`}
+    >
+      <div
+        className={`mb-3 text-sm font-black ${
+          dark ? "text-white" : "text-[#062a57]"
+        }`}
+      >
+        Caption Style
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-5">
+        {captionStyleOptions.map((option) => {
+          const selected = style === option.value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onStyleChange(option.value)}
+              className={`rounded-2xl p-3 text-left ring-1 transition ${
+                selected
+                  ? dark
+                    ? "bg-white text-[#082f63] ring-white"
+                    : "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                  : dark
+                    ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                    : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
+              }`}
+            >
+              <div className="text-xs font-black">{option.label}</div>
+              <p className="mt-1 text-[11px] font-semibold leading-4 opacity-80">
+                {option.description}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <MiniSegmentedControl
+          dark={dark}
+          label="Text position"
+          onChange={onPositionChange}
+          options={[
+            ["top", "Top"],
+            ["center", "Center"],
+            ["bottom", "Bottom"],
+          ]}
+          value={position}
+        />
+        <MiniSegmentedControl
+          dark={dark}
+          label="Text size"
+          onChange={onSizeChange}
+          options={[
+            ["small", "Small"],
+            ["medium", "Medium"],
+            ["large", "Large"],
+          ]}
+          value={size}
+        />
+        <MiniSegmentedControl
+          dark={dark}
+          label="Text alignment"
+          onChange={onAlignChange}
+          options={[
+            ["left", "Left"],
+            ["center", "Center"],
+            ["right", "Right"],
+          ]}
+          value={align}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MiniSegmentedControl<T extends string>({
+  dark,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  dark: boolean;
+  label: string;
+  onChange: (value: T) => void;
+  options: [T, string][];
+  value: T;
+}) {
+  return (
+    <div>
+      <div
+        className={`mb-2 text-xs font-black uppercase tracking-[0.14em] ${
+          dark ? "text-slate-300" : "text-slate-500"
+        }`}
+      >
+        {label}
+      </div>
+      <div
+        className={`grid grid-cols-3 gap-1 rounded-2xl p-1 ${
+          dark ? "bg-black/20" : "bg-white"
+        }`}
+      >
+        {options.map(([optionValue, optionLabel]) => (
+          <button
+            key={optionValue}
+            type="button"
+            onClick={() => onChange(optionValue)}
+            className={`rounded-xl px-2 py-2 text-xs font-black transition ${
+              value === optionValue
+                ? "bg-[#0b63ce] text-white"
+                : dark
+                  ? "text-slate-200 hover:bg-white/10"
+                  : "text-slate-600 hover:bg-blue-50"
+            }`}
+          >
+            {optionLabel}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CaptionTextOverlay({
+  align,
+  position,
+  size,
   style,
   text,
 }: {
-  style: VideoTextStyle;
+  align: CaptionAlign;
+  position: CaptionPosition;
+  size: CaptionSize;
+  style: CaptionStyle;
   text: string;
 }) {
-  const baseClass =
-    "pointer-events-none absolute max-h-36 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 shadow-lg sm:max-h-44 sm:text-base";
-
-  if (style === "testimony-quote") {
-    return (
-      <div
-        className={`${baseClass} left-1/2 top-1/2 w-[min(86%,34rem)] -translate-x-1/2 -translate-y-1/2 rounded-[1.5rem] bg-white/90 px-5 py-4 text-center font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur`}
-        style={{
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-        }}
-      >
-        &ldquo;{text}&rdquo;
-      </div>
-    );
-  }
-
-  if (style === "scripture-overlay") {
-    return (
-      <div
-        className={`${baseClass} left-4 right-4 top-4 rounded-[1.5rem] bg-blue-50/90 px-5 py-4 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur`}
-        style={{
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-        }}
-      >
-        {text}
-      </div>
-    );
-  }
-
-  if (style === "praise-moment") {
-    return (
-      <div
-        className={`${baseClass} bottom-5 left-4 right-4 rounded-[1.5rem] bg-amber-300/90 px-5 py-4 font-black text-amber-950 ring-1 ring-white/70`}
-        style={{
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-        }}
-      >
-        {text}
-      </div>
-    );
-  }
+  const positionClass = getCaptionPositionClass(position);
+  const sizeClass = getCaptionSizeClass(size);
+  const alignClass = getCaptionAlignClass(align);
+  const styleClass = getCaptionStyleClass(style);
+  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`${baseClass} inset-x-4 bottom-4 rounded-2xl bg-black/70 px-4 py-3 font-bold text-white backdrop-blur`}
+      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg ${positionClass} ${sizeClass} ${alignClass} ${styleClass}`}
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
       }}
     >
-      {text}
+      {quoteText}
     </div>
   );
 }
+
+function getCaptionPositionClass(position: CaptionPosition) {
+  if (position === "top") return "left-4 right-4 top-4";
+  if (position === "center") {
+    return "left-1/2 top-1/2 w-[min(86%,34rem)] -translate-x-1/2 -translate-y-1/2";
+  }
+  return "bottom-5 left-4 right-4";
+}
+
+function getCaptionSizeClass(size: CaptionSize) {
+  if (size === "small") return "text-xs sm:text-sm";
+  if (size === "large") return "text-base sm:text-xl";
+  return "text-sm sm:text-base";
+}
+
+function getCaptionAlignClass(align: CaptionAlign) {
+  if (align === "left") return "text-left";
+  if (align === "right") return "text-right";
+  return "text-center";
+}
+
+function getCaptionStyleClass(style: CaptionStyle) {
+  if (style === "bold-center") {
+    return "rounded-[1.5rem] bg-black/45 font-black text-white backdrop-blur";
+  }
+  if (style === "bottom-banner") {
+    return "rounded-2xl bg-black/75 font-bold text-white backdrop-blur";
+  }
+  if (style === "highlight-box") {
+    return "rounded-[1.5rem] bg-yellow-300/95 font-black text-yellow-950 ring-1 ring-white/70";
+  }
+  if (style === "scripture-card") {
+    return "rounded-[1.5rem] bg-blue-50/90 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur";
+  }
+  if (style === "praise-glow") {
+    return "rounded-[1.5rem] bg-amber-300/90 font-black text-amber-950 ring-1 ring-white/70 shadow-amber-300/30";
+  }
+  if (style === "testimony-quote") {
+    return "rounded-[1.5rem] bg-white/90 font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur";
+  }
+  if (style === "minimal-white") {
+    return "font-black text-white shadow-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]";
+  }
+  if (style === "black-outline") {
+    return "font-black text-white shadow-none [text-shadow:2px_2px_0_#000,-2px_2px_0_#000,2px_-2px_0_#000,-2px_-2px_0_#000]";
+  }
+  if (style === "soft-gradient") {
+    return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
+  }
+  return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
+}
+
 
 function SegmentedOptionGroup<T extends string>({
   options,
