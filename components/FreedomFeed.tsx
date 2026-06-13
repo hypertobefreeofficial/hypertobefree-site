@@ -1084,7 +1084,7 @@ export default function FreedomFeed({
                         loop
                         playsInline
                         preload="metadata"
-                        className="pointer-events-none max-h-[560px] w-full bg-black object-contain"
+                        className="pointer-events-none block h-auto w-full max-w-full bg-black"
                         src={story.signed_video_url}
                       >
                         Your browser does not support the video tag.
@@ -1741,7 +1741,7 @@ function FeedCaptionOverlay({
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-36 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 text-sm leading-snug shadow-lg sm:max-h-44 sm:text-base ${positionClass} ${styleClass}`}
+      className={`pointer-events-none absolute max-h-36 w-[min(80%,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 text-sm leading-snug shadow-lg sm:max-h-44 sm:text-base ${positionClass} ${styleClass}`}
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
@@ -1757,20 +1757,20 @@ function getFeedCaptionPositionClass(
   reserveBottomAction: boolean
 ) {
   if (style === "bold-center" || style === "testimony-quote") {
-    return "left-1/2 top-1/2 w-[min(86%,34rem)] -translate-x-1/2 -translate-y-1/2 text-center";
+    return "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center";
   }
 
   if (style === "scripture-card") {
-    return "left-4 right-4 top-4 text-center";
+    return "left-1/2 top-4 -translate-x-1/2 text-center";
   }
 
   if (style === "minimal-white" || style === "black-outline") {
-    return "left-4 right-4 top-4 text-center";
+    return "left-1/2 top-4 -translate-x-1/2 text-center";
   }
 
   return reserveBottomAction
-    ? "bottom-20 left-4 right-4 text-center"
-    : "bottom-5 left-4 right-4 text-center";
+    ? "bottom-20 left-1/2 -translate-x-1/2 text-center"
+    : "bottom-5 left-1/2 -translate-x-1/2 text-center";
 }
 
 function getFeedCaptionStyleClass(style: CaptionStyle) {
