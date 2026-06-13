@@ -213,6 +213,8 @@ export default function ShareYourStoryPage() {
   const [message, setMessage] = useState("");
 
   const previewText = useMemo(() => storyText.trim(), [storyText]);
+  const hasSelectedVideo = mediaMode === "video" && Boolean(videoFile);
+  const shouldShowMessageInput = mediaMode !== "video" || hasSelectedVideo;
 
   useEffect(() => {
     async function loadPage() {
@@ -715,6 +717,47 @@ export default function ShareYourStoryPage() {
     }
   }
 
+  function renderMessageInput({
+    label,
+    placeholder,
+  }: {
+    label: string;
+    placeholder: string;
+  }) {
+    return (
+      <div className="w-full max-w-full overflow-hidden">
+        <label className="mb-2 block text-sm font-black text-[#062a57]">
+          {label}
+        </label>
+
+        <textarea
+          value={storyText}
+          onChange={(event) => setStoryText(event.target.value)}
+          rows={8}
+          placeholder={placeholder}
+          className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+          style={{
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+          }}
+        />
+
+        <div className="mt-3 flex max-w-full flex-wrap gap-2 overflow-hidden">
+          {emojiOptions.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => addEmoji(emoji)}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-50 text-xl ring-1 ring-slate-200 transition hover:bg-blue-50"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (checkingUser) {
     return (
       <main className="min-h-screen overflow-x-hidden bg-[#f8fbff] px-6 py-12 text-slate-900">
@@ -865,36 +908,13 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            <div>
-              <label className="mb-2 block text-sm font-black text-[#062a57]">
-                Your message
-              </label>
-
-              <textarea
-                value={storyText}
-                onChange={(event) => setStoryText(event.target.value)}
-                rows={8}
-                placeholder="Share what God did, what you’re praying for, or what encouraged you..."
-                className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                style={{
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
-                }}
-              />
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {emojiOptions.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => addEmoji(emoji)}
-                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-xl ring-1 ring-slate-200 transition hover:bg-blue-50"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {shouldShowMessageInput &&
+              mediaMode !== "video" &&
+              renderMessageInput({
+                label: "Your message",
+                placeholder:
+                  "Share what God did, what you’re praying for, or what encouraged you...",
+              })}
 
             {mediaMode === "photo" && (
               <div>
@@ -1127,6 +1147,29 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
+            {shouldShowMessageInput &&
+              mediaMode === "video" &&
+              renderMessageInput({
+                label: "Video caption",
+                placeholder: "Add a short message for this video...",
+              })}
+
+            {hasSelectedVideo && (
+              <CaptionStyleControls
+                dark={false}
+                style={captionStyle}
+                onStyleChange={setCaptionStyle}
+                color={captionColor}
+                onColorChange={setCaptionColor}
+                position={captionPosition}
+                onPositionChange={setCaptionPosition}
+                size={captionSize}
+                onSizeChange={setCaptionSize}
+                align={captionAlign}
+                onAlignChange={setCaptionAlign}
+              />
+            )}
+
             {videoPreviewUrl && (
               <div className="w-full max-w-full overflow-hidden rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1177,19 +1220,6 @@ export default function ShareYourStoryPage() {
                   </p>
                 )}
 
-                <CaptionStyleControls
-                  dark
-                  style={captionStyle}
-                  onStyleChange={setCaptionStyle}
-                  color={captionColor}
-                  onColorChange={setCaptionColor}
-                  position={captionPosition}
-                  onPositionChange={setCaptionPosition}
-                  size={captionSize}
-                  onSizeChange={setCaptionSize}
-                  align={captionAlign}
-                  onAlignChange={setCaptionAlign}
-                />
               </div>
             )}
 
