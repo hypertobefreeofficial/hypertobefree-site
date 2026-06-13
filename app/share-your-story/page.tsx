@@ -249,7 +249,6 @@ export default function ShareYourStoryPage() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [captionStyle, setCaptionStyle] =
     useState<CaptionStyle>("classic-caption");
-  // TODO: Persist caption_color, caption size, position, and alignment when dedicated columns exist.
   const [captionColor, setCaptionColor] = useState<CaptionColor>("white");
   const [captionPosition, setCaptionPosition] =
     useState<CaptionPosition>("bottom");
@@ -816,6 +815,18 @@ export default function ShareYourStoryPage() {
         caption_style:
           mediaMode === "photo" || mediaMode === "video"
             ? captionStyle
+            : null,
+        caption_color:
+          mediaMode === "photo" || mediaMode === "video"
+            ? captionColor
+            : null,
+        caption_size:
+          mediaMode === "photo" || mediaMode === "video"
+            ? captionSize
+            : null,
+        caption_align:
+          mediaMode === "photo" || mediaMode === "video"
+            ? captionAlign
             : null,
         text_size: "text-medium",
         text_style: "style-clean",
