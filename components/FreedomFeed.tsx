@@ -47,7 +47,8 @@ type CaptionStyle =
   | "testimony-quote"
   | "minimal-white"
   | "black-outline"
-  | "soft-gradient";
+  | "soft-gradient"
+  | "elegant-script";
 type CaptionFont =
   | "htbf-clean"
   | "bold-testimony"
@@ -76,6 +77,9 @@ type ApprovedStory = {
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  overlay_text: string | null;
+  overlay_x: number | null;
+  overlay_y: number | null;
   caption_style: CaptionStyle | null;
   image_url: string | null;
   signed_image_url: string | null;
@@ -268,7 +272,8 @@ export default function FreedomFeed({
       value === "testimony-quote" ||
       value === "minimal-white" ||
       value === "black-outline" ||
-      value === "soft-gradient"
+      value === "soft-gradient" ||
+      value === "elegant-script"
     ) {
       return value;
     }
@@ -276,11 +281,24 @@ export default function FreedomFeed({
     return "classic-caption";
   }
 
+  function readNumber(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  }
+
   async function loadApprovedStories(currentUserId: string | null) {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, caption_style, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -369,6 +387,9 @@ export default function FreedomFeed({
           location: story.location,
           story_type: story.story_type,
           story_text: story.story_text,
+          overlay_text: story.overlay_text ?? null,
+          overlay_x: readNumber(story.overlay_x),
+          overlay_y: readNumber(story.overlay_y),
           caption_style: getCaptionStyle(story.caption_style),
           image_url: story.image_url,
           signed_image_url: signedImageUrl,
@@ -1001,12 +1022,17 @@ export default function FreedomFeed({
               const originalPoster = isOriginalPoster(story);
               const prayerAnswered = story.prayer_status === "answered";
               const captionStyle = getCaptionStyle(story.caption_style);
-              const hasMedia = Boolean(
-                story.signed_image_url || story.signed_video_url
+              const hasVideoMedia = Boolean(
+                story.signed_video_url || story.video_url
               );
-              const showClassicStoryText =
+              const hasImageMedia = Boolean(story.signed_image_url);
+              const overlayText = story.overlay_text?.trim() ?? "";
+              const showInlineStoryText =
                 Boolean(story.story_text) &&
-                (!hasMedia || captionStyle === "classic-caption");
+                !hasVideoMedia &&
+                (!hasImageMedia || captionStyle === "classic-caption");
+              const showVideoCaptionText =
+                Boolean(story.story_text) && hasVideoMedia;
 
               return (
                 <article
@@ -1072,16 +1098,8 @@ export default function FreedomFeed({
                       </button>
                     )}
 
-                    {showClassicStoryText && (
-                      <p
-                        className="mt-4 max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
-                        style={{
-                          overflowWrap: "anywhere",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {story.story_text}
-                      </p>
+                    {showInlineStoryText && (
+                      <CollapsibleStoryText text={story.story_text} />
                     )}
                   </div>
 
@@ -1089,7 +1107,7 @@ export default function FreedomFeed({
                     <button
                       type="button"
                       onClick={() => openVideoStory(story.id)}
-                      className="relative block max-h-[60vh] w-full overflow-hidden bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:max-h-[560px]"
+                      className="relative block aspect-[4/5] max-h-[60vh] w-full overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
                       aria-label="Open video in Video Feed"
                     >
                       <video
@@ -1098,20 +1116,21 @@ export default function FreedomFeed({
                         loop
                         playsInline
                         preload="metadata"
-                        className="pointer-events-none block max-h-[60vh] w-full max-w-full bg-black object-contain md:max-h-[560px]"
+                        className="pointer-events-none block h-full w-full bg-black object-contain md:object-cover"
                         src={story.signed_video_url}
                       >
                         Your browser does not support the video tag.
                       </video>
 
-                      {story.story_text &&
-                        captionStyle !== "classic-caption" && (
-                          <FeedCaptionOverlay
-                            reserveBottomAction
-                            style={captionStyle}
-                            text={story.story_text}
-                          />
-                        )}
+                      {overlayText && (
+                        <FeedCaptionOverlay
+                          overlayX={story.overlay_x}
+                          overlayY={story.overlay_y}
+                          reserveBottomAction
+                          style={captionStyle}
+                          text={overlayText}
+                        />
+                      )}
 
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                         <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
@@ -1130,6 +1149,15 @@ export default function FreedomFeed({
                       Video found, but the secure video link could not be
                       created. Tap to open in Video Feed.
                     </button>
+                  )}
+
+                  {showVideoCaptionText && (
+                    <div className="px-5 pt-4">
+                      <CollapsibleStoryText
+                        className="mt-0"
+                        text={story.story_text}
+                      />
+                    </div>
                   )}
 
                   <div className="border-t border-slate-100 px-5 py-3">
@@ -1740,9 +1768,52 @@ function ReactionButton({
   );
 }
 
+function CollapsibleStoryText({
+  className = "mt-4",
+  text,
+}: {
+  className?: string;
+  text: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const cleanText = text?.trim();
+
+  if (!cleanText) return null;
+
+  const isLong = cleanText.length > 180;
+  const visibleText =
+    !isLong || expanded ? cleanText : `${cleanText.slice(0, 180).trim()}...`;
+
+  return (
+    <div className={className}>
+      <p
+        className="max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {visibleText}
+      </p>
+
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+        >
+          {expanded ? "See less" : "See more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function FeedCaptionOverlay({
   color,
   font,
+  overlayX,
+  overlayY,
   reserveBottomAction = false,
   size,
   style,
@@ -1750,13 +1821,19 @@ function FeedCaptionOverlay({
 }: {
   color?: CaptionColor;
   font?: CaptionFont;
+  overlayX?: number | null;
+  overlayY?: number | null;
   reserveBottomAction?: boolean;
   size?: CaptionSize;
   style: CaptionStyle;
   text: string;
 }) {
   // TODO: Pass caption_font, caption_color, and caption_size from stories when those columns exist.
-  const positionClass = getFeedCaptionPositionClass(style, reserveBottomAction);
+  const hasCustomPosition =
+    typeof overlayX === "number" && typeof overlayY === "number";
+  const positionClass = hasCustomPosition
+    ? "-translate-x-1/2 -translate-y-1/2 text-center"
+    : getFeedCaptionPositionClass(style, reserveBottomAction);
   const styleClass = getFeedCaptionStyleClass(style);
   const fontClass = font ? getFeedCaptionFontClass(font) : "";
   const colorClass = color ? getFeedCaptionColorClass(color) : "";
@@ -1766,8 +1843,10 @@ function FeedCaptionOverlay({
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-36 w-[min(80%,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass}`}
+      className={`pointer-events-none absolute max-h-36 max-w-[80%] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass}`}
       style={{
+        left: hasCustomPosition ? `${overlayX}%` : undefined,
+        top: hasCustomPosition ? `${overlayY}%` : undefined,
         overflowWrap: "anywhere",
         wordBreak: "break-word",
         textShadow,
@@ -1826,6 +1905,9 @@ function getFeedCaptionStyleClass(style: CaptionStyle) {
   }
   if (style === "soft-gradient") {
     return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
+  }
+  if (style === "elegant-script") {
+    return "rounded-[1.75rem] bg-white/20 font-serif text-2xl font-black italic tracking-wide text-white ring-1 ring-white/60 backdrop-blur-md";
   }
   return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
 }
