@@ -240,6 +240,7 @@ export default function ShareYourStoryPage() {
   const [mediaMode, setMediaMode] = useState<MediaMode>("text");
   const [storyType, setStoryType] = useState("Testimony");
   const [storyText, setStoryText] = useState("");
+  const [overlayText, setOverlayText] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [photoDisplayStyle, setPhotoDisplayStyle] =
@@ -261,7 +262,10 @@ export default function ShareYourStoryPage() {
   const mobileCaptionDragPointerRef = useRef<number | null>(null);
   const [message, setMessage] = useState("");
 
-  const previewText = useMemo(() => storyText.trim(), [storyText]);
+  const previewText = useMemo(
+    () => (mediaMode === "video" ? overlayText : storyText).trim(),
+    [mediaMode, overlayText, storyText]
+  );
   const hasSelectedVideo = mediaMode === "video" && Boolean(videoFile);
   const shouldShowMessageInput = mediaMode !== "video" || hasSelectedVideo;
   const captionSizeSliderIndex = Math.max(
@@ -405,6 +409,7 @@ export default function ShareYourStoryPage() {
   function removeVideo() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
+    setOverlayText("");
     setMobileVideoTool("message");
     setMobileCaptionPositionPercent({ x: 50, y: 78 });
   }
@@ -489,7 +494,7 @@ export default function ShareYourStoryPage() {
     }
   }
 
-  function selectMobileCaptionShortcut(position: CaptionPosition) {
+  function selectCaptionPosition(position: CaptionPosition) {
     setCaptionPosition(position);
 
     if (position === "top") {
@@ -503,6 +508,10 @@ export default function ShareYourStoryPage() {
     }
 
     setMobileCaptionPositionPercent({ x: 50, y: 78 });
+  }
+
+  function selectMobileCaptionShortcut(position: CaptionPosition) {
+    selectCaptionPosition(position);
   }
 
   async function moderateStoryText({
@@ -741,10 +750,14 @@ export default function ShareYourStoryPage() {
     }
 
     const cleanStoryText = storyText.trim();
+    const cleanOverlayText = overlayText.trim();
+    const moderationText = [cleanStoryText, cleanOverlayText]
+      .filter(Boolean)
+      .join("\n\n");
     const hasPhoto = mediaMode === "photo" && Boolean(photoFile);
     const hasVideo = mediaMode === "video" && Boolean(videoFile);
 
-    if (!cleanStoryText && !hasPhoto && !hasVideo) {
+    if (!cleanStoryText && !cleanOverlayText && !hasPhoto && !hasVideo) {
       setMessage(
         "Please write a story, prayer request, praise report, or upload a photo or video."
       );
@@ -776,7 +789,7 @@ export default function ShareYourStoryPage() {
 
       const moderationDecision = await moderateStoryText({
         finalStoryType,
-        cleanStoryText,
+        cleanStoryText: moderationText,
         hasVideo,
         hasPhoto,
       });
@@ -794,6 +807,9 @@ export default function ShareYourStoryPage() {
         location: getPostingLocation(),
         story_type: finalStoryType,
         story_text: cleanStoryText || null,
+        overlay_text: hasVideo ? cleanOverlayText || null : null,
+        overlay_x: hasVideo ? mobileCaptionPositionPercent.x : null,
+        overlay_y: hasVideo ? mobileCaptionPositionPercent.y : null,
         image_url: imagePath,
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
@@ -821,6 +837,7 @@ export default function ShareYourStoryPage() {
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
 
       setStoryText("");
+      setOverlayText("");
       removePhoto();
       removeVideo();
       setMediaMode("text");
@@ -880,6 +897,63 @@ export default function ShareYourStoryPage() {
             </button>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  function renderOverlayTextInput({
+    label,
+    placeholder,
+    rows = 4,
+  }: {
+    label: string;
+    placeholder: string;
+    rows?: number;
+  }) {
+    return (
+      <div className="w-full max-w-full overflow-hidden">
+        <label className="mb-2 block text-sm font-black text-[#062a57]">
+          {label}
+        </label>
+
+        <textarea
+          value={overlayText}
+          onChange={(event) => setOverlayText(event.target.value)}
+          rows={rows}
+          placeholder={placeholder}
+          className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+          style={{
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+          }}
+        />
+      </div>
+    );
+  }
+
+  function renderVideoCaptionContextInput() {
+    return (
+      <div className="w-full max-w-full overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <label className="mb-2 block text-sm font-black text-[#062a57]">
+          Caption / context
+        </label>
+
+        <textarea
+          value={storyText}
+          onChange={(event) => setStoryText(event.target.value)}
+          rows={4}
+          placeholder="Add context about what happened, what God did, or why this moment matters..."
+          className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+          style={{
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+          }}
+        />
+
+        <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+          This appears below the video as the post caption. The short video
+          message above is the only text shown directly on the video.
+        </p>
       </div>
     );
   }
@@ -1260,7 +1334,7 @@ export default function ShareYourStoryPage() {
                   color={captionColor}
                   onColorChange={setCaptionColor}
                   position={captionPosition}
-                  onPositionChange={setCaptionPosition}
+                  onPositionChange={selectCaptionPosition}
                   size={captionSize}
                   onSizeChange={setCaptionSize}
                   align={captionAlign}
@@ -1392,8 +1466,10 @@ export default function ShareYourStoryPage() {
                           Video message
                         </label>
                         <textarea
-                          value={storyText}
-                          onChange={(event) => setStoryText(event.target.value)}
+                          value={overlayText}
+                          onChange={(event) =>
+                            setOverlayText(event.target.value)
+                          }
                           rows={3}
                           placeholder="Share what God did..."
                           className="w-full max-w-full resize-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
@@ -1539,6 +1615,12 @@ export default function ShareYourStoryPage() {
             )}
 
             {videoPreviewUrl && (
+              <div className="mt-3 sm:hidden">
+                {renderVideoCaptionContextInput()}
+              </div>
+            )}
+
+            {videoPreviewUrl && (
               <div className="mt-3 space-y-3 sm:hidden">
                 {renderStatusMessage()}
                 {renderSubmitControls()}
@@ -1578,7 +1660,7 @@ export default function ShareYourStoryPage() {
                           className="max-h-[560px] w-full bg-black object-contain lg:max-h-[620px]"
                         />
 
-                        {previewText && captionStyle !== "classic-caption" && (
+                        {previewText && (
                           <CaptionTextOverlay
                             align={captionAlign}
                             color={captionColor}
@@ -1590,22 +1672,10 @@ export default function ShareYourStoryPage() {
                         )}
                       </div>
                     </div>
-
-                    {previewText && captionStyle === "classic-caption" && (
-                      <p
-                        className="mt-3 max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-slate-200 ring-1 ring-white/10"
-                        style={{
-                          overflowWrap: "anywhere",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {previewText}
-                      </p>
-                    )}
                   </div>
 
                   <div className="min-w-0 max-w-full space-y-4 overflow-hidden rounded-[1.5rem] bg-white p-4 text-slate-900 ring-1 ring-white/10">
-                    {renderMessageInput({
+                    {renderOverlayTextInput({
                       label: "Video message",
                       placeholder: "Add a short message for this video...",
                       rows: 5,
@@ -1618,12 +1688,14 @@ export default function ShareYourStoryPage() {
                       color={captionColor}
                       onColorChange={setCaptionColor}
                       position={captionPosition}
-                      onPositionChange={setCaptionPosition}
+                      onPositionChange={selectCaptionPosition}
                       size={captionSize}
                       onSizeChange={setCaptionSize}
                       align={captionAlign}
                       onAlignChange={setCaptionAlign}
                     />
+
+                    {renderVideoCaptionContextInput()}
 
                     {renderSafetyNotice()}
                     {renderStatusMessage()}
