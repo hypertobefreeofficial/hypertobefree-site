@@ -58,6 +58,13 @@ type CaptionColorPreset =
   | "praise-green";
 type CaptionColor = CaptionColorPreset | `#${string}`;
 type TextEditorPanel = "style" | "color" | "align" | "size" | "position";
+type MobileVideoTool =
+  | "message"
+  | "style"
+  | "color"
+  | "size"
+  | "position"
+  | "preview";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -156,6 +163,20 @@ const captionStyleOptions: {
   },
 ];
 
+const mobileCaptionStyleOptions: {
+  label: string;
+  value: CaptionStyle;
+}[] = [
+  { label: "Classic", value: "classic-caption" },
+  { label: "Bold", value: "bold-center" },
+  { label: "Scripture", value: "scripture-card" },
+  { label: "Praise", value: "praise-glow" },
+  { label: "Testimony", value: "testimony-quote" },
+  { label: "Minimal", value: "minimal-white" },
+  { label: "Glow", value: "soft-gradient" },
+  { label: "Outline", value: "black-outline" },
+];
+
 const captionColorOptions: {
   label: string;
   value: CaptionColorPreset;
@@ -189,6 +210,15 @@ const captionPositionOptions: { label: string; value: CaptionPosition }[] = [
   { label: "Bottom", value: "bottom" },
 ];
 
+const mobileVideoToolOptions: { label: string; value: MobileVideoTool }[] = [
+  { label: "Message", value: "message" },
+  { label: "Style", value: "style" },
+  { label: "Color", value: "color" },
+  { label: "Size", value: "size" },
+  { label: "Position", value: "position" },
+  { label: "Preview", value: "preview" },
+];
+
 export default function ShareYourStoryPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -212,11 +242,17 @@ export default function ShareYourStoryPage() {
     useState<CaptionPosition>("bottom");
   const [captionSize, setCaptionSize] = useState<CaptionSize>("medium");
   const [captionAlign, setCaptionAlign] = useState<CaptionAlign>("center");
+  const [mobileVideoTool, setMobileVideoTool] =
+    useState<MobileVideoTool>("message");
   const [message, setMessage] = useState("");
 
   const previewText = useMemo(() => storyText.trim(), [storyText]);
   const hasSelectedVideo = mediaMode === "video" && Boolean(videoFile);
   const shouldShowMessageInput = mediaMode !== "video" || hasSelectedVideo;
+  const captionSizeSliderIndex = Math.max(
+    0,
+    captionSizeOptions.findIndex((option) => option.value === captionSize)
+  );
 
   useEffect(() => {
     async function loadPage() {
@@ -354,6 +390,7 @@ export default function ShareYourStoryPage() {
   function removeVideo() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
+    setMobileVideoTool("message");
   }
 
   function handlePhotoSelect(file: File | null) {
@@ -380,6 +417,7 @@ export default function ShareYourStoryPage() {
 
     if (file) {
       setMediaMode("video");
+      setMobileVideoTool("message");
     }
   }
 
@@ -1148,7 +1186,7 @@ export default function ShareYourStoryPage() {
             )}
 
             {mediaMode === "video" && (
-              <div>
+              <div className={videoPreviewUrl ? "hidden sm:block" : undefined}>
                 <label className="mb-2 block text-sm font-black text-[#062a57]">
                   Video
                 </label>
@@ -1196,7 +1234,218 @@ export default function ShareYourStoryPage() {
             )}
 
             {videoPreviewUrl && (
-              <div className="w-full max-w-full overflow-hidden rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
+              <div className="sm:hidden w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] bg-slate-950 p-3 text-white shadow-sm ring-1 ring-slate-800">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-200">
+                      HTBF Mobile Creator Studio
+                    </div>
+                    <div className="mt-1 text-base font-black">Video Story</div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={removeVideo}
+                    className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-black text-red-600 ring-1 ring-white/10"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                <div className="relative w-full max-w-full overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                  <video
+                    src={videoPreviewUrl}
+                    controls
+                    playsInline
+                    className="max-h-[58vh] w-full bg-black object-contain"
+                  />
+
+                  {previewText ? (
+                    <CaptionTextOverlay
+                      align={captionAlign}
+                      color={captionColor}
+                      position={captionPosition}
+                      size={captionSize}
+                      style={captionStyle}
+                      text={previewText}
+                    />
+                  ) : (
+                    <div className="pointer-events-none absolute inset-x-4 bottom-20 rounded-2xl bg-black/55 px-4 py-3 text-center text-sm font-bold text-white/85 backdrop-blur">
+                      Tap Message to add text
+                    </div>
+                  )}
+                </div>
+
+                <div className="sticky bottom-3 z-20 mt-3 w-full max-w-full overflow-hidden rounded-[1.5rem] bg-white/95 p-2 text-slate-900 shadow-xl ring-1 ring-white/30 backdrop-blur">
+                  <div className="flex w-full max-w-full gap-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {mobileVideoToolOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setMobileVideoTool(option.value)}
+                        className={`shrink-0 rounded-full px-3 py-2 text-[11px] font-black transition ${
+                          mobileVideoTool === option.value
+                            ? "bg-[#0b63ce] text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-blue-50"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-2 w-full max-w-full min-w-0 overflow-hidden">
+                    {mobileVideoTool === "message" && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-black text-[#062a57]">
+                          Video message
+                        </label>
+                        <textarea
+                          value={storyText}
+                          onChange={(event) => setStoryText(event.target.value)}
+                          rows={3}
+                          placeholder="Share what God did..."
+                          className="w-full max-w-full resize-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                          style={{
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {mobileVideoTool === "style" && (
+                      <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {mobileCaptionStyleOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setCaptionStyle(option.value)}
+                            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                              captionStyle === option.value
+                                ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-blue-50"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {mobileVideoTool === "color" && (
+                      <div className="flex w-full max-w-full items-center gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {captionColorOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setCaptionColor(option.value)}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-2 transition ${
+                              captionColor === option.value
+                                ? "ring-[#0b63ce]"
+                                : "ring-transparent"
+                            }`}
+                            aria-label={option.label}
+                            title={option.label}
+                          >
+                            <span
+                              className={`h-7 w-7 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
+                            />
+                          </button>
+                        ))}
+
+                        <label className="flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200">
+                          Custom
+                          <input
+                            type="color"
+                            value={getCaptionColorPickerValue(captionColor)}
+                            onChange={(event) =>
+                              setCaptionColor(event.target.value as CaptionColor)
+                            }
+                            className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                            aria-label="Choose custom text color"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {mobileVideoTool === "size" && (
+                      <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                        <div className="mb-2 flex items-center justify-between text-xs font-black text-[#062a57]">
+                          <span>Text size</span>
+                          <span>
+                            {
+                              captionSizeOptions.find(
+                                (option) => option.value === captionSize
+                              )?.label
+                            }
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={captionSizeOptions.length - 1}
+                          step={1}
+                          value={captionSizeSliderIndex}
+                          onChange={(event) =>
+                            setCaptionSize(
+                              captionSizeOptions[Number(event.target.value)]
+                                ?.value ?? "medium"
+                            )
+                          }
+                          className="w-full accent-[#0b63ce]"
+                          aria-label="Text size"
+                        />
+                        <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+                          {captionSizeOptions.map((option) => (
+                            <span key={option.value}>{option.label}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {mobileVideoTool === "position" && (
+                      <div>
+                        <div className="grid w-full max-w-full grid-cols-3 gap-1 rounded-full bg-slate-50 p-1 ring-1 ring-slate-200">
+                          {captionPositionOptions.map((option) => (
+                            <ToolbarChip
+                              key={option.value}
+                              active={captionPosition === option.value}
+                              dark={false}
+                              label={option.label}
+                              onClick={() => setCaptionPosition(option.value)}
+                            />
+                          ))}
+                        </div>
+                        <p className="mt-2 text-[11px] font-semibold leading-5 text-slate-500">
+                          TODO: Add drag-and-drop text positioning later.
+                        </p>
+                      </div>
+                    )}
+
+                    {mobileVideoTool === "preview" && (
+                      <div className="rounded-2xl bg-blue-50 p-3 text-sm leading-6 text-[#082f63] ring-1 ring-blue-100">
+                        <div className="text-xs font-black uppercase tracking-[0.14em]">
+                          Preview mode
+                        </div>
+                        <p className="mt-1 font-semibold">
+                          The video canvas above shows how your message will
+                          look in the post preview area.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {renderStatusMessage()}
+                  {renderSubmitControls()}
+                </div>
+              </div>
+            )}
+
+            {videoPreviewUrl && (
+              <div className="hidden w-full max-w-full overflow-hidden rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800 sm:block">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-blue-200">
