@@ -29,7 +29,6 @@ type ProfileRow = {
 
 type MediaMode = "text" | "photo" | "video";
 type PhotoDisplayStyle = "original" | "soft-rounded" | "full-width" | "framed";
-type StoryStyle = "simple" | "testimony" | "praise" | "prayer" | "scripture";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -98,46 +97,6 @@ const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
   { label: "Framed", value: "framed" },
 ];
 
-const storyStyleOptions: {
-  label: string;
-  value: StoryStyle;
-  description: string;
-}[] = [
-  {
-    label: "Simple",
-    value: "simple",
-    description: "Clean plain text.",
-  },
-  {
-    label: "Testimony",
-    value: "testimony",
-    description: "Before / God Did / Now prompt feel.",
-  },
-  {
-    label: "Praise",
-    value: "praise",
-    description: "Warmer celebration style.",
-  },
-  {
-    label: "Prayer",
-    value: "prayer",
-    description: "Softer prayer request style.",
-  },
-  {
-    label: "Scripture",
-    value: "scripture",
-    description: "Verse and reflection feel.",
-  },
-];
-
-const storyPromptIdeas = [
-  "What did God do?",
-  "What changed?",
-  "What are you thankful for?",
-  "How can others pray?",
-  "What verse encouraged you?",
-];
-
 export default function ShareYourStoryPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -152,20 +111,10 @@ export default function ShareYourStoryPage() {
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoDisplayStyle, setPhotoDisplayStyle] =
     useState<PhotoDisplayStyle>("soft-rounded");
-  const [storyStyle, setStoryStyle] = useState<StoryStyle>("simple");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoCaption, setVideoCaption] = useState("");
   const [message, setMessage] = useState("");
-
-  const [textSize, setTextSize] = useState("text-medium");
-  const [textStyle, setTextStyle] = useState("style-clean");
-  const [textPosition, setTextPosition] = useState("position-bottom-left");
-  const [textBackground, setTextBackground] = useState("background-dark");
-
-  const previewText = useMemo(() => {
-    return storyText.trim() || "Your story text will preview here...";
-  }, [storyText]);
 
   const photoFeedText = useMemo(() => {
     const cleanStoryText = storyText.trim();
@@ -306,18 +255,6 @@ export default function ShareYourStoryPage() {
       }
 
       return `${current} ${emoji}`;
-    });
-  }
-
-  function addPromptIdea(idea: string) {
-    setStoryText((current) => {
-      const trimmed = current.trimEnd();
-
-      if (!trimmed) {
-        return `${idea}\n`;
-      }
-
-      return `${trimmed}\n\n${idea}\n`;
     });
   }
 
@@ -654,10 +591,10 @@ export default function ShareYourStoryPage() {
         image_url: imagePath,
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
-        text_size: textSize,
-        text_style: textStyle,
-        text_position: textPosition,
-        text_background: textBackground,
+        text_size: "text-medium",
+        text_style: "style-clean",
+        text_position: "position-bottom-left",
+        text_background: "background-dark",
         status: moderationDecision.statusToUse,
         ai_review_status: moderationDecision.aiReviewStatus,
         ai_reviewed_at: new Date().toISOString(),
@@ -678,11 +615,6 @@ export default function ShareYourStoryPage() {
       removeVideo();
       setMediaMode("text");
       setStoryType("Testimony");
-      setStoryStyle("simple");
-      setTextSize("text-medium");
-      setTextStyle("style-clean");
-      setTextPosition("position-bottom-left");
-      setTextBackground("background-dark");
 
       setMessage(
         wentLiveInstantly
@@ -759,24 +691,6 @@ export default function ShareYourStoryPage() {
                   {getPostingLocation()}
                 </span>
               )}
-            </div>
-          </div>
-
-          <div className="mb-5 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
-            <div className="text-sm font-black text-[#062a57]">
-              Need help sharing?
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {storyPromptIdeas.map((idea) => (
-                <button
-                  key={idea}
-                  type="button"
-                  onClick={() => addPromptIdea(idea)}
-                  className="rounded-2xl bg-white px-4 py-3 text-left text-sm font-bold text-slate-600 ring-1 ring-blue-100 transition hover:bg-blue-100 hover:text-[#082f63]"
-                >
-                  {idea}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -893,54 +807,6 @@ export default function ShareYourStoryPage() {
                 ))}
               </div>
             </div>
-
-            {mediaMode !== "video" && (
-              <div className="rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                <div className="mb-4">
-                  <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                    Story Style
-                  </div>
-                  <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                    Shape the writing preview
-                  </h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    These options only affect this page preview for now. Your
-                    story still submits through the same review flow.
-                  </p>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-5">
-                  {storyStyleOptions.map((option) => {
-                    const selected = storyStyle === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setStoryStyle(option.value)}
-                        className={`rounded-[1.25rem] p-3 text-left ring-1 transition ${
-                          selected
-                            ? "bg-blue-50 ring-blue-200"
-                            : "bg-slate-50 ring-slate-200 hover:bg-blue-50"
-                        }`}
-                      >
-                        <div className="text-sm font-black text-[#062a57]">
-                          {option.label}
-                        </div>
-                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                          {option.description}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <StoryStylePreview
-                  style={storyStyle}
-                  text={mediaMode === "photo" ? photoFeedText : storyText}
-                />
-              </div>
-            )}
 
             {mediaMode === "photo" && (
               <div>
@@ -1101,11 +967,15 @@ export default function ShareYourStoryPage() {
 
                   {photoFeedText && (
                     <div className="p-5 pt-4">
-                      <StoryStylePreview
-                        style={storyStyle}
-                        text={photoFeedText}
-                        compact
-                      />
+                      <p
+                        className="max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-2xl bg-slate-50 px-4 py-3 text-[17px] leading-7 text-slate-800 ring-1 ring-slate-200"
+                        style={{
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {photoFeedText}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1195,19 +1065,13 @@ export default function ShareYourStoryPage() {
                   />
                 </div>
 
-                <div className="relative mx-auto aspect-[9/16] max-h-[620px] overflow-hidden rounded-[2rem] bg-black p-1 ring-2 ring-blue-300/40">
+                <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
                   <video
                     src={videoPreviewUrl}
                     controls
                     playsInline
-                    className="h-full w-full rounded-[1.65rem] object-cover"
+                    className="max-h-[620px] w-full bg-black object-contain"
                   />
-
-                  <div
-                    className={`pointer-events-none absolute max-w-[86%] rounded-2xl px-4 py-3 leading-snug text-white shadow-lg ${textSize} ${textStyle} ${textPosition} ${textBackground}`}
-                  >
-                    {previewText}
-                  </div>
                 </div>
 
                 {videoCaption.trim() && (
@@ -1215,54 +1079,6 @@ export default function ShareYourStoryPage() {
                     {videoCaption}
                   </p>
                 )}
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <VideoTextSelect
-                    label="Text Size"
-                    value={textSize}
-                    onChange={setTextSize}
-                    options={[
-                      ["text-small", "Small"],
-                      ["text-medium", "Medium"],
-                      ["text-large", "Large"],
-                    ]}
-                  />
-
-                  <VideoTextSelect
-                    label="Text Style"
-                    value={textStyle}
-                    onChange={setTextStyle}
-                    options={[
-                      ["style-clean", "Clean"],
-                      ["style-bold", "Bold"],
-                      ["style-scripture", "Scripture"],
-                      ["style-testimony", "Testimony"],
-                    ]}
-                  />
-
-                  <VideoTextSelect
-                    label="Text Position"
-                    value={textPosition}
-                    onChange={setTextPosition}
-                    options={[
-                      ["position-bottom-left", "Bottom Left"],
-                      ["position-bottom-center", "Bottom Center"],
-                      ["position-center", "Center"],
-                    ]}
-                  />
-
-                  <VideoTextSelect
-                    label="Text Background"
-                    value={textBackground}
-                    onChange={setTextBackground}
-                    options={[
-                      ["background-none", "None"],
-                      ["background-dark", "Soft Dark"],
-                      ["background-blur", "Blur"],
-                      ["background-gold", "Gold Glow"],
-                    ]}
-                  />
-                </div>
               </div>
             )}
 
@@ -1301,218 +1117,7 @@ export default function ShareYourStoryPage() {
         </section>
       </div>
 
-      <style jsx global>{`
-        .text-small {
-          font-size: 13px;
-        }
-
-        .text-medium {
-          font-size: 16px;
-        }
-
-        .text-large {
-          font-size: 21px;
-        }
-
-        .style-clean {
-          font-weight: 700;
-        }
-
-        .style-bold {
-          font-weight: 950;
-        }
-
-        .style-scripture {
-          font-family: Georgia, serif;
-          font-style: italic;
-          font-weight: 700;
-        }
-
-        .style-testimony {
-          font-weight: 900;
-          letter-spacing: 0.01em;
-        }
-
-        .position-bottom-left {
-          left: 16px;
-          bottom: 24px;
-          text-align: left;
-        }
-
-        .position-bottom-center {
-          left: 50%;
-          bottom: 24px;
-          transform: translateX(-50%);
-          text-align: center;
-        }
-
-        .position-center {
-          left: 50%;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          text-align: center;
-        }
-
-        .background-none {
-          background: transparent;
-          text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
-          box-shadow: none;
-        }
-
-        .background-dark {
-          background: rgba(0, 0, 0, 0.48);
-        }
-
-        .background-blur {
-          background: rgba(0, 0, 0, 0.35);
-          backdrop-filter: blur(12px);
-        }
-
-        .background-gold {
-          background: rgba(180, 126, 20, 0.72);
-          box-shadow: 0 0 24px rgba(250, 204, 21, 0.35);
-        }
-      `}</style>
     </main>
-  );
-}
-
-function StoryStylePreview({
-  style,
-  text,
-  compact = false,
-}: {
-  style: StoryStyle;
-  text: string;
-  compact?: boolean;
-}) {
-  const meta = getStoryStyleMeta(style);
-  const cleanText = text.trim();
-  const displayText = cleanText || meta.placeholder;
-
-  return (
-    <div
-      className={`${compact ? "" : "mt-4"} max-w-full overflow-hidden rounded-[1.5rem] p-4 ring-1 ${
-        meta.frameClass
-      }`}
-    >
-      <div className={`text-xs font-black uppercase tracking-[0.16em] ${meta.labelClass}`}>
-        {meta.label}
-      </div>
-
-      {style === "testimony" && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {["Before", "God Did", "Now"].map((item) => (
-            <span
-              key={item}
-              className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {style === "scripture" && (
-        <div className="mt-3 rounded-2xl bg-white/80 px-4 py-3 text-sm font-black text-indigo-800 ring-1 ring-indigo-100">
-          Verse / Reflection
-        </div>
-      )}
-
-      <p
-        className={`mt-3 max-w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-7 ${
-          cleanText ? meta.textClass : "text-slate-400"
-        }`}
-        style={{
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-        }}
-      >
-        {displayText}
-      </p>
-    </div>
-  );
-}
-
-function getStoryStyleMeta(style: StoryStyle) {
-  if (style === "testimony") {
-    return {
-      label: "Testimony",
-      placeholder:
-        "Before...\n\nGod Did...\n\nNow...",
-      frameClass: "bg-blue-50/80 text-slate-800 ring-blue-100",
-      labelClass: "text-[#0b63ce]",
-      textClass: "font-semibold text-slate-800",
-    };
-  }
-
-  if (style === "praise") {
-    return {
-      label: "Praise",
-      placeholder: "I am thankful because...",
-      frameClass: "bg-amber-50/80 text-amber-950 ring-amber-100",
-      labelClass: "text-amber-700",
-      textClass: "font-bold text-amber-950",
-    };
-  }
-
-  if (style === "prayer") {
-    return {
-      label: "Prayer",
-      placeholder: "Please pray with me for...",
-      frameClass: "bg-emerald-50/80 text-emerald-950 ring-emerald-100",
-      labelClass: "text-emerald-700",
-      textClass: "font-semibold text-emerald-950",
-    };
-  }
-
-  if (style === "scripture") {
-    return {
-      label: "Scripture",
-      placeholder: "A verse that encouraged me...",
-      frameClass: "bg-indigo-50/80 text-indigo-950 ring-indigo-100",
-      labelClass: "text-indigo-700",
-      textClass: "font-serif italic text-indigo-950",
-    };
-  }
-
-  return {
-    label: "Simple",
-    placeholder: "Your words will preview here...",
-    frameClass: "bg-slate-50 text-slate-800 ring-slate-200",
-    labelClass: "text-slate-500",
-    textClass: "font-semibold text-slate-800",
-  };
-}
-
-function VideoTextSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: [string, string][];
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none"
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
-    </div>
   );
 }
 
