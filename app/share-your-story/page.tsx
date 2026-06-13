@@ -68,6 +68,7 @@ type MobileVideoTool =
   | "size"
   | "position"
   | "preview";
+type VideoTextTarget = "overlay" | "caption";
 type CaptionPositionPercent = {
   x: number;
   y: number;
@@ -189,6 +190,8 @@ const mobileCaptionStyleOptions: {
   { label: "Outline", value: "black-outline" },
 ];
 
+const desktopCaptionStyleOptions = mobileCaptionStyleOptions;
+
 const captionColorOptions: {
   label: string;
   value: CaptionColorPreset;
@@ -256,6 +259,8 @@ export default function ShareYourStoryPage() {
   const [captionAlign, setCaptionAlign] = useState<CaptionAlign>("center");
   const [mobileVideoTool, setMobileVideoTool] =
     useState<MobileVideoTool>("message");
+  const [desktopEmojiTarget, setDesktopEmojiTarget] =
+    useState<VideoTextTarget>("overlay");
   const [mobileCaptionPositionPercent, setMobileCaptionPositionPercent] =
     useState<CaptionPositionPercent>({ x: 50, y: 78 });
   const mobileCaptionDragPointerRef = useRef<number | null>(null);
@@ -389,14 +394,21 @@ export default function ShareYourStoryPage() {
     }
   }
 
-  function addEmoji(emoji: string) {
-    setStoryText((current) => {
-      if (!current.trim()) {
-        return emoji;
-      }
+  function appendToken(current: string, token: string) {
+    if (!current.trim()) {
+      return token;
+    }
 
-      return `${current} ${emoji}`;
-    });
+    return `${current} ${token}`;
+  }
+
+  function addEmoji(emoji: string) {
+    if (mediaMode === "video" && desktopEmojiTarget === "overlay") {
+      setOverlayText((current) => appendToken(current, emoji));
+      return;
+    }
+
+    setStoryText((current) => appendToken(current, emoji));
   }
 
   function removePhoto() {
@@ -409,6 +421,7 @@ export default function ShareYourStoryPage() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
     setOverlayText("");
+    setDesktopEmojiTarget("overlay");
     setMobileVideoTool("message");
     setMobileCaptionPositionPercent({ x: 50, y: 78 });
   }
@@ -912,36 +925,6 @@ export default function ShareYourStoryPage() {
     );
   }
 
-  function renderOverlayTextInput({
-    label,
-    placeholder,
-    rows = 4,
-  }: {
-    label: string;
-    placeholder: string;
-    rows?: number;
-  }) {
-    return (
-      <div className="w-full max-w-full overflow-hidden">
-        <label className="mb-2 block text-sm font-black text-[#062a57]">
-          {label}
-        </label>
-
-        <textarea
-          value={overlayText}
-          onChange={(event) => setOverlayText(event.target.value)}
-          rows={rows}
-          placeholder={placeholder}
-          className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-          style={{
-            overflowWrap: "anywhere",
-            wordBreak: "break-word",
-          }}
-        />
-      </div>
-    );
-  }
-
   function renderVideoCaptionContextInput() {
     return (
       <div className="w-full max-w-full overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -952,6 +935,7 @@ export default function ShareYourStoryPage() {
         <textarea
           value={storyText}
           onChange={(event) => setStoryText(event.target.value)}
+          onFocus={() => setDesktopEmojiTarget("caption")}
           rows={4}
           placeholder="Add context about what happened, what God did, or why this moment matters..."
           className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
@@ -1639,15 +1623,16 @@ export default function ShareYourStoryPage() {
             )}
 
             {videoPreviewUrl && (
-              <div className="hidden w-full max-w-full overflow-hidden rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800 sm:block">
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="hidden w-full max-w-full overflow-hidden rounded-[2rem] bg-slate-950 p-5 text-white shadow-sm ring-1 ring-slate-800 sm:block">
+                <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.16em] text-blue-200">
-                      Edit your video message
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
+                      HTBF Creator Studio
                     </div>
-                    <div className="mt-1 text-lg font-black">Video Story</div>
-                    <p className="mt-1 text-sm leading-6 text-slate-300">
-                      Type, style, and preview your message in one place.
+                    <div className="mt-1 text-2xl font-black">Video Story</div>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
+                      Place a short message on the video, add context below it,
+                      and preview everything while you edit.
                     </p>
                   </div>
 
@@ -1660,51 +1645,242 @@ export default function ShareYourStoryPage() {
                   </button>
                 </div>
 
-                <div className="grid w-full max-w-full min-w-0 gap-4 overflow-hidden lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] lg:items-start">
-                  <div className="min-w-0 max-w-full lg:sticky lg:top-4">
-                    <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
-                      <div className="relative bg-black">
-                        <video
-                          src={videoPreviewUrl}
-                          controls
-                          playsInline
-                          className="max-h-[560px] w-full bg-black object-contain lg:max-h-[620px]"
-                        />
+                <div className="grid w-full max-w-full min-w-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] xl:items-start">
+                  <div className="min-w-0 max-w-full xl:sticky xl:top-4">
+                    <div className="rounded-[1.75rem] bg-gradient-to-br from-slate-900 via-slate-950 to-black p-3 ring-1 ring-white/10">
+                      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-200">
+                            Live canvas
+                          </div>
+                          <p className="mt-1 text-xs font-semibold text-slate-400">
+                            Drag the text on the video to position it.
+                          </p>
+                        </div>
 
-                        {previewText && (
-                          <CaptionTextOverlay
-                            align={captionAlign}
-                            color={captionColor}
-                            position={captionPosition}
-                            size={captionSize}
-                            style={captionStyle}
-                            text={previewText}
+                        <div className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-blue-100">
+                          {captionPositionOptions.find(
+                            (option) => option.value === captionPosition
+                          )?.label ?? "Bottom"}
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                        <div className="relative flex min-h-[420px] items-center justify-center bg-black">
+                          <video
+                            src={videoPreviewUrl}
+                            controls
+                            playsInline
+                            className="max-h-[68vh] w-full bg-black object-contain xl:max-h-[640px]"
                           />
-                        )}
+
+                          {previewText ? (
+                            <MobileDraggableCaptionOverlay
+                              align={captionAlign}
+                              color={captionColor}
+                              onPointerDown={startMobileCaptionDrag}
+                              onPointerMove={dragMobileCaption}
+                              onPointerUp={stopMobileCaptionDrag}
+                              positionPercent={mobileCaptionPositionPercent}
+                              size={captionSize}
+                              style={captionStyle}
+                              text={previewText}
+                            />
+                          ) : (
+                            <div className="pointer-events-none absolute inset-x-8 bottom-8 rounded-2xl bg-black/55 px-4 py-3 text-center text-sm font-bold text-white/85 backdrop-blur">
+                              Add short words for the video.
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="min-w-0 max-w-full space-y-4 overflow-hidden rounded-[1.5rem] bg-white p-4 text-slate-900 ring-1 ring-white/10">
-                    {renderOverlayTextInput({
-                      label: "Video message",
-                      placeholder: "Add a short message for this video...",
-                      rows: 5,
-                    })}
+                  <div className="min-w-0 max-w-full space-y-4 overflow-hidden rounded-[1.75rem] bg-white p-4 text-slate-900 ring-1 ring-white/10">
+                    <div className="rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+                      <label className="mb-2 block text-sm font-black text-[#062a57]">
+                        Text on video
+                      </label>
+                      <textarea
+                        value={overlayText}
+                        onChange={(event) => setOverlayText(event.target.value)}
+                        onFocus={() => setDesktopEmojiTarget("overlay")}
+                        rows={4}
+                        placeholder="Add short words that appear on the video..."
+                        className="w-full max-w-full resize-none overflow-hidden rounded-[1.25rem] border border-blue-100 bg-white px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                        style={{
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                        }}
+                      />
+                    </div>
 
-                    <CaptionStyleControls
-                      dark={false}
-                      style={captionStyle}
-                      onStyleChange={setCaptionStyle}
-                      color={captionColor}
-                      onColorChange={setCaptionColor}
-                      position={captionPosition}
-                      onPositionChange={selectCaptionPosition}
-                      size={captionSize}
-                      onSizeChange={setCaptionSize}
-                      align={captionAlign}
-                      onAlignChange={setCaptionAlign}
-                    />
+                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                        Style
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {desktopCaptionStyleOptions.map((option) => {
+                          const selected = captionStyle === option.value;
+
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setCaptionStyle(option.value)}
+                              className={`rounded-2xl px-3 py-2 text-left text-xs font-black ring-1 transition ${
+                                selected
+                                  ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                  : "bg-white text-slate-700 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                        Font
+                      </div>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                        Use the Style choices above for font feel: Bold,
+                        Scripture, Praise, Testimony, Minimal, or Grace Script.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                        Color
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {captionColorOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setCaptionColor(option.value)}
+                            className={`flex h-10 w-10 items-center justify-center rounded-full ring-2 transition ${
+                              captionColor === option.value
+                                ? "ring-[#0b63ce]"
+                                : "ring-transparent"
+                            }`}
+                            aria-label={option.label}
+                            title={option.label}
+                          >
+                            <span
+                              className={`h-7 w-7 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
+                            />
+                          </button>
+                        ))}
+
+                        <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-white px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200">
+                          Custom
+                          <input
+                            type="color"
+                            value={getCaptionColorPickerValue(captionColor)}
+                            onChange={(event) =>
+                              setCaptionColor(event.target.value as CaptionColor)
+                            }
+                            className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                            aria-label="Choose custom text color"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+                        <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                          Size
+                        </div>
+                        <div className="mt-3 grid grid-cols-4 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
+                          {captionSizeOptions.map((option) => (
+                            <ToolbarChip
+                              key={option.value}
+                              active={captionSize === option.value}
+                              dark={false}
+                              label={option.label}
+                              onClick={() => setCaptionSize(option.value)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+                        <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                          Alignment
+                        </div>
+                        <div className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
+                          {captionAlignOptions.map((option) => (
+                            <ToolbarChip
+                              key={option.value}
+                              active={captionAlign === option.value}
+                              dark={false}
+                              label={option.label}
+                              onClick={() => setCaptionAlign(option.value)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                        Position
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
+                        {captionPositionOptions.map((option) => (
+                          <ToolbarChip
+                            key={option.value}
+                            active={captionPosition === option.value}
+                            dark={false}
+                            label={option.label}
+                            onClick={() => selectCaptionPosition(option.value)}
+                          />
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                        Shortcuts set the starting point. Drag the text on the
+                        video for custom placement.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                          Emoji / quick reactions
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
+                          <ToolbarChip
+                            active={desktopEmojiTarget === "overlay"}
+                            dark={false}
+                            label="Add to video text"
+                            onClick={() => setDesktopEmojiTarget("overlay")}
+                          />
+                          <ToolbarChip
+                            active={desktopEmojiTarget === "caption"}
+                            dark={false}
+                            label="Add to caption/context"
+                            onClick={() => setDesktopEmojiTarget("caption")}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {emojiOptions.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => addEmoji(emoji)}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-xl ring-1 ring-slate-200 transition hover:bg-blue-50"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
                     {renderVideoCaptionContextInput()}
 
