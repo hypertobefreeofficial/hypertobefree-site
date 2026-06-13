@@ -29,6 +29,17 @@ import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 type VideoLanguage = "spanish" | "english";
+type CaptionStyle =
+  | "classic-caption"
+  | "bold-center"
+  | "bottom-banner"
+  | "highlight-box"
+  | "scripture-card"
+  | "praise-glow"
+  | "testimony-quote"
+  | "minimal-white"
+  | "black-outline"
+  | "soft-gradient";
 
 type ReportReason =
   | "inappropriate"
@@ -48,6 +59,7 @@ type StoryRow = {
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  caption_style: CaptionStyle | null;
   video_url: string | null;
   status: string | null;
   created_at: string | null;
@@ -482,11 +494,30 @@ export default function VideoFeedPage() {
     return videoUrl;
   }
 
+  function getCaptionStyle(value: string | null | undefined): CaptionStyle {
+    if (
+      value === "classic-caption" ||
+      value === "bold-center" ||
+      value === "bottom-banner" ||
+      value === "highlight-box" ||
+      value === "scripture-card" ||
+      value === "praise-glow" ||
+      value === "testimony-quote" ||
+      value === "minimal-white" ||
+      value === "black-outline" ||
+      value === "soft-gradient"
+    ) {
+      return value;
+    }
+
+    return "classic-caption";
+  }
+
   async function loadVideoStories(currentUserId: string | null) {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, caption_style, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .not("video_url", "is", null)
@@ -565,6 +596,7 @@ export default function VideoFeedPage() {
 
         return {
           ...story,
+          caption_style: getCaptionStyle(story.caption_style),
           signed_video_url: signedVideoUrl,
           reaction_counts: {
             amen: storyReactions.filter(
@@ -1746,6 +1778,10 @@ function VideoInfoOverlay({
 
   const rawStoryText = story.story_text?.trim() || "";
   const storyText = rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
+  const captionStyle = story.caption_style ?? "classic-caption";
+  const usesStyledCaption = Boolean(
+    storyText && captionStyle !== "classic-caption"
+  );
   const isLongText = storyText.length > 70;
 
   if (hidden) {
@@ -1768,6 +1804,10 @@ function VideoInfoOverlay({
 
   return (
     <>
+      {usesStyledCaption && (
+        <VideoCaptionStyleOverlay style={captionStyle} text={storyText} />
+      )}
+
       <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
         <button
           type="button"
@@ -1795,7 +1835,7 @@ function VideoInfoOverlay({
             {story.story_type || copy.videoTestimony}
           </div>
 
-          {storyText && (
+          {storyText && !usesStyledCaption && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
               <h1
                 className="mt-1.5 line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
@@ -1806,7 +1846,7 @@ function VideoInfoOverlay({
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   overflowWrap: "anywhere",
-                  wordBreak: "break-all",
+                  wordBreak: "break-word",
                 }}
               >
                 {storyText}
@@ -1897,6 +1937,77 @@ function VideoInfoOverlay({
       )}
     </>
   );
+}
+
+function VideoCaptionStyleOverlay({
+  style,
+  text,
+}: {
+  style: CaptionStyle;
+  text: string;
+}) {
+  const positionClass = getVideoCaptionPositionClass(style);
+  const styleClass = getVideoCaptionStyleClass(style);
+  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
+
+  return (
+    <div
+      className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 text-sm leading-snug shadow-lg sm:max-h-44 sm:text-base md:w-[min(64vw,560px)] ${positionClass} ${styleClass}`}
+      style={{
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+      }}
+    >
+      {quoteText}
+    </div>
+  );
+}
+
+function getVideoCaptionPositionClass(style: CaptionStyle) {
+  if (style === "bold-center" || style === "testimony-quote") {
+    return "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center";
+  }
+
+  if (
+    style === "scripture-card" ||
+    style === "minimal-white" ||
+    style === "black-outline"
+  ) {
+    return "left-1/2 top-[calc(5rem+env(safe-area-inset-top))] -translate-x-1/2 text-center";
+  }
+
+  return "bottom-[calc(9.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 text-center md:bottom-28";
+}
+
+function getVideoCaptionStyleClass(style: CaptionStyle) {
+  if (style === "bold-center") {
+    return "rounded-[1.5rem] bg-black/45 font-black text-white backdrop-blur";
+  }
+  if (style === "bottom-banner") {
+    return "rounded-2xl bg-black/75 font-bold text-white backdrop-blur";
+  }
+  if (style === "highlight-box") {
+    return "rounded-[1.5rem] bg-yellow-300/95 font-black text-yellow-950 ring-1 ring-white/70";
+  }
+  if (style === "scripture-card") {
+    return "rounded-[1.5rem] bg-blue-50/90 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur";
+  }
+  if (style === "praise-glow") {
+    return "rounded-[1.5rem] bg-amber-300/90 font-black text-amber-950 ring-1 ring-white/70 shadow-amber-300/30";
+  }
+  if (style === "testimony-quote") {
+    return "rounded-[1.5rem] bg-white/90 font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur";
+  }
+  if (style === "minimal-white") {
+    return "font-black text-white shadow-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]";
+  }
+  if (style === "black-outline") {
+    return "font-black text-white shadow-none [text-shadow:2px_2px_0_#000,-2px_2px_0_#000,2px_-2px_0_#000,-2px_-2px_0_#000]";
+  }
+  if (style === "soft-gradient") {
+    return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
+  }
+  return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
 }
 
 function VideoActionButton({
