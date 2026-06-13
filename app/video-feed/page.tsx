@@ -39,7 +39,8 @@ type CaptionStyle =
   | "testimony-quote"
   | "minimal-white"
   | "black-outline"
-  | "soft-gradient";
+  | "soft-gradient"
+  | "elegant-script";
 type CaptionFont =
   | "htbf-clean"
   | "bold-testimony"
@@ -73,6 +74,9 @@ type StoryRow = {
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  overlay_text: string | null;
+  overlay_x: number | null;
+  overlay_y: number | null;
   caption_style: CaptionStyle | null;
   video_url: string | null;
   status: string | null;
@@ -519,7 +523,8 @@ export default function VideoFeedPage() {
       value === "testimony-quote" ||
       value === "minimal-white" ||
       value === "black-outline" ||
-      value === "soft-gradient"
+      value === "soft-gradient" ||
+      value === "elegant-script"
     ) {
       return value;
     }
@@ -527,11 +532,24 @@ export default function VideoFeedPage() {
     return "classic-caption";
   }
 
+  function readNumber(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  }
+
   async function loadVideoStories(currentUserId: string | null) {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, caption_style, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .not("video_url", "is", null)
@@ -611,6 +629,9 @@ export default function VideoFeedPage() {
         return {
           ...story,
           caption_style: getCaptionStyle(story.caption_style),
+          overlay_text: story.overlay_text ?? null,
+          overlay_x: readNumber(story.overlay_x),
+          overlay_y: readNumber(story.overlay_y),
           signed_video_url: signedVideoUrl,
           reaction_counts: {
             amen: storyReactions.filter(
@@ -1792,11 +1813,12 @@ function VideoInfoOverlay({
 
   const rawStoryText = story.story_text?.trim() || "";
   const storyText = rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
+  const rawOverlayText = story.overlay_text?.trim() || "";
+  const overlayText =
+    rawOverlayText.toLowerCase() === "none" ? "" : rawOverlayText;
   const captionStyle = story.caption_style ?? "classic-caption";
-  const usesStyledCaption = Boolean(
-    storyText && captionStyle !== "classic-caption"
-  );
-  const isLongText = storyText.length > 70;
+  const hasOverlayText = Boolean(overlayText);
+  const isLongText = storyText.length > 140;
 
   if (hidden) {
     return (
@@ -1818,8 +1840,13 @@ function VideoInfoOverlay({
 
   return (
     <>
-      {usesStyledCaption && (
-        <VideoCaptionStyleOverlay style={captionStyle} text={storyText} />
+      {hasOverlayText && (
+        <VideoCaptionStyleOverlay
+          overlayX={story.overlay_x}
+          overlayY={story.overlay_y}
+          style={captionStyle}
+          text={overlayText}
+        />
       )}
 
       <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
@@ -1849,15 +1876,15 @@ function VideoInfoOverlay({
             {story.story_type || copy.videoTestimony}
           </div>
 
-          {storyText && !usesStyledCaption && (
+          {storyText && (
             <div className="relative mt-1.5 max-w-full overflow-hidden">
               <h1
-                className="mt-1.5 line-clamp-3 max-w-full text-sm font-black leading-snug text-white md:text-base"
+                className="mt-1.5 max-w-full text-sm font-black leading-snug text-white md:text-base"
                 style={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
+                  display: expanded ? "block" : "-webkit-box",
+                  WebkitLineClamp: expanded ? undefined : 3,
+                  WebkitBoxOrient: expanded ? undefined : "vertical",
+                  overflow: expanded ? "visible" : "hidden",
                   textOverflow: "ellipsis",
                   overflowWrap: "anywhere",
                   wordBreak: "break-word",
@@ -1891,64 +1918,14 @@ function VideoInfoOverlay({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              setExpanded(true);
+              setExpanded((current) => !current);
             }}
             className="mt-2 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-slate-900 shadow-md backdrop-blur md:text-xs"
           >
-            {copy.more}
+            {expanded ? "See less" : copy.more}
           </button>
         )}
       </div>
-
-      {expanded && (
-        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="max-h-[75dvh] w-full max-w-lg overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  {story.story_type || copy.videoTestimony}
-                </div>
-
-                <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  {copy.videoDetails}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setExpanded(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label={copy.closeVideoDetails}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="max-h-[55dvh] overflow-y-auto p-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-500">
-                <Globe2 className="h-4 w-4" />
-                {story.location || copy.community}
-              </div>
-
-              <p
-                className="whitespace-pre-line text-base font-bold leading-7 text-slate-800"
-                style={{
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
-                }}
-              >
-                {storyText}
-              </p>
-
-              {story.name && (
-                <p className="mt-5 text-sm font-bold text-slate-500">
-                  {copy.sharedBy} {story.name}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -1956,18 +1933,26 @@ function VideoInfoOverlay({
 function VideoCaptionStyleOverlay({
   color,
   font,
+  overlayX,
+  overlayY,
   size,
   style,
   text,
 }: {
   color?: CaptionColor;
   font?: CaptionFont;
+  overlayX?: number | null;
+  overlayY?: number | null;
   size?: CaptionSize;
   style: CaptionStyle;
   text: string;
 }) {
   // TODO: Pass caption_font, caption_color, and caption_size from stories when those columns exist.
-  const positionClass = getVideoCaptionPositionClass(style);
+  const hasCustomPosition =
+    typeof overlayX === "number" && typeof overlayY === "number";
+  const positionClass = hasCustomPosition
+    ? "-translate-x-1/2 -translate-y-1/2 text-center"
+    : getVideoCaptionPositionClass(style);
   const styleClass = getVideoCaptionStyleClass(style);
   const fontClass = font ? getVideoCaptionFontClass(font) : "";
   const colorClass = color ? getVideoCaptionColorClass(color) : "";
@@ -1979,6 +1964,8 @@ function VideoCaptionStyleOverlay({
     <div
       className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 md:w-[min(64vw,560px)] ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass}`}
       style={{
+        left: hasCustomPosition ? `${overlayX}%` : undefined,
+        top: hasCustomPosition ? `${overlayY}%` : undefined,
         overflowWrap: "anywhere",
         wordBreak: "break-word",
         textShadow,
@@ -2032,6 +2019,9 @@ function getVideoCaptionStyleClass(style: CaptionStyle) {
   }
   if (style === "soft-gradient") {
     return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
+  }
+  if (style === "elegant-script") {
+    return "rounded-[1.75rem] bg-white/20 font-serif text-2xl font-black italic tracking-wide text-white ring-1 ring-white/60 backdrop-blur-md";
   }
   return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
 }
