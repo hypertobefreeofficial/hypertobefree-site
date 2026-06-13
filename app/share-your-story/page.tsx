@@ -29,6 +29,12 @@ type ProfileRow = {
 
 type MediaMode = "text" | "photo" | "video";
 type PhotoDisplayStyle = "original" | "soft-rounded" | "full-width" | "framed";
+type VideoTextStyle =
+  | "clean-caption"
+  | "lower-banner"
+  | "testimony-quote"
+  | "scripture-overlay"
+  | "praise-moment";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -97,6 +103,38 @@ const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
   { label: "Framed", value: "framed" },
 ];
 
+const videoTextStyleOptions: {
+  label: string;
+  value: VideoTextStyle;
+  description: string;
+}[] = [
+  {
+    label: "Clean Caption",
+    value: "clean-caption",
+    description: "Simple caption below the video.",
+  },
+  {
+    label: "Lower Banner",
+    value: "lower-banner",
+    description: "Readable dark bar near the bottom.",
+  },
+  {
+    label: "Testimony Quote",
+    value: "testimony-quote",
+    description: "Centered quote-style overlay.",
+  },
+  {
+    label: "Scripture Overlay",
+    value: "scripture-overlay",
+    description: "Soft blue and white reflection style.",
+  },
+  {
+    label: "Praise Moment",
+    value: "praise-moment",
+    description: "Celebratory highlight style.",
+  },
+];
+
 export default function ShareYourStoryPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -114,6 +152,9 @@ export default function ShareYourStoryPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [videoCaption, setVideoCaption] = useState("");
+  // TODO: Persist video text style when stories has a dedicated column.
+  const [videoTextStyle, setVideoTextStyle] =
+    useState<VideoTextStyle>("clean-caption");
   const [message, setMessage] = useState("");
 
   const photoFeedText = useMemo(() => {
@@ -130,6 +171,25 @@ export default function ShareYourStoryPage() {
 
     return cleanStoryText || cleanPhotoCaption;
   }, [photoCaption, storyText]);
+
+  const videoFeedText = useMemo(() => {
+    const cleanStoryText = storyText.trim();
+    const cleanVideoCaption = videoCaption.trim();
+
+    if (
+      cleanStoryText &&
+      cleanVideoCaption &&
+      cleanStoryText !== cleanVideoCaption
+    ) {
+      return `${cleanVideoCaption}\n\n${cleanStoryText}`;
+    }
+
+    return cleanStoryText || cleanVideoCaption;
+  }, [storyText, videoCaption]);
+
+  const videoPreviewText = useMemo(() => {
+    return videoFeedText.trim();
+  }, [videoFeedText]);
 
   useEffect(() => {
     async function loadPage() {
@@ -269,6 +329,7 @@ export default function ShareYourStoryPage() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
     setVideoCaption("");
+    setVideoTextStyle("clean-caption");
   }
 
   function handlePhotoSelect(file: File | null) {
@@ -534,7 +595,11 @@ export default function ShareYourStoryPage() {
     }
 
     const cleanStoryText =
-      mediaMode === "photo" ? photoFeedText.trim() : storyText.trim();
+      mediaMode === "photo"
+        ? photoFeedText.trim()
+        : mediaMode === "video"
+          ? videoFeedText.trim()
+          : storyText.trim();
     const hasPhoto = mediaMode === "photo" && Boolean(photoFile);
     const hasVideo = mediaMode === "video" && Boolean(videoFile);
 
@@ -1065,18 +1130,59 @@ export default function ShareYourStoryPage() {
                   />
                 </div>
 
-                <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
-                  <video
-                    src={videoPreviewUrl}
-                    controls
-                    playsInline
-                    className="max-h-[620px] w-full bg-black object-contain"
-                  />
+                <div className="mb-4">
+                  <div className="mb-2 text-sm font-black text-white">
+                    Video Text Style
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-5">
+                    {videoTextStyleOptions.map((option) => {
+                      const selected = videoTextStyle === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setVideoTextStyle(option.value)}
+                          className={`rounded-2xl p-3 text-left ring-1 transition ${
+                            selected
+                              ? "bg-white text-[#082f63] ring-white"
+                              : "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                          }`}
+                        >
+                          <div className="text-xs font-black">
+                            {option.label}
+                          </div>
+                          <p className="mt-1 text-[11px] font-semibold leading-4 opacity-80">
+                            {option.description}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {videoCaption.trim() && (
+                <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                  <div className="relative bg-black">
+                    <video
+                      src={videoPreviewUrl}
+                      controls
+                      playsInline
+                      className="max-h-[620px] w-full bg-black object-contain"
+                    />
+
+                    {videoPreviewText &&
+                      videoTextStyle !== "clean-caption" && (
+                        <VideoTextOverlay
+                          style={videoTextStyle}
+                          text={videoPreviewText}
+                        />
+                      )}
+                  </div>
+                </div>
+
+                {videoPreviewText && videoTextStyle === "clean-caption" && (
                   <p className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-slate-200 ring-1 ring-white/10">
-                    {videoCaption}
+                    {videoPreviewText}
                   </p>
                 )}
               </div>
@@ -1118,6 +1224,71 @@ export default function ShareYourStoryPage() {
       </div>
 
     </main>
+  );
+}
+
+function VideoTextOverlay({
+  style,
+  text,
+}: {
+  style: VideoTextStyle;
+  text: string;
+}) {
+  const baseClass =
+    "pointer-events-none absolute max-h-36 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words text-sm leading-6 shadow-lg sm:max-h-44 sm:text-base";
+
+  if (style === "testimony-quote") {
+    return (
+      <div
+        className={`${baseClass} left-1/2 top-1/2 w-[min(86%,34rem)] -translate-x-1/2 -translate-y-1/2 rounded-[1.5rem] bg-white/90 px-5 py-4 text-center font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur`}
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        &ldquo;{text}&rdquo;
+      </div>
+    );
+  }
+
+  if (style === "scripture-overlay") {
+    return (
+      <div
+        className={`${baseClass} left-4 right-4 top-4 rounded-[1.5rem] bg-blue-50/90 px-5 py-4 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur`}
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {text}
+      </div>
+    );
+  }
+
+  if (style === "praise-moment") {
+    return (
+      <div
+        className={`${baseClass} bottom-5 left-4 right-4 rounded-[1.5rem] bg-amber-300/90 px-5 py-4 font-black text-amber-950 ring-1 ring-white/70`}
+        style={{
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {text}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`${baseClass} inset-x-4 bottom-4 rounded-2xl bg-black/70 px-4 py-3 font-bold text-white backdrop-blur`}
+      style={{
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+      }}
+    >
+      {text}
+    </div>
   );
 }
 
