@@ -175,8 +175,8 @@ type VideoFeedCopy = {
   turnSoundOff: string;
   turnSoundOn: string;
   zoom: string;
-  showVideoDetails: string;
-  hideVideoDetails: string;
+  showCaption: string;
+  hideCaption: string;
   community: string;
   videoTestimony: string;
   sharedBy: string;
@@ -254,8 +254,8 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     turnSoundOff: "Turn sound off",
     turnSoundOn: "Turn sound on",
     zoom: "Zoom",
-    showVideoDetails: "Show video details",
-    hideVideoDetails: "Hide video details",
+    showCaption: "Show caption",
+    hideCaption: "Hide caption",
     community: "HTBF Community",
     videoTestimony: "Video Testimony",
     sharedBy: "Shared by",
@@ -333,8 +333,8 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     turnSoundOff: "Apagar sonido",
     turnSoundOn: "Activar sonido",
     zoom: "Zoom",
-    showVideoDetails: "Mostrar detalles del video",
-    hideVideoDetails: "Ocultar detalles del video",
+    showCaption: "Mostrar subtítulo",
+    hideCaption: "Ocultar subtítulo",
     community: "Comunidad HTBF",
     videoTestimony: "Testimonio en video",
     sharedBy: "Compartido por",
@@ -1858,7 +1858,7 @@ function VideoInfoOverlay({
   story: VideoStory;
   copy: VideoFeedCopy;
 }) {
-  const [hidden, setHidden] = useState(false);
+  const [captionHidden, setCaptionHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const rawStoryText = story.story_text?.trim() || "";
@@ -1869,24 +1869,6 @@ function VideoInfoOverlay({
   const captionStyle = story.caption_style ?? "classic-caption";
   const hasOverlayText = Boolean(overlayText);
   const isLongText = storyText.length > 140;
-
-  if (hidden) {
-    return (
-      <button
-        type="button"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          setHidden(false);
-        }}
-        className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
-        aria-label={copy.showVideoDetails}
-        title={copy.showVideoDetails}
-      >
-        <Eye className="h-4 w-4" />
-      </button>
-    );
-  }
 
   return (
     <>
@@ -1902,83 +1884,101 @@ function VideoInfoOverlay({
         />
       )}
 
-      <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
+      {captionHidden ? (
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
-            setHidden(true);
+            setCaptionHidden(false);
           }}
-          className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
-          aria-label={copy.hideVideoDetails}
-          title={copy.hideVideoDetails}
+          className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 inline-flex items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs font-black text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+          aria-label={copy.showCaption}
+          title={copy.showCaption}
         >
-          <EyeOff className="h-4 w-4" />
+          <Eye className="h-4 w-4" />
+          {copy.showCaption}
         </button>
-
-        <div className="pointer-events-none max-w-full overflow-hidden">
-          <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
-            <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-            <span className="min-w-0 truncate">
-              {story.location || copy.community}
-            </span>
-          </div>
-
-          <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
-            {story.story_type || copy.videoTestimony}
-          </div>
-
-          {storyText && (
-            <div className="relative mt-1.5 max-w-full overflow-hidden">
-              <h1
-                className="mt-1.5 max-w-full text-sm font-black leading-snug text-white md:text-base"
-                style={{
-                  display: expanded ? "block" : "-webkit-box",
-                  WebkitLineClamp: expanded ? undefined : 3,
-                  WebkitBoxOrient: expanded ? undefined : "vertical",
-                  overflow: expanded ? "visible" : "hidden",
-                  textOverflow: "ellipsis",
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
-                }}
-              >
-                {storyText}
-              </h1>
-            </div>
-          )}
-
-          {story.name && (
-            <p className="mt-1.5 max-w-full truncate text-xs font-bold text-white/70 md:text-sm">
-              {copy.sharedBy} {story.name}
-            </p>
-          )}
-
-          {story.reaction_counts.praying > 0 && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
-              <HandHeart className="h-3.5 w-3.5" />
-              {copy.prayerCircle} ·{" "}
-              {story.reaction_counts.praying === 1
-                ? copy.personPraying
-                : `${story.reaction_counts.praying} ${copy.peoplePraying}`}
-            </div>
-          )}
-        </div>
-
-        {isLongText && (
+      ) : (
+        <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
           <button
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              setExpanded((current) => !current);
+              setCaptionHidden(true);
             }}
-            className="mt-2 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-slate-900 shadow-md backdrop-blur md:text-xs"
+            className="mb-2 inline-flex items-center gap-2 rounded-full bg-black/45 px-3 py-2 text-xs font-black text-white/90 ring-1 ring-white/15 backdrop-blur-md"
+            aria-label={copy.hideCaption}
+            title={copy.hideCaption}
           >
-            {expanded ? "See less" : copy.more}
+            <EyeOff className="h-4 w-4" />
+            {copy.hideCaption}
           </button>
-        )}
-      </div>
+
+          <div className="pointer-events-none max-w-full overflow-hidden">
+            <div className="mb-1 flex min-w-0 items-center gap-2 text-xs font-bold text-white/85 md:text-sm">
+              <Globe2 className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
+              <span className="min-w-0 truncate">
+                {story.location || copy.community}
+              </span>
+            </div>
+
+            <div className="max-w-full truncate text-[10px] font-black uppercase tracking-[0.18em] text-blue-200 md:text-xs">
+              {story.story_type || copy.videoTestimony}
+            </div>
+
+            {storyText && (
+              <div className="relative mt-1.5 max-w-full overflow-hidden">
+                <h1
+                  className="mt-1.5 max-w-full text-sm font-black leading-snug text-white md:text-base"
+                  style={{
+                    display: expanded ? "block" : "-webkit-box",
+                    WebkitLineClamp: expanded ? undefined : 3,
+                    WebkitBoxOrient: expanded ? undefined : "vertical",
+                    overflow: expanded ? "visible" : "hidden",
+                    textOverflow: "ellipsis",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {storyText}
+                </h1>
+              </div>
+            )}
+
+            {story.name && (
+              <p className="mt-1.5 max-w-full truncate text-xs font-bold text-white/70 md:text-sm">
+                {copy.sharedBy} {story.name}
+              </p>
+            )}
+
+            {story.reaction_counts.praying > 0 && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-black text-white backdrop-blur">
+                <HandHeart className="h-3.5 w-3.5" />
+                {copy.prayerCircle} ·{" "}
+                {story.reaction_counts.praying === 1
+                  ? copy.personPraying
+                  : `${story.reaction_counts.praying} ${copy.peoplePraying}`}
+              </div>
+            )}
+          </div>
+
+          {isLongText && (
+            <button
+              type="button"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpanded((current) => !current);
+              }}
+              className="mt-2 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-slate-900 shadow-md backdrop-blur md:text-xs"
+            >
+              {expanded ? "See less" : copy.more}
+            </button>
+          )}
+        </div>
+      )}
     </>
   );
 }
