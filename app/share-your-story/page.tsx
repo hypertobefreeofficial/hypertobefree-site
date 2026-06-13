@@ -4,8 +4,10 @@ import Link from "next/link";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
+  type PointerEvent,
   type ReactNode,
 } from "react";
 import {
@@ -45,7 +47,8 @@ type CaptionStyle =
   | "testimony-quote"
   | "minimal-white"
   | "black-outline"
-  | "soft-gradient";
+  | "soft-gradient"
+  | "elegant-script";
 type CaptionPosition = "top" | "center" | "bottom";
 type CaptionSize = "small" | "medium" | "large" | "extra-large";
 type CaptionAlign = "left" | "center" | "right";
@@ -65,6 +68,10 @@ type MobileVideoTool =
   | "size"
   | "position"
   | "preview";
+type CaptionPositionPercent = {
+  x: number;
+  y: number;
+};
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -161,6 +168,10 @@ const captionStyleOptions: {
     label: "Minimal",
     value: "minimal-white",
   },
+  {
+    label: "Grace Script",
+    value: "elegant-script",
+  },
 ];
 
 const mobileCaptionStyleOptions: {
@@ -173,6 +184,7 @@ const mobileCaptionStyleOptions: {
   { label: "Praise", value: "praise-glow" },
   { label: "Testimony", value: "testimony-quote" },
   { label: "Minimal", value: "minimal-white" },
+  { label: "Grace Script", value: "elegant-script" },
   { label: "Glow", value: "soft-gradient" },
   { label: "Outline", value: "black-outline" },
 ];
@@ -244,6 +256,9 @@ export default function ShareYourStoryPage() {
   const [captionAlign, setCaptionAlign] = useState<CaptionAlign>("center");
   const [mobileVideoTool, setMobileVideoTool] =
     useState<MobileVideoTool>("message");
+  const [mobileCaptionPositionPercent, setMobileCaptionPositionPercent] =
+    useState<CaptionPositionPercent>({ x: 50, y: 78 });
+  const mobileCaptionDragPointerRef = useRef<number | null>(null);
   const [message, setMessage] = useState("");
 
   const previewText = useMemo(() => storyText.trim(), [storyText]);
@@ -391,6 +406,7 @@ export default function ShareYourStoryPage() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
     setMobileVideoTool("message");
+    setMobileCaptionPositionPercent({ x: 50, y: 78 });
   }
 
   function handlePhotoSelect(file: File | null) {
@@ -418,7 +434,75 @@ export default function ShareYourStoryPage() {
     if (file) {
       setMediaMode("video");
       setMobileVideoTool("message");
+      setMobileCaptionPositionPercent({ x: 50, y: 78 });
     }
+  }
+
+  function updateMobileCaptionPositionFromPointer(event: PointerEvent<HTMLElement>) {
+    const previewBounds =
+      event.currentTarget.parentElement?.getBoundingClientRect();
+
+    if (!previewBounds) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const captionBounds = event.currentTarget.getBoundingClientRect();
+    const halfCaptionWidthPercent =
+      ((captionBounds.width / 2) / previewBounds.width) * 100;
+    const halfCaptionHeightPercent =
+      ((captionBounds.height / 2) / previewBounds.height) * 100;
+
+    const nextX = clamp(
+      ((event.clientX - previewBounds.left) / previewBounds.width) * 100,
+      halfCaptionWidthPercent + 2,
+      100 - halfCaptionWidthPercent - 2
+    );
+    const nextY = clamp(
+      ((event.clientY - previewBounds.top) / previewBounds.height) * 100,
+      halfCaptionHeightPercent + 2,
+      100 - halfCaptionHeightPercent - 2
+    );
+
+    setMobileCaptionPositionPercent({ x: nextX, y: nextY });
+  }
+
+  function startMobileCaptionDrag(event: PointerEvent<HTMLElement>) {
+    mobileCaptionDragPointerRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    updateMobileCaptionPositionFromPointer(event);
+  }
+
+  function dragMobileCaption(event: PointerEvent<HTMLElement>) {
+    if (mobileCaptionDragPointerRef.current !== event.pointerId) return;
+
+    updateMobileCaptionPositionFromPointer(event);
+  }
+
+  function stopMobileCaptionDrag(event: PointerEvent<HTMLElement>) {
+    if (mobileCaptionDragPointerRef.current !== event.pointerId) return;
+
+    mobileCaptionDragPointerRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function selectMobileCaptionShortcut(position: CaptionPosition) {
+    setCaptionPosition(position);
+
+    if (position === "top") {
+      setMobileCaptionPositionPercent({ x: 50, y: 20 });
+      return;
+    }
+
+    if (position === "center") {
+      setMobileCaptionPositionPercent({ x: 50, y: 50 });
+      return;
+    }
+
+    setMobileCaptionPositionPercent({ x: 50, y: 78 });
   }
 
   async function moderateStoryText({
@@ -1252,19 +1336,26 @@ export default function ShareYourStoryPage() {
                   </button>
                 </div>
 
-                <div className="relative w-full max-w-full overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                <div className="relative w-full max-w-full overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-slate-900 via-slate-950 to-black ring-1 ring-white/10">
                   <video
                     src={videoPreviewUrl}
+                    autoPlay
+                    muted
+                    loop
                     controls
                     playsInline
-                    className="max-h-[58vh] w-full bg-black object-contain"
+                    preload="metadata"
+                    className="block max-h-[58vh] w-full bg-slate-900 object-contain"
                   />
 
                   {previewText ? (
-                    <CaptionTextOverlay
+                    <MobileDraggableCaptionOverlay
                       align={captionAlign}
                       color={captionColor}
-                      position={captionPosition}
+                      onPointerDown={startMobileCaptionDrag}
+                      onPointerMove={dragMobileCaption}
+                      onPointerUp={stopMobileCaptionDrag}
+                      positionPercent={mobileCaptionPositionPercent}
                       size={captionSize}
                       style={captionStyle}
                       text={previewText}
@@ -1356,15 +1447,19 @@ export default function ShareYourStoryPage() {
 
                         <label className="flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-slate-50 px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200">
                           Custom
-                          <input
-                            type="color"
-                            value={getCaptionColorPickerValue(captionColor)}
-                            onChange={(event) =>
-                              setCaptionColor(event.target.value as CaptionColor)
-                            }
-                            className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                            aria-label="Choose custom text color"
-                          />
+                          <span className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-[conic-gradient(from_0deg,#ef4444,#f59e0b,#facc15,#22c55e,#06b6d4,#2563eb,#7c3aed,#ec4899,#ef4444)] ring-1 ring-black/10">
+                            <input
+                              type="color"
+                              value={getCaptionColorPickerValue(captionColor)}
+                              onChange={(event) =>
+                                setCaptionColor(
+                                  event.target.value as CaptionColor
+                                )
+                              }
+                              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                              aria-label="Choose custom text color"
+                            />
+                          </span>
                         </label>
                       </div>
                     )}
@@ -1413,12 +1508,15 @@ export default function ShareYourStoryPage() {
                               active={captionPosition === option.value}
                               dark={false}
                               label={option.label}
-                              onClick={() => setCaptionPosition(option.value)}
+                              onClick={() =>
+                                selectMobileCaptionShortcut(option.value)
+                              }
                             />
                           ))}
                         </div>
                         <p className="mt-2 text-[11px] font-semibold leading-5 text-slate-500">
-                          TODO: Add drag-and-drop text positioning later.
+                          Drag the text directly on the video for custom
+                          placement.
                         </p>
                       </div>
                     )}
@@ -1437,10 +1535,13 @@ export default function ShareYourStoryPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 space-y-3">
-                  {renderStatusMessage()}
-                  {renderSubmitControls()}
-                </div>
+              </div>
+            )}
+
+            {videoPreviewUrl && (
+              <div className="mt-3 space-y-3 sm:hidden">
+                {renderStatusMessage()}
+                {renderSubmitControls()}
               </div>
             )}
 
@@ -1896,6 +1997,62 @@ function CaptionTextOverlay({
   );
 }
 
+function MobileDraggableCaptionOverlay({
+  align,
+  color,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  positionPercent,
+  size,
+  style,
+  text,
+}: {
+  align: CaptionAlign;
+  color: CaptionColor;
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLElement>) => void;
+  positionPercent: CaptionPositionPercent;
+  size: CaptionSize;
+  style: CaptionStyle;
+  text: string;
+}) {
+  const sizeClass = getCaptionSizeClass(size);
+  const alignClass = getCaptionAlignClass(align);
+  const styleClass = getCaptionStyleClass(style);
+  const colorClass = getCaptionColorClass(color);
+  const inlineColor = getCaptionInlineColor(color);
+  const textShadow = getCaptionTextShadow(color);
+  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={`absolute z-10 max-h-36 w-[min(86%,28rem)] cursor-grab overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg active:cursor-grabbing ${sizeClass} ${alignClass} ${styleClass} ${colorClass}`}
+      style={{
+        left: `${positionPercent.x}%`,
+        top: `${positionPercent.y}%`,
+        transform: "translate(-50%, -50%)",
+        touchAction: "none",
+        userSelect: "none",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+        color: inlineColor,
+        textShadow,
+      }}
+      aria-label="Drag video message"
+    >
+      {quoteText}
+    </div>
+  );
+}
+
 function getCaptionPositionClass(position: CaptionPosition) {
   if (position === "top") return "left-4 right-4 top-4";
   if (position === "center") {
@@ -1935,6 +2092,9 @@ function getCaptionStyleClass(style: CaptionStyle) {
   }
   if (style === "testimony-quote") {
     return "rounded-[1.5rem] bg-white/90 font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur";
+  }
+  if (style === "elegant-script") {
+    return "rounded-[1.75rem] bg-white/20 font-[cursive] text-2xl italic tracking-wide text-white ring-1 ring-white/60 backdrop-blur-md shadow-white/20";
   }
   if (style === "minimal-white") {
     return "font-black text-white shadow-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]";
@@ -1990,6 +2150,10 @@ function isDarkCaptionColor(color: CaptionColor) {
   const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
 
   return brightness < 100;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 
