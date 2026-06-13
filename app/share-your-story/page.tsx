@@ -798,8 +798,8 @@ export default function ShareYourStoryPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-[#f8fbff] px-6 py-12 text-slate-900">
-        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
+      <main className="min-h-screen overflow-x-hidden bg-[#f8fbff] px-6 py-12 text-slate-900">
+        <div className="mx-auto w-full max-w-3xl overflow-hidden rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
           Loading share page...
         </div>
       </main>
@@ -807,8 +807,8 @@ export default function ShareYourStoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
-      <div className="mx-auto max-w-3xl px-4 py-6">
+    <main className="min-h-screen overflow-x-hidden bg-[#f8fbff] pb-24 text-slate-900">
+      <div className="mx-auto w-full max-w-3xl overflow-x-hidden px-4 py-6">
         <div className="mb-5 flex items-center justify-between">
           <Link
             href="/journey"
@@ -823,7 +823,7 @@ export default function ShareYourStoryPage() {
           </div>
         </div>
 
-        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
+        <section className="w-full max-w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
             <Sparkles className="h-4 w-4" />
             SHARE YOUR STORY
@@ -839,7 +839,7 @@ export default function ShareYourStoryPage() {
           </p>
         </section>
 
-        <section className="mt-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <section className="mt-5 w-full max-w-full overflow-hidden rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <div className="mb-5 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
             <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
               Posting as
@@ -1022,7 +1022,7 @@ export default function ShareYourStoryPage() {
             )}
 
             {photoPreviewUrl && (
-              <div className="rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <div className="w-full max-w-full overflow-hidden rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
@@ -1226,7 +1226,7 @@ export default function ShareYourStoryPage() {
             )}
 
             {videoPreviewUrl && (
-              <div className="rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
+              <div className="w-full max-w-full overflow-hidden rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-blue-200">
@@ -1382,13 +1382,13 @@ function CaptionStyleControls({
 }) {
   return (
     <div
-      className={`mb-4 rounded-[1.5rem] p-3 ring-1 sm:p-4 ${
+      className={`mb-4 min-w-0 max-w-full overflow-hidden rounded-[1.5rem] p-3 ring-1 sm:p-4 ${
         dark ? "bg-white/10 ring-white/10" : "bg-blue-50 ring-blue-100"
       }`}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3 flex min-w-0 max-w-full items-center justify-between gap-3">
         <div
-          className={`text-sm font-black ${
+          className={`min-w-0 text-sm font-black ${
             dark ? "text-white" : "text-[#062a57]"
           }`}
         >
@@ -1405,37 +1405,39 @@ function CaptionStyleControls({
         </div>
       </div>
 
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-5 [&::-webkit-scrollbar]:hidden">
-        {captionStyleOptions.map((option) => {
-          const selected = style === option.value;
+      <div className="w-full max-w-full min-w-0 overflow-hidden">
+        <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-2 sm:overflow-hidden sm:px-0 sm:pb-0 lg:grid-cols-5 [&::-webkit-scrollbar]:hidden">
+          {captionStyleOptions.map((option) => {
+            const selected = style === option.value;
 
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onStyleChange(option.value)}
-              className={`min-w-[8.75rem] shrink-0 rounded-2xl px-3 py-2 text-left ring-1 transition sm:min-w-0 ${
-                selected
-                  ? dark
-                    ? "bg-white text-[#082f63] ring-white"
-                    : "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                  : dark
-                    ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
-                    : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
-              }`}
-            >
-              <div className="text-[11px] font-black sm:text-xs">
-                {option.label}
-              </div>
-              <p className="mt-0.5 hidden text-[10px] font-semibold leading-4 opacity-80 sm:block">
-                {option.description}
-              </p>
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onStyleChange(option.value)}
+                className={`max-w-[9.5rem] shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-left ring-1 transition sm:max-w-none sm:min-w-0 sm:whitespace-normal ${
+                  selected
+                    ? dark
+                      ? "bg-white text-[#082f63] ring-white"
+                      : "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                    : dark
+                      ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                      : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
+                }`}
+              >
+                <div className="text-[11px] font-black sm:text-xs">
+                  {option.label}
+                </div>
+                <p className="mt-0.5 hidden text-[10px] font-semibold leading-4 opacity-80 sm:block">
+                  {option.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+      <div className="mt-3 grid min-w-0 max-w-full gap-2 lg:grid-cols-2">
         <CompactOptionRow
           dark={dark}
           label="2. Font Style"
@@ -1452,7 +1454,7 @@ function CaptionStyleControls({
         />
       </div>
 
-      <div className="mt-3 grid gap-2 md:grid-cols-3">
+      <div className="mt-3 grid min-w-0 max-w-full gap-2 md:grid-cols-3">
         <MiniSegmentedControl
           dark={dark}
           label="4. Position"
@@ -1511,7 +1513,7 @@ function CompactOptionRow<T extends string>({
   value: T;
 }) {
   return (
-    <div>
+    <div className="min-w-0 max-w-full overflow-hidden">
       <div
         className={`mb-1.5 text-[11px] font-black uppercase tracking-[0.12em] ${
           dark ? "text-slate-300" : "text-slate-500"
@@ -1520,33 +1522,35 @@ function CompactOptionRow<T extends string>({
         {label}
       </div>
 
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {options.map((option) => {
-          const selected = value === option.value;
+      <div className="w-full max-w-full min-w-0 overflow-hidden">
+        <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {options.map((option) => {
+            const selected = value === option.value;
 
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onChange(option.value)}
-              className={`inline-flex min-w-max items-center gap-2 rounded-full px-3 py-2 text-[11px] font-black ring-1 transition ${
-                selected
-                  ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                  : dark
-                    ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
-                    : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"
-              }`}
-              title={option.description}
-            >
-              {option.swatchClass && (
-                <span
-                  className={`h-3 w-3 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
-                />
-              )}
-              {option.label}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onChange(option.value)}
+                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-black ring-1 transition ${
+                  selected
+                    ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                    : dark
+                      ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                      : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"
+                }`}
+                title={option.description}
+              >
+                {option.swatchClass && (
+                  <span
+                    className={`h-3 w-3 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
+                  />
+                )}
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1566,7 +1570,7 @@ function MiniSegmentedControl<T extends string>({
   value: T;
 }) {
   return (
-    <div>
+    <div className="min-w-0 max-w-full overflow-hidden">
       <div
         className={`mb-1.5 text-[11px] font-black uppercase tracking-[0.12em] ${
           dark ? "text-slate-300" : "text-slate-500"
@@ -1575,7 +1579,7 @@ function MiniSegmentedControl<T extends string>({
         {label}
       </div>
       <div
-        className={`grid ${
+        className={`grid min-w-0 max-w-full ${
           options.length === 4 ? "grid-cols-4" : "grid-cols-3"
         } gap-1 rounded-2xl p-1 ${dark ? "bg-black/20" : "bg-white"}`}
       >
@@ -1584,7 +1588,7 @@ function MiniSegmentedControl<T extends string>({
             key={optionValue}
             type="button"
             onClick={() => onChange(optionValue)}
-            className={`rounded-xl px-2 py-1.5 text-[11px] font-black transition sm:py-2 sm:text-xs ${
+            className={`min-w-0 rounded-xl px-1.5 py-1.5 text-[10px] font-black transition sm:px-2 sm:py-2 sm:text-xs ${
               value === optionValue
                 ? "bg-[#0b63ce] text-white"
                 : dark
