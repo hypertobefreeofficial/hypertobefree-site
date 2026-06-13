@@ -37,6 +37,18 @@ type FeedFilter =
   | "prayer"
   | "answered";
 
+type CaptionStyle =
+  | "classic-caption"
+  | "bold-center"
+  | "bottom-banner"
+  | "highlight-box"
+  | "scripture-card"
+  | "praise-glow"
+  | "testimony-quote"
+  | "minimal-white"
+  | "black-outline"
+  | "soft-gradient";
+
 type ReactionRow = {
   story_id: string | null;
   user_id: string | null;
@@ -50,6 +62,7 @@ type ApprovedStory = {
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  caption_style: CaptionStyle | null;
   image_url: string | null;
   signed_image_url: string | null;
   video_url: string | null;
@@ -230,11 +243,30 @@ export default function FreedomFeed({
     return Boolean(userId && story.user_id && story.user_id === userId);
   }
 
+  function getCaptionStyle(value: string | null | undefined): CaptionStyle {
+    if (
+      value === "classic-caption" ||
+      value === "bold-center" ||
+      value === "bottom-banner" ||
+      value === "highlight-box" ||
+      value === "scripture-card" ||
+      value === "praise-glow" ||
+      value === "testimony-quote" ||
+      value === "minimal-white" ||
+      value === "black-outline" ||
+      value === "soft-gradient"
+    ) {
+      return value;
+    }
+
+    return "classic-caption";
+  }
+
   async function loadApprovedStories(currentUserId: string | null) {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, caption_style, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -323,6 +355,7 @@ export default function FreedomFeed({
           location: story.location,
           story_type: story.story_type,
           story_text: story.story_text,
+          caption_style: getCaptionStyle(story.caption_style),
           image_url: story.image_url,
           signed_image_url: signedImageUrl,
           video_url: story.video_url,
@@ -953,6 +986,13 @@ export default function FreedomFeed({
               const prayerStory = isPrayerStory(story);
               const originalPoster = isOriginalPoster(story);
               const prayerAnswered = story.prayer_status === "answered";
+              const captionStyle = getCaptionStyle(story.caption_style);
+              const hasMedia = Boolean(
+                story.signed_image_url || story.signed_video_url
+              );
+              const showClassicStoryText =
+                Boolean(story.story_text) &&
+                (!hasMedia || captionStyle === "classic-caption");
 
               return (
                 <article
@@ -1000,15 +1040,25 @@ export default function FreedomFeed({
                         className="mt-4 block w-full max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
                         aria-label="Open photo"
                       >
-                        <img
-                          src={story.signed_image_url}
-                          alt={story.story_type || "HTBF photo story"}
-                          className="block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
-                        />
+                        <div className="relative">
+                          <img
+                            src={story.signed_image_url}
+                            alt={story.story_type || "HTBF photo story"}
+                            className="block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
+                          />
+
+                          {story.story_text &&
+                            captionStyle !== "classic-caption" && (
+                              <FeedCaptionOverlay
+                                style={captionStyle}
+                                text={story.story_text}
+                              />
+                            )}
+                        </div>
                       </button>
                     )}
 
-                    {story.story_text && (
+                    {showClassicStoryText && (
                       <p
                         className="mt-4 max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
                         style={{
@@ -1039,6 +1089,15 @@ export default function FreedomFeed({
                       >
                         Your browser does not support the video tag.
                       </video>
+
+                      {story.story_text &&
+                        captionStyle !== "classic-caption" && (
+                          <FeedCaptionOverlay
+                            reserveBottomAction
+                            style={captionStyle}
+                            text={story.story_text}
+                          />
+                        )}
 
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                         <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
@@ -1665,6 +1724,84 @@ function ReactionButton({
       </span>
     </button>
   );
+}
+
+function FeedCaptionOverlay({
+  reserveBottomAction = false,
+  style,
+  text,
+}: {
+  reserveBottomAction?: boolean;
+  style: CaptionStyle;
+  text: string;
+}) {
+  const positionClass = getFeedCaptionPositionClass(style, reserveBottomAction);
+  const styleClass = getFeedCaptionStyleClass(style);
+  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
+
+  return (
+    <div
+      className={`pointer-events-none absolute max-h-36 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 text-sm leading-snug shadow-lg sm:max-h-44 sm:text-base ${positionClass} ${styleClass}`}
+      style={{
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+      }}
+    >
+      {quoteText}
+    </div>
+  );
+}
+
+function getFeedCaptionPositionClass(
+  style: CaptionStyle,
+  reserveBottomAction: boolean
+) {
+  if (style === "bold-center" || style === "testimony-quote") {
+    return "left-1/2 top-1/2 w-[min(86%,34rem)] -translate-x-1/2 -translate-y-1/2 text-center";
+  }
+
+  if (style === "scripture-card") {
+    return "left-4 right-4 top-4 text-center";
+  }
+
+  if (style === "minimal-white" || style === "black-outline") {
+    return "left-4 right-4 top-4 text-center";
+  }
+
+  return reserveBottomAction
+    ? "bottom-20 left-4 right-4 text-center"
+    : "bottom-5 left-4 right-4 text-center";
+}
+
+function getFeedCaptionStyleClass(style: CaptionStyle) {
+  if (style === "bold-center") {
+    return "rounded-[1.5rem] bg-black/45 font-black text-white backdrop-blur";
+  }
+  if (style === "bottom-banner") {
+    return "rounded-2xl bg-black/75 font-bold text-white backdrop-blur";
+  }
+  if (style === "highlight-box") {
+    return "rounded-[1.5rem] bg-yellow-300/95 font-black text-yellow-950 ring-1 ring-white/70";
+  }
+  if (style === "scripture-card") {
+    return "rounded-[1.5rem] bg-blue-50/90 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur";
+  }
+  if (style === "praise-glow") {
+    return "rounded-[1.5rem] bg-amber-300/90 font-black text-amber-950 ring-1 ring-white/70 shadow-amber-300/30";
+  }
+  if (style === "testimony-quote") {
+    return "rounded-[1.5rem] bg-white/90 font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur";
+  }
+  if (style === "minimal-white") {
+    return "font-black text-white shadow-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]";
+  }
+  if (style === "black-outline") {
+    return "font-black text-white shadow-none [text-shadow:2px_2px_0_#000,-2px_2px_0_#000,2px_-2px_0_#000,-2px_-2px_0_#000]";
+  }
+  if (style === "soft-gradient") {
+    return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
+  }
+  return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
 }
 
 function PhotoActionButton({
