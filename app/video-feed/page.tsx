@@ -49,12 +49,15 @@ type CaptionFont =
   | "modern-serif";
 type CaptionColor =
   | "white"
+  | "black"
   | "deep-navy"
   | "soft-gold"
   | "prayer-blue"
   | "warm-cream"
-  | "praise-green";
+  | "praise-green"
+  | `#${string}`;
 type CaptionSize = "small" | "medium" | "large" | "extra-large";
+type CaptionAlign = "left" | "center" | "right";
 
 type ReportReason =
   | "inappropriate"
@@ -78,6 +81,9 @@ type StoryRow = {
   overlay_x: number | null;
   overlay_y: number | null;
   caption_style: CaptionStyle | null;
+  caption_color: CaptionColor;
+  caption_size: CaptionSize;
+  caption_align: CaptionAlign;
   video_url: string | null;
   status: string | null;
   created_at: string | null;
@@ -532,6 +538,47 @@ export default function VideoFeedPage() {
     return "classic-caption";
   }
 
+  function getCaptionColor(value: string | null | undefined): CaptionColor {
+    if (
+      value === "white" ||
+      value === "black" ||
+      value === "deep-navy" ||
+      value === "soft-gold" ||
+      value === "prayer-blue" ||
+      value === "warm-cream" ||
+      value === "praise-green"
+    ) {
+      return value;
+    }
+
+    if (value && /^#[0-9a-fA-F]{6}$/.test(value)) {
+      return value as `#${string}`;
+    }
+
+    return "white";
+  }
+
+  function getCaptionSize(value: string | null | undefined): CaptionSize {
+    if (
+      value === "small" ||
+      value === "medium" ||
+      value === "large" ||
+      value === "extra-large"
+    ) {
+      return value;
+    }
+
+    return "medium";
+  }
+
+  function getCaptionAlign(value: string | null | undefined): CaptionAlign {
+    if (value === "left" || value === "center" || value === "right") {
+      return value;
+    }
+
+    return "center";
+  }
+
   function readNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
@@ -549,7 +596,7 @@ export default function VideoFeedPage() {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_color, caption_size, caption_align, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .not("video_url", "is", null)
@@ -629,6 +676,9 @@ export default function VideoFeedPage() {
         return {
           ...story,
           caption_style: getCaptionStyle(story.caption_style),
+          caption_color: getCaptionColor(story.caption_color),
+          caption_size: getCaptionSize(story.caption_size),
+          caption_align: getCaptionAlign(story.caption_align),
           overlay_text: story.overlay_text ?? null,
           overlay_x: readNumber(story.overlay_x),
           overlay_y: readNumber(story.overlay_y),
@@ -1842,8 +1892,11 @@ function VideoInfoOverlay({
     <>
       {hasOverlayText && (
         <VideoCaptionStyleOverlay
+          align={story.caption_align}
+          color={story.caption_color}
           overlayX={story.overlay_x}
           overlayY={story.overlay_y}
+          size={story.caption_size}
           style={captionStyle}
           text={overlayText}
         />
@@ -1931,6 +1984,7 @@ function VideoInfoOverlay({
 }
 
 function VideoCaptionStyleOverlay({
+  align,
   color,
   font,
   overlayX,
@@ -1939,6 +1993,7 @@ function VideoCaptionStyleOverlay({
   style,
   text,
 }: {
+  align?: CaptionAlign;
   color?: CaptionColor;
   font?: CaptionFont;
   overlayX?: number | null;
@@ -1947,27 +2002,29 @@ function VideoCaptionStyleOverlay({
   style: CaptionStyle;
   text: string;
 }) {
-  // TODO: Pass caption_font, caption_color, and caption_size from stories when those columns exist.
   const hasCustomPosition =
     typeof overlayX === "number" && typeof overlayY === "number";
   const positionClass = hasCustomPosition
-    ? "-translate-x-1/2 -translate-y-1/2 text-center"
+    ? "-translate-x-1/2 -translate-y-1/2"
     : getVideoCaptionPositionClass(style);
   const styleClass = getVideoCaptionStyleClass(style);
   const fontClass = font ? getVideoCaptionFontClass(font) : "";
   const colorClass = color ? getVideoCaptionColorClass(color) : "";
   const sizeClass = getVideoCaptionSizeClass(size);
+  const alignClass = getVideoCaptionAlignClass(align);
+  const inlineColor = color ? getVideoCaptionInlineColor(color) : undefined;
   const textShadow = color ? getVideoCaptionTextShadow(color) : undefined;
   const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 md:w-[min(64vw,560px)] ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass}`}
+      className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 md:w-[min(64vw,560px)] ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass} ${alignClass}`}
       style={{
         left: hasCustomPosition ? `${overlayX}%` : undefined,
         top: hasCustomPosition ? `${overlayY}%` : undefined,
         overflowWrap: "anywhere",
         wordBreak: "break-word",
+        color: inlineColor,
         textShadow,
       }}
     >
@@ -2037,12 +2094,26 @@ function getVideoCaptionFontClass(font: CaptionFont) {
 }
 
 function getVideoCaptionColorClass(color: CaptionColor) {
+  if (color.startsWith("#")) return "";
+  if (color === "black") return "!text-slate-950";
   if (color === "deep-navy") return "!text-[#062a57]";
   if (color === "soft-gold") return "!text-amber-200";
   if (color === "prayer-blue") return "!text-blue-200";
   if (color === "warm-cream") return "!text-[#fff4d6]";
   if (color === "praise-green") return "!text-emerald-200";
   return "!text-white";
+}
+
+function getVideoCaptionInlineColor(color: CaptionColor) {
+  if (color.startsWith("#")) return color;
+
+  return undefined;
+}
+
+function getVideoCaptionAlignClass(align?: CaptionAlign) {
+  if (align === "left") return "text-left";
+  if (align === "right") return "text-right";
+  return "text-center";
 }
 
 function getVideoCaptionSizeClass(size?: CaptionSize) {
@@ -2053,11 +2124,22 @@ function getVideoCaptionSizeClass(size?: CaptionSize) {
 }
 
 function getVideoCaptionTextShadow(color: CaptionColor) {
-  if (color === "deep-navy") {
+  if (color === "black" || color === "deep-navy" || isDarkCaptionColor(color)) {
     return "0 1px 10px rgba(255,255,255,0.72)";
   }
 
   return "0 2px 12px rgba(0,0,0,0.62)";
+}
+
+function isDarkCaptionColor(color: CaptionColor) {
+  if (!color.startsWith("#") || color.length !== 7) return false;
+
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return brightness < 100;
 }
 
 function VideoActionButton({
