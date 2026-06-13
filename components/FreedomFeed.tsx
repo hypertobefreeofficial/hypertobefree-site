@@ -1169,7 +1169,11 @@ export default function FreedomFeed({
                         loop
                         playsInline
                         preload="metadata"
-                        className="pointer-events-none block h-full w-full bg-black object-contain"
+                        className="pointer-events-none block h-full w-full bg-black object-contain object-center"
+                        style={{
+                          objectFit: "contain",
+                          objectPosition: "center center",
+                        }}
                         src={story.signed_video_url}
                       >
                         Your browser does not support the video tag.
