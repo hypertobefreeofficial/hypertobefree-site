@@ -1186,11 +1186,16 @@ export default function ShareYourStoryPage() {
                   <label className="mb-2 block text-sm font-black text-white">
                     Caption
                   </label>
-                  <input
+                  <textarea
                     value={videoCaption}
                     onChange={(event) => setVideoCaption(event.target.value)}
                     placeholder="Add a short caption for this video..."
-                    className="w-full rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-400/20"
+                    rows={2}
+                    className="w-full resize-none rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-400/20"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
                   />
                 </div>
 
@@ -1297,19 +1302,30 @@ function CaptionStyleControls({
 }) {
   return (
     <div
-      className={`mb-4 rounded-[1.5rem] p-4 ring-1 ${
+      className={`mb-4 rounded-[1.5rem] p-3 ring-1 sm:p-4 ${
         dark ? "bg-white/10 ring-white/10" : "bg-blue-50 ring-blue-100"
       }`}
     >
-      <div
-        className={`mb-3 text-sm font-black ${
-          dark ? "text-white" : "text-[#062a57]"
-        }`}
-      >
-        Caption Style
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div
+          className={`text-sm font-black ${
+            dark ? "text-white" : "text-[#062a57]"
+          }`}
+        >
+          1. Caption Style
+        </div>
+
+        <div
+          className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black ${
+            dark ? "bg-white/10 text-blue-100" : "bg-white text-[#0b63ce]"
+          }`}
+        >
+          {captionStyleOptions.find((option) => option.value === style)
+            ?.label ?? "Classic Caption"}
+        </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-5">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-5 [&::-webkit-scrollbar]:hidden">
         {captionStyleOptions.map((option) => {
           const selected = style === option.value;
 
@@ -1318,7 +1334,7 @@ function CaptionStyleControls({
               key={option.value}
               type="button"
               onClick={() => onStyleChange(option.value)}
-              className={`rounded-2xl p-3 text-left ring-1 transition ${
+              className={`min-w-[8.75rem] shrink-0 rounded-2xl px-3 py-2 text-left ring-1 transition sm:min-w-0 ${
                 selected
                   ? dark
                     ? "bg-white text-[#082f63] ring-white"
@@ -1328,8 +1344,10 @@ function CaptionStyleControls({
                     : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
               }`}
             >
-              <div className="text-xs font-black">{option.label}</div>
-              <p className="mt-1 text-[11px] font-semibold leading-4 opacity-80">
+              <div className="text-[11px] font-black sm:text-xs">
+                {option.label}
+              </div>
+              <p className="mt-0.5 hidden text-[10px] font-semibold leading-4 opacity-80 sm:block">
                 {option.description}
               </p>
             </button>
@@ -1337,10 +1355,10 @@ function CaptionStyleControls({
         })}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
         <MiniSegmentedControl
           dark={dark}
-          label="Text position"
+          label="2. Position"
           onChange={onPositionChange}
           options={[
             ["top", "Top"],
@@ -1351,7 +1369,7 @@ function CaptionStyleControls({
         />
         <MiniSegmentedControl
           dark={dark}
-          label="Text size"
+          label="3. Size"
           onChange={onSizeChange}
           options={[
             ["small", "Small"],
@@ -1362,7 +1380,7 @@ function CaptionStyleControls({
         />
         <MiniSegmentedControl
           dark={dark}
-          label="Text alignment"
+          label="4. Alignment"
           onChange={onAlignChange}
           options={[
             ["left", "Left"],
@@ -1392,7 +1410,7 @@ function MiniSegmentedControl<T extends string>({
   return (
     <div>
       <div
-        className={`mb-2 text-xs font-black uppercase tracking-[0.14em] ${
+        className={`mb-1.5 text-[11px] font-black uppercase tracking-[0.12em] ${
           dark ? "text-slate-300" : "text-slate-500"
         }`}
       >
@@ -1408,7 +1426,7 @@ function MiniSegmentedControl<T extends string>({
             key={optionValue}
             type="button"
             onClick={() => onChange(optionValue)}
-            className={`rounded-xl px-2 py-2 text-xs font-black transition ${
+            className={`rounded-xl px-2 py-1.5 text-[11px] font-black transition sm:py-2 sm:text-xs ${
               value === optionValue
                 ? "bg-[#0b63ce] text-white"
                 : dark
