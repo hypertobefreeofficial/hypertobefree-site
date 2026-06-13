@@ -41,8 +41,21 @@ type CaptionStyle =
   | "black-outline"
   | "soft-gradient";
 type CaptionPosition = "top" | "center" | "bottom";
-type CaptionSize = "small" | "medium" | "large";
+type CaptionSize = "small" | "medium" | "large" | "extra-large";
 type CaptionAlign = "left" | "center" | "right";
+type CaptionFont =
+  | "htbf-clean"
+  | "bold-testimony"
+  | "soft-scripture"
+  | "praise-handwritten"
+  | "modern-serif";
+type CaptionColor =
+  | "white"
+  | "deep-navy"
+  | "soft-gold"
+  | "prayer-blue"
+  | "warm-cream"
+  | "praise-green";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -168,6 +181,51 @@ const captionStyleOptions: {
   },
 ];
 
+const captionFontOptions: {
+  label: string;
+  value: CaptionFont;
+  description: string;
+}[] = [
+  {
+    label: "HTBF Clean",
+    value: "htbf-clean",
+    description: "Simple and clear.",
+  },
+  {
+    label: "Bold Testimony",
+    value: "bold-testimony",
+    description: "Strong witness text.",
+  },
+  {
+    label: "Soft Scripture",
+    value: "soft-scripture",
+    description: "Gentle reflection style.",
+  },
+  {
+    label: "Praise Handwritten",
+    value: "praise-handwritten",
+    description: "Warm praise feel.",
+  },
+  {
+    label: "Modern Serif",
+    value: "modern-serif",
+    description: "Polished story text.",
+  },
+];
+
+const captionColorOptions: {
+  label: string;
+  value: CaptionColor;
+  swatchClass: string;
+}[] = [
+  { label: "White", value: "white", swatchClass: "bg-white" },
+  { label: "Deep Navy", value: "deep-navy", swatchClass: "bg-[#062a57]" },
+  { label: "Soft Gold", value: "soft-gold", swatchClass: "bg-amber-200" },
+  { label: "Prayer Blue", value: "prayer-blue", swatchClass: "bg-blue-200" },
+  { label: "Warm Cream", value: "warm-cream", swatchClass: "bg-[#fff4d6]" },
+  { label: "Praise Green", value: "praise-green", swatchClass: "bg-emerald-200" },
+];
+
 export default function ShareYourStoryPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -187,7 +245,9 @@ export default function ShareYourStoryPage() {
   const [videoCaption, setVideoCaption] = useState("");
   const [captionStyle, setCaptionStyle] =
     useState<CaptionStyle>("classic-caption");
-  // TODO: Persist text position, size, and alignment when dedicated columns exist.
+  // TODO: Persist caption font, color, size, position, and alignment when dedicated columns exist.
+  const [captionFont, setCaptionFont] = useState<CaptionFont>("htbf-clean");
+  const [captionColor, setCaptionColor] = useState<CaptionColor>("white");
   const [captionPosition, setCaptionPosition] =
     useState<CaptionPosition>("bottom");
   const [captionSize, setCaptionSize] = useState<CaptionSize>("medium");
@@ -1020,6 +1080,10 @@ export default function ShareYourStoryPage() {
                   dark={false}
                   style={captionStyle}
                   onStyleChange={setCaptionStyle}
+                  font={captionFont}
+                  onFontChange={setCaptionFont}
+                  color={captionColor}
+                  onColorChange={setCaptionColor}
                   position={captionPosition}
                   onPositionChange={setCaptionPosition}
                   size={captionSize}
@@ -1085,6 +1149,8 @@ export default function ShareYourStoryPage() {
                       {photoFeedText && captionStyle !== "classic-caption" && (
                         <CaptionTextOverlay
                           align={captionAlign}
+                          color={captionColor}
+                          font={captionFont}
                           position={captionPosition}
                           size={captionSize}
                           style={captionStyle}
@@ -1203,6 +1269,10 @@ export default function ShareYourStoryPage() {
                   dark
                   style={captionStyle}
                   onStyleChange={setCaptionStyle}
+                  font={captionFont}
+                  onFontChange={setCaptionFont}
+                  color={captionColor}
+                  onColorChange={setCaptionColor}
                   position={captionPosition}
                   onPositionChange={setCaptionPosition}
                   size={captionSize}
@@ -1223,6 +1293,8 @@ export default function ShareYourStoryPage() {
                     {videoPreviewText && captionStyle !== "classic-caption" && (
                       <CaptionTextOverlay
                         align={captionAlign}
+                        color={captionColor}
+                        font={captionFont}
                         position={captionPosition}
                         size={captionSize}
                         style={captionStyle}
@@ -1281,8 +1353,12 @@ export default function ShareYourStoryPage() {
 
 function CaptionStyleControls({
   align,
+  color,
   dark,
+  font,
   onAlignChange,
+  onColorChange,
+  onFontChange,
   onPositionChange,
   onSizeChange,
   onStyleChange,
@@ -1291,8 +1367,12 @@ function CaptionStyleControls({
   style,
 }: {
   align: CaptionAlign;
+  color: CaptionColor;
   dark: boolean;
+  font: CaptionFont;
   onAlignChange: (value: CaptionAlign) => void;
+  onColorChange: (value: CaptionColor) => void;
+  onFontChange: (value: CaptionFont) => void;
   onPositionChange: (value: CaptionPosition) => void;
   onSizeChange: (value: CaptionSize) => void;
   onStyleChange: (value: CaptionStyle) => void;
@@ -1355,10 +1435,27 @@ function CaptionStyleControls({
         })}
       </div>
 
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        <CompactOptionRow
+          dark={dark}
+          label="2. Font Style"
+          onChange={onFontChange}
+          options={captionFontOptions}
+          value={font}
+        />
+        <CompactOptionRow
+          dark={dark}
+          label="3. Text Color"
+          onChange={onColorChange}
+          options={captionColorOptions}
+          value={color}
+        />
+      </div>
+
       <div className="mt-3 grid gap-2 md:grid-cols-3">
         <MiniSegmentedControl
           dark={dark}
-          label="2. Position"
+          label="4. Position"
           onChange={onPositionChange}
           options={[
             ["top", "Top"],
@@ -1369,18 +1466,19 @@ function CaptionStyleControls({
         />
         <MiniSegmentedControl
           dark={dark}
-          label="3. Size"
+          label="5. Size"
           onChange={onSizeChange}
           options={[
             ["small", "Small"],
             ["medium", "Medium"],
             ["large", "Large"],
+            ["extra-large", "XL"],
           ]}
           value={size}
         />
         <MiniSegmentedControl
           dark={dark}
-          label="4. Alignment"
+          label="6. Alignment"
           onChange={onAlignChange}
           options={[
             ["left", "Left"],
@@ -1389,6 +1487,66 @@ function CaptionStyleControls({
           ]}
           value={align}
         />
+      </div>
+    </div>
+  );
+}
+
+function CompactOptionRow<T extends string>({
+  dark,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  dark: boolean;
+  label: string;
+  onChange: (value: T) => void;
+  options: {
+    label: string;
+    value: T;
+    description?: string;
+    swatchClass?: string;
+  }[];
+  value: T;
+}) {
+  return (
+    <div>
+      <div
+        className={`mb-1.5 text-[11px] font-black uppercase tracking-[0.12em] ${
+          dark ? "text-slate-300" : "text-slate-500"
+        }`}
+      >
+        {label}
+      </div>
+
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {options.map((option) => {
+          const selected = value === option.value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={`inline-flex min-w-max items-center gap-2 rounded-full px-3 py-2 text-[11px] font-black ring-1 transition ${
+                selected
+                  ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                  : dark
+                    ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                    : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"
+              }`}
+              title={option.description}
+            >
+              {option.swatchClass && (
+                <span
+                  className={`h-3 w-3 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
+                />
+              )}
+              {option.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1417,9 +1575,9 @@ function MiniSegmentedControl<T extends string>({
         {label}
       </div>
       <div
-        className={`grid grid-cols-3 gap-1 rounded-2xl p-1 ${
-          dark ? "bg-black/20" : "bg-white"
-        }`}
+        className={`grid ${
+          options.length === 4 ? "grid-cols-4" : "grid-cols-3"
+        } gap-1 rounded-2xl p-1 ${dark ? "bg-black/20" : "bg-white"}`}
       >
         {options.map(([optionValue, optionLabel]) => (
           <button
@@ -1444,12 +1602,16 @@ function MiniSegmentedControl<T extends string>({
 
 function CaptionTextOverlay({
   align,
+  color,
+  font,
   position,
   size,
   style,
   text,
 }: {
   align: CaptionAlign;
+  color: CaptionColor;
+  font: CaptionFont;
   position: CaptionPosition;
   size: CaptionSize;
   style: CaptionStyle;
@@ -1459,14 +1621,18 @@ function CaptionTextOverlay({
   const sizeClass = getCaptionSizeClass(size);
   const alignClass = getCaptionAlignClass(align);
   const styleClass = getCaptionStyleClass(style);
+  const fontClass = getCaptionFontClass(font);
+  const colorClass = getCaptionColorClass(color);
+  const textShadow = getCaptionTextShadow(color);
   const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg ${positionClass} ${sizeClass} ${alignClass} ${styleClass}`}
+      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg ${positionClass} ${sizeClass} ${alignClass} ${styleClass} ${fontClass} ${colorClass}`}
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
+        textShadow,
       }}
     >
       {quoteText}
@@ -1484,6 +1650,7 @@ function getCaptionPositionClass(position: CaptionPosition) {
 
 function getCaptionSizeClass(size: CaptionSize) {
   if (size === "small") return "text-xs sm:text-sm";
+  if (size === "extra-large") return "text-xl sm:text-3xl";
   if (size === "large") return "text-base sm:text-xl";
   return "text-sm sm:text-base";
 }
@@ -1523,6 +1690,33 @@ function getCaptionStyleClass(style: CaptionStyle) {
     return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
   }
   return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
+}
+
+function getCaptionFontClass(font: CaptionFont) {
+  if (font === "bold-testimony") return "font-sans font-black tracking-tight";
+  if (font === "soft-scripture") return "font-serif font-semibold italic";
+  if (font === "praise-handwritten") {
+    return "font-serif font-black italic tracking-wide";
+  }
+  if (font === "modern-serif") return "font-serif font-bold";
+  return "font-sans font-semibold";
+}
+
+function getCaptionColorClass(color: CaptionColor) {
+  if (color === "deep-navy") return "!text-[#062a57]";
+  if (color === "soft-gold") return "!text-amber-200";
+  if (color === "prayer-blue") return "!text-blue-200";
+  if (color === "warm-cream") return "!text-[#fff4d6]";
+  if (color === "praise-green") return "!text-emerald-200";
+  return "!text-white";
+}
+
+function getCaptionTextShadow(color: CaptionColor) {
+  if (color === "deep-navy") {
+    return "0 1px 10px rgba(255,255,255,0.72)";
+  }
+
+  return "0 2px 12px rgba(0,0,0,0.62)";
 }
 
 
