@@ -48,6 +48,20 @@ type CaptionStyle =
   | "minimal-white"
   | "black-outline"
   | "soft-gradient";
+type CaptionFont =
+  | "htbf-clean"
+  | "bold-testimony"
+  | "soft-scripture"
+  | "praise-handwritten"
+  | "modern-serif";
+type CaptionColor =
+  | "white"
+  | "deep-navy"
+  | "soft-gold"
+  | "prayer-blue"
+  | "warm-cream"
+  | "praise-green";
+type CaptionSize = "small" | "medium" | "large" | "extra-large";
 
 type ReactionRow = {
   story_id: string | null;
@@ -1727,24 +1741,36 @@ function ReactionButton({
 }
 
 function FeedCaptionOverlay({
+  color,
+  font,
   reserveBottomAction = false,
+  size,
   style,
   text,
 }: {
+  color?: CaptionColor;
+  font?: CaptionFont;
   reserveBottomAction?: boolean;
+  size?: CaptionSize;
   style: CaptionStyle;
   text: string;
 }) {
+  // TODO: Pass caption_font, caption_color, and caption_size from stories when those columns exist.
   const positionClass = getFeedCaptionPositionClass(style, reserveBottomAction);
   const styleClass = getFeedCaptionStyleClass(style);
+  const fontClass = font ? getFeedCaptionFontClass(font) : "";
+  const colorClass = color ? getFeedCaptionColorClass(color) : "";
+  const sizeClass = getFeedCaptionSizeClass(size);
+  const textShadow = color ? getFeedCaptionTextShadow(color) : undefined;
   const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-36 w-[min(80%,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 text-sm leading-snug shadow-lg sm:max-h-44 sm:text-base ${positionClass} ${styleClass}`}
+      className={`pointer-events-none absolute max-h-36 w-[min(80%,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass}`}
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
+        textShadow,
       }}
     >
       {quoteText}
@@ -1802,6 +1828,40 @@ function getFeedCaptionStyleClass(style: CaptionStyle) {
     return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
   }
   return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
+}
+
+function getFeedCaptionFontClass(font: CaptionFont) {
+  if (font === "bold-testimony") return "font-sans font-black tracking-tight";
+  if (font === "soft-scripture") return "font-serif font-semibold italic";
+  if (font === "praise-handwritten") {
+    return "font-serif font-black italic tracking-wide";
+  }
+  if (font === "modern-serif") return "font-serif font-bold";
+  return "font-sans font-semibold";
+}
+
+function getFeedCaptionColorClass(color: CaptionColor) {
+  if (color === "deep-navy") return "!text-[#062a57]";
+  if (color === "soft-gold") return "!text-amber-200";
+  if (color === "prayer-blue") return "!text-blue-200";
+  if (color === "warm-cream") return "!text-[#fff4d6]";
+  if (color === "praise-green") return "!text-emerald-200";
+  return "!text-white";
+}
+
+function getFeedCaptionSizeClass(size?: CaptionSize) {
+  if (size === "small") return "text-xs sm:text-sm";
+  if (size === "large") return "text-base sm:text-xl";
+  if (size === "extra-large") return "text-xl sm:text-3xl";
+  return "text-sm sm:text-base";
+}
+
+function getFeedCaptionTextShadow(color: CaptionColor) {
+  if (color === "deep-navy") {
+    return "0 1px 10px rgba(255,255,255,0.72)";
+  }
+
+  return "0 2px 12px rgba(0,0,0,0.62)";
 }
 
 function PhotoActionButton({
