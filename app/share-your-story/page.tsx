@@ -132,7 +132,7 @@ const captionStyleOptions: {
   {
     label: "Classic Caption",
     value: "classic-caption",
-    description: "Simple caption below the media.",
+    description: "Simple message below the media.",
   },
   {
     label: "Bold Center",
@@ -237,12 +237,10 @@ export default function ShareYourStoryPage() {
   const [storyText, setStoryText] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
-  const [photoCaption, setPhotoCaption] = useState("");
   const [photoDisplayStyle, setPhotoDisplayStyle] =
     useState<PhotoDisplayStyle>("soft-rounded");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
-  const [videoCaption, setVideoCaption] = useState("");
   const [captionStyle, setCaptionStyle] =
     useState<CaptionStyle>("classic-caption");
   // TODO: Persist caption font, color, size, position, and alignment when dedicated columns exist.
@@ -254,39 +252,7 @@ export default function ShareYourStoryPage() {
   const [captionAlign, setCaptionAlign] = useState<CaptionAlign>("center");
   const [message, setMessage] = useState("");
 
-  const photoFeedText = useMemo(() => {
-    const cleanStoryText = storyText.trim();
-    const cleanPhotoCaption = photoCaption.trim();
-
-    if (
-      cleanStoryText &&
-      cleanPhotoCaption &&
-      cleanStoryText !== cleanPhotoCaption
-    ) {
-      return `${cleanPhotoCaption}\n\n${cleanStoryText}`;
-    }
-
-    return cleanStoryText || cleanPhotoCaption;
-  }, [photoCaption, storyText]);
-
-  const videoFeedText = useMemo(() => {
-    const cleanStoryText = storyText.trim();
-    const cleanVideoCaption = videoCaption.trim();
-
-    if (
-      cleanStoryText &&
-      cleanVideoCaption &&
-      cleanStoryText !== cleanVideoCaption
-    ) {
-      return `${cleanVideoCaption}\n\n${cleanStoryText}`;
-    }
-
-    return cleanStoryText || cleanVideoCaption;
-  }, [storyText, videoCaption]);
-
-  const videoPreviewText = useMemo(() => {
-    return videoFeedText.trim();
-  }, [videoFeedText]);
+  const previewText = useMemo(() => storyText.trim(), [storyText]);
 
   useEffect(() => {
     async function loadPage() {
@@ -418,14 +384,12 @@ export default function ShareYourStoryPage() {
   function removePhoto() {
     setPhotoFile(null);
     setPhotoPreviewUrl(null);
-    setPhotoCaption("");
     setPhotoDisplayStyle("soft-rounded");
   }
 
   function removeVideo() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
-    setVideoCaption("");
   }
 
   function handlePhotoSelect(file: File | null) {
@@ -690,12 +654,7 @@ export default function ShareYourStoryPage() {
       return;
     }
 
-    const cleanStoryText =
-      mediaMode === "photo"
-        ? photoFeedText.trim()
-        : mediaMode === "video"
-          ? videoFeedText.trim()
-          : storyText.trim();
+    const cleanStoryText = storyText.trim();
     const hasPhoto = mediaMode === "photo" && Boolean(photoFile);
     const hasVideo = mediaMode === "video" && Boolean(videoFile);
 
@@ -948,15 +907,19 @@ export default function ShareYourStoryPage() {
 
             <div>
               <label className="mb-2 block text-sm font-black text-[#062a57]">
-                Message
+                Your message
               </label>
 
               <textarea
                 value={storyText}
                 onChange={(event) => setStoryText(event.target.value)}
                 rows={8}
-                placeholder="Write your testimony, praise report, prayer request, or encouragement..."
-                className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                placeholder="Share what God did, what you’re praying for, or what encouraged you..."
+                className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                style={{
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                }}
               />
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1032,8 +995,7 @@ export default function ShareYourStoryPage() {
                       Photo Story
                     </div>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Add a caption and choose how the photo should feel on the
-                      page.
+                      Choose how your message should appear with this photo.
                     </p>
                   </div>
 
@@ -1044,23 +1006,6 @@ export default function ShareYourStoryPage() {
                   >
                     Remove Photo
                   </button>
-                </div>
-
-                <div className="mb-4">
-                  <label className="mb-2 block text-sm font-black text-[#062a57]">
-                    Caption
-                  </label>
-                  <textarea
-                    value={photoCaption}
-                    onChange={(event) => setPhotoCaption(event.target.value)}
-                    placeholder="Add a short caption for this photo..."
-                    rows={3}
-                    className="max-w-full w-full resize-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                    style={{
-                      overflowWrap: "anywhere",
-                      wordBreak: "break-word",
-                    }}
-                  />
                 </div>
 
                 <div className="mb-4">
@@ -1146,7 +1091,7 @@ export default function ShareYourStoryPage() {
                         className={getPhotoPreviewImageClass(photoDisplayStyle)}
                       />
 
-                      {photoFeedText && captionStyle !== "classic-caption" && (
+                      {previewText && captionStyle !== "classic-caption" && (
                         <CaptionTextOverlay
                           align={captionAlign}
                           color={captionColor}
@@ -1154,13 +1099,13 @@ export default function ShareYourStoryPage() {
                           position={captionPosition}
                           size={captionSize}
                           style={captionStyle}
-                          text={photoFeedText}
+                          text={previewText}
                         />
                       )}
                     </div>
                   </div>
 
-                  {photoFeedText && captionStyle === "classic-caption" && (
+                  {previewText && captionStyle === "classic-caption" && (
                     <div className="p-5 pt-4">
                       <p
                         className="max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-2xl bg-slate-50 px-4 py-3 text-[17px] leading-7 text-slate-800 ring-1 ring-slate-200"
@@ -1169,7 +1114,7 @@ export default function ShareYourStoryPage() {
                           wordBreak: "break-word",
                         }}
                       >
-                        {photoFeedText}
+                        {previewText}
                       </p>
                     </div>
                   )}
@@ -1234,8 +1179,7 @@ export default function ShareYourStoryPage() {
                     </div>
                     <div className="mt-1 text-lg font-black">Video Story</div>
                     <p className="mt-1 text-sm leading-6 text-slate-300">
-                      Add a caption and preview the standard HTBF video format
-                      before submitting.
+                      Choose how your message should appear with this video.
                     </p>
                   </div>
 
@@ -1246,23 +1190,6 @@ export default function ShareYourStoryPage() {
                   >
                     Remove Video
                   </button>
-                </div>
-
-                <div className="mb-4">
-                  <label className="mb-2 block text-sm font-black text-white">
-                    Caption
-                  </label>
-                  <textarea
-                    value={videoCaption}
-                    onChange={(event) => setVideoCaption(event.target.value)}
-                    placeholder="Add a short caption for this video..."
-                    rows={2}
-                    className="w-full resize-none rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-400/20"
-                    style={{
-                      overflowWrap: "anywhere",
-                      wordBreak: "break-word",
-                    }}
-                  />
                 </div>
 
                 <CaptionStyleControls
@@ -1290,7 +1217,7 @@ export default function ShareYourStoryPage() {
                       className="max-h-[620px] w-full bg-black object-contain"
                     />
 
-                    {videoPreviewText && captionStyle !== "classic-caption" && (
+                    {previewText && captionStyle !== "classic-caption" && (
                       <CaptionTextOverlay
                         align={captionAlign}
                         color={captionColor}
@@ -1298,15 +1225,15 @@ export default function ShareYourStoryPage() {
                         position={captionPosition}
                         size={captionSize}
                         style={captionStyle}
-                        text={videoPreviewText}
+                        text={previewText}
                       />
                     )}
                   </div>
                 </div>
 
-                {videoPreviewText && captionStyle === "classic-caption" && (
+                {previewText && captionStyle === "classic-caption" && (
                   <p className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-slate-200 ring-1 ring-white/10">
-                    {videoPreviewText}
+                    {previewText}
                   </p>
                 )}
               </div>
@@ -1392,7 +1319,7 @@ function CaptionStyleControls({
             dark ? "text-white" : "text-[#062a57]"
           }`}
         >
-          1. Caption Style
+          1. Text Style
         </div>
 
         <div
