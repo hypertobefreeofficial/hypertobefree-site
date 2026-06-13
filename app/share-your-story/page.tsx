@@ -49,14 +49,15 @@ type CaptionStyle =
 type CaptionPosition = "top" | "center" | "bottom";
 type CaptionSize = "small" | "medium" | "large" | "extra-large";
 type CaptionAlign = "left" | "center" | "right";
-type CaptionColor =
+type CaptionColorPreset =
   | "white"
   | "black"
   | "soft-gold"
   | "prayer-blue"
   | "warm-cream"
   | "praise-green";
-type TextEditorPanel = "style" | "color" | "align" | "size";
+type CaptionColor = CaptionColorPreset | `#${string}`;
+type TextEditorPanel = "style" | "color" | "align" | "size" | "position";
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -157,15 +158,16 @@ const captionStyleOptions: {
 
 const captionColorOptions: {
   label: string;
-  value: CaptionColor;
+  value: CaptionColorPreset;
   swatchClass: string;
+  hex: `#${string}`;
 }[] = [
-  { label: "White", value: "white", swatchClass: "bg-white" },
-  { label: "Black", value: "black", swatchClass: "bg-slate-950" },
-  { label: "Prayer Blue", value: "prayer-blue", swatchClass: "bg-blue-200" },
-  { label: "Soft Gold", value: "soft-gold", swatchClass: "bg-amber-200" },
-  { label: "Warm Cream", value: "warm-cream", swatchClass: "bg-[#fff4d6]" },
-  { label: "Praise Green", value: "praise-green", swatchClass: "bg-emerald-200" },
+  { label: "White", value: "white", swatchClass: "bg-white", hex: "#ffffff" },
+  { label: "Black", value: "black", swatchClass: "bg-slate-950", hex: "#020617" },
+  { label: "Prayer Blue", value: "prayer-blue", swatchClass: "bg-blue-200", hex: "#bfdbfe" },
+  { label: "Soft Gold", value: "soft-gold", swatchClass: "bg-amber-200", hex: "#fde68a" },
+  { label: "Warm Cream", value: "warm-cream", swatchClass: "bg-[#fff4d6]", hex: "#fff4d6" },
+  { label: "Praise Green", value: "praise-green", swatchClass: "bg-emerald-200", hex: "#a7f3d0" },
 ];
 
 const captionAlignOptions: { label: string; value: CaptionAlign }[] = [
@@ -204,7 +206,7 @@ export default function ShareYourStoryPage() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [captionStyle, setCaptionStyle] =
     useState<CaptionStyle>("classic-caption");
-  // TODO: Persist caption color, size, position, and alignment when dedicated columns exist.
+  // TODO: Persist caption_color, caption size, position, and alignment when dedicated columns exist.
   const [captionColor, setCaptionColor] = useState<CaptionColor>("white");
   const [captionPosition, setCaptionPosition] =
     useState<CaptionPosition>("bottom");
@@ -720,9 +722,11 @@ export default function ShareYourStoryPage() {
   function renderMessageInput({
     label,
     placeholder,
+    rows = 8,
   }: {
     label: string;
     placeholder: string;
+    rows?: number;
   }) {
     return (
       <div className="w-full max-w-full overflow-hidden">
@@ -733,7 +737,7 @@ export default function ShareYourStoryPage() {
         <textarea
           value={storyText}
           onChange={(event) => setStoryText(event.target.value)}
-          rows={8}
+          rows={rows}
           placeholder={placeholder}
           className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
           style={{
@@ -754,6 +758,50 @@ export default function ShareYourStoryPage() {
             </button>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  function renderSafetyNotice() {
+    return (
+      <div className="rounded-[1.5rem] bg-amber-50 p-4 text-sm leading-6 text-amber-900 ring-1 ring-amber-100">
+        <div className="font-black">AI-assisted safety review</div>
+        <p className="mt-1">
+          Most low-risk posts can appear quickly. Posts that need a closer look
+          may go to admin review before appearing publicly.
+        </p>
+      </div>
+    );
+  }
+
+  function renderStatusMessage() {
+    if (!message) return null;
+
+    return (
+      <div className="rounded-[1.5rem] bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
+        {message}
+      </div>
+    );
+  }
+
+  function renderSubmitControls() {
+    return (
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <Link
+          href="/journey"
+          className="inline-flex items-center justify-center rounded-full bg-slate-100 px-6 py-4 text-base font-black text-slate-700 hover:bg-slate-200"
+        >
+          Not Yet
+        </Link>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-48"
+        >
+          {submitting ? "Submitting..." : "Submit for Review"}
+          <Send className="h-4 w-4" />
+        </button>
       </div>
     );
   }
@@ -1147,39 +1195,16 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            {shouldShowMessageInput &&
-              mediaMode === "video" &&
-              renderMessageInput({
-                label: "Video caption",
-                placeholder: "Add a short message for this video...",
-              })}
-
-            {hasSelectedVideo && (
-              <CaptionStyleControls
-                dark={false}
-                style={captionStyle}
-                onStyleChange={setCaptionStyle}
-                color={captionColor}
-                onColorChange={setCaptionColor}
-                position={captionPosition}
-                onPositionChange={setCaptionPosition}
-                size={captionSize}
-                onSizeChange={setCaptionSize}
-                align={captionAlign}
-                onAlignChange={setCaptionAlign}
-              />
-            )}
-
             {videoPreviewUrl && (
               <div className="w-full max-w-full overflow-hidden rounded-[1.75rem] bg-slate-950 p-4 text-white shadow-sm ring-1 ring-slate-800">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.16em] text-blue-200">
-                      Preview
+                      Edit your video message
                     </div>
                     <div className="mt-1 text-lg font-black">Video Story</div>
                     <p className="mt-1 text-sm leading-6 text-slate-300">
-                      Choose how your message should appear with this video.
+                      Type, style, and preview your message in one place.
                     </p>
                   </div>
 
@@ -1192,68 +1217,79 @@ export default function ShareYourStoryPage() {
                   </button>
                 </div>
 
-                <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
-                  <div className="relative bg-black">
-                    <video
-                      src={videoPreviewUrl}
-                      controls
-                      playsInline
-                      className="max-h-[620px] w-full bg-black object-contain"
-                    />
+                <div className="grid w-full max-w-full min-w-0 gap-4 overflow-hidden lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] lg:items-start">
+                  <div className="min-w-0 max-w-full lg:sticky lg:top-4">
+                    <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                      <div className="relative bg-black">
+                        <video
+                          src={videoPreviewUrl}
+                          controls
+                          playsInline
+                          className="max-h-[560px] w-full bg-black object-contain lg:max-h-[620px]"
+                        />
 
-                    {previewText && captionStyle !== "classic-caption" && (
-                      <CaptionTextOverlay
-                        align={captionAlign}
-                        color={captionColor}
-                        position={captionPosition}
-                        size={captionSize}
-                        style={captionStyle}
-                        text={previewText}
-                      />
+                        {previewText && captionStyle !== "classic-caption" && (
+                          <CaptionTextOverlay
+                            align={captionAlign}
+                            color={captionColor}
+                            position={captionPosition}
+                            size={captionSize}
+                            style={captionStyle}
+                            text={previewText}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {previewText && captionStyle === "classic-caption" && (
+                      <p
+                        className="mt-3 max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-slate-200 ring-1 ring-white/10"
+                        style={{
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {previewText}
+                      </p>
                     )}
                   </div>
+
+                  <div className="min-w-0 max-w-full space-y-4 overflow-hidden rounded-[1.5rem] bg-white p-4 text-slate-900 ring-1 ring-white/10">
+                    {renderMessageInput({
+                      label: "Video message",
+                      placeholder: "Add a short message for this video...",
+                      rows: 5,
+                    })}
+
+                    <CaptionStyleControls
+                      dark={false}
+                      style={captionStyle}
+                      onStyleChange={setCaptionStyle}
+                      color={captionColor}
+                      onColorChange={setCaptionColor}
+                      position={captionPosition}
+                      onPositionChange={setCaptionPosition}
+                      size={captionSize}
+                      onSizeChange={setCaptionSize}
+                      align={captionAlign}
+                      onAlignChange={setCaptionAlign}
+                    />
+
+                    {renderSafetyNotice()}
+                    {renderStatusMessage()}
+                    {renderSubmitControls()}
+                  </div>
                 </div>
-
-                {previewText && captionStyle === "classic-caption" && (
-                  <p className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-slate-200 ring-1 ring-white/10">
-                    {previewText}
-                  </p>
-                )}
-
               </div>
             )}
 
-            <div className="rounded-[1.5rem] bg-amber-50 p-4 text-sm leading-6 text-amber-900 ring-1 ring-amber-100">
-              <div className="font-black">AI-assisted safety review</div>
-              <p className="mt-1">
-                Most low-risk posts can appear quickly. Posts that need a closer
-                look may go to admin review before appearing publicly.
-              </p>
-            </div>
-
-            {message && (
-              <div className="rounded-[1.5rem] bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
-                {message}
-              </div>
+            {!hasSelectedVideo && (
+              <>
+                {renderSafetyNotice()}
+                {renderStatusMessage()}
+                {renderSubmitControls()}
+              </>
             )}
-
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <Link
-                href="/journey"
-                className="inline-flex items-center justify-center rounded-full bg-slate-100 px-6 py-4 text-base font-black text-slate-700 hover:bg-slate-200"
-              >
-                Not Yet
-              </Link>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-4 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-48"
-              >
-                {submitting ? "Submitting..." : "Submit for Review"}
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
           </form>
         </section>
       </div>
@@ -1291,6 +1327,10 @@ function CaptionStyleControls({
   const selectedStyleLabel =
     captionStyleOptions.find((option) => option.value === style)?.label ??
     "Classic";
+  const selectedColorOption = captionColorOptions.find(
+    (option) => option.value === color
+  );
+  const colorPickerValue = getCaptionColorPickerValue(color);
 
   return (
     <div
@@ -1317,7 +1357,7 @@ function CaptionStyleControls({
       </div>
 
       <div
-        className={`grid grid-cols-4 gap-1 rounded-full p-1 ${
+        className={`grid grid-cols-5 gap-1 rounded-full p-1 ${
           dark ? "bg-black/25" : "bg-white"
         }`}
       >
@@ -1336,9 +1376,13 @@ function CaptionStyleControls({
         >
           <span
             className={`h-4 w-4 rounded-full ring-1 ring-black/10 ${
-              captionColorOptions.find((option) => option.value === color)
-                ?.swatchClass ?? "bg-white"
+              selectedColorOption?.swatchClass ?? ""
             }`}
+            style={
+              selectedColorOption
+                ? undefined
+                : { backgroundColor: colorPickerValue }
+            }
           />
         </ToolbarButton>
         <ToolbarButton
@@ -1354,6 +1398,13 @@ function CaptionStyleControls({
           label={size === "extra-large" ? "XL" : "Tt"}
           onClick={() => setActivePanel("size")}
           title="Text size"
+        />
+        <ToolbarButton
+          active={activePanel === "position"}
+          dark={dark}
+          label="↕"
+          onClick={() => setActivePanel("position")}
+          title="Text position"
         />
       </div>
 
@@ -1386,7 +1437,7 @@ function CaptionStyleControls({
         )}
 
         {activePanel === "color" && (
-          <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-full max-w-full items-center gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {captionColorOptions.map((option) => {
               const selected = color === option.value;
 
@@ -1411,6 +1462,29 @@ function CaptionStyleControls({
                 </button>
               );
             })}
+
+            <label
+              className={`flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full px-2.5 text-xs font-black ring-1 transition ${
+                selectedColorOption
+                  ? dark
+                    ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                    : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
+                  : dark
+                    ? "bg-white text-[#082f63] ring-white"
+                    : "bg-[#0b63ce] text-white ring-[#0b63ce]"
+              }`}
+            >
+              Custom
+              <input
+                type="color"
+                value={colorPickerValue}
+                onChange={(event) =>
+                  onColorChange(event.target.value as CaptionColor)
+                }
+                className="h-6 w-6 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                aria-label="Choose custom text color"
+              />
+            </label>
           </div>
         )}
 
@@ -1449,32 +1523,24 @@ function CaptionStyleControls({
             ))}
           </div>
         )}
-      </div>
 
-      <div className="mt-3 min-w-0 max-w-full overflow-hidden">
-        <div
-          className={`mb-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${
-            dark ? "text-slate-300" : "text-slate-500"
-          }`}
-        >
-          Position
-        </div>
-
-        <div
-          className={`grid grid-cols-3 gap-1 rounded-full p-1 ${
-            dark ? "bg-black/20" : "bg-white"
-          }`}
-        >
-          {captionPositionOptions.map((option) => (
-            <ToolbarChip
-              key={option.value}
-              active={position === option.value}
-              dark={dark}
-              label={option.label}
-              onClick={() => onPositionChange(option.value)}
-            />
-          ))}
-        </div>
+        {activePanel === "position" && (
+          <div
+            className={`grid w-full max-w-full grid-cols-3 gap-1 rounded-full p-1 ${
+              dark ? "bg-black/20" : "bg-white/70"
+            }`}
+          >
+            {captionPositionOptions.map((option) => (
+              <ToolbarChip
+                key={option.value}
+                active={position === option.value}
+                dark={dark}
+                label={option.label}
+                onClick={() => onPositionChange(option.value)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1562,6 +1628,7 @@ function CaptionTextOverlay({
   const alignClass = getCaptionAlignClass(align);
   const styleClass = getCaptionStyleClass(style);
   const colorClass = getCaptionColorClass(color);
+  const inlineColor = getCaptionInlineColor(color);
   const textShadow = getCaptionTextShadow(color);
   const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
@@ -1571,6 +1638,7 @@ function CaptionTextOverlay({
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
+        color: inlineColor,
         textShadow,
       }}
     >
@@ -1631,7 +1699,23 @@ function getCaptionStyleClass(style: CaptionStyle) {
   return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
 }
 
+function getCaptionColorPickerValue(color: CaptionColor): `#${string}` {
+  if (color.startsWith("#")) return color as `#${string}`;
+
+  return (
+    captionColorOptions.find((option) => option.value === color)?.hex ??
+    "#ffffff"
+  );
+}
+
+function getCaptionInlineColor(color: CaptionColor) {
+  if (color.startsWith("#")) return color;
+
+  return undefined;
+}
+
 function getCaptionColorClass(color: CaptionColor) {
+  if (color.startsWith("#")) return "";
   if (color === "black") return "!text-slate-950";
   if (color === "soft-gold") return "!text-amber-200";
   if (color === "prayer-blue") return "!text-blue-200";
@@ -1641,11 +1725,22 @@ function getCaptionColorClass(color: CaptionColor) {
 }
 
 function getCaptionTextShadow(color: CaptionColor) {
-  if (color === "black") {
+  if (color === "black" || isDarkCaptionColor(color)) {
     return "0 1px 10px rgba(255,255,255,0.72)";
   }
 
   return "0 2px 12px rgba(0,0,0,0.62)";
+}
+
+function isDarkCaptionColor(color: CaptionColor) {
+  if (!color.startsWith("#") || color.length !== 7) return false;
+
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return brightness < 100;
 }
 
 
