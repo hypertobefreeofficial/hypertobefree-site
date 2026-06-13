@@ -40,6 +40,20 @@ type CaptionStyle =
   | "minimal-white"
   | "black-outline"
   | "soft-gradient";
+type CaptionFont =
+  | "htbf-clean"
+  | "bold-testimony"
+  | "soft-scripture"
+  | "praise-handwritten"
+  | "modern-serif";
+type CaptionColor =
+  | "white"
+  | "deep-navy"
+  | "soft-gold"
+  | "prayer-blue"
+  | "warm-cream"
+  | "praise-green";
+type CaptionSize = "small" | "medium" | "large" | "extra-large";
 
 type ReportReason =
   | "inappropriate"
@@ -1940,22 +1954,34 @@ function VideoInfoOverlay({
 }
 
 function VideoCaptionStyleOverlay({
+  color,
+  font,
+  size,
   style,
   text,
 }: {
+  color?: CaptionColor;
+  font?: CaptionFont;
+  size?: CaptionSize;
   style: CaptionStyle;
   text: string;
 }) {
+  // TODO: Pass caption_font, caption_color, and caption_size from stories when those columns exist.
   const positionClass = getVideoCaptionPositionClass(style);
   const styleClass = getVideoCaptionStyleClass(style);
+  const fontClass = font ? getVideoCaptionFontClass(font) : "";
+  const colorClass = color ? getVideoCaptionColorClass(color) : "";
+  const sizeClass = getVideoCaptionSizeClass(size);
+  const textShadow = color ? getVideoCaptionTextShadow(color) : undefined;
   const quoteText = style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 text-sm leading-snug shadow-lg sm:max-h-44 sm:text-base md:w-[min(64vw,560px)] ${positionClass} ${styleClass}`}
+      className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 md:w-[min(64vw,560px)] ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass}`}
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
+        textShadow,
       }}
     >
       {quoteText}
@@ -2008,6 +2034,40 @@ function getVideoCaptionStyleClass(style: CaptionStyle) {
     return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
   }
   return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
+}
+
+function getVideoCaptionFontClass(font: CaptionFont) {
+  if (font === "bold-testimony") return "font-sans font-black tracking-tight";
+  if (font === "soft-scripture") return "font-serif font-semibold italic";
+  if (font === "praise-handwritten") {
+    return "font-serif font-black italic tracking-wide";
+  }
+  if (font === "modern-serif") return "font-serif font-bold";
+  return "font-sans font-semibold";
+}
+
+function getVideoCaptionColorClass(color: CaptionColor) {
+  if (color === "deep-navy") return "!text-[#062a57]";
+  if (color === "soft-gold") return "!text-amber-200";
+  if (color === "prayer-blue") return "!text-blue-200";
+  if (color === "warm-cream") return "!text-[#fff4d6]";
+  if (color === "praise-green") return "!text-emerald-200";
+  return "!text-white";
+}
+
+function getVideoCaptionSizeClass(size?: CaptionSize) {
+  if (size === "small") return "text-xs sm:text-sm";
+  if (size === "large") return "text-base sm:text-xl";
+  if (size === "extra-large") return "text-xl sm:text-3xl";
+  return "text-sm sm:text-base";
+}
+
+function getVideoCaptionTextShadow(color: CaptionColor) {
+  if (color === "deep-navy") {
+    return "0 1px 10px rgba(255,255,255,0.72)";
+  }
+
+  return "0 2px 12px rgba(0,0,0,0.62)";
 }
 
 function VideoActionButton({
