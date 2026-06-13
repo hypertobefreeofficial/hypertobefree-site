@@ -1089,7 +1089,7 @@ export default function FreedomFeed({
                     <button
                       type="button"
                       onClick={() => openVideoStory(story.id)}
-                      className="relative block w-full overflow-hidden bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200"
+                      className="relative block max-h-[60vh] w-full overflow-hidden bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:max-h-[560px]"
                       aria-label="Open video in Video Feed"
                     >
                       <video
@@ -1098,7 +1098,7 @@ export default function FreedomFeed({
                         loop
                         playsInline
                         preload="metadata"
-                        className="pointer-events-none block h-auto w-full max-w-full bg-black"
+                        className="pointer-events-none block max-h-[60vh] w-full max-w-full bg-black object-contain md:max-h-[560px]"
                         src={story.signed_video_url}
                       >
                         Your browser does not support the video tag.
