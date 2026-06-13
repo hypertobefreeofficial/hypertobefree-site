@@ -1295,7 +1295,6 @@ function AutoPlayReelVideo({
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const backdropVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const [paused, setPaused] = useState(true);
   const [userPaused, setUserPaused] = useState(false);
@@ -1310,17 +1309,10 @@ function AutoPlayReelVideo({
 
   useEffect(() => {
     const video = videoRef.current;
-    const backdropVideo = backdropVideoRef.current;
 
-    if (!video && !backdropVideo) return;
+    if (!video) return;
 
-    if (video) {
-      video.playbackRate = playbackRate;
-    }
-
-    if (backdropVideo) {
-      backdropVideo.playbackRate = playbackRate;
-    }
+    video.playbackRate = playbackRate;
   }, [playbackRate]);
 
   useEffect(() => {
@@ -1350,19 +1342,12 @@ function AutoPlayReelVideo({
   useEffect(() => {
     const wrapper = wrapperRef.current;
     const video = videoRef.current;
-    const backdropVideo = backdropVideoRef.current;
 
     if (!wrapper || !video || !shouldLoadVideo) return;
 
     video.muted = !soundOn;
     video.playsInline = true;
     video.playbackRate = playbackRate;
-
-    if (backdropVideo) {
-      backdropVideo.muted = true;
-      backdropVideo.playsInline = true;
-      backdropVideo.playbackRate = playbackRate;
-    }
 
     const playObserver = new IntersectionObserver(
       ([entry]) => {
@@ -1379,7 +1364,6 @@ function AutoPlayReelVideo({
             video
               .play()
               .then(() => {
-                void backdropVideo?.play();
                 setPaused(false);
               })
               .catch(() => {
@@ -1389,7 +1373,6 @@ function AutoPlayReelVideo({
                 video
                   .play()
                   .then(() => {
-                    void backdropVideo?.play();
                     setPaused(false);
                   })
                   .catch(() => setPaused(true));
@@ -1397,7 +1380,6 @@ function AutoPlayReelVideo({
           }
         } else {
           video.pause();
-          backdropVideo?.pause();
           setPaused(true);
         }
       },
@@ -1411,7 +1393,6 @@ function AutoPlayReelVideo({
     return () => {
       playObserver.disconnect();
       video.pause();
-      backdropVideo?.pause();
     };
   }, [
     videoUrl,
@@ -1566,7 +1547,6 @@ function AutoPlayReelVideo({
 
   function playVideo() {
     const video = videoRef.current;
-    const backdropVideo = backdropVideoRef.current;
 
     if (!video) return;
 
@@ -1576,7 +1556,6 @@ function AutoPlayReelVideo({
     video
       .play()
       .then(() => {
-        void backdropVideo?.play();
         setPaused(false);
         setUserPaused(false);
       })
@@ -1587,7 +1566,6 @@ function AutoPlayReelVideo({
         video
           .play()
           .then(() => {
-            void backdropVideo?.play();
             setPaused(false);
             setUserPaused(false);
           })
@@ -1597,12 +1575,10 @@ function AutoPlayReelVideo({
 
   function pauseVideo(userIntent = true) {
     const video = videoRef.current;
-    const backdropVideo = backdropVideoRef.current;
 
     if (!video) return;
 
     video.pause();
-    backdropVideo?.pause();
     setPaused(true);
 
     if (userIntent) {
@@ -1687,37 +1663,22 @@ function AutoPlayReelVideo({
       onMouseLeave={releaseHoldPause}
     >
       {shouldLoadVideo ? (
-        <>
-          <video
-            ref={backdropVideoRef}
-            aria-hidden="true"
-            key={`backdrop-${videoUrl}`}
-            src={videoUrl}
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            className="pointer-events-none absolute inset-0 hidden h-full w-full scale-110 object-cover opacity-35 blur-2xl md:block"
-            tabIndex={-1}
-          />
-          <div className="pointer-events-none absolute inset-0 hidden bg-black/35 md:block" />
-          <video
-            ref={videoRef}
-            key={videoUrl}
-            src={videoUrl}
-            muted={!soundOn}
-            loop
-            playsInline
-            preload="metadata"
-            className="relative z-10 h-full w-full bg-black object-cover transition-transform duration-150 ease-out will-change-transform md:bg-transparent md:object-contain"
-            style={{
-              transform: `scale(${zoomScale})`,
-              transformOrigin: "center center",
-            }}
-            onPlay={() => setPaused(false)}
-            onPause={() => setPaused(true)}
-          />
-        </>
+        <video
+          ref={videoRef}
+          key={videoUrl}
+          src={videoUrl}
+          muted={!soundOn}
+          loop
+          playsInline
+          preload="metadata"
+          className="h-full w-full bg-black object-cover object-center transition-transform duration-150 ease-out will-change-transform md:mx-auto md:w-[min(100vw,78dvh)] md:max-w-full lg:w-[min(100vw,84dvh)]"
+          style={{
+            transform: `scale(${zoomScale})`,
+            transformOrigin: "center center",
+          }}
+          onPlay={() => setPaused(false)}
+          onPause={() => setPaused(true)}
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
           {copy.loadingVideo}
