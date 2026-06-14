@@ -83,11 +83,14 @@ type CaptionTemplate =
   | "quiet-strength"
   | "celebration-praise";
 type VideoTemplate =
-  | "freedom"
-  | "testimony"
-  | "prayer_circle"
-  | "revival"
-  | "kingdom";
+  | "none"
+  | "htbf-logo"
+  | "freedom-silhouette"
+  | "shared-through-htbf"
+  | "freedom-story"
+  | "prayer-moment"
+  | "praise-report"
+  | "god-did-it";
 
 type ReportReason =
   | "inappropriate"
@@ -782,16 +785,25 @@ export default function VideoFeedPage() {
 
   function getVideoTemplate(value: string | null | undefined): VideoTemplate {
     if (
-      value === "freedom" ||
-      value === "testimony" ||
-      value === "prayer_circle" ||
-      value === "revival" ||
-      value === "kingdom"
+      value === "none" ||
+      value === "htbf-logo" ||
+      value === "freedom-silhouette" ||
+      value === "shared-through-htbf" ||
+      value === "freedom-story" ||
+      value === "prayer-moment" ||
+      value === "praise-report" ||
+      value === "god-did-it"
     ) {
       return value;
     }
 
-    return "freedom";
+    if (value === "freedom") return "freedom-story";
+    if (value === "testimony") return "shared-through-htbf";
+    if (value === "prayer_circle") return "prayer-moment";
+    if (value === "revival") return "praise-report";
+    if (value === "kingdom") return "htbf-logo";
+
+    return "none";
   }
 
   function readNumber(value: unknown): number | null {
@@ -1327,9 +1339,6 @@ export default function VideoFeedPage() {
               >
                 <AutoPlayReelVideo
                   videoUrl={story.signed_video_url}
-                  htbfWatermarkEnabled={story.htbf_watermark_enabled}
-                  sharedHtbfIntroEnabled={story.shared_htbf_intro_enabled}
-                  silhouetteWatermarkEnabled={story.silhouette_watermark_enabled}
                   template={story.video_template}
                   soundOn={soundOn}
                   onSoundChange={setSoundOn}
@@ -1885,9 +1894,6 @@ function VideoOptionsMenu({
 
 function AutoPlayReelVideo({
   videoUrl,
-  htbfWatermarkEnabled,
-  sharedHtbfIntroEnabled,
-  silhouetteWatermarkEnabled,
   template,
   soundOn,
   onSoundChange,
@@ -1900,9 +1906,6 @@ function AutoPlayReelVideo({
   copy,
 }: {
   videoUrl: string;
-  htbfWatermarkEnabled: boolean;
-  sharedHtbfIntroEnabled: boolean;
-  silhouetteWatermarkEnabled: boolean;
   template: VideoTemplate;
   soundOn: boolean;
   onSoundChange: (nextValue: boolean) => void;
@@ -1921,9 +1924,6 @@ function AutoPlayReelVideo({
   const [userPaused, setUserPaused] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
   const [shouldLoadVideo, setShouldLoadVideo] = useState(eagerLoad);
-  const [showSharedIntro, setShowSharedIntro] = useState(
-    sharedHtbfIntroEnabled
-  );
 
   const pinchStartDistanceRef = useRef<number | null>(null);
   const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1941,21 +1941,6 @@ function AutoPlayReelVideo({
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!sharedHtbfIntroEnabled) {
-      setShowSharedIntro(false);
-      return;
-    }
-
-    setShowSharedIntro(true);
-
-    const timer = setTimeout(() => {
-      setShowSharedIntro(false);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [sharedHtbfIntroEnabled, videoUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -2414,12 +2399,7 @@ function AutoPlayReelVideo({
         </div>
       )}
 
-      <VideoTemplatePresentationLayer
-        htbfWatermarkEnabled={htbfWatermarkEnabled}
-        sharedHtbfIntroEnabled={showSharedIntro && !audioTestimonyMode}
-        silhouetteWatermarkEnabled={silhouetteWatermarkEnabled}
-        template={template}
-      />
+      <VideoMediaStampLayer stamp={template} />
 
       {!beStillMode && paused && (
         <div className="absolute inset-0 z-40 flex items-center justify-center">
@@ -2474,97 +2454,71 @@ function AutoPlayReelVideo({
   );
 }
 
-function VideoTemplatePresentationLayer({
-  htbfWatermarkEnabled,
-  sharedHtbfIntroEnabled,
-  silhouetteWatermarkEnabled,
-  template,
+function VideoMediaStampLayer({ stamp }: { stamp: VideoTemplate }) {
+  if (stamp === "none") return null;
+
+  return (
+    <>
+      {stamp === "htbf-logo" && (
+        <img
+          src="/images/htbf-logo.png"
+          alt=""
+          className="pointer-events-none absolute right-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[3] h-11 w-11 rounded-full object-contain opacity-65 drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)]"
+        />
+      )}
+      {stamp === "freedom-silhouette" && (
+        <img
+          src="/images/hero-freedom.png"
+          alt=""
+          className="pointer-events-none absolute bottom-[calc(9rem+env(safe-area-inset-bottom))] right-8 z-[3] h-28 w-20 object-contain opacity-20 mix-blend-screen"
+        />
+      )}
+      {stamp === "shared-through-htbf" && (
+        <VideoTextStamp
+          className="left-5 top-[calc(4.5rem+env(safe-area-inset-top))] bg-black/35 text-white/70 ring-white/20"
+          label="Shared Through HTBF"
+        />
+      )}
+      {stamp === "freedom-story" && (
+        <VideoTextStamp
+          className="bottom-[calc(9rem+env(safe-area-inset-bottom))] left-5"
+          label="Freedom Story"
+        />
+      )}
+      {stamp === "prayer-moment" && (
+        <VideoTextStamp
+          className="left-5 top-[calc(4.5rem+env(safe-area-inset-top))] bg-blue-950/45 text-blue-50/80 ring-blue-100/20"
+          label="Prayer Moment"
+        />
+      )}
+      {stamp === "praise-report" && (
+        <VideoTextStamp
+          className="right-5 top-[calc(4.5rem+env(safe-area-inset-top))] bg-amber-300/20 text-amber-50/85 ring-amber-100/25"
+          label="Praise Report"
+        />
+      )}
+      {stamp === "god-did-it" && (
+        <VideoTextStamp
+          className="bottom-[calc(9rem+env(safe-area-inset-bottom))] right-5 bg-emerald-300/20 text-emerald-50/85 ring-emerald-100/25"
+          label="God Did It"
+        />
+      )}
+    </>
+  );
+}
+
+function VideoTextStamp({
+  className,
+  label,
 }: {
-  htbfWatermarkEnabled: boolean;
-  sharedHtbfIntroEnabled: boolean;
-  silhouetteWatermarkEnabled: boolean;
-  template: VideoTemplate;
+  className: string;
+  label: string;
 }) {
   return (
-    <>
-      <VideoTemplateEffects template={template} />
-      {htbfWatermarkEnabled && <VideoHtbfWatermark />}
-      {silhouetteWatermarkEnabled && <VideoSilhouetteWatermark />}
-      {sharedHtbfIntroEnabled && <VideoSharedIntroOverlay />}
-    </>
-  );
-}
-
-function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
-  if (template === "freedom") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.34),transparent_36%),linear-gradient(180deg,rgba(251,191,36,0.2),transparent_46%,rgba(255,255,255,0.12))]" />
-        <div className="pointer-events-none absolute right-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[2] text-4xl text-white/20 [text-shadow:0_0_24px_rgba(255,255,255,0.72)]">
-          🕊
-        </div>
-      </>
-    );
-  }
-
-  if (template === "prayer_circle") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.26),transparent_38%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(8,47,99,0.34))]" />
-        <div className="pointer-events-none absolute inset-x-8 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-[2] h-px bg-gradient-to-r from-transparent via-blue-200/40 to-transparent" />
-      </>
-    );
-  }
-
-  if (template === "revival") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_22%_18%,rgba(252,211,77,0.32),transparent_28%),radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.2),transparent_24%),linear-gradient(180deg,rgba(251,191,36,0.16),transparent_52%,rgba(245,158,11,0.2))]" />
-        <div className="pointer-events-none absolute left-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[2] h-2 w-2 rounded-full bg-amber-200/70 shadow-[34px_26px_0_rgba(255,255,255,0.44),82px_-4px_0_rgba(253,230,138,0.5),138px_34px_0_rgba(255,255,255,0.36)]" />
-      </>
-    );
-  }
-
-  if (template === "kingdom") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_18%,rgba(255,244,214,0.22),transparent_34%),linear-gradient(180deg,rgba(8,47,99,0.18),transparent_45%,rgba(120,53,15,0.18))]" />
-        <div className="pointer-events-none absolute inset-x-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[2] rounded-[1.25rem] border border-[#fff4d6]/25 shadow-[0_0_28px_rgba(255,244,214,0.14)]" />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_42%,rgba(15,23,42,0.22))]" />
-      <div className="pointer-events-none absolute inset-x-8 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-[2] h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-    </>
-  );
-}
-
-function VideoHtbfWatermark() {
-  return (
-    <div className="pointer-events-none absolute left-1/2 top-[calc(1rem+env(safe-area-inset-top))] z-[3] -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black tracking-[0.18em] text-white/35 ring-1 ring-white/15 backdrop-blur-sm">
-      HTBF
-    </div>
-  );
-}
-
-function VideoSilhouetteWatermark() {
-  return (
-    <div className="pointer-events-none absolute bottom-[calc(9rem+env(safe-area-inset-bottom))] right-8 z-[3] h-28 w-20 opacity-[0.08]">
-      <div className="mx-auto h-9 w-9 rounded-full bg-white" />
-      <div className="mt-1 h-16 rounded-t-full bg-white" />
-    </div>
-  );
-}
-
-function VideoSharedIntroOverlay() {
-  return (
-    <div className="pointer-events-none absolute inset-0 z-[35] flex items-center justify-center bg-black/24">
-      <div className="rounded-full bg-white/15 px-5 py-2 text-xs font-black uppercase tracking-[0.22em] text-white/75 ring-1 ring-white/25 backdrop-blur-md">
-        Shared Through HTBF
-      </div>
+    <div
+      className={`pointer-events-none absolute z-[3] rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ring-1 backdrop-blur-sm ${className}`}
+    >
+      {label}
     </div>
   );
 }
