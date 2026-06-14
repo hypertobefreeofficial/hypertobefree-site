@@ -76,6 +76,12 @@ type CaptionTemplate =
   | "freedom-glow"
   | "quiet-strength"
   | "celebration-praise";
+type VideoTemplate =
+  | "freedom"
+  | "testimony"
+  | "prayer_circle"
+  | "revival"
+  | "kingdom";
 
 type ReportReason =
   | "inappropriate"
@@ -105,6 +111,10 @@ type StoryRow = {
   caption_color: CaptionColor;
   caption_size: CaptionSize;
   caption_align: CaptionAlign;
+  video_template: VideoTemplate;
+  htbf_watermark_enabled: boolean;
+  silhouette_watermark_enabled: boolean;
+  shared_htbf_intro_enabled: boolean;
   video_url: string | null;
   status: string | null;
   created_at: string | null;
@@ -707,6 +717,20 @@ export default function VideoFeedPage() {
     return null;
   }
 
+  function getVideoTemplate(value: string | null | undefined): VideoTemplate {
+    if (
+      value === "freedom" ||
+      value === "testimony" ||
+      value === "prayer_circle" ||
+      value === "revival" ||
+      value === "kingdom"
+    ) {
+      return value;
+    }
+
+    return "freedom";
+  }
+
   function readNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
@@ -724,7 +748,7 @@ export default function VideoFeedPage() {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .not("video_url", "is", null)
@@ -815,6 +839,12 @@ export default function VideoFeedPage() {
           caption_color: getCaptionColor(story.caption_color),
           caption_size: getCaptionSize(story.caption_size),
           caption_align: getCaptionAlign(story.caption_align),
+          video_template: getVideoTemplate(story.video_template),
+          htbf_watermark_enabled: story.htbf_watermark_enabled !== false,
+          silhouette_watermark_enabled:
+            story.silhouette_watermark_enabled === true,
+          shared_htbf_intro_enabled:
+            story.shared_htbf_intro_enabled === true,
           overlay_text: story.overlay_text ?? null,
           overlay_x: readNumber(story.overlay_x),
           overlay_y: readNumber(story.overlay_y),
@@ -1200,6 +1230,10 @@ export default function VideoFeedPage() {
               >
                 <AutoPlayReelVideo
                   videoUrl={story.signed_video_url}
+                  htbfWatermarkEnabled={story.htbf_watermark_enabled}
+                  sharedHtbfIntroEnabled={story.shared_htbf_intro_enabled}
+                  silhouetteWatermarkEnabled={story.silhouette_watermark_enabled}
+                  template={story.video_template}
                   soundOn={soundOn}
                   onSoundChange={setSoundOn}
                   eagerLoad={index === 0}
@@ -1714,6 +1748,10 @@ function VideoOptionsMenu({
 
 function AutoPlayReelVideo({
   videoUrl,
+  htbfWatermarkEnabled,
+  sharedHtbfIntroEnabled,
+  silhouetteWatermarkEnabled,
+  template,
   soundOn,
   onSoundChange,
   eagerLoad,
@@ -1722,6 +1760,10 @@ function AutoPlayReelVideo({
   copy,
 }: {
   videoUrl: string;
+  htbfWatermarkEnabled: boolean;
+  sharedHtbfIntroEnabled: boolean;
+  silhouetteWatermarkEnabled: boolean;
+  template: VideoTemplate;
   soundOn: boolean;
   onSoundChange: (nextValue: boolean) => void;
   eagerLoad: boolean;
@@ -1736,12 +1778,30 @@ function AutoPlayReelVideo({
   const [userPaused, setUserPaused] = useState(false);
   const [zoomScale, setZoomScale] = useState(1);
   const [shouldLoadVideo, setShouldLoadVideo] = useState(eagerLoad);
+  const [showSharedIntro, setShowSharedIntro] = useState(
+    sharedHtbfIntroEnabled
+  );
 
   const pinchStartDistanceRef = useRef<number | null>(null);
   const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdPausedRef = useRef(false);
   const pointerInsideRef = useRef(false);
+
+  useEffect(() => {
+    if (!sharedHtbfIntroEnabled) {
+      setShowSharedIntro(false);
+      return;
+    }
+
+    setShowSharedIntro(true);
+
+    const timer = setTimeout(() => {
+      setShowSharedIntro(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [sharedHtbfIntroEnabled, videoUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -2121,6 +2181,13 @@ function AutoPlayReelVideo({
         </div>
       )}
 
+      <VideoTemplatePresentationLayer
+        htbfWatermarkEnabled={htbfWatermarkEnabled}
+        sharedHtbfIntroEnabled={showSharedIntro}
+        silhouetteWatermarkEnabled={silhouetteWatermarkEnabled}
+        template={template}
+      />
+
       {!beStillMode && paused && (
         <div className="absolute inset-0 z-40 flex items-center justify-center">
           <div className="flex items-center gap-4 rounded-full bg-black/45 px-5 py-4 backdrop-blur-md">
@@ -2166,6 +2233,101 @@ function AutoPlayReelVideo({
           {copy.zoom} {zoomScale.toFixed(1)}x
         </div>
       )}
+    </div>
+  );
+}
+
+function VideoTemplatePresentationLayer({
+  htbfWatermarkEnabled,
+  sharedHtbfIntroEnabled,
+  silhouetteWatermarkEnabled,
+  template,
+}: {
+  htbfWatermarkEnabled: boolean;
+  sharedHtbfIntroEnabled: boolean;
+  silhouetteWatermarkEnabled: boolean;
+  template: VideoTemplate;
+}) {
+  return (
+    <>
+      <VideoTemplateEffects template={template} />
+      {htbfWatermarkEnabled && <VideoHtbfWatermark />}
+      {silhouetteWatermarkEnabled && <VideoSilhouetteWatermark />}
+      {sharedHtbfIntroEnabled && <VideoSharedIntroOverlay />}
+    </>
+  );
+}
+
+function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
+  if (template === "freedom") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.34),transparent_36%),linear-gradient(180deg,rgba(251,191,36,0.2),transparent_46%,rgba(255,255,255,0.12))]" />
+        <div className="pointer-events-none absolute right-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[2] text-4xl text-white/20 [text-shadow:0_0_24px_rgba(255,255,255,0.72)]">
+          🕊
+        </div>
+      </>
+    );
+  }
+
+  if (template === "prayer_circle") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.26),transparent_38%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(8,47,99,0.34))]" />
+        <div className="pointer-events-none absolute inset-x-8 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-[2] h-px bg-gradient-to-r from-transparent via-blue-200/40 to-transparent" />
+      </>
+    );
+  }
+
+  if (template === "revival") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_22%_18%,rgba(252,211,77,0.32),transparent_28%),radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.2),transparent_24%),linear-gradient(180deg,rgba(251,191,36,0.16),transparent_52%,rgba(245,158,11,0.2))]" />
+        <div className="pointer-events-none absolute left-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[2] h-2 w-2 rounded-full bg-amber-200/70 shadow-[34px_26px_0_rgba(255,255,255,0.44),82px_-4px_0_rgba(253,230,138,0.5),138px_34px_0_rgba(255,255,255,0.36)]" />
+      </>
+    );
+  }
+
+  if (template === "kingdom") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_18%,rgba(255,244,214,0.22),transparent_34%),linear-gradient(180deg,rgba(8,47,99,0.18),transparent_45%,rgba(120,53,15,0.18))]" />
+        <div className="pointer-events-none absolute inset-x-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[2] rounded-[1.25rem] border border-[#fff4d6]/25 shadow-[0_0_28px_rgba(255,244,214,0.14)]" />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_42%,rgba(15,23,42,0.22))]" />
+      <div className="pointer-events-none absolute inset-x-8 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-[2] h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+    </>
+  );
+}
+
+function VideoHtbfWatermark() {
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-[calc(1rem+env(safe-area-inset-top))] z-[3] -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-[10px] font-black tracking-[0.18em] text-white/35 ring-1 ring-white/15 backdrop-blur-sm">
+      HTBF
+    </div>
+  );
+}
+
+function VideoSilhouetteWatermark() {
+  return (
+    <div className="pointer-events-none absolute bottom-[calc(9rem+env(safe-area-inset-bottom))] right-8 z-[3] h-28 w-20 opacity-[0.08]">
+      <div className="mx-auto h-9 w-9 rounded-full bg-white" />
+      <div className="mt-1 h-16 rounded-t-full bg-white" />
+    </div>
+  );
+}
+
+function VideoSharedIntroOverlay() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[35] flex items-center justify-center bg-black/24">
+      <div className="rounded-full bg-white/15 px-5 py-2 text-xs font-black uppercase tracking-[0.22em] text-white/75 ring-1 ring-white/25 backdrop-blur-md">
+        Shared Through HTBF
+      </div>
     </div>
   );
 }
