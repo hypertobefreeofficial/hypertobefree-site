@@ -83,11 +83,14 @@ type CaptionTemplate =
   | "quiet-strength"
   | "celebration-praise";
 type VideoTemplate =
-  | "freedom"
-  | "testimony"
-  | "prayer_circle"
-  | "revival"
-  | "kingdom";
+  | "none"
+  | "htbf-logo"
+  | "freedom-silhouette"
+  | "shared-through-htbf"
+  | "freedom-story"
+  | "prayer-moment"
+  | "praise-report"
+  | "god-did-it";
 
 type ReactionRow = {
   story_id: string | null;
@@ -431,16 +434,25 @@ export default function FreedomFeed({
 
   function getVideoTemplate(value: string | null | undefined): VideoTemplate {
     if (
-      value === "freedom" ||
-      value === "testimony" ||
-      value === "prayer_circle" ||
-      value === "revival" ||
-      value === "kingdom"
+      value === "none" ||
+      value === "htbf-logo" ||
+      value === "freedom-silhouette" ||
+      value === "shared-through-htbf" ||
+      value === "freedom-story" ||
+      value === "prayer-moment" ||
+      value === "praise-report" ||
+      value === "god-did-it"
     ) {
       return value;
     }
 
-    return "freedom";
+    if (value === "freedom") return "freedom-story";
+    if (value === "testimony") return "shared-through-htbf";
+    if (value === "prayer_circle") return "prayer-moment";
+    if (value === "revival") return "praise-report";
+    if (value === "kingdom") return "htbf-logo";
+
+    return "none";
   }
 
   function readNumber(value: unknown): number | null {
@@ -1266,6 +1278,8 @@ export default function FreedomFeed({
                             className="block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
                           />
 
+                          <FeedMediaStampLayer stamp={story.video_template} />
+
                           {story.story_text &&
                             captionStyle !== "classic-caption" && (
                               <FeedCaptionOverlay
@@ -1291,9 +1305,7 @@ export default function FreedomFeed({
                     <button
                       type="button"
                       onClick={() => openVideoStory(story.id)}
-                      className={`relative block aspect-[4/5] max-h-[60vh] w-full overflow-hidden rounded-[1.5rem] text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px] ${getFeedVideoTemplateCanvasClass(
-                        story.video_template
-                      )}`}
+                      className="relative block aspect-[4/5] max-h-[60vh] w-full overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
                       aria-label="Open video in Video Feed"
                     >
                       <video
@@ -1312,14 +1324,7 @@ export default function FreedomFeed({
                         Your browser does not support the video tag.
                       </video>
 
-                      <FeedVideoTemplateLayer
-                        htbfWatermarkEnabled={story.htbf_watermark_enabled}
-                        sharedHtbfIntroEnabled={story.shared_htbf_intro_enabled}
-                        silhouetteWatermarkEnabled={
-                          story.silhouette_watermark_enabled
-                        }
-                        template={story.video_template}
-                      />
+                      <FeedMediaStampLayer stamp={story.video_template} />
 
                       {overlayText && (
                         <FeedCaptionOverlay
@@ -2013,114 +2018,73 @@ function CollapsibleStoryText({
   );
 }
 
-function FeedVideoTemplateLayer({
-  htbfWatermarkEnabled,
-  sharedHtbfIntroEnabled,
-  silhouetteWatermarkEnabled,
-  template,
+function FeedMediaStampLayer({ stamp }: { stamp: VideoTemplate }) {
+  if (stamp === "none") return null;
+
+  return (
+    <>
+      {stamp === "htbf-logo" && (
+        <img
+          src="/images/htbf-logo.png"
+          alt=""
+          className="pointer-events-none absolute right-4 top-4 z-[3] h-9 w-9 rounded-full object-contain opacity-65 drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)]"
+        />
+      )}
+      {stamp === "freedom-silhouette" && (
+        <img
+          src="/images/hero-freedom.png"
+          alt=""
+          className="pointer-events-none absolute bottom-16 right-4 z-[3] h-20 w-16 object-contain opacity-20 mix-blend-screen"
+        />
+      )}
+      {stamp === "shared-through-htbf" && <FeedSharedStampBadge />}
+      {stamp === "freedom-story" && (
+        <FeedTextStamp className="bottom-16 left-4" label="Freedom Story" />
+      )}
+      {stamp === "prayer-moment" && (
+        <FeedTextStamp
+          className="left-4 top-4 bg-blue-950/45 text-blue-50/80 ring-blue-100/20"
+          label="Prayer Moment"
+        />
+      )}
+      {stamp === "praise-report" && (
+        <FeedTextStamp
+          className="right-4 top-4 bg-amber-300/20 text-amber-50/85 ring-amber-100/25"
+          label="Praise Report"
+        />
+      )}
+      {stamp === "god-did-it" && (
+        <FeedTextStamp
+          className="bottom-16 right-4 bg-emerald-300/20 text-emerald-50/85 ring-emerald-100/25"
+          label="God Did It"
+        />
+      )}
+    </>
+  );
+}
+
+function FeedTextStamp({
+  className,
+  label,
 }: {
-  htbfWatermarkEnabled: boolean;
-  sharedHtbfIntroEnabled: boolean;
-  silhouetteWatermarkEnabled: boolean;
-  template: VideoTemplate;
+  className: string;
+  label: string;
 }) {
   return (
-    <>
-      <FeedVideoTemplateEffects template={template} />
-      {htbfWatermarkEnabled && <FeedHtbfWatermark />}
-      {silhouetteWatermarkEnabled && <FeedSilhouetteWatermark />}
-      {sharedHtbfIntroEnabled && <FeedSharedIntroBadge />}
-    </>
-  );
-}
-
-function FeedVideoTemplateEffects({ template }: { template: VideoTemplate }) {
-  if (template === "freedom") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.34),transparent_36%),linear-gradient(180deg,rgba(251,191,36,0.2),transparent_46%,rgba(255,255,255,0.12))]" />
-        <div className="pointer-events-none absolute right-4 top-4 z-[2] text-3xl text-white/20 [text-shadow:0_0_24px_rgba(255,255,255,0.72)]">
-          🕊
-        </div>
-      </>
-    );
-  }
-
-  if (template === "prayer_circle") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.26),transparent_38%),linear-gradient(180deg,rgba(2,6,23,0.16),rgba(8,47,99,0.34))]" />
-        <div className="pointer-events-none absolute inset-x-6 bottom-20 z-[2] h-px bg-gradient-to-r from-transparent via-blue-200/40 to-transparent" />
-      </>
-    );
-  }
-
-  if (template === "revival") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_22%_18%,rgba(252,211,77,0.32),transparent_28%),radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.2),transparent_24%),linear-gradient(180deg,rgba(251,191,36,0.16),transparent_52%,rgba(245,158,11,0.2))]" />
-        <div className="pointer-events-none absolute left-5 top-6 z-[2] h-2 w-2 rounded-full bg-amber-200/70 shadow-[34px_26px_0_rgba(255,255,255,0.44),82px_-4px_0_rgba(253,230,138,0.5),138px_34px_0_rgba(255,255,255,0.36)]" />
-      </>
-    );
-  }
-
-  if (template === "kingdom") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_18%,rgba(255,244,214,0.22),transparent_34%),linear-gradient(180deg,rgba(8,47,99,0.18),transparent_45%,rgba(120,53,15,0.18))]" />
-        <div className="pointer-events-none absolute inset-x-4 top-4 z-[2] rounded-[1.25rem] border border-[#fff4d6]/25 shadow-[0_0_28px_rgba(255,244,214,0.14)]" />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_42%,rgba(15,23,42,0.22))]" />
-      <div className="pointer-events-none absolute inset-x-8 bottom-20 z-[2] h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-    </>
-  );
-}
-
-function FeedHtbfWatermark() {
-  return (
-    <div className="pointer-events-none absolute right-4 top-4 z-[3] rounded-full bg-white/10 px-3 py-1 text-[10px] font-black tracking-[0.18em] text-white/35 ring-1 ring-white/15 backdrop-blur-sm">
-      HTBF
+    <div
+      className={`pointer-events-none absolute z-[3] rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/75 ring-1 ring-white/20 backdrop-blur-sm ${className}`}
+    >
+      {label}
     </div>
   );
 }
 
-function FeedSilhouetteWatermark() {
-  return (
-    <div className="pointer-events-none absolute bottom-20 right-6 z-[3] h-20 w-14 opacity-[0.08]">
-      <div className="mx-auto h-7 w-7 rounded-full bg-white" />
-      <div className="mt-1 h-12 rounded-t-full bg-white" />
-    </div>
-  );
-}
-
-function FeedSharedIntroBadge() {
-  return (
-    <div className="pointer-events-none absolute left-4 top-4 z-[4] rounded-full bg-black/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/55 ring-1 ring-white/15 backdrop-blur-sm">
-      Shared Through HTBF
-    </div>
-  );
-}
-
-function getFeedVideoTemplateCanvasClass(template: VideoTemplate) {
-  if (template === "freedom") {
-    return "bg-gradient-to-br from-white via-[#fff4d6] to-amber-100";
-  }
-  if (template === "prayer_circle") {
-    return "bg-gradient-to-br from-[#020617] via-[#082f63] to-black";
-  }
-  if (template === "revival") {
-    return "bg-gradient-to-br from-black via-[#4a2500] to-amber-700";
-  }
-  if (template === "kingdom") {
-    return "bg-gradient-to-br from-[#fff8e6] via-[#fff4d6] to-[#082f63]";
-  }
-
-  return "bg-gradient-to-br from-slate-950 via-slate-900 to-black";
+function FeedSharedStampBadge() {
+    return (
+      <div className="pointer-events-none absolute left-4 top-4 z-[4] rounded-full bg-black/35 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/70 ring-1 ring-white/20 backdrop-blur-sm">
+        Shared Through HTBF
+      </div>
+    );
 }
 
 function FeedCaptionOverlay({
