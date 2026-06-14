@@ -1564,7 +1564,7 @@ export default function ShareYourStoryPage() {
                       photoDisplayStyle
                     )}
                   >
-                    <div className="relative">
+                    <div className="relative overflow-hidden rounded-[1.5rem]">
                       <img
                         src={photoPreviewUrl}
                         alt="Selected story photo preview"
@@ -1997,7 +1997,7 @@ export default function ShareYourStoryPage() {
                       </div>
 
                       <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
-                        <div className="relative flex min-h-[420px] items-center justify-center bg-black ring-1 ring-white/10">
+                        <div className="relative flex min-h-[420px] items-center justify-center overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
                           <video
                             src={videoPreviewUrl}
                             controls
