@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
+  Bug,
   Captions,
+  Copy,
   Eye,
   EyeOff,
   Flag,
@@ -42,11 +44,13 @@ type CaptionStyle =
   | "soft-gradient"
   | "elegant-script";
 type CaptionFont =
-  | "htbf-clean"
-  | "bold-testimony"
-  | "soft-scripture"
-  | "praise-handwritten"
-  | "modern-serif";
+  | "classic"
+  | "bold"
+  | "scripture"
+  | "praise"
+  | "testimony"
+  | "minimal"
+  | "grace-script";
 type CaptionColor =
   | "white"
   | "black"
@@ -58,6 +62,20 @@ type CaptionColor =
   | `#${string}`;
 type CaptionSize = "small" | "medium" | "large" | "extra-large";
 type CaptionAlign = "left" | "center" | "right";
+type CaptionBackground =
+  | "none"
+  | "soft-pill"
+  | "glass-blur"
+  | "dark-banner"
+  | "glow-box"
+  | "scripture-card";
+type CaptionTemplate =
+  | "testimony-light"
+  | "prayer-calm"
+  | "scripture-focus"
+  | "freedom-glow"
+  | "quiet-strength"
+  | "celebration-praise";
 
 type ReportReason =
   | "inappropriate"
@@ -81,6 +99,9 @@ type StoryRow = {
   overlay_x: number | null;
   overlay_y: number | null;
   caption_style: CaptionStyle | null;
+  caption_font: CaptionFont;
+  caption_background: CaptionBackground;
+  caption_template: CaptionTemplate | null;
   caption_color: CaptionColor;
   caption_size: CaptionSize;
   caption_align: CaptionAlign;
@@ -167,6 +188,15 @@ type VideoFeedCopy = {
   language: string;
   captionsComingSoon: string;
   share: string;
+  copyLink: string;
+  reportBug: string;
+  bugReportEyebrow: string;
+  bugReportTitle: string;
+  bugReportBody: string;
+  bugReportPlaceholder: string;
+  bugReportEmpty: string;
+  bugReportSubmitted: string;
+  closeMenu: string;
   report: string;
   removeVideo: string;
   loadingVideo: string;
@@ -246,6 +276,16 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     language: "Language",
     captionsComingSoon: "Captions coming soon",
     share: "Share",
+    copyLink: "Copy link",
+    reportBug: "Report a bug / technical issue",
+    bugReportEyebrow: "Technical Issue",
+    bugReportTitle: "What technical issue did you notice?",
+    bugReportBody:
+      "Tell us about playback errors, bad sizing, broken buttons, caption glitches, or anything that did not work.",
+    bugReportPlaceholder: "Describe the technical issue...",
+    bugReportEmpty: "Please describe the technical issue first.",
+    bugReportSubmitted: "Bug report sent to HTBF admin.",
+    closeMenu: "Close",
     report: "Report",
     removeVideo: "Remove Video",
     loadingVideo: "Loading video",
@@ -325,6 +365,16 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     language: "Idioma",
     captionsComingSoon: "Subtítulos próximamente",
     share: "Compartir",
+    copyLink: "Copiar enlace",
+    reportBug: "Reportar un error / problema técnico",
+    bugReportEyebrow: "Problema técnico",
+    bugReportTitle: "¿Qué problema técnico notaste?",
+    bugReportBody:
+      "Cuéntanos sobre errores de reproducción, tamaño incorrecto, botones rotos, subtítulos con fallas o algo que no funcionó.",
+    bugReportPlaceholder: "Describe el problema técnico...",
+    bugReportEmpty: "Describe primero el problema técnico.",
+    bugReportSubmitted: "Reporte técnico enviado al administrador de HTBF.",
+    closeMenu: "Cerrar",
     report: "Reportar",
     removeVideo: "Quitar video",
     loadingVideo: "Cargando video",
@@ -422,10 +472,16 @@ export default function VideoFeedPage() {
     useState<ReportReason>("inappropriate");
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
+  const [bugReportStory, setBugReportStory] = useState<VideoStory | null>(null);
+  const [bugReportDetails, setBugReportDetails] = useState("");
+  const [sendingBugReport, setSendingBugReport] = useState(false);
 
   const [soundOn, setSoundOn] = useState(false);
   const [beStillMode, setBeStillMode] = useState(false);
   const [optionsStoryId, setOptionsStoryId] = useState<string | null>(null);
+  const [hiddenCaptionStoryIds, setHiddenCaptionStoryIds] = useState<string[]>(
+    []
+  );
   const [playbackRate, setPlaybackRate] = useState(1);
   const [selectedLanguage, setSelectedLanguage] =
     useState<VideoLanguage>("english");
@@ -579,6 +635,78 @@ export default function VideoFeedPage() {
     return "center";
   }
 
+  function getCaptionFont(
+    value: string | null | undefined,
+    legacyStyle?: CaptionStyle | null
+  ): CaptionFont {
+    if (
+      value === "classic" ||
+      value === "bold" ||
+      value === "scripture" ||
+      value === "praise" ||
+      value === "testimony" ||
+      value === "minimal" ||
+      value === "grace-script"
+    ) {
+      return value;
+    }
+
+    if (legacyStyle === "bold-center") return "bold";
+    if (legacyStyle === "scripture-card") return "scripture";
+    if (legacyStyle === "praise-glow") return "praise";
+    if (legacyStyle === "testimony-quote") return "testimony";
+    if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
+      return "minimal";
+    }
+    if (legacyStyle === "elegant-script") return "grace-script";
+
+    return "classic";
+  }
+
+  function getCaptionBackground(
+    value: string | null | undefined,
+    legacyStyle?: CaptionStyle | null
+  ): CaptionBackground {
+    if (
+      value === "none" ||
+      value === "soft-pill" ||
+      value === "glass-blur" ||
+      value === "dark-banner" ||
+      value === "glow-box" ||
+      value === "scripture-card"
+    ) {
+      return value;
+    }
+
+    if (legacyStyle === "bottom-banner") return "dark-banner";
+    if (legacyStyle === "scripture-card") return "scripture-card";
+    if (legacyStyle === "soft-gradient" || legacyStyle === "praise-glow") {
+      return "glow-box";
+    }
+    if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
+      return "none";
+    }
+
+    return "soft-pill";
+  }
+
+  function getCaptionTemplate(
+    value: string | null | undefined
+  ): CaptionTemplate | null {
+    if (
+      value === "testimony-light" ||
+      value === "prayer-calm" ||
+      value === "scripture-focus" ||
+      value === "freedom-glow" ||
+      value === "quiet-strength" ||
+      value === "celebration-praise"
+    ) {
+      return value;
+    }
+
+    return null;
+  }
+
   function readNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
@@ -596,7 +724,7 @@ export default function VideoFeedPage() {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_color, caption_size, caption_align, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .not("video_url", "is", null)
@@ -673,9 +801,17 @@ export default function VideoFeedPage() {
               reaction === "praying"
           );
 
+        const captionStyle = getCaptionStyle(story.caption_style);
+
         return {
           ...story,
-          caption_style: getCaptionStyle(story.caption_style),
+          caption_style: captionStyle,
+          caption_font: getCaptionFont(story.caption_font, captionStyle),
+          caption_background: getCaptionBackground(
+            story.caption_background,
+            captionStyle
+          ),
+          caption_template: getCaptionTemplate(story.caption_template),
           caption_color: getCaptionColor(story.caption_color),
           caption_size: getCaptionSize(story.caption_size),
           caption_align: getCaptionAlign(story.caption_align),
@@ -889,6 +1025,12 @@ export default function VideoFeedPage() {
     setMessage("");
   }
 
+  function openBugReportModal(story: VideoStory) {
+    setBugReportStory(story);
+    setBugReportDetails("");
+    setMessage("");
+  }
+
   async function submitReport() {
     if (!userId || !reportStory) {
       setMessage(copy.signInToReport);
@@ -920,6 +1062,62 @@ export default function VideoFeedPage() {
     setReportReason("inappropriate");
     setReportDetails("");
     setMessage(copy.reportSubmitted);
+  }
+
+  async function submitBugReport() {
+    if (!userId || !bugReportStory) {
+      setMessage(copy.signInToReport);
+      return;
+    }
+
+    const cleanDetails = bugReportDetails.trim();
+
+    if (!cleanDetails) {
+      setMessage(copy.bugReportEmpty);
+      return;
+    }
+
+    setSendingBugReport(true);
+    setMessage("");
+
+    const { error } = await supabase.from("content_reports").insert({
+      story_id: bugReportStory.id,
+      reporter_user_id: userId,
+      reported_user_id: bugReportStory.user_id,
+      reason: "bug",
+      details: cleanDetails,
+      status: "open",
+    });
+
+    setSendingBugReport(false);
+
+    if (error) {
+      setMessage(`${copy.reportSubmitError}: ${error.message}`);
+      return;
+    }
+
+    setBugReportStory(null);
+    setBugReportDetails("");
+    setMessage(copy.bugReportSubmitted);
+  }
+
+  async function copyStoryLink(story: VideoStory) {
+    const shareUrl = `${window.location.origin}/video-feed?story=${story.id}&from=share`;
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setMessage(copy.shareLinkCopied);
+    } catch (error) {
+      console.error("Copy link failed:", error);
+    }
+  }
+
+  function toggleCaptionVisibility(storyId: string) {
+    setHiddenCaptionStoryIds((current) =>
+      current.includes(storyId)
+        ? current.filter((id) => id !== storyId)
+        : [...current, storyId]
+    );
   }
 
   async function shareStory(story: VideoStory) {
@@ -994,6 +1192,7 @@ export default function VideoFeedPage() {
             if (!story.signed_video_url) return null;
 
             const isOwner = Boolean(userId && story.user_id === userId);
+            const captionHidden = hiddenCaptionStoryIds.includes(story.id);
 
             return (
               <article
@@ -1053,9 +1252,22 @@ export default function VideoFeedPage() {
                       setOptionsStoryId(null);
                       shareStory(story);
                     }}
+                    onCopyLink={() => {
+                      setOptionsStoryId(null);
+                      copyStoryLink(story);
+                    }}
                     onReport={() => {
                       setOptionsStoryId(null);
                       openReportModal(story);
+                    }}
+                    onBugReport={() => {
+                      setOptionsStoryId(null);
+                      openBugReportModal(story);
+                    }}
+                    captionHidden={captionHidden}
+                    onToggleCaption={() => {
+                      setOptionsStoryId(null);
+                      toggleCaptionVisibility(story.id);
                     }}
                     onRemove={() => {
                       setOptionsStoryId(null);
@@ -1109,7 +1321,14 @@ export default function VideoFeedPage() {
                   </div>
                 )}
 
-                {!beStillMode && <VideoInfoOverlay story={story} copy={copy} />}
+                {!beStillMode && (
+                  <VideoInfoOverlay
+                    captionHidden={captionHidden}
+                    copy={copy}
+                    onToggleCaption={() => toggleCaptionVisibility(story.id)}
+                    story={story}
+                  />
+                )}
 
                 {beStillMode && (
                   <button
@@ -1252,11 +1471,64 @@ export default function VideoFeedPage() {
           </div>
         </div>
       )}
+
+      {bugReportStory && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-600">
+                  {copy.bugReportEyebrow}
+                </div>
+
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  {copy.bugReportTitle}
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {copy.bugReportBody}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBugReportStory(null);
+                  setBugReportDetails("");
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                aria-label={copy.closeReportBox}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <textarea
+              value={bugReportDetails}
+              onChange={(event) => setBugReportDetails(event.target.value)}
+              rows={5}
+              placeholder={copy.bugReportPlaceholder}
+              className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+            />
+
+            <button
+              type="button"
+              disabled={sendingBugReport}
+              onClick={submitBugReport}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-5 py-3 text-base font-black text-slate-950 shadow-sm hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {sendingBugReport ? copy.submitting : copy.reportBug}
+              <Bug className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
 function VideoOptionsMenu({
+  captionHidden,
   isOwner,
   playbackRate,
   setPlaybackRate,
@@ -1264,11 +1536,15 @@ function VideoOptionsMenu({
   onLanguageSelect,
   copy,
   onBeStill,
+  onBugReport,
+  onCopyLink,
   onShare,
   onReport,
+  onToggleCaption,
   onRemove,
   onClose,
 }: {
+  captionHidden: boolean;
   isOwner: boolean;
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
@@ -1276,8 +1552,11 @@ function VideoOptionsMenu({
   onLanguageSelect: (language: VideoLanguage) => void;
   copy: VideoFeedCopy;
   onBeStill: () => void;
+  onBugReport: () => void;
+  onCopyLink: () => void;
   onShare: () => void;
   onReport: () => void;
+  onToggleCaption: () => void;
   onRemove: () => void;
   onClose: () => void;
 }) {
@@ -1374,11 +1653,42 @@ function VideoOptionsMenu({
 
       <button
         type="button"
+        onClick={onCopyLink}
+        className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+      >
+        <Copy className="h-4 w-4" />
+        {copy.copyLink}
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleCaption}
+        className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+      >
+        {captionHidden ? (
+          <Eye className="h-4 w-4" />
+        ) : (
+          <EyeOff className="h-4 w-4" />
+        )}
+        {captionHidden ? copy.showCaption : copy.hideCaption}
+      </button>
+
+      <button
+        type="button"
         onClick={onReport}
         className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-red-50 px-3 py-3 text-sm font-black text-red-700 hover:bg-red-100"
       >
         <Flag className="h-4 w-4" />
         {copy.report}
+      </button>
+
+      <button
+        type="button"
+        onClick={onBugReport}
+        className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-amber-50 px-3 py-3 text-sm font-black text-amber-800 hover:bg-amber-100"
+      >
+        <Bug className="h-4 w-4" />
+        {copy.reportBug}
       </button>
 
       {isOwner && (
@@ -1391,6 +1701,14 @@ function VideoOptionsMenu({
           {copy.removeVideo}
         </button>
       )}
+
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-2 flex w-full items-center justify-center rounded-2xl bg-slate-100 px-3 py-3 text-sm font-black text-slate-700 hover:bg-slate-200"
+      >
+        {copy.closeMenu}
+      </button>
     </div>
   );
 }
@@ -1854,13 +2172,16 @@ function AutoPlayReelVideo({
 }
 
 function VideoInfoOverlay({
+  captionHidden,
   story,
   copy,
+  onToggleCaption,
 }: {
+  captionHidden: boolean;
   story: VideoStory;
   copy: VideoFeedCopy;
+  onToggleCaption: () => void;
 }) {
-  const [captionHidden, setCaptionHidden] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const rawStoryText = story.story_text?.trim() || "";
@@ -1877,7 +2198,9 @@ function VideoInfoOverlay({
       {hasOverlayText && (
         <VideoCaptionStyleOverlay
           align={story.caption_align}
+          background={story.caption_background}
           color={story.caption_color}
+          font={story.caption_font}
           overlayX={story.overlay_x}
           overlayY={story.overlay_y}
           size={story.caption_size}
@@ -1892,14 +2215,13 @@ function VideoInfoOverlay({
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
-            setCaptionHidden(false);
+            onToggleCaption();
           }}
-          className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 inline-flex items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs font-black text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
-          aria-label={copy.showCaption}
+          className="absolute bottom-[calc(8.5rem+env(safe-area-inset-bottom))] left-4 z-50 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-md ring-1 ring-white/15 backdrop-blur-md"
+          aria-label="Show caption"
           title={copy.showCaption}
         >
           <Eye className="h-4 w-4" />
-          {copy.showCaption}
         </button>
       ) : (
         <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-0 z-30 w-[min(72vw,420px)] overflow-hidden bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4 pb-4">
@@ -1908,14 +2230,13 @@ function VideoInfoOverlay({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              setCaptionHidden(true);
+              onToggleCaption();
             }}
-            className="mb-2 inline-flex items-center gap-2 rounded-full bg-black/45 px-3 py-2 text-xs font-black text-white/90 ring-1 ring-white/15 backdrop-blur-md"
-            aria-label={copy.hideCaption}
+            className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white/90 ring-1 ring-white/15 backdrop-blur-md"
+            aria-label="Hide caption"
             title={copy.hideCaption}
           >
             <EyeOff className="h-4 w-4" />
-            {copy.hideCaption}
           </button>
 
           <div className="pointer-events-none max-w-full overflow-hidden">
@@ -1976,7 +2297,7 @@ function VideoInfoOverlay({
               }}
               className="mt-2 inline-flex rounded-full bg-white/90 px-3 py-1 text-[11px] font-black text-slate-900 shadow-md backdrop-blur md:text-xs"
             >
-              {expanded ? "See less" : copy.more}
+              {expanded ? "Less" : copy.more}
             </button>
           )}
         </div>
@@ -1987,6 +2308,7 @@ function VideoInfoOverlay({
 
 function VideoCaptionStyleOverlay({
   align,
+  background,
   color,
   font,
   overlayX,
@@ -1996,6 +2318,7 @@ function VideoCaptionStyleOverlay({
   text,
 }: {
   align?: CaptionAlign;
+  background?: CaptionBackground;
   color?: CaptionColor;
   font?: CaptionFont;
   overlayX?: number | null;
@@ -2009,18 +2332,22 @@ function VideoCaptionStyleOverlay({
   const positionClass = hasCustomPosition
     ? "-translate-x-1/2 -translate-y-1/2"
     : getVideoCaptionPositionClass(style);
-  const styleClass = getVideoCaptionStyleClass(style);
+  const legacyStyleClass = !background ? getVideoCaptionStyleClass(style) : "";
+  const backgroundClass = background
+    ? getVideoCaptionBackgroundClass(background)
+    : "";
   const fontClass = font ? getVideoCaptionFontClass(font) : "";
   const colorClass = color ? getVideoCaptionColorClass(color) : "";
   const sizeClass = getVideoCaptionSizeClass(size);
   const alignClass = getVideoCaptionAlignClass(align);
   const inlineColor = color ? getVideoCaptionInlineColor(color) : undefined;
   const textShadow = color ? getVideoCaptionTextShadow(color) : undefined;
-  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
+  const quoteText =
+    font === "testimony" || style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 md:w-[min(64vw,560px)] ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass} ${alignClass}`}
+      className={`pointer-events-none absolute z-30 max-h-36 w-[min(80vw,520px)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug sm:max-h-44 md:w-[min(64vw,560px)] ${sizeClass} ${positionClass} ${legacyStyleClass} ${backgroundClass} ${fontClass} ${colorClass} ${alignClass}`}
       style={{
         left: hasCustomPosition ? `${overlayX}%` : undefined,
         top: hasCustomPosition ? `${overlayY}%` : undefined,
@@ -2086,13 +2413,34 @@ function getVideoCaptionStyleClass(style: CaptionStyle) {
 }
 
 function getVideoCaptionFontClass(font: CaptionFont) {
-  if (font === "bold-testimony") return "font-sans font-black tracking-tight";
-  if (font === "soft-scripture") return "font-serif font-semibold italic";
-  if (font === "praise-handwritten") {
-    return "font-serif font-black italic tracking-wide";
+  if (font === "bold") return "font-sans font-black tracking-tight";
+  if (font === "scripture") return "font-serif font-semibold italic";
+  if (font === "praise") return "font-serif font-black italic tracking-wide";
+  if (font === "testimony") return "font-sans font-black";
+  if (font === "minimal") return "font-sans font-semibold";
+  if (font === "grace-script") {
+    return "font-[cursive] text-2xl italic tracking-wide";
   }
-  if (font === "modern-serif") return "font-serif font-bold";
+
   return "font-sans font-semibold";
+}
+
+function getVideoCaptionBackgroundClass(background: CaptionBackground) {
+  if (background === "none") return "px-0 py-0 shadow-none";
+  if (background === "glass-blur") {
+    return "rounded-[1.5rem] bg-white/20 shadow-lg ring-1 ring-white/50 backdrop-blur-md";
+  }
+  if (background === "dark-banner") {
+    return "rounded-2xl bg-black/75 shadow-lg ring-1 ring-white/10 backdrop-blur";
+  }
+  if (background === "glow-box") {
+    return "rounded-[1.5rem] bg-gradient-to-r from-[#0b63ce]/75 via-amber-300/60 to-[#0b63ce]/70 shadow-lg shadow-amber-300/30 ring-1 ring-white/50 backdrop-blur";
+  }
+  if (background === "scripture-card") {
+    return "rounded-[1.5rem] bg-[#fff4d6]/95 shadow-lg ring-1 ring-white/70 backdrop-blur";
+  }
+
+  return "rounded-2xl bg-white/90 shadow-lg ring-1 ring-white/70 backdrop-blur";
 }
 
 function getVideoCaptionColorClass(color: CaptionColor) {
