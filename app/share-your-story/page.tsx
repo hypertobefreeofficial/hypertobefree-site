@@ -84,6 +84,13 @@ type CaptionTemplate =
   | "freedom-glow"
   | "quiet-strength"
   | "celebration-praise";
+type VideoTemplate =
+  | "freedom-light"
+  | "prayer-room"
+  | "praise-celebration"
+  | "quiet-strength"
+  | "scripture-focus"
+  | "holy-spirit";
 type TextEditorPanel =
   | "template"
   | "style"
@@ -302,6 +309,43 @@ const captionTemplateOptions: {
   },
 ];
 
+const videoTemplateOptions: {
+  label: string;
+  value: VideoTemplate;
+  description: string;
+}[] = [
+  {
+    label: "Freedom Light",
+    value: "freedom-light",
+    description: "Soft gold and white glow with a hopeful HTBF feel.",
+  },
+  {
+    label: "Prayer Room",
+    value: "prayer-room",
+    description: "Dark navy atmosphere with a gentle prayer overlay.",
+  },
+  {
+    label: "Praise Celebration",
+    value: "praise-celebration",
+    description: "Gold accents and celebration glow for praise moments.",
+  },
+  {
+    label: "Quiet Strength",
+    value: "quiet-strength",
+    description: "Minimal, clean, testimony-focused presentation.",
+  },
+  {
+    label: "Scripture Focus",
+    value: "scripture-focus",
+    description: "Warm parchment accents for reflective Scripture posts.",
+  },
+  {
+    label: "Holy Spirit",
+    value: "holy-spirit",
+    description: "Soft blue and white worship atmosphere.",
+  },
+];
+
 const captionColorOptions: {
   label: string;
   value: CaptionColorPreset;
@@ -388,6 +432,9 @@ export default function ShareYourStoryPage() {
     useState<CaptionBackground>("soft-pill");
   const [captionTemplate, setCaptionTemplate] =
     useState<CaptionTemplate | null>(null);
+  // TODO: Persist video templates after public.stories has a video_template column.
+  const [videoTemplate, setVideoTemplate] =
+    useState<VideoTemplate>("freedom-light");
   const [captionColor, setCaptionColor] = useState<CaptionColor>("white");
   const [captionPosition, setCaptionPosition] =
     useState<CaptionPosition>("bottom");
@@ -417,9 +464,9 @@ export default function ShareYourStoryPage() {
   const selectedCaptionColorOption = captionColorOptions.find(
     (option) => option.value === captionColor
   );
-  const selectedCaptionTemplateLabel =
-    captionTemplateOptions.find((option) => option.value === captionTemplate)
-      ?.label ?? "Custom";
+  const selectedVideoTemplateLabel =
+    videoTemplateOptions.find((option) => option.value === videoTemplate)
+      ?.label ?? "Freedom Light";
 
   useEffect(() => {
     async function loadPage() {
@@ -1033,10 +1080,7 @@ export default function ShareYourStoryPage() {
           mediaMode === "photo" || mediaMode === "video"
             ? captionBackground
             : null,
-        caption_template:
-          mediaMode === "photo" || mediaMode === "video"
-            ? captionTemplate
-            : null,
+        caption_template: mediaMode === "photo" ? captionTemplate : null,
         caption_color:
           mediaMode === "photo" || mediaMode === "video"
             ? captionColor
@@ -1618,7 +1662,11 @@ export default function ShareYourStoryPage() {
                   </button>
                 </div>
 
-                <div className="relative w-full max-w-full overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-slate-900 via-slate-950 to-black ring-1 ring-white/10">
+                <div
+                  className={`relative w-full max-w-full overflow-hidden rounded-[1.5rem] ${getVideoTemplateCanvasClass(
+                    videoTemplate
+                  )}`}
+                >
                   <video
                     src={videoPreviewUrl}
                     autoPlay
@@ -1629,6 +1677,8 @@ export default function ShareYourStoryPage() {
                     preload="metadata"
                     className="block max-h-[58vh] w-full bg-slate-900 object-contain"
                   />
+
+                  <VideoTemplateEffects template={videoTemplate} />
 
                   {previewText ? (
                     <MobileDraggableCaptionOverlay
@@ -1644,7 +1694,7 @@ export default function ShareYourStoryPage() {
                       text={previewText}
                     />
                   ) : (
-                    <div className="pointer-events-none absolute inset-x-4 bottom-20 rounded-2xl bg-black/55 px-4 py-3 text-center text-sm font-bold text-white/85 backdrop-blur">
+                    <div className="pointer-events-none absolute inset-x-4 bottom-20 z-10 rounded-2xl bg-black/55 px-4 py-3 text-center text-sm font-bold text-white/85 backdrop-blur">
                       Tap Message to add text
                     </div>
                   )}
@@ -1691,22 +1741,10 @@ export default function ShareYourStoryPage() {
                     )}
 
                     {mobileVideoTool === "template" && (
-                      <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {captionTemplateOptions.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => applyCaptionTemplate(option.value)}
-                            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
-                              captionTemplate === option.value
-                                ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                                : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-blue-50"
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
+                      <VideoTemplatePicker
+                        value={videoTemplate}
+                        onChange={setVideoTemplate}
+                      />
                     )}
 
                     {mobileVideoTool === "style" && (
@@ -1905,7 +1943,11 @@ export default function ShareYourStoryPage() {
 
                 <div className="grid w-full max-w-full min-w-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] xl:items-start">
                   <div className="min-w-0 max-w-full xl:sticky xl:top-4">
-                    <div className="rounded-[1.75rem] bg-gradient-to-br from-slate-900 via-slate-950 to-black p-3 ring-1 ring-white/10">
+                    <div
+                      className={`rounded-[1.75rem] p-3 ${getVideoTemplateStudioClass(
+                        videoTemplate
+                      )}`}
+                    >
                       <div className="mb-3 flex items-center justify-between gap-3 px-1">
                         <div>
                           <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-200">
@@ -1924,13 +1966,19 @@ export default function ShareYourStoryPage() {
                       </div>
 
                       <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
-                        <div className="relative flex min-h-[420px] items-center justify-center bg-black">
+                        <div
+                          className={`relative flex min-h-[420px] items-center justify-center ${getVideoTemplateCanvasClass(
+                            videoTemplate
+                          )}`}
+                        >
                           <video
                             src={videoPreviewUrl}
                             controls
                             playsInline
                             className="max-h-[68vh] w-full bg-black object-contain xl:max-h-[640px]"
                           />
+
+                          <VideoTemplateEffects template={videoTemplate} />
 
                           {previewText ? (
                             <MobileDraggableCaptionOverlay
@@ -1946,7 +1994,7 @@ export default function ShareYourStoryPage() {
                               text={previewText}
                             />
                           ) : (
-                            <div className="pointer-events-none absolute inset-x-8 bottom-8 rounded-2xl bg-black/55 px-4 py-3 text-center text-sm font-bold text-white/85 backdrop-blur">
+                            <div className="pointer-events-none absolute inset-x-8 bottom-8 z-10 rounded-2xl bg-black/55 px-4 py-3 text-center text-sm font-bold text-white/85 backdrop-blur">
                               Add short words for the video.
                             </div>
                           )}
@@ -1983,7 +2031,7 @@ export default function ShareYourStoryPage() {
                           Creator tools
                         </div>
                         <div className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black text-[#0b63ce] ring-1 ring-blue-100">
-                          {selectedCaptionTemplateLabel}
+                          {selectedVideoTemplateLabel}
                         </div>
                       </div>
 
@@ -2018,24 +2066,10 @@ export default function ShareYourStoryPage() {
                         )}
 
                         {desktopVideoTool === "template" && (
-                          <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            {captionTemplateOptions.map((option) => (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() =>
-                                  applyCaptionTemplate(option.value)
-                                }
-                                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
-                                  captionTemplate === option.value
-                                    ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                                    : "bg-slate-50 text-slate-700 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
-                                }`}
-                              >
-                                {option.label}
-                              </button>
-                            ))}
-                          </div>
+                          <VideoTemplatePicker
+                            value={videoTemplate}
+                            onChange={setVideoTemplate}
+                          />
                         )}
 
                         {desktopVideoTool === "style" && (
@@ -2589,6 +2623,120 @@ function CaptionStyleControls({
   );
 }
 
+function VideoTemplatePicker({
+  onChange,
+  value,
+}: {
+  onChange: (value: VideoTemplate) => void;
+  value: VideoTemplate;
+}) {
+  return (
+    <div className="grid max-h-72 w-full max-w-full gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+      {videoTemplateOptions.map((option) => {
+        const selected = value === option.value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`min-w-0 rounded-[1.25rem] p-3 text-left ring-1 transition ${
+              selected
+                ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                : "bg-slate-50 text-slate-700 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+            }`}
+          >
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-xs font-black">
+                {option.label}
+              </span>
+              <span
+                className={`h-4 w-4 shrink-0 rounded-full ${getVideoTemplateSwatchClass(
+                  option.value
+                )}`}
+              />
+            </div>
+            <p
+              className={`mt-1 overflow-hidden text-[11px] font-semibold leading-5 ${
+                selected ? "text-blue-50" : "text-slate-500"
+              }`}
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+              }}
+            >
+              {option.description}
+            </p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
+  if (template === "freedom-light") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.35),transparent_36%),linear-gradient(180deg,rgba(251,191,36,0.22),transparent_42%,rgba(255,255,255,0.12))]" />
+        <div className="pointer-events-none absolute right-5 top-5 z-[2] text-4xl text-white/25 [text-shadow:0_0_24px_rgba(255,255,255,0.7)]">
+          🕊
+        </div>
+      </>
+    );
+  }
+
+  if (template === "prayer-room") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.28),transparent_38%),linear-gradient(180deg,rgba(2,6,23,0.18),rgba(8,47,99,0.34))]" />
+        <div className="pointer-events-none absolute inset-x-6 bottom-6 z-[2] h-px bg-gradient-to-r from-transparent via-blue-200/40 to-transparent" />
+      </>
+    );
+  }
+
+  if (template === "praise-celebration") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_22%_18%,rgba(252,211,77,0.34),transparent_28%),radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.22),transparent_24%),linear-gradient(180deg,rgba(251,191,36,0.18),transparent_52%,rgba(245,158,11,0.2))]" />
+        <div className="pointer-events-none absolute left-5 top-6 z-[2] h-2 w-2 rounded-full bg-amber-200/70 shadow-[34px_26px_0_rgba(255,255,255,0.5),82px_-4px_0_rgba(253,230,138,0.55),138px_34px_0_rgba(255,255,255,0.42)]" />
+      </>
+    );
+  }
+
+  if (template === "scripture-focus") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(255,244,214,0.24),transparent_46%,rgba(120,53,15,0.2))]" />
+        <div className="pointer-events-none absolute inset-x-4 top-4 z-[2] rounded-[1.25rem] border border-[#fff4d6]/30" />
+      </>
+    );
+  }
+
+  if (template === "quiet-strength") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_42%,rgba(15,23,42,0.22))]" />
+        <div className="pointer-events-none absolute inset-x-8 bottom-8 z-[2] h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      </>
+    );
+  }
+
+  if (template === "holy-spirit") {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.32),transparent_30%),radial-gradient(circle_at_42%_68%,rgba(191,219,254,0.3),transparent_36%),linear-gradient(180deg,rgba(59,130,246,0.15),transparent_60%)]" />
+        <div className="pointer-events-none absolute inset-x-10 top-8 z-[2] h-px bg-gradient-to-r from-transparent via-white/60 to-transparent blur-[1px]" />
+      </>
+    );
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(15,23,42,0.06),transparent_46%,rgba(15,23,42,0.18))]" />
+  );
+}
+
 function MusicComingSoonPanel({ dark }: { dark: boolean }) {
   const approvedTracks = musicCatalog.filter(
     (track) => track.license_status === "approved"
@@ -2862,6 +3010,62 @@ function MobileDraggableCaptionOverlay({
       {quoteText}
     </div>
   );
+}
+
+function getVideoTemplateStudioClass(template: VideoTemplate) {
+  if (template === "freedom-light") {
+    return "bg-gradient-to-br from-white via-[#fff4d6] to-amber-100 text-slate-900 ring-1 ring-amber-200 shadow-lg shadow-amber-100/70";
+  }
+  if (template === "prayer-room") {
+    return "bg-gradient-to-br from-[#020617] via-[#082f63] to-slate-950 text-white ring-1 ring-blue-300/20 shadow-lg shadow-blue-950/40";
+  }
+  if (template === "praise-celebration") {
+    return "bg-gradient-to-br from-slate-950 via-[#4a2500] to-amber-700 text-white ring-1 ring-amber-300/30 shadow-lg shadow-amber-300/20";
+  }
+  if (template === "scripture-focus") {
+    return "bg-gradient-to-br from-[#fff8e6] via-[#fff4d6] to-[#d9a441] text-[#062a57] ring-1 ring-amber-200 shadow-lg shadow-amber-100/60";
+  }
+  if (template === "quiet-strength") {
+    return "bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white ring-1 ring-white/10 shadow-lg";
+  }
+  if (template === "holy-spirit") {
+    return "bg-gradient-to-br from-white via-blue-100 to-[#0b63ce] text-[#062a57] ring-1 ring-blue-200 shadow-lg shadow-blue-200/70";
+  }
+
+  return "bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white ring-1 ring-white/10 shadow-lg";
+}
+
+function getVideoTemplateCanvasClass(template: VideoTemplate) {
+  if (template === "freedom-light") {
+    return "bg-gradient-to-br from-white via-[#fff4d6] to-amber-100 ring-1 ring-amber-200";
+  }
+  if (template === "prayer-room") {
+    return "bg-gradient-to-br from-[#020617] via-[#082f63] to-black ring-1 ring-blue-300/20";
+  }
+  if (template === "praise-celebration") {
+    return "bg-gradient-to-br from-black via-[#4a2500] to-amber-700 ring-1 ring-amber-300/30";
+  }
+  if (template === "scripture-focus") {
+    return "bg-gradient-to-br from-[#fff8e6] via-[#fff4d6] to-[#8b5a2b] ring-1 ring-amber-200";
+  }
+  if (template === "quiet-strength") {
+    return "bg-gradient-to-br from-slate-950 via-slate-900 to-black ring-1 ring-white/10";
+  }
+  if (template === "holy-spirit") {
+    return "bg-gradient-to-br from-white via-blue-100 to-[#0b63ce] ring-1 ring-blue-200";
+  }
+
+  return "bg-gradient-to-br from-slate-950 via-slate-900 to-black ring-1 ring-white/10";
+}
+
+function getVideoTemplateSwatchClass(template: VideoTemplate) {
+  if (template === "freedom-light") return "bg-gradient-to-br from-white to-amber-200";
+  if (template === "prayer-room") return "bg-gradient-to-br from-[#020617] to-[#0b63ce]";
+  if (template === "praise-celebration") return "bg-gradient-to-br from-amber-200 to-amber-700";
+  if (template === "quiet-strength") return "bg-gradient-to-br from-slate-100 to-slate-950";
+  if (template === "scripture-focus") return "bg-gradient-to-br from-[#fff4d6] to-[#8b5a2b]";
+  if (template === "holy-spirit") return "bg-gradient-to-br from-white to-blue-300";
+  return "bg-gradient-to-br from-slate-100 to-slate-950";
 }
 
 function getCaptionPositionClass(position: CaptionPosition) {
