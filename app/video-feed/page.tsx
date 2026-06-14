@@ -31,6 +31,12 @@ import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 type VideoLanguage = "spanish" | "english";
+type VideoViewingMode =
+  | "standard"
+  | "audio_testimony"
+  | "scripture_companion"
+  | "prayer_focus"
+  | "god_is_moving";
 type CaptionStyle =
   | "classic-caption"
   | "bold-center"
@@ -194,6 +200,13 @@ type VideoFeedCopy = {
   submitReport: string;
   videoOptions: string;
   beStillMode: string;
+  audioTestimonyMode: string;
+  audioTestimonyModeDescription: string;
+  audioModeOn: string;
+  audioModeOff: string;
+  audioModeEnabled: string;
+  audioModeDisabled: string;
+  audioModePaused: string;
   playbackSpeed: string;
   language: string;
   captionsComingSoon: string;
@@ -282,6 +295,15 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     submitReport: "Submit Report",
     videoOptions: "Video Options",
     beStillMode: "Be Still Mode",
+    audioTestimonyMode: "Audio Testimony Mode",
+    audioTestimonyModeDescription:
+      "Listen continuously. HTBF will advance to the next testimony when this one ends.",
+    audioModeOn: "On",
+    audioModeOff: "Off",
+    audioModeEnabled:
+      "Audio Testimony Mode on. HTBF will keep the testimonies moving.",
+    audioModeDisabled: "Audio Testimony Mode off.",
+    audioModePaused: "Audio Testimony Mode paused.",
     playbackSpeed: "Playback Speed",
     language: "Language",
     captionsComingSoon: "Captions coming soon",
@@ -371,6 +393,15 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     submitReport: "Enviar reporte",
     videoOptions: "Opciones de video",
     beStillMode: "Modo quietud",
+    audioTestimonyMode: "Modo testimonio en audio",
+    audioTestimonyModeDescription:
+      "Escucha continuamente. HTBF avanzará al siguiente testimonio cuando termine este.",
+    audioModeOn: "Activado",
+    audioModeOff: "Desactivado",
+    audioModeEnabled:
+      "Modo testimonio en audio activado. HTBF seguirá avanzando los testimonios.",
+    audioModeDisabled: "Modo testimonio en audio desactivado.",
+    audioModePaused: "Modo testimonio en audio pausado.",
     playbackSpeed: "Velocidad",
     language: "Idioma",
     captionsComingSoon: "Subtítulos próximamente",
@@ -460,11 +491,24 @@ const reportReasons: {
 
 const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const prayerCircleJoinedMessage = "You joined the Prayer Circle.";
+const videoViewingModeStorageKey = "htbf-video-viewing-mode";
 
 const languageOptions: { label: string; value: VideoLanguage }[] = [
   { label: "Español", value: "spanish" },
   { label: "English", value: "english" },
 ];
+
+const videoViewingModes: VideoViewingMode[] = [
+  "standard",
+  "audio_testimony",
+  "scripture_companion",
+  "prayer_focus",
+  "god_is_moving",
+];
+
+function isVideoViewingMode(value: string | null): value is VideoViewingMode {
+  return videoViewingModes.includes(value as VideoViewingMode);
+}
 
 export default function VideoFeedPage() {
   const [checkingUser, setCheckingUser] = useState(true);
@@ -488,6 +532,8 @@ export default function VideoFeedPage() {
 
   const [soundOn, setSoundOn] = useState(false);
   const [beStillMode, setBeStillMode] = useState(false);
+  const [viewingMode, setViewingMode] =
+    useState<VideoViewingMode>("standard");
   const [optionsStoryId, setOptionsStoryId] = useState<string | null>(null);
   const [hiddenCaptionStoryIds, setHiddenCaptionStoryIds] = useState<string[]>(
     []
@@ -496,6 +542,7 @@ export default function VideoFeedPage() {
   const [selectedLanguage, setSelectedLanguage] =
     useState<VideoLanguage>("english");
   const copy = videoFeedCopy[selectedLanguage];
+  const audioTestimonyMode = viewingMode === "audio_testimony";
 
   useEffect(() => {
     if (!message) return;
@@ -508,6 +555,22 @@ export default function VideoFeedPage() {
 
     return () => window.clearTimeout(timer);
   }, [message]);
+
+  useEffect(() => {
+    const savedMode = window.localStorage.getItem(videoViewingModeStorageKey);
+
+    if (isVideoViewingMode(savedMode)) {
+      setViewingMode(savedMode);
+
+      if (savedMode === "audio_testimony") {
+        setSoundOn(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(videoViewingModeStorageKey, viewingMode);
+  }, [viewingMode]);
 
   useEffect(() => {
     let currentUserId: string | null = null;
@@ -881,6 +944,39 @@ export default function VideoFeedPage() {
     return selected ? [selected, ...rest] : stories;
   }, [stories, selectedStoryId]);
 
+  function scrollToVideoStory(nextIndex: number) {
+    if (orderedStories.length === 0) return;
+
+    const normalizedIndex =
+      nextIndex >= orderedStories.length ? 0 : Math.max(nextIndex, 0);
+    const nextStory = orderedStories[normalizedIndex];
+    const nextStoryElement = document.getElementById(
+      `video-story-${nextStory.id}`
+    );
+
+    nextStoryElement?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function toggleAudioTestimonyMode() {
+    setViewingMode((currentMode) => {
+      const nextMode =
+        currentMode === "audio_testimony" ? "standard" : "audio_testimony";
+
+      if (nextMode === "audio_testimony") {
+        setSoundOn(true);
+        setBeStillMode(false);
+        setMessage(copy.audioModeEnabled);
+      } else {
+        setMessage(copy.audioModeDisabled);
+      }
+
+      return nextMode;
+    });
+  }
+
   async function toggleReaction(storyId: string, reactionType: ReactionType) {
     setMessage("");
 
@@ -1225,6 +1321,7 @@ export default function VideoFeedPage() {
 
             return (
               <article
+                id={`video-story-${story.id}`}
                 key={story.id}
                 className="relative flex h-[100dvh] snap-start items-center justify-center overflow-hidden bg-black"
               >
@@ -1238,6 +1335,11 @@ export default function VideoFeedPage() {
                   onSoundChange={setSoundOn}
                   eagerLoad={index === 0}
                   beStillMode={beStillMode}
+                  audioTestimonyMode={audioTestimonyMode}
+                  onAudioModeAdvance={() => scrollToVideoStory(index + 1)}
+                  onAudioModeManualPause={() =>
+                    setMessage(copy.audioModePaused)
+                  }
                   playbackRate={playbackRate}
                   copy={copy}
                 />
@@ -1266,6 +1368,7 @@ export default function VideoFeedPage() {
                     playbackRate={playbackRate}
                     setPlaybackRate={setPlaybackRate}
                     selectedLanguage={selectedLanguage}
+                    audioTestimonyMode={audioTestimonyMode}
                     onLanguageSelect={(language) => {
                       const nextCopy = videoFeedCopy[language];
 
@@ -1280,6 +1383,10 @@ export default function VideoFeedPage() {
                     onBeStill={() => {
                       setOptionsStoryId(null);
                       setBeStillMode(true);
+                    }}
+                    onToggleAudioTestimonyMode={() => {
+                      setOptionsStoryId(null);
+                      toggleAudioTestimonyMode();
                     }}
                     onShare={() => {
                       setOptionsStoryId(null);
@@ -1310,7 +1417,7 @@ export default function VideoFeedPage() {
                   />
                 )}
 
-                {!beStillMode && (
+                {!beStillMode && !audioTestimonyMode && (
                   <div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col items-center gap-3">
                     <VideoActionButton
                       label={copy.amen}
@@ -1566,9 +1673,11 @@ function VideoOptionsMenu({
   playbackRate,
   setPlaybackRate,
   selectedLanguage,
+  audioTestimonyMode,
   onLanguageSelect,
   copy,
   onBeStill,
+  onToggleAudioTestimonyMode,
   onBugReport,
   onCopyLink,
   onShare,
@@ -1582,9 +1691,11 @@ function VideoOptionsMenu({
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
   selectedLanguage: VideoLanguage;
+  audioTestimonyMode: boolean;
   onLanguageSelect: (language: VideoLanguage) => void;
   copy: VideoFeedCopy;
   onBeStill: () => void;
+  onToggleAudioTestimonyMode: () => void;
   onBugReport: () => void;
   onCopyLink: () => void;
   onShare: () => void;
@@ -1619,6 +1730,32 @@ function VideoOptionsMenu({
       >
         <EyeOff className="h-4 w-4" />
         {copy.beStillMode}
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleAudioTestimonyMode}
+        aria-pressed={audioTestimonyMode}
+        className={`mb-3 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black transition ${
+          audioTestimonyMode
+            ? "bg-[#0b63ce] text-white shadow-md shadow-blue-900/20"
+            : "bg-slate-50 text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+        }`}
+      >
+        <span className="mt-0.5 shrink-0" aria-hidden="true">
+          🎧
+        </span>
+        <span className="min-w-0">
+          <span className="block">{copy.audioTestimonyMode}</span>
+          <span
+            className={`mt-1 block text-xs font-bold leading-5 ${
+              audioTestimonyMode ? "text-blue-50" : "text-slate-500"
+            }`}
+          >
+            {audioTestimonyMode ? copy.audioModeOn : copy.audioModeOff} ·{" "}
+            {copy.audioTestimonyModeDescription}
+          </span>
+        </span>
       </button>
 
       <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
@@ -1756,6 +1893,9 @@ function AutoPlayReelVideo({
   onSoundChange,
   eagerLoad,
   beStillMode,
+  audioTestimonyMode,
+  onAudioModeAdvance,
+  onAudioModeManualPause,
   playbackRate,
   copy,
 }: {
@@ -1768,6 +1908,9 @@ function AutoPlayReelVideo({
   onSoundChange: (nextValue: boolean) => void;
   eagerLoad: boolean;
   beStillMode: boolean;
+  audioTestimonyMode: boolean;
+  onAudioModeAdvance: () => void;
+  onAudioModeManualPause: () => void;
   playbackRate: number;
   copy: VideoFeedCopy;
 }) {
@@ -1785,8 +1928,19 @@ function AutoPlayReelVideo({
   const pinchStartDistanceRef = useRef<number | null>(null);
   const wheelZoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noAudioAdvanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const holdPausedRef = useRef(false);
   const pointerInsideRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (noAudioAdvanceTimeoutRef.current) {
+        clearTimeout(noAudioAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!sharedHtbfIntroEnabled) {
@@ -1841,8 +1995,9 @@ function AutoPlayReelVideo({
 
     if (!wrapper || !video || !shouldLoadVideo) return;
 
-    video.muted = !soundOn;
+    video.muted = audioTestimonyMode ? false : !soundOn;
     video.playsInline = true;
+    video.loop = !audioTestimonyMode;
     video.playbackRate = playbackRate;
 
     const playObserver = new IntersectionObserver(
@@ -1854,7 +2009,8 @@ function AutoPlayReelVideo({
 
         if (isMostlyVisible) {
           if (!userPaused) {
-            video.muted = !soundOn;
+            video.muted = audioTestimonyMode ? false : !soundOn;
+            video.loop = !audioTestimonyMode;
             video.playbackRate = playbackRate;
 
             video
@@ -1863,6 +2019,11 @@ function AutoPlayReelVideo({
                 setPaused(false);
               })
               .catch(() => {
+                if (audioTestimonyMode) {
+                  setPaused(true);
+                  return;
+                }
+
                 video.muted = true;
                 onSoundChange(false);
 
@@ -1897,6 +2058,7 @@ function AutoPlayReelVideo({
     shouldLoadVideo,
     onSoundChange,
     playbackRate,
+    audioTestimonyMode,
   ]);
 
   useEffect(() => {
@@ -1904,12 +2066,19 @@ function AutoPlayReelVideo({
 
     if (!video) return;
 
-    video.muted = !soundOn;
+    video.muted = audioTestimonyMode ? false : !soundOn;
+    video.loop = !audioTestimonyMode;
 
-    if (soundOn) {
+    if (soundOn || audioTestimonyMode) {
       video.volume = 1;
     }
-  }, [soundOn]);
+  }, [soundOn, audioTestimonyMode]);
+
+  useEffect(() => {
+    if (!audioTestimonyMode) {
+      clearNoAudioAdvance();
+    }
+  }, [audioTestimonyMode]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -2041,12 +2210,47 @@ function AutoPlayReelVideo({
     return Boolean(target.closest("button, a, textarea, input, select"));
   }
 
+  function clearNoAudioAdvance() {
+    if (noAudioAdvanceTimeoutRef.current) {
+      clearTimeout(noAudioAdvanceTimeoutRef.current);
+      noAudioAdvanceTimeoutRef.current = null;
+    }
+  }
+
+  function scheduleNoAudioAdvance() {
+    if (!audioTestimonyMode) return;
+
+    clearNoAudioAdvance();
+
+    noAudioAdvanceTimeoutRef.current = setTimeout(() => {
+      const video = videoRef.current as
+        | (HTMLVideoElement & {
+            mozHasAudio?: boolean;
+            webkitAudioDecodedByteCount?: number;
+          })
+        | null;
+
+      if (!video || video.paused) return;
+
+      const firefoxSaysNoAudio = video.mozHasAudio === false;
+      const webkitSaysNoAudio =
+        typeof video.webkitAudioDecodedByteCount === "number" &&
+        video.webkitAudioDecodedByteCount === 0 &&
+        video.currentTime > 1;
+
+      if (firefoxSaysNoAudio || webkitSaysNoAudio) {
+        onAudioModeAdvance();
+      }
+    }, 3500);
+  }
+
   function playVideo() {
     const video = videoRef.current;
 
     if (!video) return;
 
-    video.muted = !soundOn;
+    video.muted = audioTestimonyMode ? false : !soundOn;
+    video.loop = !audioTestimonyMode;
     video.playbackRate = playbackRate;
 
     video
@@ -2056,6 +2260,11 @@ function AutoPlayReelVideo({
         setUserPaused(false);
       })
       .catch(() => {
+        if (audioTestimonyMode) {
+          setPaused(true);
+          return;
+        }
+
         video.muted = true;
         onSoundChange(false);
 
@@ -2079,7 +2288,13 @@ function AutoPlayReelVideo({
 
     if (userIntent) {
       setUserPaused(true);
+
+      if (audioTestimonyMode) {
+        onAudioModeManualPause();
+      }
     }
+
+    clearNoAudioAdvance();
   }
 
   function togglePlayButton() {
@@ -2098,6 +2313,13 @@ function AutoPlayReelVideo({
     const video = videoRef.current;
 
     if (!video) return;
+
+    if (audioTestimonyMode) {
+      onSoundChange(true);
+      video.muted = false;
+      video.volume = 1;
+      return;
+    }
 
     const nextSoundOn = !soundOn;
 
@@ -2163,8 +2385,8 @@ function AutoPlayReelVideo({
           ref={videoRef}
           key={videoUrl}
           src={videoUrl}
-          muted={!soundOn}
-          loop
+          muted={audioTestimonyMode ? false : !soundOn}
+          loop={!audioTestimonyMode}
           playsInline
           preload="metadata"
           className="h-full w-full bg-black object-cover object-center transition-transform duration-150 ease-out will-change-transform md:mx-auto md:w-[min(100vw,78dvh)] md:max-w-full lg:w-[min(100vw,84dvh)]"
@@ -2172,8 +2394,19 @@ function AutoPlayReelVideo({
             transform: `scale(${zoomScale})`,
             transformOrigin: "center center",
           }}
-          onPlay={() => setPaused(false)}
-          onPause={() => setPaused(true)}
+          onEnded={() => {
+            if (audioTestimonyMode) {
+              onAudioModeAdvance();
+            }
+          }}
+          onPlay={() => {
+            setPaused(false);
+            scheduleNoAudioAdvance();
+          }}
+          onPause={() => {
+            setPaused(true);
+            clearNoAudioAdvance();
+          }}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
@@ -2183,7 +2416,7 @@ function AutoPlayReelVideo({
 
       <VideoTemplatePresentationLayer
         htbfWatermarkEnabled={htbfWatermarkEnabled}
-        sharedHtbfIntroEnabled={showSharedIntro}
+        sharedHtbfIntroEnabled={showSharedIntro && !audioTestimonyMode}
         silhouetteWatermarkEnabled={silhouetteWatermarkEnabled}
         template={template}
       />
@@ -2198,7 +2431,9 @@ function AutoPlayReelVideo({
                 event.stopPropagation();
                 togglePlayButton();
               }}
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900 shadow-md"
+              className={`flex items-center justify-center rounded-full bg-white text-slate-900 shadow-md ${
+                audioTestimonyMode ? "h-16 w-16" : "h-14 w-14"
+              }`}
               aria-label={paused ? copy.playVideo : copy.pauseVideo}
             >
               {paused ? (
@@ -2215,7 +2450,9 @@ function AutoPlayReelVideo({
                 event.stopPropagation();
                 toggleSound();
               }}
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md"
+              className={`flex items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md ${
+                audioTestimonyMode ? "h-14 w-14" : "h-12 w-12"
+              }`}
               aria-label={soundOn ? copy.turnSoundOff : copy.turnSoundOn}
             >
               {soundOn ? (
