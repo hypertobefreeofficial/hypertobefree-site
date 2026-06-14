@@ -68,6 +68,14 @@ type MobileVideoTool =
   | "size"
   | "position"
   | "preview";
+type DesktopVideoTool =
+  | "message"
+  | "style"
+  | "color"
+  | "size"
+  | "align"
+  | "position"
+  | "emoji";
 type VideoTextTarget = "overlay" | "caption";
 type CaptionPositionPercent = {
   x: number;
@@ -132,7 +140,7 @@ const storyTypes = [
   },
 ];
 
-const emojiOptions = ["🙏", "❤️", "✝️", "🙌", "🕊️", "🔥", "😭", "✨", "🤍"];
+const emojiOptions = ["🙏", "❤️", "✝️", "🙌", "🕊️", "🔥", "😭", "✨"];
 
 const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
   { label: "Original", value: "original" },
@@ -234,6 +242,16 @@ const mobileVideoToolOptions: { label: string; value: MobileVideoTool }[] = [
   { label: "Preview", value: "preview" },
 ];
 
+const desktopVideoToolOptions: { label: string; value: DesktopVideoTool }[] = [
+  { label: "Message", value: "message" },
+  { label: "Style", value: "style" },
+  { label: "Color", value: "color" },
+  { label: "Size", value: "size" },
+  { label: "Align", value: "align" },
+  { label: "Position", value: "position" },
+  { label: "Emoji", value: "emoji" },
+];
+
 export default function ShareYourStoryPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -259,6 +277,8 @@ export default function ShareYourStoryPage() {
   const [captionAlign, setCaptionAlign] = useState<CaptionAlign>("center");
   const [mobileVideoTool, setMobileVideoTool] =
     useState<MobileVideoTool>("message");
+  const [desktopVideoTool, setDesktopVideoTool] =
+    useState<DesktopVideoTool>("style");
   const [desktopEmojiTarget, setDesktopEmojiTarget] =
     useState<VideoTextTarget>("overlay");
   const [mobileCaptionPositionPercent, setMobileCaptionPositionPercent] =
@@ -276,6 +296,12 @@ export default function ShareYourStoryPage() {
     0,
     captionSizeOptions.findIndex((option) => option.value === captionSize)
   );
+  const selectedCaptionColorOption = captionColorOptions.find(
+    (option) => option.value === captionColor
+  );
+  const selectedCaptionStyleLabel =
+    desktopCaptionStyleOptions.find((option) => option.value === captionStyle)
+      ?.label ?? "Classic";
 
   useEffect(() => {
     async function loadPage() {
@@ -421,6 +447,7 @@ export default function ShareYourStoryPage() {
     setVideoFile(null);
     setVideoPreviewUrl(null);
     setOverlayText("");
+    setDesktopVideoTool("style");
     setDesktopEmojiTarget("overlay");
     setMobileVideoTool("message");
     setMobileCaptionPositionPercent({ x: 50, y: 78 });
@@ -450,6 +477,7 @@ export default function ShareYourStoryPage() {
 
     if (file) {
       setMediaMode("video");
+      setDesktopVideoTool("style");
       setMobileVideoTool("message");
       setMobileCaptionPositionPercent({ x: 50, y: 78 });
     }
@@ -1696,16 +1724,19 @@ export default function ShareYourStoryPage() {
                     </div>
                   </div>
 
-                  <div className="min-w-0 max-w-full space-y-4 overflow-hidden rounded-[1.75rem] bg-white p-4 text-slate-900 ring-1 ring-white/10">
-                    <div className="rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+                  <div className="min-w-0 max-w-full space-y-3 overflow-hidden rounded-[1.75rem] bg-white p-4 text-slate-900 ring-1 ring-white/10">
+                    <div className="rounded-[1.5rem] bg-blue-50 p-3 ring-1 ring-blue-100">
                       <label className="mb-2 block text-sm font-black text-[#062a57]">
                         Text on video
                       </label>
                       <textarea
                         value={overlayText}
                         onChange={(event) => setOverlayText(event.target.value)}
-                        onFocus={() => setDesktopEmojiTarget("overlay")}
-                        rows={4}
+                        onFocus={() => {
+                          setDesktopEmojiTarget("overlay");
+                          setDesktopVideoTool("message");
+                        }}
+                        rows={3}
                         placeholder="Add short words that appear on the video..."
                         className="w-full max-w-full resize-none overflow-hidden rounded-[1.25rem] border border-blue-100 bg-white px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
                         style={{
@@ -1715,170 +1746,215 @@ export default function ShareYourStoryPage() {
                       />
                     </div>
 
-                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                        Style
+                    <div className="min-w-0 max-w-full overflow-hidden rounded-[1.5rem] bg-slate-50 p-3 ring-1 ring-slate-200">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                          Creator tools
+                        </div>
+                        <div className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black text-[#0b63ce] ring-1 ring-blue-100">
+                          {selectedCaptionStyleLabel}
+                        </div>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        {desktopCaptionStyleOptions.map((option) => {
-                          const selected = captionStyle === option.value;
 
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setCaptionStyle(option.value)}
-                              className={`rounded-2xl px-3 py-2 text-left text-xs font-black ring-1 transition ${
-                                selected
-                                  ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                                  : "bg-white text-slate-700 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                      <div className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-white p-1 ring-1 ring-slate-200 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {desktopVideoToolOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setDesktopVideoTool(option.value)}
+                            className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-black transition ${
+                              desktopVideoTool === option.value
+                                ? "bg-[#0b63ce] text-white"
+                                : "text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 min-w-0 max-w-full overflow-hidden rounded-[1.25rem] bg-white p-3 ring-1 ring-slate-200">
+                        {desktopVideoTool === "message" && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold leading-6 text-slate-600">
+                            <span>
+                              Type short words above, then drag the text on the
+                              video to place it.
+                            </span>
+                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce]">
+                              Video text
+                            </span>
+                          </div>
+                        )}
+
+                        {desktopVideoTool === "style" && (
+                          <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {desktopCaptionStyleOptions.map((option) => {
+                              const selected = captionStyle === option.value;
+
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => setCaptionStyle(option.value)}
+                                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                                    selected
+                                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                      : "bg-slate-50 text-slate-700 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {desktopVideoTool === "color" && (
+                          <div className="flex max-w-full items-center gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {captionColorOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setCaptionColor(option.value)}
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-2 transition ${
+                                  captionColor === option.value
+                                    ? "ring-[#0b63ce]"
+                                    : "ring-transparent"
+                                }`}
+                                aria-label={option.label}
+                                title={option.label}
+                              >
+                                <span
+                                  className={`h-7 w-7 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
+                                />
+                              </button>
+                            ))}
+
+                            <label
+                              className={`flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-full px-3 text-xs font-black ring-1 ${
+                                selectedCaptionColorOption
+                                  ? "bg-slate-50 text-slate-700 ring-slate-200"
+                                  : "bg-[#0b63ce] text-white ring-[#0b63ce]"
                               }`}
                             >
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                              Custom
+                              <input
+                                type="color"
+                                value={getCaptionColorPickerValue(captionColor)}
+                                onChange={(event) =>
+                                  setCaptionColor(
+                                    event.target.value as CaptionColor
+                                  )
+                                }
+                                className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                                aria-label="Choose custom text color"
+                              />
+                            </label>
+                          </div>
+                        )}
 
-                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                        Font
-                      </div>
-                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-                        Use the Style choices above for font feel: Bold,
-                        Scripture, Praise, Testimony, Minimal, or Grace Script.
-                      </p>
-                    </div>
-
-                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                        Color
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {captionColorOptions.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setCaptionColor(option.value)}
-                            className={`flex h-10 w-10 items-center justify-center rounded-full ring-2 transition ${
-                              captionColor === option.value
-                                ? "ring-[#0b63ce]"
-                                : "ring-transparent"
-                            }`}
-                            aria-label={option.label}
-                            title={option.label}
-                          >
-                            <span
-                              className={`h-7 w-7 rounded-full ring-1 ring-black/10 ${option.swatchClass}`}
+                        {desktopVideoTool === "size" && (
+                          <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                            <div className="mb-2 flex items-center justify-between text-xs font-black text-[#062a57]">
+                              <span>Text size</span>
+                              <span>
+                                {
+                                  captionSizeOptions.find(
+                                    (option) => option.value === captionSize
+                                  )?.label
+                                }
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={captionSizeOptions.length - 1}
+                              step={1}
+                              value={captionSizeSliderIndex}
+                              onChange={(event) =>
+                                setCaptionSize(
+                                  captionSizeOptions[
+                                    Number(event.target.value)
+                                  ]?.value ?? "medium"
+                                )
+                              }
+                              className="w-full accent-[#0b63ce]"
+                              aria-label="Text size"
                             />
-                          </button>
-                        ))}
+                            <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-500">
+                              {captionSizeOptions.map((option) => (
+                                <span key={option.value}>{option.label}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                        <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-white px-3 text-xs font-black text-slate-700 ring-1 ring-slate-200">
-                          Custom
-                          <input
-                            type="color"
-                            value={getCaptionColorPickerValue(captionColor)}
-                            onChange={(event) =>
-                              setCaptionColor(event.target.value as CaptionColor)
-                            }
-                            className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0"
-                            aria-label="Choose custom text color"
-                          />
-                        </label>
-                      </div>
-                    </div>
+                        {desktopVideoTool === "align" && (
+                          <div className="grid max-w-full grid-cols-3 gap-1 rounded-full bg-slate-50 p-1 ring-1 ring-slate-200">
+                            {captionAlignOptions.map((option) => (
+                              <ToolbarChip
+                                key={option.value}
+                                active={captionAlign === option.value}
+                                dark={false}
+                                label={option.label}
+                                onClick={() => setCaptionAlign(option.value)}
+                              />
+                            ))}
+                          </div>
+                        )}
 
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-                        <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                          Size
-                        </div>
-                        <div className="mt-3 grid grid-cols-4 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
-                          {captionSizeOptions.map((option) => (
-                            <ToolbarChip
-                              key={option.value}
-                              active={captionSize === option.value}
-                              dark={false}
-                              label={option.label}
-                              onClick={() => setCaptionSize(option.value)}
-                            />
-                          ))}
-                        </div>
-                      </div>
+                        {desktopVideoTool === "position" && (
+                          <div>
+                            <div className="grid max-w-full grid-cols-3 gap-1 rounded-full bg-slate-50 p-1 ring-1 ring-slate-200">
+                              {captionPositionOptions.map((option) => (
+                                <ToolbarChip
+                                  key={option.value}
+                                  active={captionPosition === option.value}
+                                  dark={false}
+                                  label={option.label}
+                                  onClick={() =>
+                                    selectCaptionPosition(option.value)
+                                  }
+                                />
+                              ))}
+                            </div>
+                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                              Drag text on video to fine-tune.
+                            </p>
+                          </div>
+                        )}
 
-                      <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-                        <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                          Alignment
-                        </div>
-                        <div className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
-                          {captionAlignOptions.map((option) => (
-                            <ToolbarChip
-                              key={option.value}
-                              active={captionAlign === option.value}
-                              dark={false}
-                              label={option.label}
-                              onClick={() => setCaptionAlign(option.value)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                        {desktopVideoTool === "emoji" && (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-1 rounded-full bg-slate-50 p-1 ring-1 ring-slate-200">
+                              <ToolbarChip
+                                active={desktopEmojiTarget === "overlay"}
+                                dark={false}
+                                label="Add to video text"
+                                onClick={() => setDesktopEmojiTarget("overlay")}
+                              />
+                              <ToolbarChip
+                                active={desktopEmojiTarget === "caption"}
+                                dark={false}
+                                label="Add to caption/context"
+                                onClick={() => setDesktopEmojiTarget("caption")}
+                              />
+                            </div>
 
-                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                        Position
-                      </div>
-                      <div className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
-                        {captionPositionOptions.map((option) => (
-                          <ToolbarChip
-                            key={option.value}
-                            active={captionPosition === option.value}
-                            dark={false}
-                            label={option.label}
-                            onClick={() => selectCaptionPosition(option.value)}
-                          />
-                        ))}
-                      </div>
-                      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                        Shortcuts set the starting point. Drag the text on the
-                        video for custom placement.
-                      </p>
-                    </div>
-
-                    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-                          Emoji / quick reactions
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
-                          <ToolbarChip
-                            active={desktopEmojiTarget === "overlay"}
-                            dark={false}
-                            label="Add to video text"
-                            onClick={() => setDesktopEmojiTarget("overlay")}
-                          />
-                          <ToolbarChip
-                            active={desktopEmojiTarget === "caption"}
-                            dark={false}
-                            label="Add to caption/context"
-                            onClick={() => setDesktopEmojiTarget("caption")}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {emojiOptions.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => addEmoji(emoji)}
-                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-xl ring-1 ring-slate-200 transition hover:bg-blue-50"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
+                            <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                              {emojiOptions.map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  onClick={() => addEmoji(emoji)}
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-50 text-xl ring-1 ring-slate-200 transition hover:bg-blue-50"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
