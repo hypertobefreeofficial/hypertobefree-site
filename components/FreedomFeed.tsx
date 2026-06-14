@@ -2118,7 +2118,7 @@ function FeedCaptionOverlay({
 
   return (
     <StoryOverlayText
-      align={align}
+      alignment={align}
       background={background}
       color={color}
       font={font}
