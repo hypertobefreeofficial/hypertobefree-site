@@ -1575,7 +1575,7 @@ export default function ShareYourStoryPage() {
 
                       {previewText && captionStyle !== "classic-caption" && (
                         <StoryOverlayText
-                          align={captionAlign}
+                          alignment={captionAlign}
                           background={captionBackground}
                           color={captionColor}
                           font={captionFont}
@@ -2963,7 +2963,7 @@ function MobileDraggableCaptionOverlay({
 }) {
   return (
     <StoryOverlayText
-      align={align}
+      alignment={align}
       background={background}
       color={color}
       draggable
