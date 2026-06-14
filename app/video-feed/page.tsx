@@ -1348,6 +1348,15 @@ export default function VideoFeedPage() {
                 <AutoPlayReelVideo
                   videoUrl={story.signed_video_url}
                   template={story.video_template}
+                  overlayText={story.overlay_text}
+                  overlayX={story.overlay_x}
+                  overlayY={story.overlay_y}
+                  captionStyle={story.caption_style ?? "classic-caption"}
+                  captionFont={story.caption_font}
+                  captionBackground={story.caption_background}
+                  captionColor={story.caption_color}
+                  captionSize={story.caption_size}
+                  captionAlign={story.caption_align}
                   soundOn={soundOn}
                   onSoundChange={setSoundOn}
                   eagerLoad={index === 0}
@@ -1903,6 +1912,15 @@ function VideoOptionsMenu({
 function AutoPlayReelVideo({
   videoUrl,
   template,
+  overlayText,
+  overlayX,
+  overlayY,
+  captionStyle,
+  captionFont,
+  captionBackground,
+  captionColor,
+  captionSize,
+  captionAlign,
   soundOn,
   onSoundChange,
   eagerLoad,
@@ -1915,6 +1933,15 @@ function AutoPlayReelVideo({
 }: {
   videoUrl: string;
   template: VideoTemplate;
+  overlayText: string | null;
+  overlayX: number | null;
+  overlayY: number | null;
+  captionStyle: CaptionStyle;
+  captionFont: CaptionFont;
+  captionBackground: CaptionBackground;
+  captionColor: CaptionColor;
+  captionSize: CaptionSize;
+  captionAlign: CaptionAlign;
   soundOn: boolean;
   onSoundChange: (nextValue: boolean) => void;
   eagerLoad: boolean;
@@ -2356,6 +2383,10 @@ function AutoPlayReelVideo({
     togglePlayButton();
   }
 
+  const cleanOverlayText = overlayText?.trim() ?? "";
+  const visibleOverlayText =
+    cleanOverlayText.toLowerCase() === "none" ? "" : cleanOverlayText;
+
   return (
     <div
       ref={wrapperRef}
@@ -2412,6 +2443,21 @@ function AutoPlayReelVideo({
       )}
 
       <VideoMediaStampLayer stamp={template} />
+
+      {visibleOverlayText && (
+        <VideoCaptionStyleOverlay
+          align={captionAlign}
+          background={captionBackground}
+          color={captionColor}
+          font={captionFont}
+          maxLines={8}
+          overlayX={overlayX}
+          overlayY={overlayY}
+          size={captionSize}
+          style={captionStyle}
+          text={visibleOverlayText}
+        />
+      )}
 
       {!beStillMode && !paused && (
         <button
@@ -2572,29 +2618,10 @@ function VideoInfoOverlay({
 
   const rawStoryText = story.story_text?.trim() || "";
   const storyText = rawStoryText.toLowerCase() === "none" ? "" : rawStoryText;
-  const rawOverlayText = story.overlay_text?.trim() || "";
-  const overlayText =
-    rawOverlayText.toLowerCase() === "none" ? "" : rawOverlayText;
-  const captionStyle = story.caption_style ?? "classic-caption";
-  const hasOverlayText = Boolean(overlayText);
   const isLongText = storyText.length > 140;
 
   return (
     <>
-      {hasOverlayText && (
-        <VideoCaptionStyleOverlay
-          align={story.caption_align}
-          background={story.caption_background}
-          color={story.caption_color}
-          font={story.caption_font}
-          overlayX={story.overlay_x}
-          overlayY={story.overlay_y}
-          size={story.caption_size}
-          style={captionStyle}
-          text={overlayText}
-        />
-      )}
-
       {captionHidden ? (
         <button
           type="button"
@@ -2697,6 +2724,7 @@ function VideoCaptionStyleOverlay({
   background,
   color,
   font,
+  maxLines,
   overlayX,
   overlayY,
   size,
@@ -2707,6 +2735,7 @@ function VideoCaptionStyleOverlay({
   background?: CaptionBackground;
   color?: CaptionColor;
   font?: CaptionFont;
+  maxLines?: number;
   overlayX?: number | null;
   overlayY?: number | null;
   size?: CaptionSize;
@@ -2715,10 +2744,11 @@ function VideoCaptionStyleOverlay({
 }) {
   return (
     <StoryOverlayText
-      align={align}
+      alignment={align}
       background={background}
       color={color}
       font={font}
+      maxLines={maxLines}
       overlayX={overlayX}
       overlayY={overlayY}
       size={size}
