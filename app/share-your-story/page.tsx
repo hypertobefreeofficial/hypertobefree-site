@@ -55,22 +55,56 @@ type CaptionAlign = "left" | "center" | "right";
 type CaptionColorPreset =
   | "white"
   | "black"
+  | "deep-navy"
   | "soft-gold"
   | "prayer-blue"
   | "warm-cream"
   | "praise-green";
 type CaptionColor = CaptionColorPreset | `#${string}`;
-type TextEditorPanel = "style" | "color" | "align" | "size" | "position";
+type CaptionFont =
+  | "classic"
+  | "bold"
+  | "scripture"
+  | "praise"
+  | "testimony"
+  | "minimal"
+  | "grace-script";
+type CaptionBackground =
+  | "none"
+  | "soft-pill"
+  | "glass-blur"
+  | "dark-banner"
+  | "glow-box"
+  | "scripture-card";
+type CaptionTemplate =
+  | "testimony-light"
+  | "prayer-calm"
+  | "scripture-focus"
+  | "freedom-glow"
+  | "quiet-strength"
+  | "celebration-praise";
+type TextEditorPanel =
+  | "template"
+  | "style"
+  | "bubble"
+  | "color"
+  | "align"
+  | "size"
+  | "position";
 type MobileVideoTool =
   | "message"
+  | "template"
   | "style"
+  | "bubble"
   | "color"
   | "size"
   | "position"
   | "preview";
 type DesktopVideoTool =
   | "message"
+  | "template"
   | "style"
+  | "bubble"
   | "color"
   | "size"
   | "align"
@@ -149,56 +183,111 @@ const photoDisplayOptions: { label: string; value: PhotoDisplayStyle }[] = [
   { label: "Framed", value: "framed" },
 ];
 
-const captionStyleOptions: {
-  label: string;
-  value: CaptionStyle;
-}[] = [
-  {
-    label: "Classic",
-    value: "classic-caption",
-  },
-  {
-    label: "Bold",
-    value: "bold-center",
-  },
-  {
-    label: "Scripture",
-    value: "scripture-card",
-  },
-  {
-    label: "Praise",
-    value: "praise-glow",
-  },
-  {
-    label: "Testimony",
-    value: "testimony-quote",
-  },
-  {
-    label: "Minimal",
-    value: "minimal-white",
-  },
-  {
-    label: "Grace Script",
-    value: "elegant-script",
-  },
+const captionFontOptions: { label: string; value: CaptionFont }[] = [
+  { label: "Classic", value: "classic" },
+  { label: "Bold", value: "bold" },
+  { label: "Scripture", value: "scripture" },
+  { label: "Praise", value: "praise" },
+  { label: "Testimony", value: "testimony" },
+  { label: "Minimal", value: "minimal" },
+  { label: "Grace Script", value: "grace-script" },
 ];
 
-const mobileCaptionStyleOptions: {
-  label: string;
-  value: CaptionStyle;
-}[] = [
-  { label: "Classic", value: "classic-caption" },
-  { label: "Bold", value: "bold-center" },
-  { label: "Scripture", value: "scripture-card" },
-  { label: "Praise", value: "praise-glow" },
-  { label: "Testimony", value: "testimony-quote" },
-  { label: "Minimal", value: "minimal-white" },
-  { label: "Grace Script", value: "elegant-script" },
-  { label: "Glow", value: "soft-gradient" },
-  { label: "Outline", value: "black-outline" },
-];
+const captionBackgroundOptions: { label: string; value: CaptionBackground }[] =
+  [
+    { label: "No background", value: "none" },
+    { label: "Soft pill", value: "soft-pill" },
+    { label: "Glass blur", value: "glass-blur" },
+    { label: "Dark banner", value: "dark-banner" },
+    { label: "Glow box", value: "glow-box" },
+    { label: "Scripture card", value: "scripture-card" },
+  ];
 
-const desktopCaptionStyleOptions = mobileCaptionStyleOptions;
+const captionTemplateOptions: {
+  label: string;
+  value: CaptionTemplate;
+  settings: {
+    align: CaptionAlign;
+    background: CaptionBackground;
+    color: CaptionColor;
+    font: CaptionFont;
+    position: CaptionPosition;
+    size: CaptionSize;
+  };
+}[] = [
+  {
+    label: "Testimony Light",
+    value: "testimony-light",
+    settings: {
+      align: "center",
+      background: "glass-blur",
+      color: "soft-gold",
+      font: "testimony",
+      position: "bottom",
+      size: "large",
+    },
+  },
+  {
+    label: "Prayer Calm",
+    value: "prayer-calm",
+    settings: {
+      align: "center",
+      background: "glass-blur",
+      color: "prayer-blue",
+      font: "scripture",
+      position: "center",
+      size: "medium",
+    },
+  },
+  {
+    label: "Scripture Focus",
+    value: "scripture-focus",
+    settings: {
+      align: "center",
+      background: "scripture-card",
+      color: "deep-navy",
+      font: "scripture",
+      position: "top",
+      size: "medium",
+    },
+  },
+  {
+    label: "Freedom Glow",
+    value: "freedom-glow",
+    settings: {
+      align: "center",
+      background: "glow-box",
+      color: "soft-gold",
+      font: "bold",
+      position: "center",
+      size: "extra-large",
+    },
+  },
+  {
+    label: "Quiet Strength",
+    value: "quiet-strength",
+    settings: {
+      align: "left",
+      background: "dark-banner",
+      color: "white",
+      font: "minimal",
+      position: "bottom",
+      size: "medium",
+    },
+  },
+  {
+    label: "Celebration Praise",
+    value: "celebration-praise",
+    settings: {
+      align: "center",
+      background: "glow-box",
+      color: "soft-gold",
+      font: "praise",
+      position: "bottom",
+      size: "large",
+    },
+  },
+];
 
 const captionColorOptions: {
   label: string;
@@ -208,6 +297,7 @@ const captionColorOptions: {
 }[] = [
   { label: "White", value: "white", swatchClass: "bg-white", hex: "#ffffff" },
   { label: "Black", value: "black", swatchClass: "bg-slate-950", hex: "#020617" },
+  { label: "Deep Navy", value: "deep-navy", swatchClass: "bg-[#062a57]", hex: "#062a57" },
   { label: "Prayer Blue", value: "prayer-blue", swatchClass: "bg-blue-200", hex: "#bfdbfe" },
   { label: "Soft Gold", value: "soft-gold", swatchClass: "bg-amber-200", hex: "#fde68a" },
   { label: "Warm Cream", value: "warm-cream", swatchClass: "bg-[#fff4d6]", hex: "#fff4d6" },
@@ -235,7 +325,9 @@ const captionPositionOptions: { label: string; value: CaptionPosition }[] = [
 
 const mobileVideoToolOptions: { label: string; value: MobileVideoTool }[] = [
   { label: "Message", value: "message" },
-  { label: "Style", value: "style" },
+  { label: "Template", value: "template" },
+  { label: "Text", value: "style" },
+  { label: "Bubble", value: "bubble" },
   { label: "Color", value: "color" },
   { label: "Size", value: "size" },
   { label: "Position", value: "position" },
@@ -244,7 +336,9 @@ const mobileVideoToolOptions: { label: string; value: MobileVideoTool }[] = [
 
 const desktopVideoToolOptions: { label: string; value: DesktopVideoTool }[] = [
   { label: "Message", value: "message" },
-  { label: "Style", value: "style" },
+  { label: "Template", value: "template" },
+  { label: "Text", value: "style" },
+  { label: "Bubble", value: "bubble" },
   { label: "Color", value: "color" },
   { label: "Size", value: "size" },
   { label: "Align", value: "align" },
@@ -270,6 +364,11 @@ export default function ShareYourStoryPage() {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [captionStyle, setCaptionStyle] =
     useState<CaptionStyle>("classic-caption");
+  const [captionFont, setCaptionFont] = useState<CaptionFont>("classic");
+  const [captionBackground, setCaptionBackground] =
+    useState<CaptionBackground>("soft-pill");
+  const [captionTemplate, setCaptionTemplate] =
+    useState<CaptionTemplate | null>(null);
   const [captionColor, setCaptionColor] = useState<CaptionColor>("white");
   const [captionPosition, setCaptionPosition] =
     useState<CaptionPosition>("bottom");
@@ -299,9 +398,9 @@ export default function ShareYourStoryPage() {
   const selectedCaptionColorOption = captionColorOptions.find(
     (option) => option.value === captionColor
   );
-  const selectedCaptionStyleLabel =
-    desktopCaptionStyleOptions.find((option) => option.value === captionStyle)
-      ?.label ?? "Classic";
+  const selectedCaptionTemplateLabel =
+    captionTemplateOptions.find((option) => option.value === captionTemplate)
+      ?.label ?? "Custom";
 
   useEffect(() => {
     async function loadPage() {
@@ -437,6 +536,67 @@ export default function ShareYourStoryPage() {
     setStoryText((current) => appendToken(current, emoji));
   }
 
+  function markTemplateCustom() {
+    setCaptionTemplate(null);
+  }
+
+  function changeCaptionFont(nextFont: CaptionFont) {
+    setCaptionFont(nextFont);
+    setCaptionStyle(getLegacyCaptionStyle(nextFont, captionBackground));
+    markTemplateCustom();
+  }
+
+  function changeCaptionBackground(nextBackground: CaptionBackground) {
+    setCaptionBackground(nextBackground);
+    setCaptionStyle(getLegacyCaptionStyle(captionFont, nextBackground));
+    markTemplateCustom();
+  }
+
+  function changeCaptionColor(nextColor: CaptionColor) {
+    setCaptionColor(nextColor);
+    markTemplateCustom();
+  }
+
+  function changeCaptionSize(nextSize: CaptionSize) {
+    setCaptionSize(nextSize);
+    markTemplateCustom();
+  }
+
+  function changeCaptionAlign(nextAlign: CaptionAlign) {
+    setCaptionAlign(nextAlign);
+    markTemplateCustom();
+  }
+
+  function applyCaptionTemplate(template: CaptionTemplate) {
+    const option = captionTemplateOptions.find(
+      (item) => item.value === template
+    );
+
+    if (!option) return;
+
+    setCaptionTemplate(template);
+    setCaptionAlign(option.settings.align);
+    setCaptionBackground(option.settings.background);
+    setCaptionColor(option.settings.color);
+    setCaptionFont(option.settings.font);
+    setCaptionPosition(option.settings.position);
+    setCaptionSize(option.settings.size);
+    setCaptionStyle(
+      getLegacyCaptionStyle(option.settings.font, option.settings.background)
+    );
+    setMobileCaptionPositionPercent(
+      getCaptionPositionPercent(option.settings.position)
+    );
+  }
+
+  function getCaptionPositionPercent(
+    position: CaptionPosition
+  ): CaptionPositionPercent {
+    if (position === "top") return { x: 50, y: 20 };
+    if (position === "center") return { x: 50, y: 50 };
+    return { x: 50, y: 78 };
+  }
+
   function removePhoto() {
     setPhotoFile(null);
     setPhotoPreviewUrl(null);
@@ -510,6 +670,7 @@ export default function ShareYourStoryPage() {
     );
 
     setMobileCaptionPositionPercent({ x: nextX, y: nextY });
+    markTemplateCustom();
   }
 
   function startMobileCaptionDrag(event: PointerEvent<HTMLElement>) {
@@ -536,18 +697,8 @@ export default function ShareYourStoryPage() {
 
   function selectCaptionPosition(position: CaptionPosition) {
     setCaptionPosition(position);
-
-    if (position === "top") {
-      setMobileCaptionPositionPercent({ x: 50, y: 20 });
-      return;
-    }
-
-    if (position === "center") {
-      setMobileCaptionPositionPercent({ x: 50, y: 50 });
-      return;
-    }
-
-    setMobileCaptionPositionPercent({ x: 50, y: 78 });
+    setMobileCaptionPositionPercent(getCaptionPositionPercent(position));
+    markTemplateCustom();
   }
 
   function selectMobileCaptionShortcut(position: CaptionPosition) {
@@ -856,6 +1007,16 @@ export default function ShareYourStoryPage() {
         caption_style:
           mediaMode === "photo" || mediaMode === "video"
             ? captionStyle
+            : null,
+        caption_font:
+          mediaMode === "photo" || mediaMode === "video" ? captionFont : null,
+        caption_background:
+          mediaMode === "photo" || mediaMode === "video"
+            ? captionBackground
+            : null,
+        caption_template:
+          mediaMode === "photo" || mediaMode === "video"
+            ? captionTemplate
             : null,
         caption_color:
           mediaMode === "photo" || mediaMode === "video"
@@ -1325,10 +1486,11 @@ export default function ShareYourStoryPage() {
                       {previewText && captionStyle !== "classic-caption" && (
                         <CaptionTextOverlay
                           align={captionAlign}
+                          background={captionBackground}
                           color={captionColor}
+                          font={captionFont}
                           position={captionPosition}
                           size={captionSize}
-                          style={captionStyle}
                           text={previewText}
                         />
                       )}
@@ -1351,17 +1513,21 @@ export default function ShareYourStoryPage() {
                 </div>
 
                 <CaptionStyleControls
+                  background={captionBackground}
                   dark={false}
-                  style={captionStyle}
-                  onStyleChange={setCaptionStyle}
+                  font={captionFont}
+                  onBackgroundChange={changeCaptionBackground}
+                  onFontChange={changeCaptionFont}
+                  onTemplateChange={applyCaptionTemplate}
                   color={captionColor}
-                  onColorChange={setCaptionColor}
+                  onColorChange={changeCaptionColor}
                   position={captionPosition}
                   onPositionChange={selectCaptionPosition}
                   size={captionSize}
-                  onSizeChange={setCaptionSize}
+                  onSizeChange={changeCaptionSize}
                   align={captionAlign}
-                  onAlignChange={setCaptionAlign}
+                  onAlignChange={changeCaptionAlign}
+                  template={captionTemplate}
                 />
               </div>
             )}
@@ -1448,13 +1614,14 @@ export default function ShareYourStoryPage() {
                   {previewText ? (
                     <MobileDraggableCaptionOverlay
                       align={captionAlign}
+                      background={captionBackground}
                       color={captionColor}
+                      font={captionFont}
                       onPointerDown={startMobileCaptionDrag}
                       onPointerMove={dragMobileCaption}
                       onPointerUp={stopMobileCaptionDrag}
                       positionPercent={mobileCaptionPositionPercent}
                       size={captionSize}
-                      style={captionStyle}
                       text={previewText}
                     />
                   ) : (
@@ -1504,15 +1671,55 @@ export default function ShareYourStoryPage() {
                       </div>
                     )}
 
-                    {mobileVideoTool === "style" && (
+                    {mobileVideoTool === "template" && (
                       <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {mobileCaptionStyleOptions.map((option) => (
+                        {captionTemplateOptions.map((option) => (
                           <button
                             key={option.value}
                             type="button"
-                            onClick={() => setCaptionStyle(option.value)}
+                            onClick={() => applyCaptionTemplate(option.value)}
                             className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
-                              captionStyle === option.value
+                              captionTemplate === option.value
+                                ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-blue-50"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {mobileVideoTool === "style" && (
+                      <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {captionFontOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => changeCaptionFont(option.value)}
+                            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                              captionFont === option.value
+                                ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-blue-50"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {mobileVideoTool === "bubble" && (
+                      <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {captionBackgroundOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() =>
+                              changeCaptionBackground(option.value)
+                            }
+                            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                              captionBackground === option.value
                                 ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
                                 : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-blue-50"
                             }`}
@@ -1529,7 +1736,7 @@ export default function ShareYourStoryPage() {
                           <button
                             key={option.value}
                             type="button"
-                            onClick={() => setCaptionColor(option.value)}
+                            onClick={() => changeCaptionColor(option.value)}
                             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-2 transition ${
                               captionColor === option.value
                                 ? "ring-[#0b63ce]"
@@ -1551,7 +1758,7 @@ export default function ShareYourStoryPage() {
                               type="color"
                               value={getCaptionColorPickerValue(captionColor)}
                               onChange={(event) =>
-                                setCaptionColor(
+                                changeCaptionColor(
                                   event.target.value as CaptionColor
                                 )
                               }
@@ -1582,7 +1789,7 @@ export default function ShareYourStoryPage() {
                           step={1}
                           value={captionSizeSliderIndex}
                           onChange={(event) =>
-                            setCaptionSize(
+                            changeCaptionSize(
                               captionSizeOptions[Number(event.target.value)]
                                 ?.value ?? "medium"
                             )
@@ -1705,13 +1912,14 @@ export default function ShareYourStoryPage() {
                           {previewText ? (
                             <MobileDraggableCaptionOverlay
                               align={captionAlign}
+                              background={captionBackground}
                               color={captionColor}
+                              font={captionFont}
                               onPointerDown={startMobileCaptionDrag}
                               onPointerMove={dragMobileCaption}
                               onPointerUp={stopMobileCaptionDrag}
                               positionPercent={mobileCaptionPositionPercent}
                               size={captionSize}
-                              style={captionStyle}
                               text={previewText}
                             />
                           ) : (
@@ -1752,7 +1960,7 @@ export default function ShareYourStoryPage() {
                           Creator tools
                         </div>
                         <div className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black text-[#0b63ce] ring-1 ring-blue-100">
-                          {selectedCaptionStyleLabel}
+                          {selectedCaptionTemplateLabel}
                         </div>
                       </div>
 
@@ -1786,16 +1994,63 @@ export default function ShareYourStoryPage() {
                           </div>
                         )}
 
+                        {desktopVideoTool === "template" && (
+                          <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {captionTemplateOptions.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() =>
+                                  applyCaptionTemplate(option.value)
+                                }
+                                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                                  captionTemplate === option.value
+                                    ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                    : "bg-slate-50 text-slate-700 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
                         {desktopVideoTool === "style" && (
                           <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            {desktopCaptionStyleOptions.map((option) => {
-                              const selected = captionStyle === option.value;
+                            {captionFontOptions.map((option) => {
+                              const selected = captionFont === option.value;
 
                               return (
                                 <button
                                   key={option.value}
                                   type="button"
-                                  onClick={() => setCaptionStyle(option.value)}
+                                  onClick={() => changeCaptionFont(option.value)}
+                                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                                    selected
+                                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                      : "bg-slate-50 text-slate-700 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {desktopVideoTool === "bubble" && (
+                          <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {captionBackgroundOptions.map((option) => {
+                              const selected =
+                                captionBackground === option.value;
+
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() =>
+                                    changeCaptionBackground(option.value)
+                                  }
                                   className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
                                     selected
                                       ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
@@ -1815,7 +2070,7 @@ export default function ShareYourStoryPage() {
                               <button
                                 key={option.value}
                                 type="button"
-                                onClick={() => setCaptionColor(option.value)}
+                                onClick={() => changeCaptionColor(option.value)}
                                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-2 transition ${
                                   captionColor === option.value
                                     ? "ring-[#0b63ce]"
@@ -1842,7 +2097,7 @@ export default function ShareYourStoryPage() {
                                 type="color"
                                 value={getCaptionColorPickerValue(captionColor)}
                                 onChange={(event) =>
-                                  setCaptionColor(
+                                  changeCaptionColor(
                                     event.target.value as CaptionColor
                                   )
                                 }
@@ -1872,7 +2127,7 @@ export default function ShareYourStoryPage() {
                               step={1}
                               value={captionSizeSliderIndex}
                               onChange={(event) =>
-                                setCaptionSize(
+                                changeCaptionSize(
                                   captionSizeOptions[
                                     Number(event.target.value)
                                   ]?.value ?? "medium"
@@ -1897,7 +2152,7 @@ export default function ShareYourStoryPage() {
                                 active={captionAlign === option.value}
                                 dark={false}
                                 label={option.label}
-                                onClick={() => setCaptionAlign(option.value)}
+                                onClick={() => changeCaptionAlign(option.value)}
                               />
                             ))}
                           </div>
@@ -1985,33 +2240,41 @@ export default function ShareYourStoryPage() {
 
 function CaptionStyleControls({
   align,
+  background,
   color,
   dark,
+  font,
   onAlignChange,
+  onBackgroundChange,
   onColorChange,
+  onFontChange,
   onPositionChange,
   onSizeChange,
-  onStyleChange,
+  onTemplateChange,
   position,
   size,
-  style,
+  template,
 }: {
   align: CaptionAlign;
+  background: CaptionBackground;
   color: CaptionColor;
   dark: boolean;
+  font: CaptionFont;
   onAlignChange: (value: CaptionAlign) => void;
+  onBackgroundChange: (value: CaptionBackground) => void;
   onColorChange: (value: CaptionColor) => void;
+  onFontChange: (value: CaptionFont) => void;
   onPositionChange: (value: CaptionPosition) => void;
   onSizeChange: (value: CaptionSize) => void;
-  onStyleChange: (value: CaptionStyle) => void;
+  onTemplateChange: (value: CaptionTemplate) => void;
   position: CaptionPosition;
   size: CaptionSize;
-  style: CaptionStyle;
+  template: CaptionTemplate | null;
 }) {
-  const [activePanel, setActivePanel] = useState<TextEditorPanel>("style");
-  const selectedStyleLabel =
-    captionStyleOptions.find((option) => option.value === style)?.label ??
-    "Classic";
+  const [activePanel, setActivePanel] = useState<TextEditorPanel>("template");
+  const selectedTemplateLabel =
+    captionTemplateOptions.find((option) => option.value === template)?.label ??
+    "Custom";
   const selectedColorOption = captionColorOptions.find(
     (option) => option.value === color
   );
@@ -2037,21 +2300,35 @@ function CaptionStyleControls({
             dark ? "bg-white/10 text-blue-100" : "bg-white text-[#0b63ce]"
           }`}
         >
-          {selectedStyleLabel}
+          {selectedTemplateLabel}
         </div>
       </div>
 
       <div
-        className={`grid grid-cols-5 gap-1 rounded-full p-1 ${
+        className={`flex max-w-full gap-1 overflow-x-auto rounded-full p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
           dark ? "bg-black/25" : "bg-white"
         }`}
       >
+        <ToolbarButton
+          active={activePanel === "template"}
+          dark={dark}
+          label="Preset"
+          onClick={() => setActivePanel("template")}
+          title="HTBF templates"
+        />
         <ToolbarButton
           active={activePanel === "style"}
           dark={dark}
           label="Aa"
           onClick={() => setActivePanel("style")}
           title="Font and style"
+        />
+        <ToolbarButton
+          active={activePanel === "bubble"}
+          dark={dark}
+          label="Bubble"
+          onClick={() => setActivePanel("bubble")}
+          title="Bubble and background"
         />
         <ToolbarButton
           active={activePanel === "color"}
@@ -2094,16 +2371,70 @@ function CaptionStyleControls({
       </div>
 
       <div className="mt-3 w-full max-w-full min-w-0 overflow-hidden">
-        {activePanel === "style" && (
+        {activePanel === "template" && (
           <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {captionStyleOptions.map((option) => {
-              const selected = style === option.value;
+            {captionTemplateOptions.map((option) => {
+              const selected = template === option.value;
 
               return (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => onStyleChange(option.value)}
+                  onClick={() => onTemplateChange(option.value)}
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                    selected
+                      ? dark
+                        ? "bg-white text-[#082f63] ring-white"
+                        : "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                      : dark
+                        ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                        : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {activePanel === "style" && (
+          <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {captionFontOptions.map((option) => {
+              const selected = font === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onFontChange(option.value)}
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                    selected
+                      ? dark
+                        ? "bg-white text-[#082f63] ring-white"
+                        : "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                      : dark
+                        ? "bg-white/10 text-slate-200 ring-white/10 hover:bg-white/15"
+                        : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-100"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {activePanel === "bubble" && (
+          <div className="flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {captionBackgroundOptions.map((option) => {
+              const selected = background === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onBackgroundChange(option.value)}
                   className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
                     selected
                       ? dark
@@ -2250,7 +2581,7 @@ function ToolbarButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-10 min-w-0 items-center justify-center rounded-full text-sm font-black transition ${
+      className={`flex h-10 shrink-0 items-center justify-center rounded-full px-3 text-sm font-black transition ${
         active
           ? "bg-[#0b63ce] text-white"
           : dark
@@ -2295,31 +2626,34 @@ function ToolbarChip({
 
 function CaptionTextOverlay({
   align,
+  background,
   color,
+  font,
   position,
   size,
-  style,
   text,
 }: {
   align: CaptionAlign;
+  background: CaptionBackground;
   color: CaptionColor;
+  font: CaptionFont;
   position: CaptionPosition;
   size: CaptionSize;
-  style: CaptionStyle;
   text: string;
 }) {
   const positionClass = getCaptionPositionClass(position);
   const sizeClass = getCaptionSizeClass(size);
   const alignClass = getCaptionAlignClass(align);
-  const styleClass = getCaptionStyleClass(style);
+  const fontClass = getCaptionFontClass(font);
+  const backgroundClass = getCaptionBackgroundClass(background);
   const colorClass = getCaptionColorClass(color);
   const inlineColor = getCaptionInlineColor(color);
   const textShadow = getCaptionTextShadow(color);
-  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
+  const quoteText = font === "testimony" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg ${positionClass} ${sizeClass} ${alignClass} ${styleClass} ${colorClass}`}
+      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug ${positionClass} ${sizeClass} ${alignClass} ${fontClass} ${backgroundClass} ${colorClass}`}
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
@@ -2334,32 +2668,35 @@ function CaptionTextOverlay({
 
 function MobileDraggableCaptionOverlay({
   align,
+  background,
   color,
+  font,
   onPointerDown,
   onPointerMove,
   onPointerUp,
   positionPercent,
   size,
-  style,
   text,
 }: {
   align: CaptionAlign;
+  background: CaptionBackground;
   color: CaptionColor;
+  font: CaptionFont;
   onPointerDown: (event: PointerEvent<HTMLElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLElement>) => void;
   positionPercent: CaptionPositionPercent;
   size: CaptionSize;
-  style: CaptionStyle;
   text: string;
 }) {
   const sizeClass = getCaptionSizeClass(size);
   const alignClass = getCaptionAlignClass(align);
-  const styleClass = getCaptionStyleClass(style);
+  const fontClass = getCaptionFontClass(font);
+  const backgroundClass = getCaptionBackgroundClass(background);
   const colorClass = getCaptionColorClass(color);
   const inlineColor = getCaptionInlineColor(color);
   const textShadow = getCaptionTextShadow(color);
-  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
+  const quoteText = font === "testimony" ? `“${text}”` : text;
 
   return (
     <div
@@ -2369,7 +2706,7 @@ function MobileDraggableCaptionOverlay({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className={`absolute z-10 max-h-36 w-[min(86%,28rem)] cursor-grab overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg active:cursor-grabbing ${sizeClass} ${alignClass} ${styleClass} ${colorClass}`}
+      className={`absolute z-10 max-h-36 w-[min(86%,28rem)] cursor-grab overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug active:cursor-grabbing ${sizeClass} ${alignClass} ${fontClass} ${backgroundClass} ${colorClass}`}
       style={{
         left: `${positionPercent.x}%`,
         top: `${positionPercent.y}%`,
@@ -2409,38 +2746,50 @@ function getCaptionAlignClass(align: CaptionAlign) {
   return "text-center";
 }
 
-function getCaptionStyleClass(style: CaptionStyle) {
-  if (style === "bold-center") {
-    return "rounded-[1.5rem] bg-black/45 font-black text-white backdrop-blur";
+function getCaptionFontClass(font: CaptionFont) {
+  if (font === "bold") return "font-sans font-black tracking-tight";
+  if (font === "scripture") return "font-serif font-semibold italic";
+  if (font === "praise") return "font-serif font-black italic tracking-wide";
+  if (font === "testimony") return "font-sans font-black";
+  if (font === "minimal") return "font-sans font-semibold";
+  if (font === "grace-script") {
+    return "font-[cursive] text-2xl italic tracking-wide";
   }
-  if (style === "bottom-banner") {
-    return "rounded-2xl bg-black/75 font-bold text-white backdrop-blur";
+
+  return "font-sans font-semibold";
+}
+
+function getCaptionBackgroundClass(background: CaptionBackground) {
+  if (background === "none") return "px-0 py-0 shadow-none";
+  if (background === "glass-blur") {
+    return "rounded-[1.5rem] bg-white/20 shadow-lg ring-1 ring-white/50 backdrop-blur-md";
   }
-  if (style === "highlight-box") {
-    return "rounded-[1.5rem] bg-yellow-300/95 font-black text-yellow-950 ring-1 ring-white/70";
+  if (background === "dark-banner") {
+    return "rounded-2xl bg-black/75 shadow-lg ring-1 ring-white/10 backdrop-blur";
   }
-  if (style === "scripture-card") {
-    return "rounded-[1.5rem] bg-blue-50/90 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur";
+  if (background === "glow-box") {
+    return "rounded-[1.5rem] bg-gradient-to-r from-[#0b63ce]/75 via-amber-300/60 to-[#0b63ce]/70 shadow-lg shadow-amber-300/30 ring-1 ring-white/50 backdrop-blur";
   }
-  if (style === "praise-glow") {
-    return "rounded-[1.5rem] bg-amber-300/90 font-black text-amber-950 ring-1 ring-white/70 shadow-amber-300/30";
+  if (background === "scripture-card") {
+    return "rounded-[1.5rem] bg-[#fff4d6]/95 shadow-lg ring-1 ring-white/70 backdrop-blur";
   }
-  if (style === "testimony-quote") {
-    return "rounded-[1.5rem] bg-white/90 font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur";
-  }
-  if (style === "elegant-script") {
-    return "rounded-[1.75rem] bg-white/20 font-[cursive] text-2xl italic tracking-wide text-white ring-1 ring-white/60 backdrop-blur-md shadow-white/20";
-  }
-  if (style === "minimal-white") {
-    return "font-black text-white shadow-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]";
-  }
-  if (style === "black-outline") {
-    return "font-black text-white shadow-none [text-shadow:2px_2px_0_#000,-2px_2px_0_#000,2px_-2px_0_#000,-2px_-2px_0_#000]";
-  }
-  if (style === "soft-gradient") {
-    return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
-  }
-  return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
+
+  return "rounded-2xl bg-white/90 shadow-lg ring-1 ring-white/70 backdrop-blur";
+}
+
+function getLegacyCaptionStyle(
+  font: CaptionFont,
+  background: CaptionBackground
+): CaptionStyle {
+  if (background === "dark-banner") return "bottom-banner";
+  if (background === "glow-box") return "soft-gradient";
+  if (background === "scripture-card") return "scripture-card";
+  if (font === "bold") return "bold-center";
+  if (font === "testimony") return "testimony-quote";
+  if (font === "minimal") return "minimal-white";
+  if (font === "grace-script") return "elegant-script";
+
+  return "classic-caption";
 }
 
 function getCaptionColorPickerValue(color: CaptionColor): `#${string}` {
@@ -2461,6 +2810,7 @@ function getCaptionInlineColor(color: CaptionColor) {
 function getCaptionColorClass(color: CaptionColor) {
   if (color.startsWith("#")) return "";
   if (color === "black") return "!text-slate-950";
+  if (color === "deep-navy") return "!text-[#062a57]";
   if (color === "soft-gold") return "!text-amber-200";
   if (color === "prayer-blue") return "!text-blue-200";
   if (color === "warm-cream") return "!text-[#fff4d6]";
@@ -2469,7 +2819,7 @@ function getCaptionColorClass(color: CaptionColor) {
 }
 
 function getCaptionTextShadow(color: CaptionColor) {
-  if (color === "black" || isDarkCaptionColor(color)) {
+  if (color === "black" || color === "deep-navy" || isDarkCaptionColor(color)) {
     return "0 1px 10px rgba(255,255,255,0.72)";
   }
 
