@@ -1019,8 +1019,10 @@ export default function VideoFeedPage() {
                         currentStoryId === story.id ? null : story.id
                       );
                     }}
-                    className="absolute right-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur"
+                    className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md transition hover:bg-black/80 focus:outline-none focus:ring-4 focus:ring-white/25"
                     aria-label={copy.moreOptions}
+                    aria-expanded={optionsStoryId === story.id}
+                    title={copy.moreOptions}
                   >
                     <MoreVertical className="h-5 w-5" />
                   </button>
@@ -1282,7 +1284,7 @@ function VideoOptionsMenu({
   return (
     <div
       onClick={(event) => event.stopPropagation()}
-      className="absolute right-4 top-16 z-[70] w-72 rounded-[2rem] bg-white/95 p-4 text-slate-900 shadow-2xl ring-1 ring-slate-200 backdrop-blur"
+      className="absolute right-4 top-[calc(4.5rem+env(safe-area-inset-top))] z-[100] max-h-[calc(100dvh-6rem)] w-72 overflow-y-auto rounded-[2rem] bg-white/95 p-4 text-slate-900 shadow-2xl ring-1 ring-slate-200 backdrop-blur"
     >
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm font-black text-[#062a57]">
