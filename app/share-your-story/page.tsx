@@ -85,12 +85,11 @@ type CaptionTemplate =
   | "quiet-strength"
   | "celebration-praise";
 type VideoTemplate =
-  | "freedom-light"
-  | "prayer-room"
-  | "praise-celebration"
-  | "quiet-strength"
-  | "scripture-focus"
-  | "holy-spirit";
+  | "freedom"
+  | "testimony"
+  | "prayer_circle"
+  | "revival"
+  | "kingdom";
 type TextEditorPanel =
   | "template"
   | "style"
@@ -315,34 +314,29 @@ const videoTemplateOptions: {
   description: string;
 }[] = [
   {
-    label: "Freedom Light",
-    value: "freedom-light",
-    description: "Soft gold and white glow with a hopeful HTBF feel.",
+    label: "Freedom",
+    value: "freedom",
+    description: "Bright gold and white glow with a hopeful HTBF frame.",
   },
   {
-    label: "Prayer Room",
-    value: "prayer-room",
-    description: "Dark navy atmosphere with a gentle prayer overlay.",
+    label: "Testimony",
+    value: "testimony",
+    description: "Clean story-first frame for a personal testimony.",
   },
   {
-    label: "Praise Celebration",
-    value: "praise-celebration",
-    description: "Gold accents and celebration glow for praise moments.",
+    label: "Prayer Circle",
+    value: "prayer_circle",
+    description: "Dark navy prayer-room feel with a soft focused overlay.",
   },
   {
-    label: "Quiet Strength",
-    value: "quiet-strength",
-    description: "Minimal, clean, testimony-focused presentation.",
+    label: "Revival",
+    value: "revival",
+    description: "Gold celebration accents for praise and breakthrough.",
   },
   {
-    label: "Scripture Focus",
-    value: "scripture-focus",
-    description: "Warm parchment accents for reflective Scripture posts.",
-  },
-  {
-    label: "Holy Spirit",
-    value: "holy-spirit",
-    description: "Soft blue and white worship atmosphere.",
+    label: "Kingdom",
+    value: "kingdom",
+    description: "Royal blue and warm parchment accents for Scripture focus.",
   },
 ];
 
@@ -432,9 +426,12 @@ export default function ShareYourStoryPage() {
     useState<CaptionBackground>("soft-pill");
   const [captionTemplate, setCaptionTemplate] =
     useState<CaptionTemplate | null>(null);
-  // TODO: Persist video templates after public.stories has a video_template column.
   const [videoTemplate, setVideoTemplate] =
-    useState<VideoTemplate>("freedom-light");
+    useState<VideoTemplate>("freedom");
+  const [htbfWatermarkEnabled, setHtbfWatermarkEnabled] = useState(true);
+  const [silhouetteWatermarkEnabled, setSilhouetteWatermarkEnabled] =
+    useState(false);
+  const [sharedHtbfIntroEnabled, setSharedHtbfIntroEnabled] = useState(false);
   const [captionColor, setCaptionColor] = useState<CaptionColor>("white");
   const [captionPosition, setCaptionPosition] =
     useState<CaptionPosition>("bottom");
@@ -466,7 +463,7 @@ export default function ShareYourStoryPage() {
   );
   const selectedVideoTemplateLabel =
     videoTemplateOptions.find((option) => option.value === videoTemplate)
-      ?.label ?? "Freedom Light";
+      ?.label ?? "Freedom";
 
   useEffect(() => {
     async function loadPage() {
@@ -1070,6 +1067,14 @@ export default function ShareYourStoryPage() {
         image_url: imagePath,
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
+        video_template: hasVideo ? videoTemplate : null,
+        htbf_watermark_enabled: hasVideo ? htbfWatermarkEnabled : null,
+        silhouette_watermark_enabled: hasVideo
+          ? silhouetteWatermarkEnabled
+          : null,
+        shared_htbf_intro_enabled: hasVideo
+          ? sharedHtbfIntroEnabled
+          : null,
         caption_style:
           mediaMode === "photo" || mediaMode === "video"
             ? captionStyle
@@ -1678,7 +1683,12 @@ export default function ShareYourStoryPage() {
                     className="block max-h-[58vh] w-full bg-slate-900 object-contain"
                   />
 
-                  <VideoTemplateEffects template={videoTemplate} />
+                  <VideoTemplatePresentationLayer
+                    htbfWatermarkEnabled={htbfWatermarkEnabled}
+                    sharedHtbfIntroEnabled={sharedHtbfIntroEnabled}
+                    silhouetteWatermarkEnabled={silhouetteWatermarkEnabled}
+                    template={videoTemplate}
+                  />
 
                   {previewText ? (
                     <MobileDraggableCaptionOverlay
@@ -1741,10 +1751,24 @@ export default function ShareYourStoryPage() {
                     )}
 
                     {mobileVideoTool === "template" && (
-                      <VideoTemplatePicker
-                        value={videoTemplate}
-                        onChange={setVideoTemplate}
-                      />
+                      <div className="space-y-3">
+                        <VideoTemplatePicker
+                          value={videoTemplate}
+                          onChange={setVideoTemplate}
+                        />
+                        <VideoBrandingControls
+                          htbfWatermarkEnabled={htbfWatermarkEnabled}
+                          onHtbfWatermarkChange={setHtbfWatermarkEnabled}
+                          onSharedIntroChange={setSharedHtbfIntroEnabled}
+                          onSilhouetteWatermarkChange={
+                            setSilhouetteWatermarkEnabled
+                          }
+                          sharedHtbfIntroEnabled={sharedHtbfIntroEnabled}
+                          silhouetteWatermarkEnabled={
+                            silhouetteWatermarkEnabled
+                          }
+                        />
+                      </div>
                     )}
 
                     {mobileVideoTool === "style" && (
@@ -1978,7 +2002,14 @@ export default function ShareYourStoryPage() {
                             className="max-h-[68vh] w-full bg-black object-contain xl:max-h-[640px]"
                           />
 
-                          <VideoTemplateEffects template={videoTemplate} />
+                          <VideoTemplatePresentationLayer
+                            htbfWatermarkEnabled={htbfWatermarkEnabled}
+                            sharedHtbfIntroEnabled={sharedHtbfIntroEnabled}
+                            silhouetteWatermarkEnabled={
+                              silhouetteWatermarkEnabled
+                            }
+                            template={videoTemplate}
+                          />
 
                           {previewText ? (
                             <MobileDraggableCaptionOverlay
@@ -2066,10 +2097,24 @@ export default function ShareYourStoryPage() {
                         )}
 
                         {desktopVideoTool === "template" && (
-                          <VideoTemplatePicker
-                            value={videoTemplate}
-                            onChange={setVideoTemplate}
-                          />
+                          <div className="space-y-3">
+                            <VideoTemplatePicker
+                              value={videoTemplate}
+                              onChange={setVideoTemplate}
+                            />
+                            <VideoBrandingControls
+                              htbfWatermarkEnabled={htbfWatermarkEnabled}
+                              onHtbfWatermarkChange={setHtbfWatermarkEnabled}
+                              onSharedIntroChange={setSharedHtbfIntroEnabled}
+                              onSilhouetteWatermarkChange={
+                                setSilhouetteWatermarkEnabled
+                              }
+                              sharedHtbfIntroEnabled={sharedHtbfIntroEnabled}
+                              silhouetteWatermarkEnabled={
+                                silhouetteWatermarkEnabled
+                              }
+                            />
+                          </div>
                         )}
 
                         {desktopVideoTool === "style" && (
@@ -2675,8 +2720,92 @@ function VideoTemplatePicker({
   );
 }
 
+function VideoBrandingControls({
+  htbfWatermarkEnabled,
+  onHtbfWatermarkChange,
+  onSharedIntroChange,
+  onSilhouetteWatermarkChange,
+  sharedHtbfIntroEnabled,
+  silhouetteWatermarkEnabled,
+}: {
+  htbfWatermarkEnabled: boolean;
+  onHtbfWatermarkChange: (value: boolean) => void;
+  onSharedIntroChange: (value: boolean) => void;
+  onSilhouetteWatermarkChange: (value: boolean) => void;
+  sharedHtbfIntroEnabled: boolean;
+  silhouetteWatermarkEnabled: boolean;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      <VideoBrandingToggle
+        checked={htbfWatermarkEnabled}
+        label="HTBF watermark"
+        onChange={onHtbfWatermarkChange}
+      />
+      <VideoBrandingToggle
+        checked={silhouetteWatermarkEnabled}
+        label="Silhouette"
+        onChange={onSilhouetteWatermarkChange}
+      />
+      <VideoBrandingToggle
+        checked={sharedHtbfIntroEnabled}
+        label="Shared intro"
+        onChange={onSharedIntroChange}
+      />
+    </div>
+  );
+}
+
+function VideoBrandingToggle({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`rounded-2xl px-3 py-2 text-left text-xs font-black ring-1 transition ${
+        checked
+          ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+          : "bg-slate-50 text-slate-600 ring-slate-200 hover:bg-blue-50"
+      }`}
+    >
+      <span className="block text-[10px] uppercase tracking-[0.14em] opacity-70">
+        {checked ? "On" : "Off"}
+      </span>
+      {label}
+    </button>
+  );
+}
+
+function VideoTemplatePresentationLayer({
+  htbfWatermarkEnabled,
+  sharedHtbfIntroEnabled,
+  silhouetteWatermarkEnabled,
+  template,
+}: {
+  htbfWatermarkEnabled: boolean;
+  sharedHtbfIntroEnabled: boolean;
+  silhouetteWatermarkEnabled: boolean;
+  template: VideoTemplate;
+}) {
+  return (
+    <>
+      <VideoTemplateEffects template={template} />
+      {htbfWatermarkEnabled && <HtbfWatermark />}
+      {silhouetteWatermarkEnabled && <SilhouetteWatermark />}
+      {sharedHtbfIntroEnabled && <SharedHtbfIntroOverlay />}
+    </>
+  );
+}
+
 function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
-  if (template === "freedom-light") {
+  if (template === "freedom") {
     return (
       <>
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.35),transparent_36%),linear-gradient(180deg,rgba(251,191,36,0.22),transparent_42%,rgba(255,255,255,0.12))]" />
@@ -2687,7 +2816,7 @@ function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
     );
   }
 
-  if (template === "prayer-room") {
+  if (template === "prayer_circle") {
     return (
       <>
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,rgba(37,99,235,0.28),transparent_38%),linear-gradient(180deg,rgba(2,6,23,0.18),rgba(8,47,99,0.34))]" />
@@ -2696,7 +2825,7 @@ function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
     );
   }
 
-  if (template === "praise-celebration") {
+  if (template === "revival") {
     return (
       <>
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_22%_18%,rgba(252,211,77,0.34),transparent_28%),radial-gradient(circle_at_78%_24%,rgba(255,255,255,0.22),transparent_24%),linear-gradient(180deg,rgba(251,191,36,0.18),transparent_52%,rgba(245,158,11,0.2))]" />
@@ -2705,16 +2834,16 @@ function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
     );
   }
 
-  if (template === "scripture-focus") {
+  if (template === "kingdom") {
     return (
       <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(255,244,214,0.24),transparent_46%,rgba(120,53,15,0.2))]" />
-        <div className="pointer-events-none absolute inset-x-4 top-4 z-[2] rounded-[1.25rem] border border-[#fff4d6]/30" />
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_18%,rgba(255,244,214,0.24),transparent_34%),linear-gradient(180deg,rgba(8,47,99,0.18),transparent_45%,rgba(120,53,15,0.2))]" />
+        <div className="pointer-events-none absolute inset-x-4 top-4 z-[2] rounded-[1.25rem] border border-[#fff4d6]/30 shadow-[0_0_28px_rgba(255,244,214,0.16)]" />
       </>
     );
   }
 
-  if (template === "quiet-strength") {
+  if (template === "testimony") {
     return (
       <>
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(15,23,42,0.04),transparent_42%,rgba(15,23,42,0.22))]" />
@@ -2723,17 +2852,35 @@ function VideoTemplateEffects({ template }: { template: VideoTemplate }) {
     );
   }
 
-  if (template === "holy-spirit") {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.32),transparent_30%),radial-gradient(circle_at_42%_68%,rgba(191,219,254,0.3),transparent_36%),linear-gradient(180deg,rgba(59,130,246,0.15),transparent_60%)]" />
-        <div className="pointer-events-none absolute inset-x-10 top-8 z-[2] h-px bg-gradient-to-r from-transparent via-white/60 to-transparent blur-[1px]" />
-      </>
-    );
-  }
-
   return (
     <div className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(15,23,42,0.06),transparent_46%,rgba(15,23,42,0.18))]" />
+  );
+}
+
+function HtbfWatermark() {
+  return (
+    <div className="pointer-events-none absolute right-4 top-4 z-[3] rounded-full bg-white/10 px-3 py-1 text-[11px] font-black tracking-[0.18em] text-white/35 ring-1 ring-white/15 backdrop-blur-sm">
+      HTBF
+    </div>
+  );
+}
+
+function SilhouetteWatermark() {
+  return (
+    <div className="pointer-events-none absolute bottom-8 right-6 z-[3] h-24 w-16 opacity-[0.09]">
+      <div className="mx-auto h-8 w-8 rounded-full bg-white" />
+      <div className="mt-1 h-14 rounded-t-full bg-white" />
+    </div>
+  );
+}
+
+function SharedHtbfIntroOverlay() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[4] flex items-center justify-center bg-black/18">
+      <div className="rounded-full bg-white/15 px-5 py-2 text-xs font-black uppercase tracking-[0.22em] text-white/70 ring-1 ring-white/25 backdrop-blur-md">
+        Shared Through HTBF
+      </div>
+    </div>
   );
 }
 
@@ -3013,58 +3160,51 @@ function MobileDraggableCaptionOverlay({
 }
 
 function getVideoTemplateStudioClass(template: VideoTemplate) {
-  if (template === "freedom-light") {
+  if (template === "freedom") {
     return "bg-gradient-to-br from-white via-[#fff4d6] to-amber-100 text-slate-900 ring-1 ring-amber-200 shadow-lg shadow-amber-100/70";
   }
-  if (template === "prayer-room") {
+  if (template === "prayer_circle") {
     return "bg-gradient-to-br from-[#020617] via-[#082f63] to-slate-950 text-white ring-1 ring-blue-300/20 shadow-lg shadow-blue-950/40";
   }
-  if (template === "praise-celebration") {
+  if (template === "revival") {
     return "bg-gradient-to-br from-slate-950 via-[#4a2500] to-amber-700 text-white ring-1 ring-amber-300/30 shadow-lg shadow-amber-300/20";
   }
-  if (template === "scripture-focus") {
-    return "bg-gradient-to-br from-[#fff8e6] via-[#fff4d6] to-[#d9a441] text-[#062a57] ring-1 ring-amber-200 shadow-lg shadow-amber-100/60";
-  }
-  if (template === "quiet-strength") {
+  if (template === "testimony") {
     return "bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white ring-1 ring-white/10 shadow-lg";
   }
-  if (template === "holy-spirit") {
-    return "bg-gradient-to-br from-white via-blue-100 to-[#0b63ce] text-[#062a57] ring-1 ring-blue-200 shadow-lg shadow-blue-200/70";
+  if (template === "kingdom") {
+    return "bg-gradient-to-br from-[#fff8e6] via-[#fff4d6] to-[#082f63] text-[#062a57] ring-1 ring-amber-200 shadow-lg shadow-amber-100/60";
   }
 
   return "bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white ring-1 ring-white/10 shadow-lg";
 }
 
 function getVideoTemplateCanvasClass(template: VideoTemplate) {
-  if (template === "freedom-light") {
+  if (template === "freedom") {
     return "bg-gradient-to-br from-white via-[#fff4d6] to-amber-100 ring-1 ring-amber-200";
   }
-  if (template === "prayer-room") {
+  if (template === "prayer_circle") {
     return "bg-gradient-to-br from-[#020617] via-[#082f63] to-black ring-1 ring-blue-300/20";
   }
-  if (template === "praise-celebration") {
+  if (template === "revival") {
     return "bg-gradient-to-br from-black via-[#4a2500] to-amber-700 ring-1 ring-amber-300/30";
   }
-  if (template === "scripture-focus") {
-    return "bg-gradient-to-br from-[#fff8e6] via-[#fff4d6] to-[#8b5a2b] ring-1 ring-amber-200";
-  }
-  if (template === "quiet-strength") {
+  if (template === "testimony") {
     return "bg-gradient-to-br from-slate-950 via-slate-900 to-black ring-1 ring-white/10";
   }
-  if (template === "holy-spirit") {
-    return "bg-gradient-to-br from-white via-blue-100 to-[#0b63ce] ring-1 ring-blue-200";
+  if (template === "kingdom") {
+    return "bg-gradient-to-br from-[#fff8e6] via-[#fff4d6] to-[#082f63] ring-1 ring-amber-200";
   }
 
   return "bg-gradient-to-br from-slate-950 via-slate-900 to-black ring-1 ring-white/10";
 }
 
 function getVideoTemplateSwatchClass(template: VideoTemplate) {
-  if (template === "freedom-light") return "bg-gradient-to-br from-white to-amber-200";
-  if (template === "prayer-room") return "bg-gradient-to-br from-[#020617] to-[#0b63ce]";
-  if (template === "praise-celebration") return "bg-gradient-to-br from-amber-200 to-amber-700";
-  if (template === "quiet-strength") return "bg-gradient-to-br from-slate-100 to-slate-950";
-  if (template === "scripture-focus") return "bg-gradient-to-br from-[#fff4d6] to-[#8b5a2b]";
-  if (template === "holy-spirit") return "bg-gradient-to-br from-white to-blue-300";
+  if (template === "freedom") return "bg-gradient-to-br from-white to-amber-200";
+  if (template === "prayer_circle") return "bg-gradient-to-br from-[#020617] to-[#0b63ce]";
+  if (template === "revival") return "bg-gradient-to-br from-amber-200 to-amber-700";
+  if (template === "testimony") return "bg-gradient-to-br from-slate-100 to-slate-950";
+  if (template === "kingdom") return "bg-gradient-to-br from-[#fff4d6] to-[#082f63]";
   return "bg-gradient-to-br from-slate-100 to-slate-950";
 }
 
