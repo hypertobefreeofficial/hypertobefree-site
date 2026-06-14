@@ -50,11 +50,13 @@ type CaptionStyle =
   | "soft-gradient"
   | "elegant-script";
 type CaptionFont =
-  | "htbf-clean"
-  | "bold-testimony"
-  | "soft-scripture"
-  | "praise-handwritten"
-  | "modern-serif";
+  | "classic"
+  | "bold"
+  | "scripture"
+  | "praise"
+  | "testimony"
+  | "minimal"
+  | "grace-script";
 type CaptionColor =
   | "white"
   | "black"
@@ -66,6 +68,20 @@ type CaptionColor =
   | `#${string}`;
 type CaptionSize = "small" | "medium" | "large" | "extra-large";
 type CaptionAlign = "left" | "center" | "right";
+type CaptionBackground =
+  | "none"
+  | "soft-pill"
+  | "glass-blur"
+  | "dark-banner"
+  | "glow-box"
+  | "scripture-card";
+type CaptionTemplate =
+  | "testimony-light"
+  | "prayer-calm"
+  | "scripture-focus"
+  | "freedom-glow"
+  | "quiet-strength"
+  | "celebration-praise";
 
 type ReactionRow = {
   story_id: string | null;
@@ -84,6 +100,9 @@ type ApprovedStory = {
   overlay_x: number | null;
   overlay_y: number | null;
   caption_style: CaptionStyle | null;
+  caption_font: CaptionFont;
+  caption_background: CaptionBackground;
+  caption_template: CaptionTemplate | null;
   caption_color: CaptionColor;
   caption_size: CaptionSize;
   caption_align: CaptionAlign;
@@ -328,6 +347,78 @@ export default function FreedomFeed({
     return "center";
   }
 
+  function getCaptionFont(
+    value: string | null | undefined,
+    legacyStyle?: CaptionStyle | null
+  ): CaptionFont {
+    if (
+      value === "classic" ||
+      value === "bold" ||
+      value === "scripture" ||
+      value === "praise" ||
+      value === "testimony" ||
+      value === "minimal" ||
+      value === "grace-script"
+    ) {
+      return value;
+    }
+
+    if (legacyStyle === "bold-center") return "bold";
+    if (legacyStyle === "scripture-card") return "scripture";
+    if (legacyStyle === "praise-glow") return "praise";
+    if (legacyStyle === "testimony-quote") return "testimony";
+    if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
+      return "minimal";
+    }
+    if (legacyStyle === "elegant-script") return "grace-script";
+
+    return "classic";
+  }
+
+  function getCaptionBackground(
+    value: string | null | undefined,
+    legacyStyle?: CaptionStyle | null
+  ): CaptionBackground {
+    if (
+      value === "none" ||
+      value === "soft-pill" ||
+      value === "glass-blur" ||
+      value === "dark-banner" ||
+      value === "glow-box" ||
+      value === "scripture-card"
+    ) {
+      return value;
+    }
+
+    if (legacyStyle === "bottom-banner") return "dark-banner";
+    if (legacyStyle === "scripture-card") return "scripture-card";
+    if (legacyStyle === "soft-gradient" || legacyStyle === "praise-glow") {
+      return "glow-box";
+    }
+    if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
+      return "none";
+    }
+
+    return "soft-pill";
+  }
+
+  function getCaptionTemplate(
+    value: string | null | undefined
+  ): CaptionTemplate | null {
+    if (
+      value === "testimony-light" ||
+      value === "prayer-calm" ||
+      value === "scripture-focus" ||
+      value === "freedom-glow" ||
+      value === "quiet-strength" ||
+      value === "celebration-praise"
+    ) {
+      return value;
+    }
+
+    return null;
+  }
+
   function readNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
@@ -345,7 +436,7 @@ export default function FreedomFeed({
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_color, caption_size, caption_align, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -427,6 +518,8 @@ export default function FreedomFeed({
               reaction === "praying"
           );
 
+        const captionStyle = getCaptionStyle(story.caption_style);
+
         return {
           id: story.id,
           user_id: story.user_id,
@@ -437,7 +530,13 @@ export default function FreedomFeed({
           overlay_text: story.overlay_text ?? null,
           overlay_x: readNumber(story.overlay_x),
           overlay_y: readNumber(story.overlay_y),
-          caption_style: getCaptionStyle(story.caption_style),
+          caption_style: captionStyle,
+          caption_font: getCaptionFont(story.caption_font, captionStyle),
+          caption_background: getCaptionBackground(
+            story.caption_background,
+            captionStyle
+          ),
+          caption_template: getCaptionTemplate(story.caption_template),
           caption_color: getCaptionColor(story.caption_color),
           caption_size: getCaptionSize(story.caption_size),
           caption_align: getCaptionAlign(story.caption_align),
@@ -1141,7 +1240,9 @@ export default function FreedomFeed({
                             captionStyle !== "classic-caption" && (
                               <FeedCaptionOverlay
                                 align={story.caption_align}
+                                background={story.caption_background}
                                 color={story.caption_color}
+                                font={story.caption_font}
                                 size={story.caption_size}
                                 style={captionStyle}
                                 text={story.story_text}
@@ -1182,7 +1283,9 @@ export default function FreedomFeed({
                       {overlayText && (
                         <FeedCaptionOverlay
                           align={story.caption_align}
+                          background={story.caption_background}
                           color={story.caption_color}
+                          font={story.caption_font}
                           overlayX={story.overlay_x}
                           overlayY={story.overlay_y}
                           reserveBottomAction
@@ -1871,6 +1974,7 @@ function CollapsibleStoryText({
 
 function FeedCaptionOverlay({
   align,
+  background,
   color,
   font,
   overlayX,
@@ -1881,6 +1985,7 @@ function FeedCaptionOverlay({
   text,
 }: {
   align?: CaptionAlign;
+  background?: CaptionBackground;
   color?: CaptionColor;
   font?: CaptionFont;
   overlayX?: number | null;
@@ -1895,18 +2000,21 @@ function FeedCaptionOverlay({
   const positionClass = hasCustomPosition
     ? "-translate-x-1/2 -translate-y-1/2"
     : getFeedCaptionPositionClass(style, reserveBottomAction);
-  const styleClass = getFeedCaptionStyleClass(style);
+  const legacyStyleClass = !background ? getFeedCaptionStyleClass(style) : "";
+  const backgroundClass = background
+    ? getFeedCaptionBackgroundClass(background)
+    : "";
   const fontClass = font ? getFeedCaptionFontClass(font) : "";
   const colorClass = color ? getFeedCaptionColorClass(color) : "";
   const sizeClass = getFeedCaptionSizeClass(size);
   const alignClass = getFeedCaptionAlignClass(align);
   const inlineColor = color ? getFeedCaptionInlineColor(color) : undefined;
   const textShadow = color ? getFeedCaptionTextShadow(color) : undefined;
-  const quoteText = style === "testimony-quote" ? `“${text}”` : text;
+  const quoteText = font === "testimony" || style === "testimony-quote" ? `“${text}”` : text;
 
   return (
     <div
-      className={`pointer-events-none absolute max-h-36 max-w-[80%] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug shadow-lg sm:max-h-44 ${sizeClass} ${positionClass} ${styleClass} ${fontClass} ${colorClass} ${alignClass}`}
+      className={`pointer-events-none absolute max-h-36 max-w-[80%] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug sm:max-h-44 ${sizeClass} ${positionClass} ${legacyStyleClass} ${backgroundClass} ${fontClass} ${colorClass} ${alignClass}`}
       style={{
         left: hasCustomPosition ? `${overlayX}%` : undefined,
         top: hasCustomPosition ? `${overlayY}%` : undefined,
@@ -1977,13 +2085,34 @@ function getFeedCaptionStyleClass(style: CaptionStyle) {
 }
 
 function getFeedCaptionFontClass(font: CaptionFont) {
-  if (font === "bold-testimony") return "font-sans font-black tracking-tight";
-  if (font === "soft-scripture") return "font-serif font-semibold italic";
-  if (font === "praise-handwritten") {
-    return "font-serif font-black italic tracking-wide";
+  if (font === "bold") return "font-sans font-black tracking-tight";
+  if (font === "scripture") return "font-serif font-semibold italic";
+  if (font === "praise") return "font-serif font-black italic tracking-wide";
+  if (font === "testimony") return "font-sans font-black";
+  if (font === "minimal") return "font-sans font-semibold";
+  if (font === "grace-script") {
+    return "font-[cursive] text-2xl italic tracking-wide";
   }
-  if (font === "modern-serif") return "font-serif font-bold";
+
   return "font-sans font-semibold";
+}
+
+function getFeedCaptionBackgroundClass(background: CaptionBackground) {
+  if (background === "none") return "px-0 py-0 shadow-none";
+  if (background === "glass-blur") {
+    return "rounded-[1.5rem] bg-white/20 shadow-lg ring-1 ring-white/50 backdrop-blur-md";
+  }
+  if (background === "dark-banner") {
+    return "rounded-2xl bg-black/75 shadow-lg ring-1 ring-white/10 backdrop-blur";
+  }
+  if (background === "glow-box") {
+    return "rounded-[1.5rem] bg-gradient-to-r from-[#0b63ce]/75 via-amber-300/60 to-[#0b63ce]/70 shadow-lg shadow-amber-300/30 ring-1 ring-white/50 backdrop-blur";
+  }
+  if (background === "scripture-card") {
+    return "rounded-[1.5rem] bg-[#fff4d6]/95 shadow-lg ring-1 ring-white/70 backdrop-blur";
+  }
+
+  return "rounded-2xl bg-white/90 shadow-lg ring-1 ring-white/70 backdrop-blur";
 }
 
 function getFeedCaptionColorClass(color: CaptionColor) {
