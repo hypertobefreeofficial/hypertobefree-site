@@ -24,6 +24,7 @@ import {
   Upload,
   Video,
 } from "lucide-react";
+import StoryOverlayText from "../../components/StoryOverlayText";
 import { supabase } from "../../lib/supabaseClient";
 
 type ProfileRow = {
@@ -148,11 +149,6 @@ type AiModerationDecision = {
 };
 
 const STORY_IMAGE_BUCKET = "story-images";
-const OVERLAY_TEXT_MAX_LENGTH = 80;
-const OVERLAY_TEXT_HELPER_THRESHOLD = 60;
-const OVERLAY_TEXT_LIMIT_MESSAGE =
-  "Video text is for short highlights. Add longer context in Caption / Context below.";
-
 const mediaOptions: {
   label: string;
   value: MediaMode;
@@ -470,11 +466,6 @@ export default function ShareYourStoryPage() {
     () => (mediaMode === "video" ? overlayText : storyText).trim(),
     [mediaMode, overlayText, storyText]
   );
-  const overlayTextCharacterCount = countTextCharacters(overlayText);
-  const overlayTextTooLong =
-    overlayTextCharacterCount > OVERLAY_TEXT_MAX_LENGTH;
-  const overlayTextNeedsShortening =
-    overlayTextCharacterCount > OVERLAY_TEXT_HELPER_THRESHOLD;
   const hasSelectedVideo = mediaMode === "video" && Boolean(videoFile);
   const shouldShowMessageInput = mediaMode !== "video" || hasSelectedVideo;
   const captionSizeSliderIndex = Math.max(
@@ -1028,7 +1019,6 @@ export default function ShareYourStoryPage() {
 
     const cleanStoryText = storyText.trim();
     const cleanOverlayText = overlayText.trim();
-    const cleanOverlayTextLength = countTextCharacters(cleanOverlayText);
     const moderationText = [cleanStoryText, cleanOverlayText]
       .filter(Boolean)
       .join("\n\n");
@@ -1049,11 +1039,6 @@ export default function ShareYourStoryPage() {
 
     if (mediaMode === "video" && !hasVideo) {
       setMessage("Please upload a video or choose text story only.");
-      return;
-    }
-
-    if (hasVideo && cleanOverlayTextLength > OVERLAY_TEXT_MAX_LENGTH) {
-      setMessage(OVERLAY_TEXT_LIMIT_MESSAGE);
       return;
     }
 
@@ -1589,13 +1574,15 @@ export default function ShareYourStoryPage() {
                       <MediaStampLayer stamp={videoTemplate} />
 
                       {previewText && captionStyle !== "classic-caption" && (
-                        <CaptionTextOverlay
+                        <StoryOverlayText
                           align={captionAlign}
                           background={captionBackground}
                           color={captionColor}
                           font={captionFont}
-                          position={captionPosition}
+                          overlayX={getCaptionPositionPercent(captionPosition).x}
+                          overlayY={getCaptionPositionPercent(captionPosition).y}
                           size={captionSize}
+                          style={captionStyle}
                           text={previewText}
                         />
                       )}
@@ -1785,33 +1772,6 @@ export default function ShareYourStoryPage() {
                             wordBreak: "break-word",
                           }}
                         />
-                        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold">
-                          <span
-                            className={
-                              overlayTextTooLong
-                                ? "text-red-600"
-                                : overlayTextNeedsShortening
-                                  ? "text-amber-700"
-                                  : "text-slate-500"
-                            }
-                          >
-                            {overlayTextTooLong
-                              ? OVERLAY_TEXT_LIMIT_MESSAGE
-                              : overlayTextNeedsShortening
-                                ? "Shorter text looks better on video."
-                                : "Short video highlight only."}
-                          </span>
-                          <span
-                            className={
-                              overlayTextTooLong
-                                ? "text-red-600"
-                                : "text-slate-500"
-                            }
-                          >
-                            {overlayTextCharacterCount}/
-                            {OVERLAY_TEXT_MAX_LENGTH}
-                          </span>
-                        </div>
                       </div>
                     )}
 
@@ -2090,32 +2050,6 @@ export default function ShareYourStoryPage() {
                           wordBreak: "break-word",
                         }}
                       />
-                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold">
-                        <span
-                          className={
-                            overlayTextTooLong
-                              ? "text-red-600"
-                              : overlayTextNeedsShortening
-                                ? "text-amber-700"
-                                : "text-slate-500"
-                          }
-                        >
-                          {overlayTextTooLong
-                            ? OVERLAY_TEXT_LIMIT_MESSAGE
-                            : overlayTextNeedsShortening
-                              ? "Shorter text looks better on video."
-                              : "Short video highlight only."}
-                        </span>
-                        <span
-                          className={
-                            overlayTextTooLong
-                              ? "text-red-600"
-                              : "text-slate-500"
-                          }
-                        >
-                          {overlayTextCharacterCount}/{OVERLAY_TEXT_MAX_LENGTH}
-                        </span>
-                      </div>
                     </div>
 
                     <div className="min-w-0 max-w-full overflow-hidden rounded-[1.5rem] bg-slate-50 p-3 ring-1 ring-slate-200">
@@ -3004,48 +2938,6 @@ function ToolbarChip({
   );
 }
 
-function CaptionTextOverlay({
-  align,
-  background,
-  color,
-  font,
-  position,
-  size,
-  text,
-}: {
-  align: CaptionAlign;
-  background: CaptionBackground;
-  color: CaptionColor;
-  font: CaptionFont;
-  position: CaptionPosition;
-  size: CaptionSize;
-  text: string;
-}) {
-  const positionClass = getCaptionPositionClass(position);
-  const sizeClass = getCaptionSizeClass(size);
-  const alignClass = getCaptionAlignClass(align);
-  const fontClass = getCaptionFontClass(font);
-  const backgroundClass = getCaptionBackgroundClass(background);
-  const colorClass = getCaptionColorClass(color);
-  const inlineColor = getCaptionInlineColor(color);
-  const textShadow = getCaptionTextShadow(color);
-  const quoteText = font === "testimony" ? `“${text}”` : text;
-
-  return (
-    <div
-      className={`pointer-events-none absolute max-h-44 max-w-[calc(100%-2rem)] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug ${positionClass} ${sizeClass} ${alignClass} ${fontClass} ${backgroundClass} ${colorClass}`}
-      style={{
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
-        color: inlineColor,
-        textShadow,
-      }}
-    >
-      {quoteText}
-    </div>
-  );
-}
-
 function MobileDraggableCaptionOverlay({
   align,
   background,
@@ -3069,46 +2961,23 @@ function MobileDraggableCaptionOverlay({
   size: CaptionSize;
   text: string;
 }) {
-  const sizeClass = getCaptionSizeClass(size);
-  const alignClass = getCaptionAlignClass(align);
-  const fontClass = getCaptionFontClass(font);
-  const backgroundClass = getCaptionBackgroundClass(background);
-  const colorClass = getCaptionColorClass(color);
-  const inlineColor = getCaptionInlineColor(color);
-  const textShadow = getCaptionTextShadow(color);
-  const quoteText = font === "testimony" ? `“${text}”` : text;
-
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <StoryOverlayText
+      align={align}
+      background={background}
+      color={color}
+      draggable
+      font={font}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className={`absolute z-10 max-h-[45%] w-[min(80%,28rem)] cursor-grab overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug active:cursor-grabbing ${sizeClass} ${alignClass} ${fontClass} ${backgroundClass} ${colorClass}`}
-      style={{
-        left: `${clamp(positionPercent.x, 10, 90)}%`,
-        top: `${clamp(positionPercent.y, 10, 90)}%`,
-        transform: getBoundedOverlayTransform(
-          positionPercent.x,
-          positionPercent.y
-        ),
-        touchAction: "none",
-        userSelect: "none",
-        display: "-webkit-box",
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: "vertical",
-        textOverflow: "ellipsis",
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
-        color: inlineColor,
-        textShadow,
-      }}
-      aria-label="Drag video message"
-    >
-      {quoteText}
-    </div>
+      overlayX={positionPercent.x}
+      overlayY={positionPercent.y}
+      size={size}
+      style={getLegacyCaptionStyle(font, background)}
+      text={text}
+    />
   );
 }
 
@@ -3122,60 +2991,6 @@ function getVideoTemplateSwatchClass(template: VideoTemplate) {
   if (template === "praise-report") return "bg-gradient-to-br from-amber-200 to-amber-700";
   if (template === "god-did-it") return "bg-gradient-to-br from-emerald-200 to-[#0b63ce]";
   return "bg-gradient-to-br from-slate-100 to-slate-950";
-}
-
-function getCaptionPositionClass(position: CaptionPosition) {
-  if (position === "top") return "left-4 right-4 top-4";
-  if (position === "center") {
-    return "left-1/2 top-1/2 w-[min(86%,34rem)] -translate-x-1/2 -translate-y-1/2";
-  }
-  return "bottom-5 left-4 right-4";
-}
-
-function getCaptionSizeClass(size: CaptionSize) {
-  if (size === "small") return "text-[clamp(0.75rem,2.5vw,0.875rem)]";
-  if (size === "extra-large") {
-    return "text-[clamp(1.125rem,5.5vw,1.875rem)]";
-  }
-  if (size === "large") return "text-[clamp(1rem,4.5vw,1.35rem)]";
-  return "text-[clamp(0.875rem,3.5vw,1rem)]";
-}
-
-function getCaptionAlignClass(align: CaptionAlign) {
-  if (align === "left") return "text-left";
-  if (align === "right") return "text-right";
-  return "text-center";
-}
-
-function getCaptionFontClass(font: CaptionFont) {
-  if (font === "bold") return "font-sans font-black tracking-tight";
-  if (font === "scripture") return "font-serif font-semibold italic";
-  if (font === "praise") return "font-serif font-black italic tracking-wide";
-  if (font === "testimony") return "font-sans font-black";
-  if (font === "minimal") return "font-sans font-semibold";
-  if (font === "grace-script") {
-    return "font-[cursive] italic tracking-wide";
-  }
-
-  return "font-sans font-semibold";
-}
-
-function getCaptionBackgroundClass(background: CaptionBackground) {
-  if (background === "none") return "px-0 py-0 shadow-none";
-  if (background === "glass-blur") {
-    return "rounded-[1.5rem] bg-white/20 shadow-lg ring-1 ring-white/50 backdrop-blur-md";
-  }
-  if (background === "dark-banner") {
-    return "rounded-2xl bg-black/75 shadow-lg ring-1 ring-white/10 backdrop-blur";
-  }
-  if (background === "glow-box") {
-    return "rounded-[1.5rem] bg-gradient-to-r from-[#0b63ce]/75 via-amber-300/60 to-[#0b63ce]/70 shadow-lg shadow-amber-300/30 ring-1 ring-white/50 backdrop-blur";
-  }
-  if (background === "scripture-card") {
-    return "rounded-[1.5rem] bg-[#fff4d6]/95 shadow-lg ring-1 ring-white/70 backdrop-blur";
-  }
-
-  return "rounded-2xl bg-white/90 shadow-lg ring-1 ring-white/70 backdrop-blur";
 }
 
 function getLegacyCaptionStyle(
@@ -3200,53 +3015,6 @@ function getCaptionColorPickerValue(color: CaptionColor): `#${string}` {
     captionColorOptions.find((option) => option.value === color)?.hex ??
     "#ffffff"
   );
-}
-
-function getCaptionInlineColor(color: CaptionColor) {
-  if (color.startsWith("#")) return color;
-
-  return undefined;
-}
-
-function getCaptionColorClass(color: CaptionColor) {
-  if (color.startsWith("#")) return "";
-  if (color === "black") return "!text-slate-950";
-  if (color === "deep-navy") return "!text-[#062a57]";
-  if (color === "soft-gold") return "!text-amber-200";
-  if (color === "prayer-blue") return "!text-blue-200";
-  if (color === "warm-cream") return "!text-[#fff4d6]";
-  if (color === "praise-green") return "!text-emerald-200";
-  return "!text-white";
-}
-
-function getCaptionTextShadow(color: CaptionColor) {
-  if (color === "black" || color === "deep-navy" || isDarkCaptionColor(color)) {
-    return "0 1px 10px rgba(255,255,255,0.72)";
-  }
-
-  return "0 2px 12px rgba(0,0,0,0.62)";
-}
-
-function isDarkCaptionColor(color: CaptionColor) {
-  if (!color.startsWith("#") || color.length !== 7) return false;
-
-  const red = Number.parseInt(color.slice(1, 3), 16);
-  const green = Number.parseInt(color.slice(3, 5), 16);
-  const blue = Number.parseInt(color.slice(5, 7), 16);
-  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
-
-  return brightness < 100;
-}
-
-function countTextCharacters(text: string) {
-  return Array.from(text).length;
-}
-
-function getBoundedOverlayTransform(x: number, y: number) {
-  const translateX = x <= 25 ? "0%" : x >= 75 ? "-100%" : "-50%";
-  const translateY = y <= 20 ? "0%" : y >= 80 ? "-100%" : "-50%";
-
-  return `translate(${translateX}, ${translateY})`;
 }
 
 function clamp(value: number, min: number, max: number) {
