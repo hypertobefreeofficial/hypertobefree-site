@@ -1272,7 +1272,7 @@ export default function FreedomFeed({
                         className="mt-4 block w-full max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
                         aria-label="Open photo"
                       >
-                        <div className="relative">
+                        <div className="relative overflow-hidden rounded-[1.5rem]">
                           <img
                             src={story.signed_image_url}
                             alt={story.story_type || "HTBF photo story"}
@@ -1333,7 +1333,6 @@ export default function FreedomFeed({
                           background={story.caption_background}
                           color={story.caption_color}
                           font={story.caption_font}
-                          limitLines
                           overlayX={story.overlay_x}
                           overlayY={story.overlay_y}
                           reserveBottomAction
@@ -2105,7 +2104,6 @@ function FeedCaptionOverlay({
   background?: CaptionBackground;
   color?: CaptionColor;
   font?: CaptionFont;
-  limitLines?: boolean;
   overlayX?: number | null;
   overlayY?: number | null;
   reserveBottomAction?: boolean;
@@ -2124,6 +2122,7 @@ function FeedCaptionOverlay({
       background={background}
       color={color}
       font={font}
+      maxLines={6}
       overlayX={overlayX ?? fallbackPosition.x}
       overlayY={overlayY ?? fallbackPosition.y}
       size={size}
