@@ -18,6 +18,7 @@ import {
   Globe2,
   HeartHandshake,
   ImagePlus,
+  Music2,
   Send,
   Sparkles,
   Upload,
@@ -99,6 +100,7 @@ type MobileVideoTool =
   | "color"
   | "size"
   | "position"
+  | "music"
   | "preview";
 type DesktopVideoTool =
   | "message"
@@ -109,11 +111,22 @@ type DesktopVideoTool =
   | "size"
   | "align"
   | "position"
+  | "music"
   | "emoji";
 type VideoTextTarget = "overlay" | "caption";
 type CaptionPositionPercent = {
   x: number;
   y: number;
+};
+type MusicTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  duration_seconds?: number;
+  preview_url?: string;
+  audio_url?: string;
+  license_status: "approved" | "pending" | "disabled";
+  usage_scope?: "htbf_posts" | "testimony_only" | "praise_only";
 };
 
 type AiModerationDecision = {
@@ -323,6 +336,10 @@ const captionPositionOptions: { label: string; value: CaptionPosition }[] = [
   { label: "Bottom", value: "bottom" },
 ];
 
+// Only approved/licensed HTBF music should be listed here.
+// Do not support user-uploaded copyrighted music without rights verification.
+const musicCatalog: MusicTrack[] = [];
+
 const mobileVideoToolOptions: { label: string; value: MobileVideoTool }[] = [
   { label: "Message", value: "message" },
   { label: "Template", value: "template" },
@@ -331,6 +348,7 @@ const mobileVideoToolOptions: { label: string; value: MobileVideoTool }[] = [
   { label: "Color", value: "color" },
   { label: "Size", value: "size" },
   { label: "Position", value: "position" },
+  { label: "Music", value: "music" },
   { label: "Preview", value: "preview" },
 ];
 
@@ -343,6 +361,7 @@ const desktopVideoToolOptions: { label: string; value: DesktopVideoTool }[] = [
   { label: "Size", value: "size" },
   { label: "Align", value: "align" },
   { label: "Position", value: "position" },
+  { label: "Music", value: "music" },
   { label: "Emoji", value: "emoji" },
 ];
 
@@ -1827,6 +1846,10 @@ export default function ShareYourStoryPage() {
                       </div>
                     )}
 
+                    {mobileVideoTool === "music" && (
+                      <MusicComingSoonPanel dark={false} />
+                    )}
+
                     {mobileVideoTool === "preview" && (
                       <div className="rounded-2xl bg-blue-50 p-3 text-sm leading-6 text-[#082f63] ring-1 ring-blue-100">
                         <div className="text-xs font-black uppercase tracking-[0.14em]">
@@ -2177,6 +2200,10 @@ export default function ShareYourStoryPage() {
                               Drag text on video to fine-tune.
                             </p>
                           </div>
+                        )}
+
+                        {desktopVideoTool === "music" && (
+                          <MusicComingSoonPanel dark={false} />
                         )}
 
                         {desktopVideoTool === "emoji" && (
@@ -2558,6 +2585,118 @@ function CaptionStyleControls({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MusicComingSoonPanel({ dark }: { dark: boolean }) {
+  const approvedTracks = musicCatalog.filter(
+    (track) => track.license_status === "approved"
+  );
+
+  return (
+    <div
+      className={`w-full max-w-full overflow-hidden rounded-[1.25rem] p-3 ring-1 ${
+        dark
+          ? "bg-white/10 text-white ring-white/10"
+          : "bg-blue-50 text-slate-900 ring-blue-100"
+      }`}
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+            dark ? "bg-white/10 text-blue-100" : "bg-white text-[#0b63ce]"
+          }`}
+        >
+          <Music2 className="h-5 w-5" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div
+            className={`text-[11px] font-black uppercase tracking-[0.16em] ${
+              dark ? "text-blue-100" : "text-[#0b63ce]"
+            }`}
+          >
+            Music · Coming soon
+          </div>
+
+          <p
+            className={`mt-1 text-sm font-semibold leading-6 ${
+              dark ? "text-slate-200" : "text-slate-600"
+            }`}
+          >
+            HTBF music is coming soon. We&apos;re preparing a licensed music
+            catalog for artists and ministry partners who want their songs used
+            in testimonies and praise posts.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {approvedTracks.length === 0 ? (
+          <div
+            className={`rounded-2xl px-3 py-3 text-sm font-black ${
+              dark
+                ? "bg-black/20 text-slate-300"
+                : "bg-white text-slate-500 ring-1 ring-blue-100"
+            }`}
+          >
+            No approved tracks yet.
+          </div>
+        ) : (
+          approvedTracks.map((track) => (
+            <div
+              key={track.id}
+              className={`flex min-w-0 flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between ${
+                dark
+                  ? "bg-black/20 ring-1 ring-white/10"
+                  : "bg-white ring-1 ring-blue-100"
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-black">{track.title}</div>
+                <div
+                  className={`truncate text-xs font-semibold ${
+                    dark ? "text-slate-300" : "text-slate-500"
+                  }`}
+                >
+                  {track.artist}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  disabled={!track.preview_url}
+                  className={`rounded-full px-3 py-2 text-xs font-black ${
+                    dark
+                      ? "bg-white/10 text-white disabled:text-white/40"
+                      : "bg-slate-100 text-slate-700 disabled:text-slate-400"
+                  }`}
+                >
+                  Preview
+                </button>
+
+                <button
+                  type="button"
+                  disabled
+                  className="rounded-full bg-[#0b63ce]/50 px-3 py-2 text-xs font-black text-white opacity-60"
+                >
+                  Select
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <p
+        className={`mt-3 text-xs font-semibold leading-5 ${
+          dark ? "text-slate-400" : "text-slate-500"
+        }`}
+      >
+        Random song uploads and external copyrighted music are not supported.
+      </p>
     </div>
   );
 }
