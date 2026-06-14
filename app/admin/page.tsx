@@ -561,6 +561,7 @@ export default function AdminPage() {
       copyright: "Copyright issue",
       privacy: "Privacy concern",
       not_aligned: "Not aligned with HTBF community",
+      bug: "Bug / technical issue",
       other: "Other",
     };
 
