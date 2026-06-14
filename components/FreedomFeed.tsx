@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import StoryOverlayText from "./StoryOverlayText";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 type ReportReason =
@@ -2093,7 +2094,6 @@ function FeedCaptionOverlay({
   background,
   color,
   font,
-  limitLines = false,
   overlayX,
   overlayY,
   reserveBottomAction = false,
@@ -2113,214 +2113,43 @@ function FeedCaptionOverlay({
   style: CaptionStyle;
   text: string;
 }) {
-  const hasCustomPosition =
-    typeof overlayX === "number" && typeof overlayY === "number";
-  const positionClass = hasCustomPosition
-    ? ""
-    : getFeedCaptionPositionClass(style, reserveBottomAction);
-  const legacyStyleClass = !background ? getFeedCaptionStyleClass(style) : "";
-  const backgroundClass = background
-    ? getFeedCaptionBackgroundClass(background)
-    : "";
-  const fontClass = font ? getFeedCaptionFontClass(font) : "";
-  const colorClass = color ? getFeedCaptionColorClass(color) : "";
-  const sizeClass = getFeedCaptionSizeClass(size);
-  const alignClass = getFeedCaptionAlignClass(align);
-  const inlineColor = color ? getFeedCaptionInlineColor(color) : undefined;
-  const textShadow = color ? getFeedCaptionTextShadow(color) : undefined;
-  const quoteText =
-    font === "testimony" || style === "testimony-quote" ? `“${text}”` : text;
-  const limitClass = limitLines
-    ? "max-h-[45%] max-w-[80%]"
-    : "max-h-36 max-w-[80%] sm:max-h-44";
+  const fallbackPosition = getFeedOverlayDefaultPosition(
+    style,
+    reserveBottomAction
+  );
 
   return (
-    <div
-      className={`pointer-events-none absolute z-10 overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug ${limitClass} ${sizeClass} ${positionClass} ${legacyStyleClass} ${backgroundClass} ${fontClass} ${colorClass} ${alignClass}`}
-      style={{
-        left: hasCustomPosition
-          ? `${clampOverlayPercent(overlayX, 10, 90)}%`
-          : undefined,
-        top: hasCustomPosition
-          ? `${clampOverlayPercent(overlayY, 10, 90)}%`
-          : undefined,
-        transform: hasCustomPosition
-          ? getBoundedOverlayTransform(overlayX, overlayY)
-          : undefined,
-        display: limitLines ? "-webkit-box" : undefined,
-        WebkitLineClamp: limitLines ? 3 : undefined,
-        WebkitBoxOrient: limitLines ? "vertical" : undefined,
-        textOverflow: limitLines ? "ellipsis" : undefined,
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
-        color: inlineColor,
-        textShadow,
-      }}
-    >
-      {quoteText}
-    </div>
+    <StoryOverlayText
+      align={align}
+      background={background}
+      color={color}
+      font={font}
+      overlayX={overlayX ?? fallbackPosition.x}
+      overlayY={overlayY ?? fallbackPosition.y}
+      size={size}
+      style={style}
+      text={text}
+    />
   );
 }
 
-function getFeedCaptionPositionClass(
+function getFeedOverlayDefaultPosition(
   style: CaptionStyle,
   reserveBottomAction: boolean
 ) {
   if (style === "bold-center" || style === "testimony-quote") {
-    return "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center";
+    return { x: 50, y: 50 };
   }
 
   if (style === "scripture-card") {
-    return "left-1/2 top-4 -translate-x-1/2 text-center";
+    return { x: 50, y: 18 };
   }
 
   if (style === "minimal-white" || style === "black-outline") {
-    return "left-1/2 top-4 -translate-x-1/2 text-center";
+    return { x: 50, y: 18 };
   }
 
-  return reserveBottomAction
-    ? "bottom-20 left-1/2 -translate-x-1/2 text-center"
-    : "bottom-5 left-1/2 -translate-x-1/2 text-center";
-}
-
-function getFeedCaptionStyleClass(style: CaptionStyle) {
-  if (style === "bold-center") {
-    return "rounded-[1.5rem] bg-black/45 font-black text-white backdrop-blur";
-  }
-  if (style === "bottom-banner") {
-    return "rounded-2xl bg-black/75 font-bold text-white backdrop-blur";
-  }
-  if (style === "highlight-box") {
-    return "rounded-[1.5rem] bg-yellow-300/95 font-black text-yellow-950 ring-1 ring-white/70";
-  }
-  if (style === "scripture-card") {
-    return "rounded-[1.5rem] bg-blue-50/90 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur";
-  }
-  if (style === "praise-glow") {
-    return "rounded-[1.5rem] bg-amber-300/90 font-black text-amber-950 ring-1 ring-white/70 shadow-amber-300/30";
-  }
-  if (style === "testimony-quote") {
-    return "rounded-[1.5rem] bg-white/90 font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur";
-  }
-  if (style === "minimal-white") {
-    return "font-black text-white shadow-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]";
-  }
-  if (style === "black-outline") {
-    return "font-black text-white shadow-none [text-shadow:2px_2px_0_#000,-2px_2px_0_#000,2px_-2px_0_#000,-2px_-2px_0_#000]";
-  }
-  if (style === "soft-gradient") {
-    return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
-  }
-  if (style === "elegant-script") {
-    return "rounded-[1.75rem] bg-white/20 font-serif text-lg font-black italic tracking-wide text-white ring-1 ring-white/60 backdrop-blur-md sm:text-2xl";
-  }
-  return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
-}
-
-function getFeedCaptionFontClass(font: CaptionFont) {
-  if (font === "bold") return "font-sans font-black tracking-tight";
-  if (font === "scripture") return "font-serif font-semibold italic";
-  if (font === "praise") return "font-serif font-black italic tracking-wide";
-  if (font === "testimony") return "font-sans font-black";
-  if (font === "minimal") return "font-sans font-semibold";
-  if (font === "grace-script") {
-    return "font-[cursive] italic tracking-wide";
-  }
-
-  return "font-sans font-semibold";
-}
-
-function getFeedCaptionBackgroundClass(background: CaptionBackground) {
-  if (background === "none") return "px-0 py-0 shadow-none";
-  if (background === "glass-blur") {
-    return "rounded-[1.5rem] bg-white/20 shadow-lg ring-1 ring-white/50 backdrop-blur-md";
-  }
-  if (background === "dark-banner") {
-    return "rounded-2xl bg-black/75 shadow-lg ring-1 ring-white/10 backdrop-blur";
-  }
-  if (background === "glow-box") {
-    return "rounded-[1.5rem] bg-gradient-to-r from-[#0b63ce]/75 via-amber-300/60 to-[#0b63ce]/70 shadow-lg shadow-amber-300/30 ring-1 ring-white/50 backdrop-blur";
-  }
-  if (background === "scripture-card") {
-    return "rounded-[1.5rem] bg-[#fff4d6]/95 shadow-lg ring-1 ring-white/70 backdrop-blur";
-  }
-
-  return "rounded-2xl bg-white/90 shadow-lg ring-1 ring-white/70 backdrop-blur";
-}
-
-function getFeedCaptionColorClass(color: CaptionColor) {
-  if (color.startsWith("#")) return "";
-  if (color === "black") return "!text-slate-950";
-  if (color === "deep-navy") return "!text-[#062a57]";
-  if (color === "soft-gold") return "!text-amber-200";
-  if (color === "prayer-blue") return "!text-blue-200";
-  if (color === "warm-cream") return "!text-[#fff4d6]";
-  if (color === "praise-green") return "!text-emerald-200";
-  return "!text-white";
-}
-
-function getFeedCaptionInlineColor(color: CaptionColor) {
-  if (color.startsWith("#")) return color;
-
-  return undefined;
-}
-
-function getFeedCaptionAlignClass(align?: CaptionAlign) {
-  if (align === "left") return "text-left";
-  if (align === "right") return "text-right";
-  return "text-center";
-}
-
-function getFeedCaptionSizeClass(size?: CaptionSize) {
-  if (size === "small") return "text-[clamp(0.75rem,2.5vw,0.875rem)]";
-  if (size === "large") return "text-[clamp(1rem,4.5vw,1.35rem)]";
-  if (size === "extra-large") {
-    return "text-[clamp(1.125rem,5.5vw,1.875rem)]";
-  }
-  return "text-[clamp(0.875rem,3.5vw,1rem)]";
-}
-
-function getFeedCaptionTextShadow(color: CaptionColor) {
-  if (color === "black" || color === "deep-navy" || isDarkCaptionColor(color)) {
-    return "0 1px 10px rgba(255,255,255,0.72)";
-  }
-
-  return "0 2px 12px rgba(0,0,0,0.62)";
-}
-
-function isDarkCaptionColor(color: CaptionColor) {
-  if (!color.startsWith("#") || color.length !== 7) return false;
-
-  const red = Number.parseInt(color.slice(1, 3), 16);
-  const green = Number.parseInt(color.slice(3, 5), 16);
-  const blue = Number.parseInt(color.slice(5, 7), 16);
-  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
-
-  return brightness < 100;
-}
-
-function clampOverlayPercent(
-  value: number | null | undefined,
-  min: number,
-  max: number
-) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return 50;
-  }
-
-  return Math.min(Math.max(value, min), max);
-}
-
-function getBoundedOverlayTransform(
-  x: number | null | undefined,
-  y: number | null | undefined
-) {
-  const safeX = clampOverlayPercent(x, 0, 100);
-  const safeY = clampOverlayPercent(y, 0, 100);
-  const translateX = safeX <= 25 ? "0%" : safeX >= 75 ? "-100%" : "-50%";
-  const translateY = safeY <= 20 ? "0%" : safeY >= 80 ? "-100%" : "-50%";
-
-  return `translate(${translateX}, ${translateY})`;
+  return { x: 50, y: reserveBottomAction ? 68 : 82 };
 }
 
 function PhotoActionButton({
