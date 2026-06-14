@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
   Bug,
@@ -27,6 +34,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import StoryOverlayText from "../../components/StoryOverlayText";
 import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -1934,6 +1942,19 @@ function AutoPlayReelVideo({
   const holdPausedRef = useRef(false);
   const pointerInsideRef = useRef(false);
 
+  const syncVideoMutedState = useCallback(
+    (video: HTMLVideoElement) => {
+      const shouldMute = !soundOn;
+
+      video.muted = shouldMute;
+
+      if (!shouldMute) {
+        video.volume = 1;
+      }
+    },
+    [soundOn]
+  );
+
   useEffect(() => {
     return () => {
       if (noAudioAdvanceTimeoutRef.current) {
@@ -1980,7 +2001,7 @@ function AutoPlayReelVideo({
 
     if (!wrapper || !video || !shouldLoadVideo) return;
 
-    video.muted = audioTestimonyMode ? false : !soundOn;
+    syncVideoMutedState(video);
     video.playsInline = true;
     video.loop = !audioTestimonyMode;
     video.playbackRate = playbackRate;
@@ -1994,7 +2015,7 @@ function AutoPlayReelVideo({
 
         if (isMostlyVisible) {
           if (!userPaused) {
-            video.muted = audioTestimonyMode ? false : !soundOn;
+            syncVideoMutedState(video);
             video.loop = !audioTestimonyMode;
             video.playbackRate = playbackRate;
 
@@ -2004,11 +2025,6 @@ function AutoPlayReelVideo({
                 setPaused(false);
               })
               .catch(() => {
-                if (audioTestimonyMode) {
-                  setPaused(true);
-                  return;
-                }
-
                 video.muted = true;
                 onSoundChange(false);
 
@@ -2044,6 +2060,7 @@ function AutoPlayReelVideo({
     onSoundChange,
     playbackRate,
     audioTestimonyMode,
+    syncVideoMutedState,
   ]);
 
   useEffect(() => {
@@ -2051,13 +2068,9 @@ function AutoPlayReelVideo({
 
     if (!video) return;
 
-    video.muted = audioTestimonyMode ? false : !soundOn;
+    syncVideoMutedState(video);
     video.loop = !audioTestimonyMode;
-
-    if (soundOn || audioTestimonyMode) {
-      video.volume = 1;
-    }
-  }, [soundOn, audioTestimonyMode]);
+  }, [audioTestimonyMode, syncVideoMutedState]);
 
   useEffect(() => {
     if (!audioTestimonyMode) {
@@ -2234,7 +2247,7 @@ function AutoPlayReelVideo({
 
     if (!video) return;
 
-    video.muted = audioTestimonyMode ? false : !soundOn;
+    syncVideoMutedState(video);
     video.loop = !audioTestimonyMode;
     video.playbackRate = playbackRate;
 
@@ -2245,11 +2258,6 @@ function AutoPlayReelVideo({
         setUserPaused(false);
       })
       .catch(() => {
-        if (audioTestimonyMode) {
-          setPaused(true);
-          return;
-        }
-
         video.muted = true;
         onSoundChange(false);
 
@@ -2298,13 +2306,6 @@ function AutoPlayReelVideo({
     const video = videoRef.current;
 
     if (!video) return;
-
-    if (audioTestimonyMode) {
-      onSoundChange(true);
-      video.muted = false;
-      video.volume = 1;
-      return;
-    }
 
     const nextSoundOn = !soundOn;
 
@@ -2370,7 +2371,7 @@ function AutoPlayReelVideo({
           ref={videoRef}
           key={videoUrl}
           src={videoUrl}
-          muted={audioTestimonyMode ? false : !soundOn}
+          muted={!soundOn}
           loop={!audioTestimonyMode}
           playsInline
           preload="metadata"
@@ -2392,6 +2393,17 @@ function AutoPlayReelVideo({
             setPaused(true);
             clearNoAudioAdvance();
           }}
+          onVolumeChange={() => {
+            const video = videoRef.current;
+
+            if (!video) return;
+
+            const nextSoundOn = !video.muted && video.volume > 0;
+
+            if (nextSoundOn !== soundOn) {
+              onSoundChange(nextSoundOn);
+            }
+          }}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
@@ -2400,6 +2412,28 @@ function AutoPlayReelVideo({
       )}
 
       <VideoMediaStampLayer stamp={template} />
+
+      {!beStillMode && !paused && (
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleSound();
+          }}
+          className={`absolute left-1/2 top-[calc(1rem+env(safe-area-inset-top))] z-40 flex -translate-x-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md transition hover:bg-black/75 focus:outline-none focus:ring-4 focus:ring-white/25 ${
+            audioTestimonyMode ? "h-12 w-12" : "h-11 w-11"
+          }`}
+          aria-label={soundOn ? copy.turnSoundOff : copy.turnSoundOn}
+          title={soundOn ? copy.turnSoundOff : copy.turnSoundOn}
+        >
+          {soundOn ? (
+            <Volume2 className="h-5 w-5" />
+          ) : (
+            <VolumeX className="h-5 w-5" />
+          )}
+        </button>
+      )}
 
       {!beStillMode && paused && (
         <div className="absolute inset-0 z-40 flex items-center justify-center">
@@ -2679,206 +2713,19 @@ function VideoCaptionStyleOverlay({
   style: CaptionStyle;
   text: string;
 }) {
-  const hasCustomPosition =
-    typeof overlayX === "number" && typeof overlayY === "number";
-  const positionClass = hasCustomPosition
-    ? ""
-    : getVideoCaptionPositionClass(style);
-  const legacyStyleClass = !background ? getVideoCaptionStyleClass(style) : "";
-  const backgroundClass = background
-    ? getVideoCaptionBackgroundClass(background)
-    : "";
-  const fontClass = font ? getVideoCaptionFontClass(font) : "";
-  const colorClass = color ? getVideoCaptionColorClass(color) : "";
-  const sizeClass = getVideoCaptionSizeClass(size);
-  const alignClass = getVideoCaptionAlignClass(align);
-  const inlineColor = color ? getVideoCaptionInlineColor(color) : undefined;
-  const textShadow = color ? getVideoCaptionTextShadow(color) : undefined;
-  const quoteText =
-    font === "testimony" || style === "testimony-quote" ? `“${text}”` : text;
-
   return (
-    <div
-      className={`pointer-events-none absolute z-30 max-h-[45%] max-w-[80%] overflow-hidden whitespace-pre-wrap break-words px-4 py-3 leading-snug ${sizeClass} ${positionClass} ${legacyStyleClass} ${backgroundClass} ${fontClass} ${colorClass} ${alignClass}`}
-      style={{
-        left: hasCustomPosition
-          ? `${clampOverlayPercent(overlayX, 10, 90)}%`
-          : undefined,
-        top: hasCustomPosition
-          ? `${clampOverlayPercent(overlayY, 10, 90)}%`
-          : undefined,
-        transform: hasCustomPosition
-          ? getBoundedOverlayTransform(overlayX, overlayY)
-          : undefined,
-        display: "-webkit-box",
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: "vertical",
-        textOverflow: "ellipsis",
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
-        color: inlineColor,
-        textShadow,
-      }}
-    >
-      {quoteText}
-    </div>
+    <StoryOverlayText
+      align={align}
+      background={background}
+      color={color}
+      font={font}
+      overlayX={overlayX}
+      overlayY={overlayY}
+      size={size}
+      style={style}
+      text={text}
+    />
   );
-}
-
-function getVideoCaptionPositionClass(style: CaptionStyle) {
-  if (style === "bold-center" || style === "testimony-quote") {
-    return "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center";
-  }
-
-  if (
-    style === "scripture-card" ||
-    style === "minimal-white" ||
-    style === "black-outline"
-  ) {
-    return "left-1/2 top-[calc(5rem+env(safe-area-inset-top))] -translate-x-1/2 text-center";
-  }
-
-  return "bottom-[calc(9.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 text-center md:bottom-28";
-}
-
-function getVideoCaptionStyleClass(style: CaptionStyle) {
-  if (style === "bold-center") {
-    return "rounded-[1.5rem] bg-black/45 font-black text-white backdrop-blur";
-  }
-  if (style === "bottom-banner") {
-    return "rounded-2xl bg-black/75 font-bold text-white backdrop-blur";
-  }
-  if (style === "highlight-box") {
-    return "rounded-[1.5rem] bg-yellow-300/95 font-black text-yellow-950 ring-1 ring-white/70";
-  }
-  if (style === "scripture-card") {
-    return "rounded-[1.5rem] bg-blue-50/90 font-serif italic text-[#082f63] ring-1 ring-white/70 backdrop-blur";
-  }
-  if (style === "praise-glow") {
-    return "rounded-[1.5rem] bg-amber-300/90 font-black text-amber-950 ring-1 ring-white/70 shadow-amber-300/30";
-  }
-  if (style === "testimony-quote") {
-    return "rounded-[1.5rem] bg-white/90 font-black text-[#062a57] ring-1 ring-white/70 backdrop-blur";
-  }
-  if (style === "minimal-white") {
-    return "font-black text-white shadow-none [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]";
-  }
-  if (style === "black-outline") {
-    return "font-black text-white shadow-none [text-shadow:2px_2px_0_#000,-2px_2px_0_#000,2px_-2px_0_#000,-2px_-2px_0_#000]";
-  }
-  if (style === "soft-gradient") {
-    return "rounded-[1.5rem] bg-gradient-to-r from-black/70 via-[#0b63ce]/60 to-black/50 font-bold text-white backdrop-blur";
-  }
-  if (style === "elegant-script") {
-    return "rounded-[1.75rem] bg-white/20 font-serif text-lg font-black italic tracking-wide text-white ring-1 ring-white/60 backdrop-blur-md sm:text-2xl";
-  }
-  return "rounded-2xl bg-white/90 font-semibold text-slate-900 ring-1 ring-white/70";
-}
-
-function getVideoCaptionFontClass(font: CaptionFont) {
-  if (font === "bold") return "font-sans font-black tracking-tight";
-  if (font === "scripture") return "font-serif font-semibold italic";
-  if (font === "praise") return "font-serif font-black italic tracking-wide";
-  if (font === "testimony") return "font-sans font-black";
-  if (font === "minimal") return "font-sans font-semibold";
-  if (font === "grace-script") {
-    return "font-[cursive] italic tracking-wide";
-  }
-
-  return "font-sans font-semibold";
-}
-
-function getVideoCaptionBackgroundClass(background: CaptionBackground) {
-  if (background === "none") return "px-0 py-0 shadow-none";
-  if (background === "glass-blur") {
-    return "rounded-[1.5rem] bg-white/20 shadow-lg ring-1 ring-white/50 backdrop-blur-md";
-  }
-  if (background === "dark-banner") {
-    return "rounded-2xl bg-black/75 shadow-lg ring-1 ring-white/10 backdrop-blur";
-  }
-  if (background === "glow-box") {
-    return "rounded-[1.5rem] bg-gradient-to-r from-[#0b63ce]/75 via-amber-300/60 to-[#0b63ce]/70 shadow-lg shadow-amber-300/30 ring-1 ring-white/50 backdrop-blur";
-  }
-  if (background === "scripture-card") {
-    return "rounded-[1.5rem] bg-[#fff4d6]/95 shadow-lg ring-1 ring-white/70 backdrop-blur";
-  }
-
-  return "rounded-2xl bg-white/90 shadow-lg ring-1 ring-white/70 backdrop-blur";
-}
-
-function getVideoCaptionColorClass(color: CaptionColor) {
-  if (color.startsWith("#")) return "";
-  if (color === "black") return "!text-slate-950";
-  if (color === "deep-navy") return "!text-[#062a57]";
-  if (color === "soft-gold") return "!text-amber-200";
-  if (color === "prayer-blue") return "!text-blue-200";
-  if (color === "warm-cream") return "!text-[#fff4d6]";
-  if (color === "praise-green") return "!text-emerald-200";
-  return "!text-white";
-}
-
-function getVideoCaptionInlineColor(color: CaptionColor) {
-  if (color.startsWith("#")) return color;
-
-  return undefined;
-}
-
-function getVideoCaptionAlignClass(align?: CaptionAlign) {
-  if (align === "left") return "text-left";
-  if (align === "right") return "text-right";
-  return "text-center";
-}
-
-function getVideoCaptionSizeClass(size?: CaptionSize) {
-  if (size === "small") return "text-[clamp(0.75rem,2.5vw,0.875rem)]";
-  if (size === "large") return "text-[clamp(1rem,4.5vw,1.35rem)]";
-  if (size === "extra-large") {
-    return "text-[clamp(1.125rem,5.5vw,1.875rem)]";
-  }
-  return "text-[clamp(0.875rem,3.5vw,1rem)]";
-}
-
-function getVideoCaptionTextShadow(color: CaptionColor) {
-  if (color === "black" || color === "deep-navy" || isDarkCaptionColor(color)) {
-    return "0 1px 10px rgba(255,255,255,0.72)";
-  }
-
-  return "0 2px 12px rgba(0,0,0,0.62)";
-}
-
-function isDarkCaptionColor(color: CaptionColor) {
-  if (!color.startsWith("#") || color.length !== 7) return false;
-
-  const red = Number.parseInt(color.slice(1, 3), 16);
-  const green = Number.parseInt(color.slice(3, 5), 16);
-  const blue = Number.parseInt(color.slice(5, 7), 16);
-  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
-
-  return brightness < 100;
-}
-
-function clampOverlayPercent(
-  value: number | null | undefined,
-  min: number,
-  max: number
-) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return 50;
-  }
-
-  return Math.min(Math.max(value, min), max);
-}
-
-function getBoundedOverlayTransform(
-  x: number | null | undefined,
-  y: number | null | undefined
-) {
-  const safeX = clampOverlayPercent(x, 0, 100);
-  const safeY = clampOverlayPercent(y, 0, 100);
-  const translateX = safeX <= 25 ? "0%" : safeX >= 75 ? "-100%" : "-50%";
-  const translateY = safeY <= 20 ? "0%" : safeY >= 80 ? "-100%" : "-50%";
-
-  return `translate(${translateX}, ${translateY})`;
 }
 
 function VideoActionButton({
