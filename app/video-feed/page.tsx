@@ -1065,8 +1065,7 @@ export default function VideoFeedPage() {
   }
 
   async function submitBugReport() {
-    if (!userId || !bugReportStory) {
-      setMessage(copy.signInToReport);
+    if (!bugReportStory) {
       return;
     }
 
@@ -1082,7 +1081,7 @@ export default function VideoFeedPage() {
 
     const { error } = await supabase.from("content_reports").insert({
       story_id: bugReportStory.id,
-      reporter_user_id: userId,
+      reporter_user_id: userId ?? null,
       reported_user_id: bugReportStory.user_id,
       reason: "bug",
       details: cleanDetails,
