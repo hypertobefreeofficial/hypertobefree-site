@@ -1,7 +1,3 @@
-UPDATED FILE:
-components/FreedomFeed.tsx
-
-```tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -2138,4 +2134,4 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-```
+
