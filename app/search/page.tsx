@@ -567,7 +567,8 @@ function VideoDiscoveryTile({
           background={captionBackground ?? "soft-pill"}
           color={captionColor ?? "white"}
           font={captionFont ?? "classic"}
-          maxLines={4}
+          maxLines={3}
+          overlayContext="search"
           overlayX={overlayX}
           overlayY={overlayY}
           size={captionSize ?? "medium"}
