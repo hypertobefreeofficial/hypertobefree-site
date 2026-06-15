@@ -2661,6 +2661,7 @@ function VideoCaptionStyleOverlay({
       color={color}
       font={font}
       maxLines={maxLines}
+      overlayContext="video-feed"
       overlayX={overlayX}
       overlayY={overlayY}
       size={size}
