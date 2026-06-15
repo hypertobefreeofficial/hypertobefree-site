@@ -129,6 +129,7 @@ type CaptionPositionPercent = {
   x: number;
   y: number;
 };
+type OverlayContext = "editor" | "freedom-feed" | "video-feed";
 type MusicTrack = {
   id: string;
   title: string;
@@ -1998,13 +1999,13 @@ export default function ShareYourStoryPage() {
                         </div>
                       </div>
 
-                      <div className="overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
-                        <div className="relative flex min-h-[420px] items-center justify-center overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                      <div className="mx-auto overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10 xl:w-[min(100%,84dvh)]">
+                        <div className="relative h-[min(76dvh,760px)] min-h-[560px] w-full overflow-hidden rounded-[1.5rem] bg-black">
                           <video
                             src={videoPreviewUrl}
                             controls
                             playsInline
-                            className="max-h-[68vh] w-full bg-black object-contain xl:max-h-[640px]"
+                            className="h-full w-full bg-black object-cover object-center"
                           />
 
                           <StoryMediaStamp stamp={videoTemplate} />
@@ -2018,6 +2019,7 @@ export default function ShareYourStoryPage() {
                               onPointerDown={startMobileCaptionDrag}
                               onPointerMove={dragMobileCaption}
                               onPointerUp={stopMobileCaptionDrag}
+                              overlayContext="video-feed"
                               positionPercent={mobileCaptionPositionPercent}
                               size={captionSize}
                               style={captionStyle}
@@ -2887,6 +2889,7 @@ function MobileDraggableCaptionOverlay({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  overlayContext = "editor",
   positionPercent,
   size,
   style,
@@ -2899,6 +2902,7 @@ function MobileDraggableCaptionOverlay({
   onPointerDown: (event: PointerEvent<HTMLElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLElement>) => void;
+  overlayContext?: OverlayContext;
   positionPercent: CaptionPositionPercent;
   size: CaptionSize;
   style: CaptionStyle;
@@ -2915,6 +2919,7 @@ function MobileDraggableCaptionOverlay({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      overlayContext={overlayContext}
       overlayX={positionPercent.x}
       overlayY={positionPercent.y}
       size={size}
