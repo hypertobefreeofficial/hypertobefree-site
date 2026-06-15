@@ -170,10 +170,7 @@ function getAnchoredPositionStyle(
   if (y <= 25) {
     style.top = "16px";
   } else if (y >= 75) {
-    style.bottom =
-      bottomSafeOffset === undefined
-        ? "calc(16px + env(safe-area-inset-bottom))"
-        : `${bottomSafeOffset}px`;
+    style.bottom = `${bottomSafeOffset ?? 16}px`;
   } else {
     style.top = `${y}%`;
     transformParts.push("translateY(-50%)");
