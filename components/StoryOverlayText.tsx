@@ -124,7 +124,7 @@ export default function StoryOverlayText({
     boxSizing: "border-box",
     fontSize: getFontSizeValue(resolvedSize, contextRules.fontScale),
     width: "fit-content",
-    minWidth: "auto",
+    minWidth: 0,
     minInlineSize: 0,
     maxWidth: contextRules.maxWidth,
     maxInlineSize: contextRules.maxWidth,
@@ -220,7 +220,7 @@ function getOverlayContextRules(context: OverlayContext) {
   return {
     bottomSafeOffset: 16,
     maxHeight: "calc(100% - 32px)",
-    maxWidth: "82%",
+    maxWidth: "85%",
     fontScale: 1,
     scaleLongText: false,
   };
