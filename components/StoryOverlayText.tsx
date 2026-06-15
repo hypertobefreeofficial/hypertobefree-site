@@ -44,6 +44,7 @@ type CaptionBackground =
 
 type StoryOverlayTextProps = {
   alignment?: CaptionAlign | null;
+  bottomSafeOffset?: number;
   background?: CaptionBackground | null;
   className?: string;
   color?: CaptionColor | null;
@@ -63,6 +64,7 @@ type StoryOverlayTextProps = {
 
 export default function StoryOverlayText({
   alignment,
+  bottomSafeOffset,
   background,
   className = "",
   color,
@@ -90,7 +92,7 @@ export default function StoryOverlayText({
   const resolvedSize = getScaledSize(size ?? "medium", cleanText.length);
   const x = readPercent(overlayX, 50, 8, 92);
   const y = readPercent(overlayY, 50, 8, 92);
-  const positionStyle = getAnchoredPositionStyle(x, y);
+  const positionStyle = getAnchoredPositionStyle(x, y, bottomSafeOffset);
   const quoteText =
     resolvedFont === "testimony" || style === "testimony-quote"
       ? `“${cleanText}”`
@@ -148,7 +150,11 @@ export default function StoryOverlayText({
   );
 }
 
-function getAnchoredPositionStyle(x: number, y: number): CSSProperties {
+function getAnchoredPositionStyle(
+  x: number,
+  y: number,
+  bottomSafeOffset?: number
+): CSSProperties {
   const transformParts: string[] = [];
   const style: CSSProperties = {};
 
@@ -164,7 +170,10 @@ function getAnchoredPositionStyle(x: number, y: number): CSSProperties {
   if (y <= 25) {
     style.top = "16px";
   } else if (y >= 75) {
-    style.bottom = "16px";
+    style.bottom =
+      bottomSafeOffset === undefined
+        ? "calc(16px + env(safe-area-inset-bottom))"
+        : `${bottomSafeOffset}px`;
   } else {
     style.top = `${y}%`;
     transformParts.push("translateY(-50%)");
