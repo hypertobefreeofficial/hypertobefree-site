@@ -1307,41 +1307,28 @@ export default function FreedomFeed({
                     <button
                       type="button"
                       onClick={() => openVideoStory(story.id)}
-                      className="relative block aspect-[4/5] max-h-[60vh] w-full overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
+                      className="relative flex aspect-[4/5] max-h-[60vh] w-full items-center justify-center overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
                       aria-label="Open video in Video Feed"
                     >
-                      <video
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                        className="pointer-events-none block h-full w-full bg-black object-contain object-center md:h-full md:w-full md:max-h-full md:max-w-none md:object-contain"
-                        style={{
-                          objectFit: "contain",
-                          objectPosition: "center center",
-                        }}
-                        src={story.signed_video_url}
+                      <FreedomFeedVideoMediaFrame
+                        stamp={story.video_template}
+                        videoUrl={story.signed_video_url}
                       >
-                        Your browser does not support the video tag.
-                      </video>
-
-                      <StoryMediaStamp stamp={story.video_template} />
-
-                      {overlayText && (
-                        <FeedCaptionOverlay
-                          alignment={story.caption_align}
-                          background={story.caption_background}
-                          color={story.caption_color}
-                          font={story.caption_font}
-                          overlayX={story.overlay_x}
-                          overlayY={story.overlay_y}
-                          reserveBottomAction
-                          size={story.caption_size}
-                          style={captionStyle}
-                          text={overlayText}
-                        />
-                      )}
+                        {overlayText && (
+                          <FeedCaptionOverlay
+                            alignment={story.caption_align}
+                            background={story.caption_background}
+                            color={story.caption_color}
+                            font={story.caption_font}
+                            overlayX={story.overlay_x}
+                            overlayY={story.overlay_y}
+                            reserveBottomAction
+                            size={story.caption_size}
+                            style={captionStyle}
+                            text={overlayText}
+                          />
+                        )}
+                      </FreedomFeedVideoMediaFrame>
 
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                         <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
@@ -2064,6 +2051,54 @@ function FeedCaptionOverlay({
   );
 }
 
+function FreedomFeedVideoMediaFrame({
+  children,
+  stamp,
+  videoUrl,
+}: {
+  children: ReactNode;
+  stamp: VideoTemplate;
+  videoUrl: string;
+}) {
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const frameStyle = aspectRatio
+    ? {
+        aspectRatio: `${aspectRatio}`,
+        height: aspectRatio < 1 ? "100%" : "auto",
+        width: aspectRatio >= 1 ? "100%" : "auto",
+      }
+    : undefined;
+
+  return (
+    <div
+      className="relative flex h-full max-h-full max-w-full items-center justify-center overflow-hidden bg-black"
+      style={frameStyle}
+    >
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        className="pointer-events-none block h-full w-full bg-black object-contain object-center"
+        src={videoUrl}
+        onLoadedMetadata={(event) => {
+          const video = event.currentTarget;
+
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            setAspectRatio(video.videoWidth / video.videoHeight);
+          }
+        }}
+      >
+        Your browser does not support the video tag.
+      </video>
+
+      <StoryMediaStamp stamp={stamp} />
+      {children}
+    </div>
+  );
+}
+
 function getFeedOverlayDefaultPosition(
   style: CaptionStyle,
   reserveBottomAction: boolean
@@ -2134,4 +2169,3 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
