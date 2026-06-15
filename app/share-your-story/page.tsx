@@ -24,6 +24,7 @@ import {
   Upload,
   Video,
 } from "lucide-react";
+import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -1571,7 +1572,7 @@ export default function ShareYourStoryPage() {
                         className={getPhotoPreviewImageClass(photoDisplayStyle)}
                       />
 
-                      <MediaStampLayer stamp={videoTemplate} />
+                      <StoryMediaStamp stamp={videoTemplate} />
 
                       {previewText && captionStyle !== "classic-caption" && (
                         <StoryOverlayText
@@ -1713,11 +1714,11 @@ export default function ShareYourStoryPage() {
                     className="block max-h-[58vh] w-full bg-slate-900 object-contain"
                   />
 
-                  <MediaStampLayer stamp={videoTemplate} />
+                  <StoryMediaStamp stamp={videoTemplate} />
 
                   {previewText ? (
                     <MobileDraggableCaptionOverlay
-                      align={captionAlign}
+                      alignment={captionAlign}
                       background={captionBackground}
                       color={captionColor}
                       font={captionFont}
@@ -1726,6 +1727,7 @@ export default function ShareYourStoryPage() {
                       onPointerUp={stopMobileCaptionDrag}
                       positionPercent={mobileCaptionPositionPercent}
                       size={captionSize}
+                      style={captionStyle}
                       text={previewText}
                     />
                   ) : (
@@ -2005,11 +2007,11 @@ export default function ShareYourStoryPage() {
                             className="max-h-[68vh] w-full bg-black object-contain xl:max-h-[640px]"
                           />
 
-                          <MediaStampLayer stamp={videoTemplate} />
+                          <StoryMediaStamp stamp={videoTemplate} />
 
                           {previewText ? (
                             <MobileDraggableCaptionOverlay
-                              align={captionAlign}
+                              alignment={captionAlign}
                               background={captionBackground}
                               color={captionColor}
                               font={captionFont}
@@ -2018,6 +2020,7 @@ export default function ShareYourStoryPage() {
                               onPointerUp={stopMobileCaptionDrag}
                               positionPercent={mobileCaptionPositionPercent}
                               size={captionSize}
+                              style={captionStyle}
                               text={previewText}
                             />
                           ) : (
@@ -2702,68 +2705,6 @@ function VideoTemplatePicker({
   );
 }
 
-function MediaStampLayer({ stamp }: { stamp: VideoTemplate }) {
-  if (stamp === "none") return null;
-
-  if (stamp === "htbf-logo") {
-    return (
-      <img
-        src="/images/htbf-logo.png"
-        alt=""
-        className="pointer-events-none absolute right-4 top-4 z-[3] h-10 w-10 rounded-full object-contain opacity-65 drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)]"
-      />
-    );
-  }
-
-  if (stamp === "freedom-silhouette") {
-    return (
-      <img
-        src="/images/hero-freedom.png"
-        alt=""
-        className="pointer-events-none absolute bottom-4 right-4 z-[3] h-24 w-20 object-contain opacity-20 mix-blend-screen"
-      />
-    );
-  }
-
-  if (stamp === "shared-through-htbf") {
-    return (
-      <div className="pointer-events-none absolute left-4 top-4 z-[3] rounded-full bg-black/35 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/70 ring-1 ring-white/20 backdrop-blur-sm">
-        Shared Through HTBF
-      </div>
-    );
-  }
-
-  if (stamp === "freedom-story") {
-    return (
-      <div className="pointer-events-none absolute bottom-4 left-4 z-[3] rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/75 ring-1 ring-white/20 backdrop-blur-sm">
-        Freedom Story
-      </div>
-    );
-  }
-
-  if (stamp === "prayer-moment") {
-    return (
-      <div className="pointer-events-none absolute left-4 top-4 z-[3] rounded-full bg-blue-950/45 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-50/80 ring-1 ring-blue-100/20 backdrop-blur-sm">
-        Prayer Moment
-      </div>
-    );
-  }
-
-  if (stamp === "praise-report") {
-    return (
-      <div className="pointer-events-none absolute right-4 top-4 z-[3] rounded-full bg-amber-300/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-50/85 ring-1 ring-amber-100/25 backdrop-blur-sm">
-        Praise Report
-      </div>
-    );
-  }
-
-  return (
-    <div className="pointer-events-none absolute bottom-4 right-4 z-[3] rounded-full bg-emerald-300/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-50/85 ring-1 ring-emerald-100/25 backdrop-blur-sm">
-      God Did It
-    </div>
-  );
-}
-
 function MusicComingSoonPanel({ dark }: { dark: boolean }) {
   const approvedTracks = musicCatalog.filter(
     (track) => track.license_status === "approved"
@@ -2939,7 +2880,7 @@ function ToolbarChip({
 }
 
 function MobileDraggableCaptionOverlay({
-  align,
+  alignment,
   background,
   color,
   font,
@@ -2948,9 +2889,10 @@ function MobileDraggableCaptionOverlay({
   onPointerUp,
   positionPercent,
   size,
+  style,
   text,
 }: {
-  align: CaptionAlign;
+  alignment: CaptionAlign;
   background: CaptionBackground;
   color: CaptionColor;
   font: CaptionFont;
@@ -2959,11 +2901,12 @@ function MobileDraggableCaptionOverlay({
   onPointerUp: (event: PointerEvent<HTMLElement>) => void;
   positionPercent: CaptionPositionPercent;
   size: CaptionSize;
+  style: CaptionStyle;
   text: string;
 }) {
   return (
     <StoryOverlayText
-      alignment={align}
+      alignment={alignment}
       background={background}
       color={color}
       draggable
@@ -2975,7 +2918,7 @@ function MobileDraggableCaptionOverlay({
       overlayX={positionPercent.x}
       overlayY={positionPercent.y}
       size={size}
-      style={getLegacyCaptionStyle(font, background)}
+      style={style}
       text={text}
     />
   );
