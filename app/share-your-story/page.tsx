@@ -1979,8 +1979,8 @@ export default function ShareYourStoryPage() {
                   </button>
                 </div>
 
-                <div className="grid w-full max-w-full min-w-0 gap-5 overflow-hidden xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] xl:items-start">
-                  <div className="min-w-0 max-w-full xl:sticky xl:top-4">
+                <div className="flex w-full max-w-full min-w-0 flex-col gap-5 overflow-hidden">
+                  <div className="min-w-0 max-w-full">
                     <div className="rounded-[1.75rem] bg-slate-950 p-3 text-white shadow-lg ring-1 ring-white/10">
                       <div className="mb-3 flex items-center justify-between gap-3 px-1">
                         <div>
@@ -1999,8 +1999,8 @@ export default function ShareYourStoryPage() {
                         </div>
                       </div>
 
-                      <div className="mx-auto overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10 xl:w-[min(100%,84dvh)]">
-                        <div className="relative h-[min(76dvh,760px)] min-h-[560px] w-full overflow-hidden rounded-[1.5rem] bg-black">
+                      <div className="mx-auto w-full max-w-full overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10">
+                        <div className="relative h-[min(78dvh,820px)] min-h-[620px] w-full overflow-hidden rounded-[1.5rem] bg-black">
                           <video
                             src={videoPreviewUrl}
                             controls
