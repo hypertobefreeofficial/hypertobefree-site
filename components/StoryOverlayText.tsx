@@ -93,7 +93,9 @@ export default function StoryOverlayText({
   const resolvedAlign = alignment ?? "center";
   const resolvedSize = getScaledSize(size ?? "medium", cleanText.length);
   const x = readPercent(overlayX, 50, 8, 92);
-  const y = readPercent(overlayY, 50, 10, 90);
+  const y = readPercent(overlayY, 50, 8, 92);
+  const horizontalRoomPercent = Math.max(16, Math.min(x - 8, 92 - x) * 2);
+  const verticalRoomPercent = Math.max(16, Math.min(y - 8, 92 - y) * 2);
   const quoteText =
     resolvedFont === "testimony" || style === "testimony-quote"
       ? `“${cleanText}”`
@@ -105,8 +107,12 @@ export default function StoryOverlayText({
     top: `${y}%`,
     transform: "translate(-50%, -50%)",
     boxSizing: "border-box",
-    maxWidth: `min(88%, calc(${Math.max(16, Math.min(x, 100 - x) * 2)}% - 1rem))`,
-    maxHeight: `min(80%, calc(${Math.max(18, Math.min(y, 100 - y) * 2)}% - 1rem))`,
+    width: "fit-content",
+    minWidth: "auto",
+    minInlineSize: 0,
+    maxWidth: `min(70%, calc(${horizontalRoomPercent}% - 0.75rem))`,
+    maxInlineSize: `min(70%, calc(${horizontalRoomPercent}% - 0.75rem))`,
+    maxHeight: `min(80%, calc(${verticalRoomPercent}% - 0.75rem))`,
     overflow: "hidden",
     overflowWrap: "anywhere",
     wordBreak: "break-word",
