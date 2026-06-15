@@ -41,7 +41,7 @@ type CaptionBackground =
   | "dark-banner"
   | "glow-box"
   | "scripture-card";
-type OverlayContext = "editor" | "freedom-feed" | "video-feed";
+type OverlayContext = "editor" | "freedom-feed" | "search" | "video-feed";
 
 type StoryOverlayTextProps = {
   alignment?: CaptionAlign | null;
@@ -111,11 +111,13 @@ export default function StoryOverlayText({
       : cleanText;
   const inlineColor = getInlineColor(resolvedColor);
   const textShadow = getTextShadow(resolvedColor);
+  const effectiveMaxLines =
+    maxLines ?? (overlayContext === "search" ? 3 : undefined);
   const clampStyle =
-    maxLines && maxLines > 0
+    effectiveMaxLines && effectiveMaxLines > 0
       ? {
           display: "-webkit-box",
-          WebkitLineClamp: maxLines,
+          WebkitLineClamp: effectiveMaxLines,
           WebkitBoxOrient: "vertical" as const,
         }
       : {};
@@ -211,16 +213,26 @@ function getOverlayContextRules(context: OverlayContext) {
     return {
       bottomSafeOffset: 170,
       maxHeight: "calc(100% - 48px)",
-      maxWidth: "85%",
+      maxWidth: "88%",
       fontScale: 1,
       scaleLongText: false,
+    };
+  }
+
+  if (context === "search") {
+    return {
+      bottomSafeOffset: 12,
+      maxHeight: "calc(100% - 24px)",
+      maxWidth: "85%",
+      fontScale: 0.48,
+      scaleLongText: true,
     };
   }
 
   return {
     bottomSafeOffset: 16,
     maxHeight: "calc(100% - 32px)",
-    maxWidth: "85%",
+    maxWidth: "88%",
     fontScale: 1,
     scaleLongText: false,
   };
