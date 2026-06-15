@@ -2042,6 +2042,7 @@ function FeedCaptionOverlay({
       color={color}
       font={font}
       maxLines={6}
+      overlayContext="freedom-feed"
       overlayX={overlayX ?? fallbackPosition.x}
       overlayY={overlayY ?? fallbackPosition.y}
       size={size}
