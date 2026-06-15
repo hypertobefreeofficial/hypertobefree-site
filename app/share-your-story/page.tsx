@@ -1581,6 +1581,7 @@ export default function ShareYourStoryPage() {
                           background={captionBackground}
                           color={captionColor}
                           font={captionFont}
+                          overlayContext="editor"
                           overlayX={getCaptionPositionPercent(captionPosition).x}
                           overlayY={getCaptionPositionPercent(captionPosition).y}
                           size={captionSize}
