@@ -98,23 +98,12 @@ export default function StoryOverlayText({
     cleanText.length,
     contextRules.scaleLongText
   );
-  const x = readPercent(
-    overlayX,
-    50,
-    contextRules.safeMarginPercent,
-    100 - contextRules.safeMarginPercent
-  );
-  const y = readPercent(
-    overlayY,
-    50,
-    contextRules.safeMarginPercent,
-    100 - contextRules.safeMarginPercent
-  );
+  const x = readPercent(overlayX, 50, 8, 92);
+  const y = readPercent(overlayY, 50, 8, 92);
   const positionStyle = getAnchoredPositionStyle(
     x,
     y,
-    bottomSafeOffset ?? contextRules.bottomSafeOffset,
-    contextRules.safeInsetPx
+    bottomSafeOffset ?? contextRules.bottomSafeOffset
   );
   const quoteText =
     resolvedFont === "testimony" || style === "testimony-quote"
@@ -133,6 +122,7 @@ export default function StoryOverlayText({
   const styleProp: CSSProperties = {
     ...positionStyle,
     boxSizing: "border-box",
+    fontSize: getFontSizeValue(resolvedSize, contextRules.fontScale),
     width: "fit-content",
     minWidth: "auto",
     minInlineSize: 0,
@@ -159,8 +149,7 @@ export default function StoryOverlayText({
       className={`absolute z-20 leading-tight ${getPointerClass(
         draggable
       )} ${getPaddingClass(resolvedBackground)} ${getSizeClass(
-        resolvedSize,
-        overlayContext
+        resolvedSize
       )} ${getAlignClass(resolvedAlign)} ${getFontClass(
         resolvedFont
       )} ${getBackgroundClass(resolvedBackground)} ${getColorClass(
@@ -177,25 +166,24 @@ export default function StoryOverlayText({
 function getAnchoredPositionStyle(
   x: number,
   y: number,
-  bottomSafeOffset: number,
-  safeInsetPx: number
+  bottomSafeOffset?: number
 ): CSSProperties {
   const transformParts: string[] = [];
   const style: CSSProperties = {};
 
   if (x <= 25) {
-    style.left = `${safeInsetPx}px`;
+    style.left = "16px";
   } else if (x >= 75) {
-    style.right = `${safeInsetPx}px`;
+    style.right = "16px";
   } else {
     style.left = `${x}%`;
     transformParts.push("translateX(-50%)");
   }
 
   if (y <= 25) {
-    style.top = `${safeInsetPx}px`;
+    style.top = "16px";
   } else if (y >= 75) {
-    style.bottom = `${bottomSafeOffset}px`;
+    style.bottom = `${bottomSafeOffset ?? 16}px`;
   } else {
     style.top = `${y}%`;
     transformParts.push("translateY(-50%)");
@@ -213,20 +201,18 @@ function getOverlayContextRules(context: OverlayContext) {
     return {
       bottomSafeOffset: 20,
       maxHeight: "calc(100% - 32px)",
-      maxWidth: "68%",
-      safeInsetPx: 12,
-      safeMarginPercent: 8,
-      scaleLongText: true,
+      maxWidth: "85%",
+      fontScale: 0.68,
+      scaleLongText: false,
     };
   }
 
   if (context === "video-feed") {
     return {
       bottomSafeOffset: 170,
-      maxHeight: "calc(100% - 64px)",
-      maxWidth: "88%",
-      safeInsetPx: 16,
-      safeMarginPercent: 6,
+      maxHeight: "calc(100% - 48px)",
+      maxWidth: "85%",
+      fontScale: 1,
       scaleLongText: false,
     };
   }
@@ -235,8 +221,7 @@ function getOverlayContextRules(context: OverlayContext) {
     bottomSafeOffset: 16,
     maxHeight: "calc(100% - 32px)",
     maxWidth: "82%",
-    safeInsetPx: 16,
-    safeMarginPercent: 8,
+    fontScale: 1,
     scaleLongText: false,
   };
 }
@@ -262,25 +247,29 @@ function getPaddingClass(background: CaptionBackground) {
   return background === "none" ? "px-0 py-0" : "px-4 py-3";
 }
 
-function getSizeClass(size: CaptionSize, context: OverlayContext) {
-  if (context === "freedom-feed") {
-    if (size === "small") return "text-[clamp(0.78rem,1.5vw,1rem)]";
-    if (size === "large") return "text-[clamp(1rem,2.3vw,1.55rem)]";
-    if (size === "extra-large") return "text-[clamp(1.15rem,2.8vw,1.85rem)]";
-    return "text-[clamp(0.9rem,1.9vw,1.25rem)]";
-  }
-
-  if (context === "video-feed") {
-    if (size === "small") return "text-[clamp(1rem,2.4vw,1.5rem)]";
-    if (size === "large") return "text-[clamp(1.65rem,4.4vw,3rem)]";
-    if (size === "extra-large") return "text-[clamp(2rem,5.4vw,3.8rem)]";
-    return "text-[clamp(1.25rem,3.4vw,2.15rem)]";
-  }
-
+function getSizeClass(size: CaptionSize) {
   if (size === "small") return "text-[clamp(0.9rem,2vw,1.3rem)]";
   if (size === "large") return "text-[clamp(1.4rem,4vw,2.5rem)]";
   if (size === "extra-large") return "text-[clamp(1.8rem,5vw,3.2rem)]";
   return "text-[clamp(1.1rem,3vw,1.8rem)]";
+}
+
+function getFontSizeValue(size: CaptionSize, fontScale: number) {
+  const scale = Number.isFinite(fontScale) ? fontScale : 1;
+
+  if (size === "small") {
+    return `clamp(${0.9 * scale}rem, ${2 * scale}vw, ${1.3 * scale}rem)`;
+  }
+
+  if (size === "large") {
+    return `clamp(${1.4 * scale}rem, ${4 * scale}vw, ${2.5 * scale}rem)`;
+  }
+
+  if (size === "extra-large") {
+    return `clamp(${1.8 * scale}rem, ${5 * scale}vw, ${3.2 * scale}rem)`;
+  }
+
+  return `clamp(${1.1 * scale}rem, ${3 * scale}vw, ${1.8 * scale}rem)`;
 }
 
 function getScaledSize(
