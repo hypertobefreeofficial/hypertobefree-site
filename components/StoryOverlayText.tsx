@@ -112,7 +112,12 @@ export default function StoryOverlayText({
   const inlineColor = getInlineColor(resolvedColor);
   const textShadow = getTextShadow(resolvedColor);
   const effectiveMaxLines =
-    maxLines ?? (overlayContext === "search" ? 3 : undefined);
+    maxLines ??
+    (overlayContext === "freedom-feed"
+      ? 4
+      : overlayContext === "search"
+        ? 3
+        : undefined);
   const clampStyle =
     effectiveMaxLines && effectiveMaxLines > 0
       ? {
@@ -203,8 +208,8 @@ function getOverlayContextRules(context: OverlayContext) {
     return {
       bottomSafeOffset: 20,
       maxHeight: "calc(100% - 32px)",
-      maxWidth: "85%",
-      fontScale: 0.68,
+      maxWidth: "75%",
+      fontScale: 0.45,
       scaleLongText: false,
     };
   }
