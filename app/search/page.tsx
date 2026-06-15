@@ -11,6 +11,56 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
+import StoryMediaStamp from "../../components/StoryMediaStamp";
+import StoryOverlayText from "../../components/StoryOverlayText";
+
+type CaptionStyle =
+  | "classic-caption"
+  | "bold-center"
+  | "bottom-banner"
+  | "highlight-box"
+  | "scripture-card"
+  | "praise-glow"
+  | "testimony-quote"
+  | "minimal-white"
+  | "black-outline"
+  | "soft-gradient"
+  | "elegant-script";
+type CaptionFont =
+  | "classic"
+  | "bold"
+  | "scripture"
+  | "praise"
+  | "testimony"
+  | "minimal"
+  | "grace-script";
+type CaptionColor =
+  | "white"
+  | "black"
+  | "deep-navy"
+  | "soft-gold"
+  | "prayer-blue"
+  | "warm-cream"
+  | "praise-green"
+  | `#${string}`;
+type CaptionSize = "small" | "medium" | "large" | "extra-large";
+type CaptionAlign = "left" | "center" | "right";
+type CaptionBackground =
+  | "none"
+  | "soft-pill"
+  | "glass-blur"
+  | "dark-banner"
+  | "glow-box"
+  | "scripture-card";
+type VideoTemplate =
+  | "none"
+  | "htbf-logo"
+  | "freedom-silhouette"
+  | "shared-through-htbf"
+  | "freedom-story"
+  | "prayer-moment"
+  | "praise-report"
+  | "god-did-it";
 
 type StoryRow = {
   id: string;
@@ -21,6 +71,16 @@ type StoryRow = {
   story_text: string | null;
   video_url: string | null;
   thumbnail_url: string | null;
+  overlay_text: string | null;
+  overlay_x: number | null;
+  overlay_y: number | null;
+  caption_style: CaptionStyle | null;
+  caption_font: CaptionFont | null;
+  caption_background: CaptionBackground | null;
+  caption_color: CaptionColor | null;
+  caption_size: CaptionSize | null;
+  caption_align: CaptionAlign | null;
+  video_template: VideoTemplate | null;
   status: string | null;
   created_at?: string | null;
 };
@@ -162,7 +222,7 @@ export default function SearchPage() {
       const { data, error } = await supabase
         .from("stories")
         .select(
-          "id, user_id, name, location, story_type, story_text, video_url, thumbnail_url, status, created_at"
+          "id, user_id, name, location, story_type, story_text, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, status, created_at"
         )
         .eq("status", "approved")
         .not("video_url", "is", null)
@@ -404,6 +464,16 @@ export default function SearchPage() {
                     title={getCardTitle(story)}
                     storyType={getStoryType(story)}
                     location={story.location || "Video testimony"}
+                    overlayText={story.overlay_text}
+                    overlayX={story.overlay_x}
+                    overlayY={story.overlay_y}
+                    captionStyle={story.caption_style}
+                    captionFont={story.caption_font}
+                    captionBackground={story.caption_background}
+                    captionColor={story.caption_color}
+                    captionSize={story.caption_size}
+                    captionAlign={story.caption_align}
+                    videoTemplate={story.video_template}
                     isLarge={isLarge}
                     onBrokenVideo={markBrokenVideo}
                   />
@@ -426,6 +496,16 @@ function VideoDiscoveryTile({
   title,
   storyType,
   location,
+  overlayText,
+  overlayX,
+  overlayY,
+  captionStyle,
+  captionFont,
+  captionBackground,
+  captionColor,
+  captionSize,
+  captionAlign,
+  videoTemplate,
   isLarge,
   onBrokenVideo,
 }: {
@@ -435,9 +515,23 @@ function VideoDiscoveryTile({
   title: string;
   storyType: string;
   location: string;
+  overlayText: string | null;
+  overlayX: number | null;
+  overlayY: number | null;
+  captionStyle: CaptionStyle | null;
+  captionFont: CaptionFont | null;
+  captionBackground: CaptionBackground | null;
+  captionColor: CaptionColor | null;
+  captionSize: CaptionSize | null;
+  captionAlign: CaptionAlign | null;
+  videoTemplate: VideoTemplate | null;
   isLarge: boolean;
   onBrokenVideo: (storyId: string) => void;
 }) {
+  const cleanOverlayText = overlayText?.trim() ?? "";
+  const visibleOverlayText =
+    cleanOverlayText.toLowerCase() === "none" ? "" : cleanOverlayText;
+
   return (
     <Link
       href={`/video-feed?story=${storyId}&from=search`}
@@ -462,6 +556,23 @@ function VideoDiscoveryTile({
           preload="metadata"
           onError={() => onBrokenVideo(storyId)}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+
+      <StoryMediaStamp stamp={videoTemplate ?? "none"} />
+
+      {visibleOverlayText && (
+        <StoryOverlayText
+          alignment={captionAlign ?? "center"}
+          background={captionBackground ?? "soft-pill"}
+          color={captionColor ?? "white"}
+          font={captionFont ?? "classic"}
+          maxLines={4}
+          overlayX={overlayX}
+          overlayY={overlayY}
+          size={captionSize ?? "medium"}
+          style={captionStyle ?? "classic-caption"}
+          text={visibleOverlayText}
         />
       )}
 
