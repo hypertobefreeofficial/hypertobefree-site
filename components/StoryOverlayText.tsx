@@ -94,8 +94,7 @@ export default function StoryOverlayText({
   const resolvedSize = getScaledSize(size ?? "medium", cleanText.length);
   const x = readPercent(overlayX, 50, 8, 92);
   const y = readPercent(overlayY, 50, 8, 92);
-  const horizontalRoomPercent = Math.max(16, Math.min(x - 8, 92 - x) * 2);
-  const verticalRoomPercent = Math.max(16, Math.min(y - 8, 92 - y) * 2);
+  const positionStyle = getAnchoredPositionStyle(x, y);
   const quoteText =
     resolvedFont === "testimony" || style === "testimony-quote"
       ? `“${cleanText}”`
@@ -103,16 +102,14 @@ export default function StoryOverlayText({
   const inlineColor = getInlineColor(resolvedColor);
   const textShadow = getTextShadow(resolvedColor);
   const styleProp: OverlayTextStyle = {
-    left: `${x}%`,
-    top: `${y}%`,
-    transform: "translate(-50%, -50%)",
+    ...positionStyle,
     boxSizing: "border-box",
     width: "fit-content",
     minWidth: "auto",
     minInlineSize: 0,
-    maxWidth: `min(70%, calc(${horizontalRoomPercent}% - 0.75rem))`,
-    maxInlineSize: `min(70%, calc(${horizontalRoomPercent}% - 0.75rem))`,
-    maxHeight: `min(80%, calc(${verticalRoomPercent}% - 0.75rem))`,
+    maxWidth: "70%",
+    maxInlineSize: "70%",
+    maxHeight: "calc(100% - 32px)",
     overflow: "hidden",
     overflowWrap: "anywhere",
     wordBreak: "break-word",
@@ -151,6 +148,35 @@ export default function StoryOverlayText({
       {quoteText}
     </div>
   );
+}
+
+function getAnchoredPositionStyle(x: number, y: number): CSSProperties {
+  const transformParts: string[] = [];
+  const style: CSSProperties = {};
+
+  if (x <= 25) {
+    style.left = "16px";
+  } else if (x >= 75) {
+    style.right = "16px";
+  } else {
+    style.left = `${x}%`;
+    transformParts.push("translateX(-50%)");
+  }
+
+  if (y <= 25) {
+    style.top = "16px";
+  } else if (y >= 75) {
+    style.bottom = "16px";
+  } else {
+    style.top = `${y}%`;
+    transformParts.push("translateY(-50%)");
+  }
+
+  if (transformParts.length > 0) {
+    style.transform = transformParts.join(" ");
+  }
+
+  return style;
 }
 
 function readPercent(
