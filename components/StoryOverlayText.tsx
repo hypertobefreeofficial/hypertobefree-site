@@ -41,6 +41,7 @@ type CaptionBackground =
   | "dark-banner"
   | "glow-box"
   | "scripture-card";
+type OverlayContext = "editor" | "freedom-feed" | "video-feed";
 
 type StoryOverlayTextProps = {
   alignment?: CaptionAlign | null;
@@ -55,6 +56,7 @@ type StoryOverlayTextProps = {
   onPointerDown?: PointerEventHandler<HTMLDivElement>;
   onPointerMove?: PointerEventHandler<HTMLDivElement>;
   onPointerUp?: PointerEventHandler<HTMLDivElement>;
+  overlayContext?: OverlayContext;
   overlayX?: number | null;
   overlayY?: number | null;
   size?: CaptionSize | null;
@@ -75,6 +77,7 @@ export default function StoryOverlayText({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  overlayContext = "editor",
   overlayX,
   overlayY,
   size,
@@ -89,10 +92,19 @@ export default function StoryOverlayText({
   const resolvedBackground = background ?? getBackgroundFromStyle(style);
   const resolvedColor = color ?? getColorFromStyle(style);
   const resolvedAlign = alignment ?? "center";
-  const resolvedSize = getScaledSize(size ?? "medium", cleanText.length);
+  const contextRules = getOverlayContextRules(overlayContext);
+  const resolvedSize = getScaledSize(
+    size ?? "medium",
+    cleanText.length,
+    contextRules.scaleLongText
+  );
   const x = readPercent(overlayX, 50, 8, 92);
   const y = readPercent(overlayY, 50, 8, 92);
-  const positionStyle = getAnchoredPositionStyle(x, y, bottomSafeOffset);
+  const positionStyle = getAnchoredPositionStyle(
+    x,
+    y,
+    bottomSafeOffset ?? contextRules.bottomSafeOffset
+  );
   const quoteText =
     resolvedFont === "testimony" || style === "testimony-quote"
       ? `“${cleanText}”`
@@ -113,9 +125,9 @@ export default function StoryOverlayText({
     width: "fit-content",
     minWidth: "auto",
     minInlineSize: 0,
-    maxWidth: "70%",
-    maxInlineSize: "70%",
-    maxHeight: "calc(100% - 32px)",
+    maxWidth: contextRules.maxWidth,
+    maxInlineSize: contextRules.maxWidth,
+    maxHeight: contextRules.maxHeight,
     overflow: "hidden",
     overflowWrap: "anywhere",
     wordBreak: "break-word",
@@ -183,6 +195,33 @@ function getAnchoredPositionStyle(
   return style;
 }
 
+function getOverlayContextRules(context: OverlayContext) {
+  if (context === "freedom-feed") {
+    return {
+      bottomSafeOffset: 20,
+      maxHeight: "calc(100% - 32px)",
+      maxWidth: "70%",
+      scaleLongText: true,
+    };
+  }
+
+  if (context === "video-feed") {
+    return {
+      bottomSafeOffset: 170,
+      maxHeight: "calc(100% - 48px)",
+      maxWidth: "88%",
+      scaleLongText: false,
+    };
+  }
+
+  return {
+    bottomSafeOffset: 16,
+    maxHeight: "calc(100% - 32px)",
+    maxWidth: "82%",
+    scaleLongText: false,
+  };
+}
+
 function readPercent(
   value: number | null | undefined,
   fallback: number,
@@ -211,7 +250,12 @@ function getSizeClass(size: CaptionSize) {
   return "text-[clamp(1.1rem,3vw,1.8rem)]";
 }
 
-function getScaledSize(size: CaptionSize, textLength: number): CaptionSize {
+function getScaledSize(
+  size: CaptionSize,
+  textLength: number,
+  scaleLongText: boolean
+): CaptionSize {
+  if (!scaleLongText) return size;
   if (textLength > 320) return "small";
 
   const sizes: CaptionSize[] = ["small", "medium", "large", "extra-large"];
