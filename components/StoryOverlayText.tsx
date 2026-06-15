@@ -41,10 +41,6 @@ type CaptionBackground =
   | "dark-banner"
   | "glow-box"
   | "scripture-card";
-type OverlayTextStyle = CSSProperties & {
-  WebkitBoxOrient?: "vertical";
-  WebkitLineClamp?: number;
-};
 
 type StoryOverlayTextProps = {
   alignment?: CaptionAlign | null;
@@ -101,7 +97,15 @@ export default function StoryOverlayText({
       : cleanText;
   const inlineColor = getInlineColor(resolvedColor);
   const textShadow = getTextShadow(resolvedColor);
-  const styleProp: OverlayTextStyle = {
+  const clampStyle =
+    maxLines && maxLines > 0
+      ? {
+          display: "-webkit-box",
+          WebkitLineClamp: maxLines,
+          WebkitBoxOrient: "vertical" as const,
+        }
+      : {};
+  const styleProp: CSSProperties = {
     ...positionStyle,
     boxSizing: "border-box",
     width: "fit-content",
@@ -116,13 +120,7 @@ export default function StoryOverlayText({
     whiteSpace: "pre-wrap",
     color: inlineColor,
     textShadow,
-    ...(maxLines
-      ? {
-          display: "-webkit-box",
-          WebkitLineClamp: maxLines,
-          WebkitBoxOrient: "vertical",
-        }
-      : {}),
+    ...clampStyle,
   };
 
   return (
