@@ -34,6 +34,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -2390,96 +2391,76 @@ function AutoPlayReelVideo({
   return (
     <div
       ref={wrapperRef}
-      className="relative h-full w-full overflow-hidden bg-black [touch-action:pan-y]"
+      className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black [touch-action:pan-y]"
       onClick={handleWrapperClick}
       onPointerDown={(event) => startHoldPause(event.target)}
       onPointerUp={releaseHoldPause}
       onPointerCancel={releaseHoldPause}
       onMouseLeave={releaseHoldPause}
     >
-      {shouldLoadVideo ? (
-        <video
-          ref={videoRef}
-          key={videoUrl}
-          src={videoUrl}
-          muted={!soundOn}
-          loop={!audioTestimonyMode}
-          playsInline
-          preload="metadata"
-          className="h-full w-full bg-black object-cover object-center transition-transform duration-150 ease-out will-change-transform md:mx-auto md:w-[min(100vw,78dvh)] md:max-w-full lg:w-[min(100vw,84dvh)]"
-          style={{
-            transform: `scale(${zoomScale})`,
-            transformOrigin: "center center",
-          }}
-          onEnded={() => {
-            if (audioTestimonyMode) {
-              onAudioModeAdvance();
-            }
-          }}
-          onPlay={() => {
-            setPaused(false);
-            scheduleNoAudioAdvance();
-          }}
-          onPause={() => {
-            setPaused(true);
-            clearNoAudioAdvance();
-          }}
-          onVolumeChange={() => {
-            const video = videoRef.current;
+      <div className="relative h-full w-full overflow-hidden bg-black md:mx-auto md:w-[min(100vw,78dvh)] md:max-w-full lg:w-[min(100vw,84dvh)]">
+        {shouldLoadVideo ? (
+          <video
+            ref={videoRef}
+            key={videoUrl}
+            src={videoUrl}
+            muted={!soundOn}
+            loop={!audioTestimonyMode}
+            playsInline
+            preload="metadata"
+            className="h-full w-full bg-black object-cover object-center transition-transform duration-150 ease-out will-change-transform"
+            style={{
+              transform: `scale(${zoomScale})`,
+              transformOrigin: "center center",
+            }}
+            onEnded={() => {
+              if (audioTestimonyMode) {
+                onAudioModeAdvance();
+              }
+            }}
+            onPlay={() => {
+              setPaused(false);
+              scheduleNoAudioAdvance();
+            }}
+            onPause={() => {
+              setPaused(true);
+              clearNoAudioAdvance();
+            }}
+            onVolumeChange={() => {
+              const video = videoRef.current;
 
-            if (!video) return;
+              if (!video) return;
 
-            const nextSoundOn = !video.muted && video.volume > 0;
+              const nextSoundOn = !video.muted && video.volume > 0;
 
-            if (nextSoundOn !== soundOn) {
-              onSoundChange(nextSoundOn);
-            }
-          }}
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
-          {copy.loadingVideo}
-        </div>
-      )}
+              if (nextSoundOn !== soundOn) {
+                onSoundChange(nextSoundOn);
+              }
+            }}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-black text-xs font-black uppercase tracking-[0.18em] text-white/40">
+            {copy.loadingVideo}
+          </div>
+        )}
 
-      <VideoMediaStampLayer stamp={template} />
+        <StoryMediaStamp stamp={template} />
 
-      {visibleOverlayText && (
-        <VideoCaptionStyleOverlay
-          align={captionAlign}
-          background={captionBackground}
-          color={captionColor}
-          font={captionFont}
-          maxLines={8}
-          overlayX={overlayX}
-          overlayY={overlayY}
-          size={captionSize}
-          style={captionStyle}
-          text={visibleOverlayText}
-        />
-      )}
-
-      {!beStillMode && !paused && (
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            toggleSound();
-          }}
-          className={`absolute left-1/2 top-[calc(1rem+env(safe-area-inset-top))] z-40 flex -translate-x-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md transition hover:bg-black/75 focus:outline-none focus:ring-4 focus:ring-white/25 ${
-            audioTestimonyMode ? "h-12 w-12" : "h-11 w-11"
-          }`}
-          aria-label={soundOn ? copy.turnSoundOff : copy.turnSoundOn}
-          title={soundOn ? copy.turnSoundOff : copy.turnSoundOn}
-        >
-          {soundOn ? (
-            <Volume2 className="h-5 w-5" />
-          ) : (
-            <VolumeX className="h-5 w-5" />
-          )}
-        </button>
-      )}
+        {visibleOverlayText && (
+          <VideoCaptionStyleOverlay
+            alignment={captionAlign}
+            background={captionBackground}
+            color={captionColor}
+            font={captionFont}
+            maxLines={8}
+            overlayX={overlayX}
+            overlayY={overlayY}
+            size={captionSize}
+            style={captionStyle}
+            text={visibleOverlayText}
+          />
+        )}
+      </div>
 
       {!beStillMode && paused && (
         <div className="absolute inset-0 z-40 flex items-center justify-center">
@@ -2530,75 +2511,6 @@ function AutoPlayReelVideo({
           {copy.zoom} {zoomScale.toFixed(1)}x
         </div>
       )}
-    </div>
-  );
-}
-
-function VideoMediaStampLayer({ stamp }: { stamp: VideoTemplate }) {
-  if (stamp === "none") return null;
-
-  return (
-    <>
-      {stamp === "htbf-logo" && (
-        <img
-          src="/images/htbf-logo.png"
-          alt=""
-          className="pointer-events-none absolute right-5 top-[calc(4.5rem+env(safe-area-inset-top))] z-[3] h-11 w-11 rounded-full object-contain opacity-65 drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)]"
-        />
-      )}
-      {stamp === "freedom-silhouette" && (
-        <img
-          src="/images/hero-freedom.png"
-          alt=""
-          className="pointer-events-none absolute bottom-[calc(9rem+env(safe-area-inset-bottom))] right-8 z-[3] h-28 w-20 object-contain opacity-20 mix-blend-screen"
-        />
-      )}
-      {stamp === "shared-through-htbf" && (
-        <VideoTextStamp
-          className="left-5 top-[calc(4.5rem+env(safe-area-inset-top))] bg-black/35 text-white/70 ring-white/20"
-          label="Shared Through HTBF"
-        />
-      )}
-      {stamp === "freedom-story" && (
-        <VideoTextStamp
-          className="bottom-[calc(9rem+env(safe-area-inset-bottom))] left-5"
-          label="Freedom Story"
-        />
-      )}
-      {stamp === "prayer-moment" && (
-        <VideoTextStamp
-          className="left-5 top-[calc(4.5rem+env(safe-area-inset-top))] bg-blue-950/45 text-blue-50/80 ring-blue-100/20"
-          label="Prayer Moment"
-        />
-      )}
-      {stamp === "praise-report" && (
-        <VideoTextStamp
-          className="right-5 top-[calc(4.5rem+env(safe-area-inset-top))] bg-amber-300/20 text-amber-50/85 ring-amber-100/25"
-          label="Praise Report"
-        />
-      )}
-      {stamp === "god-did-it" && (
-        <VideoTextStamp
-          className="bottom-[calc(9rem+env(safe-area-inset-bottom))] right-5 bg-emerald-300/20 text-emerald-50/85 ring-emerald-100/25"
-          label="God Did It"
-        />
-      )}
-    </>
-  );
-}
-
-function VideoTextStamp({
-  className,
-  label,
-}: {
-  className: string;
-  label: string;
-}) {
-  return (
-    <div
-      className={`pointer-events-none absolute z-[3] rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ring-1 backdrop-blur-sm ${className}`}
-    >
-      {label}
     </div>
   );
 }
@@ -2720,7 +2632,7 @@ function VideoInfoOverlay({
 }
 
 function VideoCaptionStyleOverlay({
-  align,
+  alignment,
   background,
   color,
   font,
@@ -2731,7 +2643,7 @@ function VideoCaptionStyleOverlay({
   style,
   text,
 }: {
-  align?: CaptionAlign;
+  alignment?: CaptionAlign;
   background?: CaptionBackground;
   color?: CaptionColor;
   font?: CaptionFont;
@@ -2744,7 +2656,7 @@ function VideoCaptionStyleOverlay({
 }) {
   return (
     <StoryOverlayText
-      alignment={align}
+      alignment={alignment}
       background={background}
       color={color}
       font={font}
