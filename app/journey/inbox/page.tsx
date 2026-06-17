@@ -471,7 +471,7 @@ export default function JourneyInboxPage() {
 
       const extension =
         replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
-      const filePath = `prayer-replies/${replyMessage.id}/${userId}-${Date.now()}.${extension}`;
+    const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
 
       const { error: uploadError } = await supabase.storage
         .from(PRAYER_VIDEO_BUCKET)
