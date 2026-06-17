@@ -1327,14 +1327,14 @@ function PrayerRequestCard({
           <PrayerButton active={encouraged} onClick={onEncourage}>
             {encouraged ? "Encouraged" : "Encourage"}
           </PrayerButton>
-          {!owner && (
+        
             <PrayerButton onClick={onSendPrayerVideo}>
               <span className="inline-flex items-center justify-center gap-1">
                 <Video className="h-4 w-4" />
                 Video Prayer
               </span>
             </PrayerButton>
-          )}
+          
           <PrayerButton onClick={onShare}>
             <span className="inline-flex items-center justify-center gap-1">
               <Share2 className="h-4 w-4" />
