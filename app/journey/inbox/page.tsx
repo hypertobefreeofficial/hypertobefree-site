@@ -468,11 +468,12 @@ export default function JourneyInboxPage() {
         setReplyStatus("Choose or record a video reply first.");
         return;
       }
+const storyOrMessageId = replyMessage.story_id || replyMessage.id;
 
-      const extension =
-        replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
-    const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
+const extension =
+  replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
 
+const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
       const { error: uploadError } = await supabase.storage
         .from(PRAYER_VIDEO_BUCKET)
         .upload(filePath, replyVideoFile, {
