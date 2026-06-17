@@ -473,14 +473,17 @@ const storyOrMessageId = replyMessage.story_id || replyMessage.id;
 const extension =
   replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
 
+const storyOrMessageId = replyMessage.story_id || replyMessage.id;
+
 const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
-      const { error: uploadError } = await supabase.storage
-        .from(PRAYER_VIDEO_BUCKET)
-        .upload(filePath, replyVideoFile, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: replyVideoFile.type,
-        });
+
+const { error: uploadError } = await supabase.storage
+  .from(PRAYER_VIDEO_BUCKET)
+  .upload(filePath, replyVideoFile, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: replyVideoFile.type,
+  });
 
       if (uploadError) {
         setSendingReply(false);
