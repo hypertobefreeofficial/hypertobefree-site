@@ -473,7 +473,7 @@ const storyOrMessageId = replyMessage.story_id || replyMessage.id;
 const extension =
   replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
 
-const storyOrMessageId = replyMessage.story_id || replyMessage.id;
+
 
 const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
 
