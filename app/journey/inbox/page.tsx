@@ -39,12 +39,17 @@ type InboxFilter =
   | "milestones"
   | "team";
 
+type ReplyMode = "text" | "video";
+
 type ClearMessageRequest =
   | { mode: "single"; messages: InboxMessage[] }
   | { mode: "all"; messages: InboxMessage[] };
 
 const BASE_SELECT = "id, title, body, read, created_at";
 const MESSAGE_SELECT = `${BASE_SELECT}, sender_user_id, message_type, story_id, prayer_request_id, video_url, image_url, action_url, hidden_at`;
+
+const PRAYER_VIDEO_BUCKET = "story-videos";
+const MAX_PRAYER_VIDEO_SECONDS = 30;
 
 const INBOX_CARD_STYLES: Record<
   InboxMessageKind,
@@ -64,8 +69,8 @@ const INBOX_CARD_STYLES: Record<
     panel: "bg-emerald-50 text-emerald-950 ring-emerald-100",
   },
   prayer_video_reply: {
-    label: "Prayer Video Reply",
-    eyebrow: "Prayer response",
+    label: "Prayer Response",
+    eyebrow: "Private prayer response",
     ring: "ring-blue-200",
     badge: "bg-blue-50 text-[#0b63ce] ring-blue-100",
     panel: "bg-blue-50 text-[#082f63] ring-blue-100",
@@ -116,6 +121,24 @@ const FILTERS: { id: InboxFilter; label: string }[] = [
   { id: "team", label: "HTBF Team" },
 ];
 
+function getVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const url = URL.createObjectURL(file);
+
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read video duration."));
+    };
+    video.src = url;
+  });
+}
+
 export default function JourneyInboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [activeFilter, setActiveFilter] = useState<InboxFilter>("all");
@@ -126,6 +149,17 @@ export default function JourneyInboxPage() {
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
+
+  const [replyMessage, setReplyMessage] = useState<InboxMessage | null>(null);
+  const [replyMode, setReplyMode] = useState<ReplyMode>("text");
+  const [replyText, setReplyText] = useState("");
+  const [replyVideoFile, setReplyVideoFile] = useState<File | null>(null);
+  const [replyVideoPreviewUrl, setReplyVideoPreviewUrl] = useState("");
+  const [replyVideoDuration, setReplyVideoDuration] = useState<number | null>(
+    null
+  );
+  const [replyStatus, setReplyStatus] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   useEffect(() => {
     async function loadMessages() {
@@ -175,6 +209,12 @@ export default function JourneyInboxPage() {
 
     loadMessages();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (replyVideoPreviewUrl) URL.revokeObjectURL(replyVideoPreviewUrl);
+    };
+  }, [replyVideoPreviewUrl]);
 
   const filteredMessages = useMemo(() => {
     return messages.filter((message) => {
@@ -320,6 +360,181 @@ export default function JourneyInboxPage() {
     );
   }
 
+  function openReplyModal(message: InboxMessage, mode: ReplyMode) {
+    setStatusMessage("");
+    setReplyStatus("");
+
+    if (!message.sender_user_id) {
+      setStatusMessage("This message does not have a sender to reply to.");
+      return;
+    }
+
+    setReplyMessage(message);
+    setReplyMode(mode);
+    setReplyText("");
+    setReplyVideoFile(null);
+    setReplyVideoDuration(null);
+
+    if (replyVideoPreviewUrl) {
+      URL.revokeObjectURL(replyVideoPreviewUrl);
+      setReplyVideoPreviewUrl("");
+    }
+  }
+
+  function closeReplyModal() {
+    setReplyMessage(null);
+    setReplyMode("text");
+    setReplyText("");
+    setReplyVideoFile(null);
+    setReplyVideoDuration(null);
+    setReplyStatus("");
+    setSendingReply(false);
+
+    if (replyVideoPreviewUrl) {
+      URL.revokeObjectURL(replyVideoPreviewUrl);
+      setReplyVideoPreviewUrl("");
+    }
+  }
+
+  async function handleReplyVideoFile(file: File | null) {
+    setReplyStatus("");
+    setReplyVideoFile(null);
+    setReplyVideoDuration(null);
+
+    if (replyVideoPreviewUrl) {
+      URL.revokeObjectURL(replyVideoPreviewUrl);
+      setReplyVideoPreviewUrl("");
+    }
+
+    if (!file) return;
+
+    if (!file.type.startsWith("video/")) {
+      setReplyStatus("Please choose a video file.");
+      return;
+    }
+
+    try {
+      const duration = await getVideoDuration(file);
+
+      if (duration > MAX_PRAYER_VIDEO_SECONDS + 0.5) {
+        setReplyStatus("Prayer video replies must be 30 seconds or less.");
+        return;
+      }
+
+      setReplyVideoDuration(duration);
+      setReplyVideoFile(file);
+      setReplyVideoPreviewUrl(URL.createObjectURL(file));
+    } catch (error) {
+      console.error("Could not validate reply video:", error);
+      setReplyStatus("Could not read this video. Please choose another one.");
+    }
+  }
+
+  async function sendPrayerReply() {
+    setReplyStatus("");
+    setStatusMessage("");
+
+    if (!userId) {
+      setReplyStatus("Please sign in to send a reply.");
+      return;
+    }
+
+    if (!replyMessage || !replyMessage.sender_user_id) {
+      setReplyStatus("Could not find the message sender.");
+      return;
+    }
+
+    if (replyMessage.sender_user_id === userId) {
+      setReplyStatus("You cannot reply to your own message.");
+      return;
+    }
+
+    setSendingReply(true);
+
+    let videoUrl: string | null = null;
+    let body = replyText.trim();
+
+    if (replyMode === "text") {
+      if (!body) {
+        setSendingReply(false);
+        setReplyStatus("Write a short reply first.");
+        return;
+      }
+    }
+
+    if (replyMode === "video") {
+      if (!replyVideoFile) {
+        setSendingReply(false);
+        setReplyStatus("Choose or record a video reply first.");
+        return;
+      }
+
+      const extension =
+        replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
+      const filePath = `prayer-replies/${replyMessage.id}/${userId}-${Date.now()}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(PRAYER_VIDEO_BUCKET)
+        .upload(filePath, replyVideoFile, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: replyVideoFile.type,
+        });
+
+      if (uploadError) {
+        setSendingReply(false);
+        setReplyStatus(`Could not upload video reply: ${uploadError.message}`);
+        return;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(PRAYER_VIDEO_BUCKET)
+        .getPublicUrl(filePath);
+
+      videoUrl = publicUrlData.publicUrl;
+      body = body || "A believer replied with a prayer video.";
+    }
+
+    const messageType =
+      replyMode === "video" ? "prayer_video_reply" : "prayer_reply";
+
+    const { data, error } = await supabase
+      .from("inbox_messages")
+      .insert({
+        user_id: replyMessage.sender_user_id,
+        sender_user_id: userId,
+        title:
+          replyMode === "video"
+            ? "Someone replied with a prayer video"
+            : "Someone replied to your prayer video",
+        body,
+        category: "prayer",
+        message_type: messageType,
+        story_id: replyMessage.story_id,
+        prayer_request_id: replyMessage.prayer_request_id,
+        action_url: "/journey/inbox",
+        video_url: videoUrl,
+        read: false,
+      })
+      .select(MESSAGE_SELECT)
+      .single();
+
+    setSendingReply(false);
+
+    if (error) {
+      setReplyStatus(`Could not send reply: ${error.message}`);
+      return;
+    }
+
+    closeReplyModal();
+
+    if (data) {
+      setStatusMessage("Prayer reply sent privately.");
+    } else {
+      setStatusMessage("Prayer reply sent privately.");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f8fbff] px-4 py-6 text-slate-900">
       <div className="mx-auto max-w-4xl">
@@ -338,7 +553,7 @@ export default function JourneyInboxPage() {
             Journey Inbox
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">
-            Messages, updates, and milestones from your HTBF journey.
+            Messages, updates, prayer videos, and milestones from your HTBF journey.
           </p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -421,11 +636,122 @@ export default function JourneyInboxPage() {
                 message={message}
                 onMarkAsRead={markAsRead}
                 onClear={openClearMessageModal}
+                onReply={openReplyModal}
               />
             ))}
           </div>
         )}
       </div>
+
+      {replyMessage && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  PRIVATE PRAYER REPLY
+                </div>
+                <h2 className="mt-1 text-xl font-black text-[#062a57]">
+                  {replyMode === "video"
+                    ? "Reply with a prayer video"
+                    : "Reply with encouragement"}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeReplyModal}
+                className="rounded-full bg-slate-100 px-3 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
+              >
+                X
+              </button>
+            </div>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Your reply will be sent privately to the person who sent you this
+              prayer message.
+            </p>
+
+            <textarea
+              value={replyText}
+              onChange={(event) => setReplyText(event.target.value)}
+              rows={5}
+              placeholder={
+                replyMode === "video"
+                  ? "Optional message with your video..."
+                  : "Write a short private reply..."
+              }
+              className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+            />
+
+            {replyMode === "video" && (
+              <>
+                <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/60 p-5 text-center transition hover:bg-blue-50">
+                  <span className="text-2xl">🎥</span>
+                  <span className="mt-2 text-sm font-black text-[#082f63]">
+                    Choose or record prayer video
+                  </span>
+                  <span className="mt-1 text-xs font-semibold text-slate-500">
+                    30 seconds max
+                  </span>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={(event) =>
+                      void handleReplyVideoFile(event.target.files?.[0] ?? null)
+                    }
+                  />
+                </label>
+
+                {replyVideoPreviewUrl && (
+                  <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-black">
+                    <video
+                      src={replyVideoPreviewUrl}
+                      controls
+                      playsInline
+                      className="max-h-[360px] w-full bg-black object-contain"
+                    />
+                  </div>
+                )}
+
+                {replyVideoDuration !== null && (
+                  <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-600">
+                    Video length: {Math.round(replyVideoDuration)} seconds
+                  </div>
+                )}
+              </>
+            )}
+
+            {replyStatus && (
+              <div className="mt-3 rounded-2xl bg-blue-50 p-3 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
+                {replyStatus}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeReplyModal}
+                disabled={sendingReply}
+                className="rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Not Yet
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void sendPrayerReply()}
+                disabled={sendingReply}
+                className="rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {sendingReply ? "Sending..." : "Send Reply"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {clearMessageRequest && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -478,13 +804,7 @@ export default function JourneyInboxPage() {
   );
 }
 
-function MiniInboxStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function MiniInboxStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
       <div className="text-2xl font-black">{value}</div>
@@ -499,10 +819,12 @@ function InboxMessageCard({
   message,
   onMarkAsRead,
   onClear,
+  onReply,
 }: {
   message: InboxMessage;
   onMarkAsRead: (id: string) => void;
   onClear: (message: InboxMessage) => void;
+  onReply: (message: InboxMessage, mode: ReplyMode) => void;
 }) {
   const messageKind = getInboxMessageKind(message);
   const style = INBOX_CARD_STYLES[messageKind];
@@ -510,6 +832,7 @@ function InboxMessageCard({
   const imageUrl = message.image_url?.trim();
   const videoUrl = message.video_url?.trim();
   const actionUrl = message.action_url?.trim();
+  const canReply = isPrayerReplyable(message);
 
   return (
     <article
@@ -548,21 +871,12 @@ function InboxMessageCard({
           {message.title}
         </h2>
 
-        {messageKind === "scripture_share" ? (
-          <blockquote
-            className="mt-3 border-l-4 border-current pl-4 text-sm font-bold leading-7"
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {message.body}
-          </blockquote>
-        ) : (
-          <p
-            className="mt-3 whitespace-pre-wrap text-sm leading-7"
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {message.body}
-          </p>
-        )}
+        <p
+          className="mt-3 whitespace-pre-wrap text-sm leading-7"
+          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+        >
+          {message.body}
+        </p>
       </div>
 
       {(imageUrl || videoUrl) && (
@@ -580,45 +894,39 @@ function InboxMessageCard({
               <video
                 src={videoUrl}
                 controls
+                playsInline
                 className="max-h-[420px] w-full bg-slate-950"
               />
-              <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-3">
-                <span className="text-sm font-bold text-slate-600">
-                  Video message attached
-                </span>
-                <a
-                  href={videoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-                >
-                  Play Video
-                </a>
-              </div>
             </div>
           )}
         </div>
       )}
 
-      {(message.sender_user_id ||
-        message.story_id ||
-        message.prayer_request_id) && (
-        <div className="mt-4 flex flex-wrap gap-2 text-xs font-black text-slate-500">
-          {message.sender_user_id && (
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-100">
-              Community message
-            </span>
-          )}
-          {message.story_id && (
-            <span className="rounded-full bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
-              Story linked
-            </span>
-          )}
-          {message.prayer_request_id && (
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-[#0b63ce] ring-1 ring-blue-100">
-              Prayer request linked
-            </span>
-          )}
+      {canReply && (
+        <div className="mt-4 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+            Private Prayer Thread
+          </div>
+          <p className="mt-2 text-sm leading-6 text-[#082f63]">
+            Reply privately with encouragement or a 30-second prayer video.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onReply(message, "text")}
+              className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+            >
+              Reply with Text
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onReply(message, "video")}
+              className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
+            >
+              Reply with Video
+            </button>
+          </div>
         </div>
       )}
 
@@ -656,6 +964,29 @@ function InboxMessageCard({
   );
 }
 
+function isPrayerReplyable(message: InboxMessage) {
+  const searchable = normalizeSearchable([
+    message.message_type,
+    message.type,
+    message.category,
+    message.title,
+    message.body,
+  ]);
+
+  return Boolean(
+    message.sender_user_id &&
+      matchesAny(searchable, [
+        "prayer video response",
+        "prayer video reply",
+        "prayer reply",
+        "prayer video",
+        "prayer_video_response",
+        "prayer_video_reply",
+        "prayer_reply",
+      ])
+  );
+}
+
 function getExplicitCategoryLabel(message: InboxMessage) {
   const rawCategory =
     message.category?.trim() ||
@@ -678,8 +1009,11 @@ function getInboxMessageKind(message: InboxMessage): InboxMessageKind {
 
   if (
     matchesAny(searchable, [
+      "prayer_video_response",
+      "prayer video response",
       "prayer_video_reply",
       "prayer video reply",
+      "prayer_reply",
       "prayer reply",
       "video prayer",
     ])
