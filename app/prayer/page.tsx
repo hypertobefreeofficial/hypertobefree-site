@@ -50,7 +50,7 @@ type PrayerStory = PrayerStoryRow & {
   user_reactions: ReactionType[];
 };
 
-const PRAYER_VIDEO_BUCKET = "stories";
+const PRAYER_VIDEO_BUCKET = "story-videos";
 const MAX_PRAYER_VIDEO_SECONDS = 30;
 
 const filters: { label: string; value: PrayerFilter }[] = [
