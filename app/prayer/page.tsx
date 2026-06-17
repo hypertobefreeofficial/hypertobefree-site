@@ -702,9 +702,9 @@ export default function PrayerPage() {
       prayerVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
     const path = `prayer-videos/${prayerVideoStory.id}/${userId}-${Date.now()}.${extension}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from(PRAYER_VIDEO_BUCKET)
-      .upload(path, prayerVideoFile, {
+const { error: uploadError } = await supabase.storage
+  .from("story-videos")
+  .upload(path, prayerVideoFile, {
         cacheControl: "3600",
         upsert: false,
         contentType: prayerVideoFile.type,
@@ -718,9 +718,9 @@ export default function PrayerPage() {
       return;
     }
 
-    const { data: publicUrlData } = supabase.storage
-      .from(PRAYER_VIDEO_BUCKET)
-      .getPublicUrl(path);
+const { data: publicUrlData } = supabase.storage
+  .from("story-videos")
+  .getPublicUrl(path);
 
     const videoUrl = publicUrlData.publicUrl;
 
