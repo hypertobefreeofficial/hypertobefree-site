@@ -21,20 +21,22 @@ import {
   Globe2,
   HandHeart,
   HeartHandshake,
+  Home,
   MessageCircleHeart,
   MoreVertical,
   Pause,
   Play,
+  Search,
   Send,
   Share2,
   Sparkles,
   Trash2,
+  UserRound,
   Video,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
 import { supabase } from "../../lib/supabaseClient";
@@ -259,6 +261,15 @@ type VideoFeedCopy = {
   languageSelected: string;
   testimonyTranslationComingSoon: string;
 };
+
+const videoFeedBottomNavItems = [
+  { href: "/feed", label: "Feed", icon: Home },
+  { href: "/video-feed", label: "Videos", icon: Video },
+  { href: "/prayer", label: "Prayer", icon: HandHeart },
+  { href: "/journey", label: "Journey", icon: Sparkles },
+  { href: "/search", label: "Search", icon: Search },
+  { href: "/profile", label: "Profile", icon: UserRound },
+] as const;
 
 const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
   english: {
@@ -1618,9 +1629,11 @@ export default function VideoFeedPage() {
       )}
 
       {!beStillMode && (
-        <LoggedInBottomNav
-          variant="video"
+        <VideoFeedBottomNav
           hapticsEnabled={hapticsEnabled}
+          hapticsLabel={copy.haptics}
+          hapticsOffLabel={copy.hapticsOff}
+          hapticsOnLabel={copy.hapticsOn}
           onToggleHaptics={toggleHaptics}
           onNavTap={() => triggerHaptic(hapticsEnabled)}
         />
@@ -2782,6 +2795,62 @@ function VideoCaptionStyleOverlay({
       style={style}
       text={text}
     />
+  );
+}
+
+function VideoFeedBottomNav({
+  hapticsEnabled,
+  hapticsLabel,
+  hapticsOffLabel,
+  hapticsOnLabel,
+  onNavTap,
+  onToggleHaptics,
+}: {
+  hapticsEnabled: boolean;
+  hapticsLabel: string;
+  hapticsOffLabel: string;
+  hapticsOnLabel: string;
+  onNavTap: () => void;
+  onToggleHaptics: () => void;
+}) {
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-0 bg-transparent px-3 pb-[calc(0.6rem+env(safe-area-inset-bottom))] pt-2 shadow-none">
+      <div className="mx-auto max-w-lg">
+        <div className="mb-1 flex justify-end">
+          <button
+            type="button"
+            onClick={onToggleHaptics}
+            className="rounded-full bg-black/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/80 ring-1 ring-white/10 backdrop-blur-md transition hover:bg-white/10 hover:text-white"
+            aria-pressed={hapticsEnabled}
+          >
+            {hapticsLabel}: {hapticsEnabled ? hapticsOnLabel : hapticsOffLabel}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-6 gap-1 rounded-[1.5rem] bg-black/10 p-1 ring-1 ring-white/10 backdrop-blur-md">
+          {videoFeedBottomNavItems.map((item) => {
+            const Icon = item.icon;
+            const active = item.href === "/video-feed";
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavTap}
+                className={`flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black transition ${
+                  active
+                    ? "bg-white/15 text-white ring-1 ring-white/15"
+                    : "bg-transparent text-white/70 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="max-w-full truncate">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
   );
 }
 
