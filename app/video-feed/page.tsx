@@ -1411,7 +1411,7 @@ export default function VideoFeedPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-black text-white">
+    <main className="fixed inset-0 overflow-hidden bg-black text-white">
       {!beStillMode && (
         <div className="fixed left-4 top-4 z-50">
           <Link
@@ -1443,7 +1443,7 @@ export default function VideoFeedPage() {
       ) : (
         <section
           ref={videoFeedScrollerRef}
-          className="h-[100dvh] snap-y snap-mandatory overflow-y-scroll"
+          className="h-full snap-y snap-mandatory overflow-y-scroll bg-black"
         >
           {orderedStories.map((story, index) => {
             if (!story.signed_video_url) return null;
