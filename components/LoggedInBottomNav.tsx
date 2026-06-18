@@ -55,20 +55,21 @@ export default function LoggedInBottomNav() {
 
     void loadJourneyUnreadCount();
 
-    const channel = supabase
-      .channel("bottom-nav-journey-unread")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "inbox_messages",
-        },
-        () => {
-          void loadJourneyUnreadCount();
-        }
-      )
-      .subscribe();
+    const channel = supabase.channel("bottom-nav-journey-unread");
+
+    channel.on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "inbox_messages",
+      },
+      () => {
+        void loadJourneyUnreadCount();
+      }
+    );
+
+    channel.subscribe();
 
     return () => {
       active = false;
