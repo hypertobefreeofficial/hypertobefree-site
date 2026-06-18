@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import {
   HandHeart,
   Home,
@@ -10,7 +9,6 @@ import {
   UserRound,
   Video,
 } from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
 
 const navItems = [
   { href: "/feed", label: "Feed", icon: Home },
@@ -28,59 +26,13 @@ type LoggedInBottomNavProps = {
   onNavTap?: () => void;
 };
 
-function formatUnreadBadge(count: number) {
-  return count > 99 ? "99+" : String(count);
-}
-
 export default function LoggedInBottomNav({
   variant = "default",
   hapticsEnabled = false,
   onToggleHaptics,
   onNavTap,
 }: LoggedInBottomNavProps) {
-  const [journeyUnreadCount, setJourneyUnreadCount] = useState(0);
   const isVideoVariant = variant === "video";
-
-  useEffect(() => {
-    let active = true;
-    let unreadPoll: ReturnType<typeof window.setInterval> | null = null;
-
-    async function loadJourneyUnreadCount() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!active || !user) {
-        if (active) setJourneyUnreadCount(0);
-        return;
-      }
-
-      const { count, error } = await supabase
-        .from("inbox_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("read", false)
-        .is("hidden_at", null);
-
-      if (!active || error) return;
-
-      setJourneyUnreadCount(count ?? 0);
-    }
-
-    void loadJourneyUnreadCount();
-
-    unreadPoll = window.setInterval(() => {
-      void loadJourneyUnreadCount();
-    }, 30000);
-
-    return () => {
-      active = false;
-
-      if (unreadPoll) {
-        window.clearInterval(unreadPoll);
-      }
-    };
-  }, []);
 
   return (
     <nav
@@ -111,8 +63,6 @@ export default function LoggedInBottomNav({
       <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const showJourneyBadge =
-            item.href === "/journey" && journeyUnreadCount > 0;
 
           return (
             <Link
@@ -127,11 +77,6 @@ export default function LoggedInBottomNav({
             >
               <span className="relative">
                 <Icon className="h-5 w-5" />
-                {showJourneyBadge && (
-                  <span className="absolute -right-3 -top-2 min-w-[1.15rem] rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white ring-2 ring-white">
-                    {formatUnreadBadge(journeyUnreadCount)}
-                  </span>
-                )}
               </span>
               {item.label}
             </Link>
