@@ -1,25 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
-  HandHeart,
+  HeartHandshake,
   Home,
   Search,
   Sparkles,
-  UserRound,
+  UserCircle,
   Video,
 } from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
-
-const navItems = [
-  { href: "/feed", label: "Feed", icon: Home },
-  { href: "/video-feed", label: "Videos", icon: Video },
-  { href: "/prayer", label: "Prayer", icon: HandHeart },
-  { href: "/journey", label: "Journey", icon: Sparkles },
-  { href: "/search", label: "Search", icon: Search },
-  { href: "/profile", label: "Profile", icon: UserRound },
-];
 
 type LoggedInBottomNavProps = {
   variant?: "default" | "video";
@@ -28,9 +18,18 @@ type LoggedInBottomNavProps = {
   onNavTap?: () => void;
 };
 
-function formatUnreadBadge(count: number) {
-  return count > 99 ? "99+" : String(count);
-}
+const hiddenNavPaths = [
+  "/",
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/forgot-username",
+  "/reset-password",
+  "/privacy",
+  "/terms",
+  "/content-rules",
+  "/copyright",
+];
 
 export default function LoggedInBottomNav({
   variant = "default",
@@ -38,106 +37,80 @@ export default function LoggedInBottomNav({
   onToggleHaptics,
   onNavTap,
 }: LoggedInBottomNavProps) {
-  const [journeyUnreadCount, setJourneyUnreadCount] = useState(0);
-  const isVideoVariant = variant === "video";
+  const pathname = usePathname();
 
-  useEffect(() => {
-    let active = true;
-    let unreadPoll: ReturnType<typeof window.setInterval> | null = null;
+  const shouldHideNav =
+    hiddenNavPaths.includes(pathname) ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api");
 
-    async function loadJourneyUnreadCount() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+  if (shouldHideNav) return null;
 
-      if (!active || !user) {
-        if (active) setJourneyUnreadCount(0);
-        return;
-      }
-
-      const { count, error } = await supabase
-        .from("inbox_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("read", false)
-        .is("hidden_at", null);
-
-      if (!active || error) return;
-
-      setJourneyUnreadCount(count ?? 0);
-    }
-
-    void loadJourneyUnreadCount();
-
-    unreadPoll = window.setInterval(() => {
-      void loadJourneyUnreadCount();
-    }, 30000);
-
-    return () => {
-      active = false;
-
-      if (unreadPoll) {
-        window.clearInterval(unreadPoll);
-      }
-    };
-  }, []);
+  const isVideo = variant === "video";
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl ${
-        isVideoVariant
-          ? "border-t border-white/10 bg-black/10 shadow-[0_-10px_30px_rgba(0,0,0,0.12)]"
-          : "border-t border-slate-200/80 bg-white/95 shadow-[0_-10px_30px_rgba(15,23,42,0.08)]"
+      className={`fixed bottom-0 left-0 right-0 z-50 border-t backdrop-blur-xl ${
+        isVideo
+          ? "border-white/10 bg-black/20"
+          : "border-slate-200 bg-white/95"
       }`}
     >
-      <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const showJourneyBadge =
-            item.href === "/journey" && journeyUnreadCount > 0;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => onNavTap?.()}
-              className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-black transition ${
-                isVideoVariant
-                  ? "bg-white/[0.03] text-white/75 ring-1 ring-white/[0.05] hover:bg-white/10 hover:text-white"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-[#0b63ce]"
-              }`}
-            >
-              <span className="relative">
-                <Icon className="h-5 w-5" />
-                {showJourneyBadge && (
-                  <span className="absolute -right-3 -top-2 min-w-[1.15rem] rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white ring-2 ring-white">
-                    {formatUnreadBadge(journeyUnreadCount)}
-                  </span>
-                )}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {isVideoVariant && onToggleHaptics && (
-        <div className="pointer-events-none absolute -top-11 right-3">
+      {isVideo && (
+        <div className="mx-auto flex max-w-3xl justify-end px-3 pt-2">
           <button
             type="button"
-            onClick={() => onToggleHaptics?.()}
-            className={`pointer-events-auto rounded-full px-3 py-2 text-[11px] font-black shadow-[0_8px_24px_rgba(0,0,0,0.18)] ring-1 backdrop-blur-md transition ${
-              hapticsEnabled
-                ? "bg-white/85 text-[#0b63ce] ring-white/50"
-                : "bg-black/20 text-white/75 ring-white/10 hover:bg-white/10 hover:text-white"
-            }`}
-            aria-pressed={hapticsEnabled}
-            aria-label="Toggle haptics"
+            onClick={onToggleHaptics}
+            className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black text-white ring-1 ring-white/20"
           >
             Haptics {hapticsEnabled ? "On" : "Off"}
           </button>
         </div>
       )}
+
+      <div className="mx-auto grid max-w-3xl grid-cols-6 px-2 py-2">
+        <NavItem href="/feed" label="Home" active={pathname === "/feed"} icon={<Home />} onNavTap={onNavTap} isVideo={isVideo} />
+        <NavItem href="/video-feed" label="Videos" active={pathname === "/video-feed"} icon={<Video />} onNavTap={onNavTap} isVideo={isVideo} />
+        <NavItem href="/prayer" label="Prayer" active={pathname === "/prayer"} icon={<HeartHandshake />} onNavTap={onNavTap} isVideo={isVideo} />
+        <NavItem href="/journey" label="Journey" active={pathname === "/journey"} icon={<Sparkles />} onNavTap={onNavTap} isVideo={isVideo} />
+        <NavItem href="/search" label="Search" active={pathname === "/search"} icon={<Search />} onNavTap={onNavTap} isVideo={isVideo} />
+        <NavItem href="/profile" label="Profile" active={pathname === "/profile"} icon={<UserCircle />} onNavTap={onNavTap} isVideo={isVideo} />
+      </div>
     </nav>
+  );
+}
+
+function NavItem({
+  href,
+  label,
+  icon,
+  active = false,
+  onNavTap,
+  isVideo,
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  active?: boolean;
+  onNavTap?: () => void;
+  isVideo?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavTap}
+      className={`flex flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-black ${
+        isVideo
+          ? active
+            ? "text-white"
+            : "text-white/60 hover:bg-white/10 hover:text-white"
+          : active
+            ? "text-[#0b63ce]"
+            : "text-slate-500 hover:bg-slate-50"
+      }`}
+    >
+      <span className="[&>svg]:h-5 [&>svg]:w-5">{icon}</span>
+      <span className="mt-1">{label}</span>
+    </Link>
   );
 }
