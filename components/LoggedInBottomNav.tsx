@@ -43,6 +43,7 @@ export default function LoggedInBottomNav({
 
   useEffect(() => {
     let active = true;
+    let unreadPoll: ReturnType<typeof window.setInterval> | null = null;
 
     async function loadJourneyUnreadCount() {
       const {
@@ -68,24 +69,16 @@ export default function LoggedInBottomNav({
 
     void loadJourneyUnreadCount();
 
-    const channel = supabase
-      .channel("bottom-nav-journey-unread")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "inbox_messages",
-        },
-        () => {
-          void loadJourneyUnreadCount();
-        }
-      )
-      .subscribe();
+    unreadPoll = window.setInterval(() => {
+      void loadJourneyUnreadCount();
+    }, 30000);
 
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+
+      if (unreadPoll) {
+        window.clearInterval(unreadPoll);
+      }
     };
   }, []);
 
