@@ -1173,92 +1173,92 @@ function PrayerThreadModal({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
       <div className="flex min-h-full items-end sm:items-center sm:justify-center">
-        <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-x-hidden overflow-y-auto rounded-[2rem] bg-white text-slate-900 shadow-2xl">
-        <div className="border-b border-slate-100 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Prayer Conversation
+        <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
+          <div className="sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                  Prayer Conversation
+                </div>
+                <h2 className="mt-1 text-2xl font-black text-[#062a57]">
+                  {thread.messages.length} Message
+                  {thread.messages.length === 1 ? "" : "s"}
+                </h2>
               </div>
-              <h2 className="mt-1 text-2xl font-black text-[#062a57]">
-                {thread.messages.length} Message
-                {thread.messages.length === 1 ? "" : "s"}
-              </h2>
-            </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {thread.unreadCount > 0 && (
               <button
                 type="button"
-                onClick={onMarkAsRead}
-                className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+                onClick={onClose}
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
               >
-                Mark Conversation Read
+                Close
               </button>
-            )}
-            {canReply && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onReply("text")}
-                  className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50"
-                >
-                  Reply with Text
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onReply("video")}
-                  className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-                >
-                  Reply with Video
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#f8fbff] p-5">
-          <div className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-              Original Prayer Request
             </div>
-            {story?.story_text ? (
-              <p
-                className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700"
-                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-              >
-                {story.story_text}
-              </p>
-            ) : (
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                This conversation is linked to a private prayer request.
-              </p>
-            )}
-            {(story?.name || story?.location) && (
-              <p className="mt-3 text-xs font-bold text-slate-400">
-                {story.name || "HTBF Community"}
-                {story.location ? ` • ${story.location}` : ""}
-              </p>
-            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {thread.unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={onMarkAsRead}
+                  className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+                >
+                  Mark Conversation Read
+                </button>
+              )}
+              {canReply && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onReply("text")}
+                    className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50"
+                  >
+                    Reply with Text
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onReply("video")}
+                    className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
+                  >
+                    Reply with Video
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          {chronologicalMessages.map((message) => (
-            <ThreadTimelineMessage
-              key={message.id}
-              message={message}
-              mine={Boolean(userId && message.sender_user_id === userId)}
-            />
-          ))}
-        </div>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#f8fbff] p-5 pb-24 sm:pb-5">
+            <div className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                Original Prayer Request
+              </div>
+              {story?.story_text ? (
+                <p
+                  className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700"
+                  style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                >
+                  {story.story_text}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  This conversation is linked to a private prayer request.
+                </p>
+              )}
+              {(story?.name || story?.location) && (
+                <p className="mt-3 text-xs font-bold text-slate-400">
+                  {story.name || "HTBF Community"}
+                  {story.location ? ` • ${story.location}` : ""}
+                </p>
+              )}
+            </div>
+
+            {chronologicalMessages.map((message) => (
+              <ThreadTimelineMessage
+                key={message.id}
+                message={message}
+                mine={Boolean(userId && message.sender_user_id === userId)}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
