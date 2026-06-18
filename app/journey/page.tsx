@@ -27,6 +27,7 @@ import {
   Video,
   X,
 } from "lucide-react";
+import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import { supabase } from "../../lib/supabaseClient";
 
 type StoryRow = {
@@ -212,7 +213,8 @@ export default function JourneyPage() {
       .from("inbox_messages")
       .select("id", { count: "exact", head: true })
       .eq("user_id", currentUserId)
-      .eq("read", false);
+      .eq("read", false)
+      .is("hidden_at", null);
 
     if (!error) {
       setJourneyInboxUnreadCount(count ?? 0);
@@ -295,6 +297,10 @@ export default function JourneyPage() {
     myGodDidItMoments.length,
     encouragementImpact.total,
   ]);
+
+  const formattedJourneyInboxUnreadCount = formatUnreadBadge(
+    journeyInboxUnreadCount
+  );
 
   const removedUploads = useMemo(
     () => myUploads.filter((story) => story.status === "removed"),
@@ -749,7 +755,7 @@ export default function JourneyPage() {
               <Inbox className="h-6 w-6" />
               {journeyInboxUnreadCount > 0 && (
                 <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white">
-                  {journeyInboxUnreadCount}
+                  {formattedJourneyInboxUnreadCount}
                 </span>
               )}
             </div>
@@ -763,13 +769,13 @@ export default function JourneyPage() {
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 {journeyInboxUnreadCount > 0
-                  ? `${journeyInboxUnreadCount} unread Journey Inbox message${
+                  ? `${formattedJourneyInboxUnreadCount} unread Journey Inbox message${
                       journeyInboxUnreadCount === 1 ? "" : "s"
                     }.`
                   : "Messages, updates, and milestones from your HTBF journey."}
               </p>
               <div className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-                {journeyInboxUnreadCount} unread
+                {formattedJourneyInboxUnreadCount} unread
               </div>
             </div>
 
@@ -1006,6 +1012,8 @@ export default function JourneyPage() {
           </div>
         </section>
       </div>
+
+      <LoggedInBottomNav />
 
       {clearRemovedRequest && (
         <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -1274,6 +1282,10 @@ function formatShortDate(value: string | null) {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
+}
+
+function formatUnreadBadge(count: number) {
+  return count > 99 ? "99+" : String(count);
 }
 
 function MissionButton({
