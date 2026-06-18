@@ -432,6 +432,19 @@ export default function JourneyInboxPage() {
   function openThread(threadKey: string) {
     setStatusMessage("");
     setSelectedThreadKey(threadKey);
+
+    const threadMessageIds = messages
+      .filter(
+        (message) =>
+          isPrayerConversationMessage(message) &&
+          getPrayerThreadKey(message) === threadKey &&
+          !message.read
+      )
+      .map((message) => message.id);
+
+    if (threadMessageIds.length > 0) {
+      void markMessagesAsRead(threadMessageIds);
+    }
   }
 
   function closeThread() {
@@ -1083,19 +1096,31 @@ function PrayerThreadCard({
 }) {
   const messageCount = thread.messages.length;
   const latestBody = thread.latestMessage.body?.trim();
+  const hasUnread = thread.unreadCount > 0;
+  const formattedThreadUnreadCount = formatUnreadBadge(thread.unreadCount);
 
   return (
-    <article className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-blue-200">
+    <article
+      className={`rounded-[2rem] bg-white p-5 shadow-sm ring-1 ${
+        hasUnread ? "ring-amber-200 shadow-amber-100" : "ring-blue-200"
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-2">
+        {hasUnread && (
+          <span
+            className="h-2.5 w-2.5 rounded-full bg-red-600"
+            aria-label="Unread conversation"
+          />
+        )}
         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
           Prayer Conversation
         </span>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
           {messageCount} Message{messageCount === 1 ? "" : "s"}
         </span>
-        {thread.unreadCount > 0 && (
+        {hasUnread && (
           <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
-            {thread.unreadCount} unread
+            {formattedThreadUnreadCount} unread
           </span>
         )}
         <span className="text-xs font-bold text-slate-400">
@@ -1103,7 +1128,13 @@ function PrayerThreadCard({
         </span>
       </div>
 
-      <div className="mt-4 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+      <div
+        className={`mt-4 rounded-[1.5rem] p-4 ring-1 ${
+          hasUnread
+            ? "bg-amber-50 ring-amber-100"
+            : "bg-blue-50 ring-blue-100"
+        }`}
+      >
         <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
           Private Prayer Thread
         </div>
@@ -1120,7 +1151,9 @@ function PrayerThreadCard({
         )}
         {latestBody && (
           <p
-            className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600"
+            className={`mt-3 line-clamp-2 text-sm leading-6 ${
+              hasUnread ? "font-bold text-slate-800" : "text-slate-600"
+            }`}
             style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
           >
             Latest: {latestBody}
@@ -1484,22 +1517,29 @@ function InboxMessageCard({
   const videoUrl = message.video_url?.trim();
   const actionUrl = message.action_url?.trim();
   const canReply = isPrayerReplyable(message);
+  const isUnread = !message.read;
 
   return (
     <article
       className={`rounded-[2rem] bg-white p-5 shadow-sm ring-1 ${
-        message.read ? style.ring : `${style.ring} shadow-blue-100`
+        isUnread ? "ring-amber-200 shadow-amber-100" : style.ring
       }`}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        {isUnread && (
+          <span
+            className="h-2.5 w-2.5 rounded-full bg-red-600"
+            aria-label="Unread message"
+          />
+        )}
         <span
           className={`rounded-full px-3 py-1 text-xs font-black ${
-            message.read
+            !isUnread
               ? "bg-slate-100 text-slate-600"
               : "bg-amber-100 text-amber-800"
           }`}
         >
-          {message.read ? "Read" : "Unread"}
+          {isUnread ? "Unread" : "Read"}
         </span>
 
         <span
@@ -1513,7 +1553,11 @@ function InboxMessageCard({
         </span>
       </div>
 
-      <div className={`rounded-[1.5rem] p-4 ring-1 ${style.panel}`}>
+      <div
+        className={`rounded-[1.5rem] p-4 ring-1 ${
+          isUnread ? "bg-amber-50 text-amber-950 ring-amber-100" : style.panel
+        }`}
+      >
         <div className="text-xs font-black uppercase tracking-[0.18em]">
           {style.eyebrow}
         </div>
@@ -1531,7 +1575,9 @@ function InboxMessageCard({
           </blockquote>
         ) : (
           <p
-            className="mt-3 whitespace-pre-wrap text-sm leading-7"
+            className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${
+              isUnread ? "font-bold" : ""
+            }`}
             style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
           >
             {message.body}
