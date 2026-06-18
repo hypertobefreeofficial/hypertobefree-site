@@ -882,8 +882,9 @@ export default function JourneyInboxPage() {
       )}
 
       {replyMessage && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
+            <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
@@ -987,13 +988,15 @@ export default function JourneyInboxPage() {
                 {sendingReply ? "Sending..." : "Send Reply"}
               </button>
             </div>
+            </div>
           </div>
         </div>
       )}
 
       {clearMessageRequest && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
+            <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
             <div className="mb-5">
               <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
                 HYPER TO BE FREE
@@ -1034,6 +1037,7 @@ export default function JourneyInboxPage() {
                     ? "Clear All"
                     : "Clear Message"}
               </button>
+            </div>
             </div>
           </div>
         </div>
@@ -1167,8 +1171,9 @@ function PrayerThreadModal({
   const canReply = Boolean(getThreadReplyTarget(thread, userId));
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
+      <div className="flex min-h-full items-end sm:items-center sm:justify-center">
+        <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-x-hidden overflow-y-auto rounded-[2rem] bg-white text-slate-900 shadow-2xl">
         <div className="border-b border-slate-100 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -1221,7 +1226,7 @@ function PrayerThreadModal({
           </div>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto bg-[#f8fbff] p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#f8fbff] p-5">
           <div className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
             <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
               Original Prayer Request
@@ -1253,6 +1258,7 @@ function PrayerThreadModal({
               mine={Boolean(userId && message.sender_user_id === userId)}
             />
           ))}
+        </div>
         </div>
       </div>
     </div>
