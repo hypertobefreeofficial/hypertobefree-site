@@ -219,6 +219,10 @@ type VideoFeedCopy = {
   audioModeEnabled: string;
   audioModeDisabled: string;
   audioModePaused: string;
+  haptics: string;
+  hapticsDescription: string;
+  hapticsOn: string;
+  hapticsOff: string;
   playbackSpeed: string;
   language: string;
   captionsComingSoon: string;
@@ -316,6 +320,10 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
       "Audio Testimony Mode on. HTBF will keep the testimonies moving.",
     audioModeDisabled: "Audio Testimony Mode off.",
     audioModePaused: "Audio Testimony Mode paused.",
+    haptics: "Haptics",
+    hapticsDescription: "Light taps when you use controls or land on a new video.",
+    hapticsOn: "On",
+    hapticsOff: "Off",
     playbackSpeed: "Playback Speed",
     language: "Language",
     captionsComingSoon: "Captions coming soon",
@@ -414,6 +422,11 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
       "Modo testimonio en audio activado. HTBF seguirá avanzando los testimonios.",
     audioModeDisabled: "Modo testimonio en audio desactivado.",
     audioModePaused: "Modo testimonio en audio pausado.",
+    haptics: "Hápticos",
+    hapticsDescription:
+      "Toques suaves al usar controles o llegar a un video nuevo.",
+    hapticsOn: "Activado",
+    hapticsOff: "Desactivado",
     playbackSpeed: "Velocidad",
     language: "Idioma",
     captionsComingSoon: "Subtítulos próximamente",
@@ -504,6 +517,7 @@ const reportReasons: {
 const playbackSpeeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const prayerCircleJoinedMessage = "You joined the Prayer Circle.";
 const videoViewingModeStorageKey = "htbf-video-viewing-mode";
+const videoHapticsStorageKey = "htbf_video_haptics_enabled";
 
 const languageOptions: { label: string; value: VideoLanguage }[] = [
   { label: "Español", value: "spanish" },
@@ -522,7 +536,23 @@ function isVideoViewingMode(value: string | null): value is VideoViewingMode {
   return videoViewingModes.includes(value as VideoViewingMode);
 }
 
+function triggerHaptic(enabled: boolean) {
+  if (!enabled) return;
+  if (typeof navigator === "undefined") return;
+
+  const maybeNavigator = navigator as Navigator & {
+    vibrate?: (pattern: number | number[]) => boolean;
+  };
+
+  if (typeof maybeNavigator.vibrate === "function") {
+    maybeNavigator.vibrate(10);
+  }
+}
+
 export default function VideoFeedPage() {
+  const videoFeedScrollerRef = useRef<HTMLElement | null>(null);
+  const activeStoryHapticRef = useRef<string | null>(null);
+
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [stories, setStories] = useState<VideoStory[]>([]);
@@ -546,6 +576,7 @@ export default function VideoFeedPage() {
   const [beStillMode, setBeStillMode] = useState(false);
   const [viewingMode, setViewingMode] =
     useState<VideoViewingMode>("standard");
+  const [hapticsEnabled, setHapticsEnabled] = useState(false);
   const [optionsStoryId, setOptionsStoryId] = useState<string | null>(null);
   const [hiddenCaptionStoryIds, setHiddenCaptionStoryIds] = useState<string[]>(
     []
@@ -578,6 +609,11 @@ export default function VideoFeedPage() {
         setSoundOn(true);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const savedHaptics = window.localStorage.getItem(videoHapticsStorageKey);
+    setHapticsEnabled(savedHaptics === "true");
   }, []);
 
   useEffect(() => {
@@ -965,6 +1001,55 @@ export default function VideoFeedPage() {
     return selected ? [selected, ...rest] : stories;
   }, [stories, selectedStoryId]);
 
+  useEffect(() => {
+    const scroller = videoFeedScrollerRef.current;
+
+    if (!scroller || orderedStories.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleEntry = entries
+          .filter(
+            (entry) => entry.isIntersecting && entry.intersectionRatio >= 0.65
+          )
+          .sort((firstEntry, secondEntry) => {
+            return secondEntry.intersectionRatio - firstEntry.intersectionRatio;
+          })[0];
+
+        if (!visibleEntry) return;
+
+        const nextStoryId = (visibleEntry.target as HTMLElement).dataset
+          .storyId;
+
+        if (!nextStoryId || activeStoryHapticRef.current === nextStoryId) {
+          return;
+        }
+
+        if (activeStoryHapticRef.current) {
+          triggerHaptic(hapticsEnabled);
+        }
+
+        activeStoryHapticRef.current = nextStoryId;
+      },
+      {
+        root: scroller,
+        threshold: [0.65],
+      }
+    );
+
+    orderedStories.forEach((story) => {
+      const storyElement = document.getElementById(`video-story-${story.id}`);
+
+      if (storyElement) {
+        observer.observe(storyElement);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hapticsEnabled, orderedStories]);
+
   function scrollToVideoStory(nextIndex: number) {
     if (orderedStories.length === 0) return;
 
@@ -995,6 +1080,17 @@ export default function VideoFeedPage() {
       }
 
       return nextMode;
+    });
+  }
+
+  function toggleHaptics() {
+    setHapticsEnabled((currentValue) => {
+      const nextValue = !currentValue;
+
+      window.localStorage.setItem(videoHapticsStorageKey, String(nextValue));
+      triggerHaptic(nextValue);
+
+      return nextValue;
     });
   }
 
@@ -1333,7 +1429,10 @@ export default function VideoFeedPage() {
           </div>
         </div>
       ) : (
-        <section className="h-[100dvh] snap-y snap-mandatory overflow-y-scroll">
+        <section
+          ref={videoFeedScrollerRef}
+          className="h-[100dvh] snap-y snap-mandatory overflow-y-scroll"
+        >
           {orderedStories.map((story, index) => {
             if (!story.signed_video_url) return null;
 
@@ -1344,6 +1443,7 @@ export default function VideoFeedPage() {
               <article
                 id={`video-story-${story.id}`}
                 key={story.id}
+                data-story-id={story.id}
                 className="relative flex h-[100dvh] snap-start items-center justify-center overflow-hidden bg-black"
               >
                 <AutoPlayReelVideo
@@ -1368,6 +1468,7 @@ export default function VideoFeedPage() {
                     setMessage(copy.audioModePaused)
                   }
                   playbackRate={playbackRate}
+                  hapticsEnabled={hapticsEnabled}
                   copy={copy}
                 />
 
@@ -1376,11 +1477,12 @@ export default function VideoFeedPage() {
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId((currentStoryId) =>
                         currentStoryId === story.id ? null : story.id
                       );
                     }}
-                    className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md transition hover:bg-black/80 focus:outline-none focus:ring-4 focus:ring-white/25"
+                    className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex h-11 w-11 items-center justify-center rounded-full bg-black/30 text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] ring-1 ring-white/15 backdrop-blur-md transition hover:bg-white/15 focus:outline-none focus:ring-4 focus:ring-white/20"
                     aria-label={copy.moreOptions}
                     aria-expanded={optionsStoryId === story.id}
                     title={copy.moreOptions}
@@ -1396,7 +1498,9 @@ export default function VideoFeedPage() {
                     setPlaybackRate={setPlaybackRate}
                     selectedLanguage={selectedLanguage}
                     audioTestimonyMode={audioTestimonyMode}
+                    hapticsEnabled={hapticsEnabled}
                     onLanguageSelect={(language) => {
+                      triggerHaptic(hapticsEnabled);
                       const nextCopy = videoFeedCopy[language];
 
                       setSelectedLanguage(language);
@@ -1408,48 +1512,64 @@ export default function VideoFeedPage() {
                     }}
                     copy={copy}
                     onBeStill={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       setBeStillMode(true);
                     }}
                     onToggleAudioTestimonyMode={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       toggleAudioTestimonyMode();
                     }}
+                    onToggleHaptics={() => {
+                      setOptionsStoryId(null);
+                      toggleHaptics();
+                    }}
                     onShare={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       shareStory(story);
                     }}
                     onCopyLink={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       copyStoryLink(story);
                     }}
                     onReport={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       openReportModal(story);
                     }}
                     onBugReport={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       openBugReportModal(story);
                     }}
                     captionHidden={captionHidden}
                     onToggleCaption={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       toggleCaptionVisibility(story.id);
                     }}
                     onRemove={() => {
+                      triggerHaptic(hapticsEnabled);
                       setOptionsStoryId(null);
                       removeMyVideo(story);
                     }}
-                    onClose={() => setOptionsStoryId(null)}
+                    onClose={() => {
+                      triggerHaptic(hapticsEnabled);
+                      setOptionsStoryId(null);
+                    }}
                   />
                 )}
 
                 {!beStillMode && !audioTestimonyMode && (
-                  <div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col items-center gap-3">
+                  <div className="absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-3 z-40 flex flex-col items-center gap-3 rounded-[2rem] bg-black/[0.03] px-1.5 py-2 ring-1 ring-white/[0.06] backdrop-blur-[2px]">
                     <VideoActionButton
                       label={copy.amen}
                       count={story.reaction_counts.amen}
                       active={story.user_reactions.includes("amen")}
+                      hapticsEnabled={hapticsEnabled}
                       onClick={() => toggleReaction(story.id, "amen")}
                       icon={<HeartHandshake className="h-5 w-5" />}
                     />
@@ -1462,6 +1582,7 @@ export default function VideoFeedPage() {
                       }
                       count={story.reaction_counts.praying}
                       active={story.user_reactions.includes("praying")}
+                      hapticsEnabled={hapticsEnabled}
                       onClick={() => toggleReaction(story.id, "praying")}
                       icon={<HandHeart className="h-5 w-5" />}
                     />
@@ -1470,6 +1591,7 @@ export default function VideoFeedPage() {
                       label={copy.praise}
                       count={story.reaction_counts.praise_god}
                       active={story.user_reactions.includes("praise_god")}
+                      hapticsEnabled={hapticsEnabled}
                       onClick={() => toggleReaction(story.id, "praise_god")}
                       icon={<Sparkles className="h-5 w-5" />}
                     />
@@ -1478,6 +1600,7 @@ export default function VideoFeedPage() {
                       label={copy.respond}
                       count={story.reply_count}
                       active={false}
+                      hapticsEnabled={hapticsEnabled}
                       onClick={() => {
                         setReplyStory(story);
                         setReplyText("");
@@ -1492,7 +1615,10 @@ export default function VideoFeedPage() {
                   <VideoInfoOverlay
                     captionHidden={captionHidden}
                     copy={copy}
-                    onToggleCaption={() => toggleCaptionVisibility(story.id)}
+                    onToggleCaption={() => {
+                      triggerHaptic(hapticsEnabled);
+                      toggleCaptionVisibility(story.id);
+                    }}
                     story={story}
                   />
                 )}
@@ -1701,10 +1827,12 @@ function VideoOptionsMenu({
   setPlaybackRate,
   selectedLanguage,
   audioTestimonyMode,
+  hapticsEnabled,
   onLanguageSelect,
   copy,
   onBeStill,
   onToggleAudioTestimonyMode,
+  onToggleHaptics,
   onBugReport,
   onCopyLink,
   onShare,
@@ -1719,10 +1847,12 @@ function VideoOptionsMenu({
   setPlaybackRate: (rate: number) => void;
   selectedLanguage: VideoLanguage;
   audioTestimonyMode: boolean;
+  hapticsEnabled: boolean;
   onLanguageSelect: (language: VideoLanguage) => void;
   copy: VideoFeedCopy;
   onBeStill: () => void;
   onToggleAudioTestimonyMode: () => void;
+  onToggleHaptics: () => void;
   onBugReport: () => void;
   onCopyLink: () => void;
   onShare: () => void;
@@ -1734,7 +1864,7 @@ function VideoOptionsMenu({
   return (
     <div
       onClick={(event) => event.stopPropagation()}
-      className="absolute right-4 top-[calc(4.5rem+env(safe-area-inset-top))] z-[100] max-h-[calc(100dvh-6rem)] w-72 overflow-y-auto rounded-[2rem] bg-white/95 p-4 text-slate-900 shadow-2xl ring-1 ring-slate-200 backdrop-blur"
+      className="absolute right-4 top-[calc(4.5rem+env(safe-area-inset-top))] z-[100] max-h-[calc(100dvh-6rem)] w-72 overflow-y-auto rounded-[2rem] bg-white/85 p-4 text-slate-900 shadow-2xl ring-1 ring-white/40 backdrop-blur-xl"
     >
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm font-black text-[#062a57]">
@@ -1785,6 +1915,42 @@ function VideoOptionsMenu({
         </span>
       </button>
 
+      <button
+        type="button"
+        onClick={onToggleHaptics}
+        aria-pressed={hapticsEnabled}
+        className={`mb-3 flex w-full items-start justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black transition ${
+          hapticsEnabled
+            ? "bg-[#0b63ce] text-white shadow-md shadow-blue-900/20"
+            : "bg-white/55 text-slate-700 ring-1 ring-slate-200/80 hover:bg-blue-50 hover:text-[#0b63ce]"
+        }`}
+      >
+        <span className="min-w-0">
+          <span className="block">{copy.haptics}</span>
+          <span
+            className={`mt-1 block text-xs font-bold leading-5 ${
+              hapticsEnabled ? "text-blue-50" : "text-slate-500"
+            }`}
+          >
+            {hapticsEnabled ? copy.hapticsOn : copy.hapticsOff} ·{" "}
+            {copy.hapticsDescription}
+          </span>
+        </span>
+        <span
+          className={`mt-0.5 flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition ${
+            hapticsEnabled ? "bg-white/95" : "bg-slate-300"
+          }`}
+        >
+          <span
+            className={`h-5 w-5 rounded-full transition ${
+              hapticsEnabled
+                ? "translate-x-5 bg-[#0b63ce]"
+                : "translate-x-0 bg-white"
+            }`}
+          />
+        </span>
+      </button>
+
       <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
         <Gauge className="h-4 w-4" />
         {copy.playbackSpeed}
@@ -1795,7 +1961,10 @@ function VideoOptionsMenu({
           <button
             key={speed}
             type="button"
-            onClick={() => setPlaybackRate(speed)}
+            onClick={() => {
+              triggerHaptic(hapticsEnabled);
+              setPlaybackRate(speed);
+            }}
             className={`rounded-xl px-2 py-2 text-xs font-black ${
               playbackRate === speed
                 ? "bg-[#0b63ce] text-white"
@@ -1930,6 +2099,7 @@ function AutoPlayReelVideo({
   onAudioModeAdvance,
   onAudioModeManualPause,
   playbackRate,
+  hapticsEnabled,
   copy,
 }: {
   videoUrl: string;
@@ -1951,6 +2121,7 @@ function AutoPlayReelVideo({
   onAudioModeAdvance: () => void;
   onAudioModeManualPause: () => void;
   playbackRate: number;
+  hapticsEnabled: boolean;
   copy: VideoFeedCopy;
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -2464,15 +2635,16 @@ function AutoPlayReelVideo({
 
       {!beStillMode && paused && (
         <div className="absolute inset-0 z-40 flex items-center justify-center">
-          <div className="flex items-center gap-4 rounded-full bg-black/45 px-5 py-4 backdrop-blur-md">
+          <div className="flex items-center gap-4 rounded-full bg-black/25 px-5 py-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] ring-1 ring-white/10 backdrop-blur-md">
             <button
               type="button"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
+                triggerHaptic(hapticsEnabled);
                 togglePlayButton();
               }}
-              className={`flex items-center justify-center rounded-full bg-white text-slate-900 shadow-md ${
+              className={`flex items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md ring-1 ring-white/40 transition hover:bg-white ${
                 audioTestimonyMode ? "h-16 w-16" : "h-14 w-14"
               }`}
               aria-label={paused ? copy.playVideo : copy.pauseVideo}
@@ -2489,9 +2661,10 @@ function AutoPlayReelVideo({
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
+                triggerHaptic(hapticsEnabled);
                 toggleSound();
               }}
-              className={`flex items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md ${
+              className={`flex items-center justify-center rounded-full bg-white/75 text-slate-900 shadow-md ring-1 ring-white/35 transition hover:bg-white/95 ${
                 audioTestimonyMode ? "h-14 w-14" : "h-12 w-12"
               }`}
               aria-label={soundOn ? copy.turnSoundOff : copy.turnSoundOn}
@@ -2676,12 +2849,14 @@ function VideoActionButton({
   count,
   icon,
   active,
+  hapticsEnabled,
   onClick,
 }: {
   label: string;
   count: number | null;
   icon: ReactNode;
   active: boolean;
+  hapticsEnabled: boolean;
   onClick: () => void;
 }) {
   return (
@@ -2690,6 +2865,7 @@ function VideoActionButton({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation();
+        triggerHaptic(hapticsEnabled);
         onClick();
       }}
       className="group flex flex-col items-center gap-1 text-white"
@@ -2697,22 +2873,22 @@ function VideoActionButton({
       title={label}
     >
       <span
-        className={`flex h-10 w-10 items-center justify-center rounded-full ring-1 backdrop-blur-md transition ${
+        className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.18)] ring-1 backdrop-blur-md transition ${
           active
-            ? "bg-white text-[#0b63ce] ring-white"
-            : "bg-white/15 text-white/85 ring-white/20 group-hover:bg-white/25"
+            ? "bg-white/90 text-[#0b63ce] ring-white/70"
+            : "bg-black/20 text-white/90 ring-white/15 group-hover:bg-white/15"
         }`}
       >
         {icon}
       </span>
 
       {count !== null && (
-        <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 backdrop-blur">
+        <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-black leading-none text-white/90 ring-1 ring-white/10 backdrop-blur">
           {count}
         </span>
       )}
 
-      <span className="text-[10px] font-black leading-none text-white/80 drop-shadow">
+      <span className="text-[10px] font-black leading-none text-white/85 drop-shadow">
         {label}
       </span>
     </button>
