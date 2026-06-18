@@ -55,25 +55,26 @@ export default function LoggedInBottomNav() {
 
     void loadJourneyUnreadCount();
 
-    const channel = supabase.channel("bottom-nav-journey-unread");
+    const channelName = `bottom-nav-journey-unread-${Date.now()}-${Math.random()}`;
 
-    channel.on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "inbox_messages",
-      },
-      () => {
-        void loadJourneyUnreadCount();
-      }
-    );
-
-    channel.subscribe();
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "inbox_messages",
+        },
+        () => {
+          void loadJourneyUnreadCount();
+        }
+      )
+      .subscribe();
 
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, []);
 
