@@ -1,112 +1,43 @@
-Backed up logged button
-
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
-  HeartHandshake,
+  HandHeart,
   Home,
   Search,
   Sparkles,
-  UserCircle,
+  UserRound,
   Video,
 } from "lucide-react";
 
-const hiddenNavPaths = [
-  "/",
-  "/login",
-  "/signup",
-  "/forgot-password",
-  "/forgot-username",
-  "/reset-password",
-  "/privacy",
-  "/terms",
-  "/content-rules",
-  "/copyright",
+const navItems = [
+  { href: "/feed", label: "Feed", icon: Home },
+  { href: "/video-feed", label: "Videos", icon: Video },
+  { href: "/prayer", label: "Prayer", icon: HandHeart },
+  { href: "/journey", label: "Journey", icon: Sparkles },
+  { href: "/search", label: "Search", icon: Search },
+  { href: "/profile", label: "Profile", icon: UserRound },
 ];
 
 export default function LoggedInBottomNav() {
-  const pathname = usePathname();
-
-  const shouldHideNav =
-    hiddenNavPaths.includes(pathname) ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/api");
-
-  if (shouldHideNav) {
-    return null;
-  }
-
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur-xl">
-      <div className="mx-auto grid max-w-3xl grid-cols-6 px-2 py-2">
-        <NavItem
-          href="/feed"
-          label="Home"
-          active={pathname === "/feed"}
-          icon={<Home />}
-        />
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+      <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
+        {navItems.map((item) => {
+          const Icon = item.icon;
 
-        <NavItem
-          href="/videos"
-          label="Videos"
-          active={pathname === "/videos"}
-          icon={<Video />}
-        />
-
-        <NavItem
-          href="/prayer"
-          label="Prayer"
-          active={pathname === "/prayer"}
-          icon={<HeartHandshake />}
-        />
-
-        <NavItem
-          href="/journey"
-          label="Journey"
-          active={pathname === "/journey"}
-          icon={<Sparkles />}
-        />
-
-        <NavItem
-          href="/search"
-          label="Search"
-          active={pathname === "/search"}
-          icon={<Search />}
-        />
-
-        <NavItem
-          href="/account"
-          label="Profile"
-          active={pathname === "/account"}
-          icon={<UserCircle />}
-        />
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-black text-slate-500 transition hover:bg-slate-50 hover:text-[#0b63ce]"
+            >
+              <Icon className="h-5 w-5" />
+              {item.label}
+            </Link>
+          );
+        })}
       </div>
     </nav>
-  );
-}
-
-function NavItem({
-  href,
-  label,
-  icon,
-  active = false,
-}: {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  active?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`flex flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-black ${
-        active ? "text-[#0b63ce]" : "text-slate-500 hover:bg-slate-50"
-      }`}
-    >
-      <span className="[&>svg]:h-5 [&>svg]:w-5">{icon}</span>
-      <span className="mt-1">{label}</span>
-    </Link>
   );
 }
