@@ -45,7 +45,7 @@ type ClearMessageRequest =
   | { mode: "single"; messages: InboxMessage[] }
   | { mode: "all"; messages: InboxMessage[] };
 
-const BASE_SELECT = "id, title, body, read, created_at";
+const BASE_SELECT = "id, title, body, read, created_at, category";
 const MESSAGE_SELECT = `${BASE_SELECT}, sender_user_id, message_type, story_id, prayer_request_id, video_url, image_url, action_url, hidden_at`;
 
 const PRAYER_VIDEO_BUCKET = "story-videos";
@@ -149,7 +149,6 @@ export default function JourneyInboxPage() {
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
-
   const [replyMessage, setReplyMessage] = useState<InboxMessage | null>(null);
   const [replyMode, setReplyMode] = useState<ReplyMode>("text");
   const [replyText, setReplyText] = useState("");
@@ -454,12 +453,10 @@ export default function JourneyInboxPage() {
     let videoUrl: string | null = null;
     let body = replyText.trim();
 
-    if (replyMode === "text") {
-      if (!body) {
-        setSendingReply(false);
-        setReplyStatus("Write a short reply first.");
-        return;
-      }
+    if (replyMode === "text" && !body) {
+      setSendingReply(false);
+      setReplyStatus("Write a short reply first.");
+      return;
     }
 
     if (replyMode === "video") {
@@ -468,22 +465,19 @@ export default function JourneyInboxPage() {
         setReplyStatus("Choose or record a video reply first.");
         return;
       }
-const storyOrMessageId = replyMessage.story_id || replyMessage.id;
 
-const extension =
-  replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
+      const storyOrMessageId = replyMessage.story_id || replyMessage.id;
+      const extension =
+        replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
+      const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
 
-
-
-const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
-
-const { error: uploadError } = await supabase.storage
-  .from(PRAYER_VIDEO_BUCKET)
-  .upload(filePath, replyVideoFile, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: replyVideoFile.type,
-  });
+      const { error: uploadError } = await supabase.storage
+        .from(PRAYER_VIDEO_BUCKET)
+        .upload(filePath, replyVideoFile, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: replyVideoFile.type,
+        });
 
       if (uploadError) {
         setSendingReply(false);
@@ -502,26 +496,22 @@ const { error: uploadError } = await supabase.storage
     const messageType =
       replyMode === "video" ? "prayer_video_reply" : "prayer_reply";
 
-    const { data, error } = await supabase
-      .from("inbox_messages")
-      .insert({
-        user_id: replyMessage.sender_user_id,
-        sender_user_id: userId,
-        title:
-          replyMode === "video"
-            ? "Someone replied with a prayer video"
-            : "Someone replied to your prayer video",
-        body,
-        category: "prayer",
-        message_type: messageType,
-        story_id: replyMessage.story_id,
-        prayer_request_id: replyMessage.prayer_request_id,
-        action_url: "/journey/inbox",
-        video_url: videoUrl,
-        read: false,
-      })
-      .select(MESSAGE_SELECT)
-      .single();
+    const { error } = await supabase.from("inbox_messages").insert({
+      user_id: replyMessage.sender_user_id,
+      sender_user_id: userId,
+      title:
+        replyMode === "video"
+          ? "Someone replied with a prayer video"
+          : "Someone replied to your prayer video",
+      body,
+      category: "prayer",
+      message_type: messageType,
+      story_id: replyMessage.story_id,
+      prayer_request_id: replyMessage.prayer_request_id,
+      action_url: "/journey/inbox",
+      video_url: videoUrl,
+      read: false,
+    });
 
     setSendingReply(false);
 
@@ -531,12 +521,7 @@ const { error: uploadError } = await supabase.storage
     }
 
     closeReplyModal();
-
-    if (data) {
-      setStatusMessage("Prayer reply sent privately.");
-    } else {
-      setStatusMessage("Prayer reply sent privately.");
-    }
+    setStatusMessage("Prayer reply sent privately.");
   }
 
   return (
@@ -557,7 +542,8 @@ const { error: uploadError } = await supabase.storage
             Journey Inbox
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">
-            Messages, updates, prayer videos, and milestones from your HTBF journey.
+            Messages, updates, prayer videos, and milestones from your HTBF
+            journey.
           </p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -808,7 +794,13 @@ const { error: uploadError } = await supabase.storage
   );
 }
 
-function MiniInboxStat({ label, value }: { label: string; value: number }) {
+function MiniInboxStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
   return (
     <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
       <div className="text-2xl font-black">{value}</div>
@@ -875,12 +867,21 @@ function InboxMessageCard({
           {message.title}
         </h2>
 
-        <p
-          className="mt-3 whitespace-pre-wrap text-sm leading-7"
-          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-        >
-          {message.body}
-        </p>
+        {messageKind === "scripture_share" ? (
+          <blockquote
+            className="mt-3 border-l-4 border-current pl-4 text-sm font-bold leading-7"
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
+            {message.body}
+          </blockquote>
+        ) : (
+          <p
+            className="mt-3 whitespace-pre-wrap text-sm leading-7"
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
+            {message.body}
+          </p>
+        )}
       </div>
 
       {(imageUrl || videoUrl) && (
@@ -931,6 +932,28 @@ function InboxMessageCard({
               Reply with Video
             </button>
           </div>
+        </div>
+      )}
+
+      {(message.sender_user_id ||
+        message.story_id ||
+        message.prayer_request_id) && (
+        <div className="mt-4 flex flex-wrap gap-2 text-xs font-black text-slate-500">
+          {message.sender_user_id && (
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-100">
+              Community message
+            </span>
+          )}
+          {message.story_id && (
+            <span className="rounded-full bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
+              Story linked
+            </span>
+          )}
+          {message.prayer_request_id && (
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-[#0b63ce] ring-1 ring-blue-100">
+              Prayer request linked
+            </span>
+          )}
         </div>
       )}
 
