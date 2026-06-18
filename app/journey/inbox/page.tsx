@@ -6,7 +6,10 @@ import { supabase } from "../../../lib/supabaseClient";
 
 type InboxMessage = {
   id: string;
+  user_id?: string | null;
   sender_user_id?: string | null;
+  parent_message_id?: string | null;
+  thread_id?: string | null;
   title: string;
   body: string;
   read: boolean;
@@ -45,8 +48,29 @@ type ClearMessageRequest =
   | { mode: "single"; messages: InboxMessage[] }
   | { mode: "all"; messages: InboxMessage[] };
 
+type PrayerStorySummary = {
+  id: string;
+  name: string | null;
+  location: string | null;
+  story_text: string | null;
+  story_type: string | null;
+  created_at: string | null;
+};
+
+type InboxThread = {
+  key: string;
+  messages: InboxMessage[];
+  latestMessage: InboxMessage;
+  unreadCount: number;
+  storyId: string | null;
+};
+
+type InboxListItem =
+  | { kind: "message"; message: InboxMessage }
+  | { kind: "thread"; thread: InboxThread };
+
 const BASE_SELECT = "id, title, body, read, created_at, category";
-const MESSAGE_SELECT = `${BASE_SELECT}, sender_user_id, message_type, story_id, prayer_request_id, video_url, image_url, action_url, hidden_at`;
+const MESSAGE_SELECT = `${BASE_SELECT}, sender_user_id, parent_message_id, thread_id, message_type, story_id, prayer_request_id, video_url, image_url, action_url, hidden_at`;
 
 const PRAYER_VIDEO_BUCKET = "story-videos";
 const MAX_PRAYER_VIDEO_SECONDS = 30;
@@ -141,6 +165,9 @@ function getVideoDuration(file: File): Promise<number> {
 
 export default function JourneyInboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
+  const [prayerStories, setPrayerStories] = useState<
+    Record<string, PrayerStorySummary>
+  >({});
   const [activeFilter, setActiveFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
   const [clearMessageRequest, setClearMessageRequest] =
@@ -159,6 +186,9 @@ export default function JourneyInboxPage() {
   );
   const [replyStatus, setReplyStatus] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [selectedThreadKey, setSelectedThreadKey] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     async function loadMessages() {
@@ -199,8 +229,10 @@ export default function JourneyInboxPage() {
         );
 
         setMessages(nextMessages);
+        await loadPrayerStorySummaries(nextMessages);
       } else if (error) {
         setStatusMessage(`Could not load your Journey Inbox: ${error.message}`);
+        setPrayerStories({});
       }
 
       setLoading(false);
@@ -208,6 +240,44 @@ export default function JourneyInboxPage() {
 
     loadMessages();
   }, []);
+
+  async function loadPrayerStorySummaries(nextMessages: InboxMessage[]) {
+    const storyIds = Array.from(
+      new Set(
+        nextMessages
+          .flatMap((message) => [message.story_id, message.prayer_request_id])
+          .filter(
+            (storyId): storyId is string =>
+              typeof storyId === "string" && storyId.trim().length > 0
+          )
+      )
+    );
+
+    if (storyIds.length === 0) {
+      setPrayerStories({});
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("stories")
+      .select("id, name, location, story_text, story_type, created_at")
+      .in("id", storyIds);
+
+    if (error || !data) {
+      console.error("Could not load prayer thread stories:", error);
+      setPrayerStories({});
+      return;
+    }
+
+    const nextPrayerStories = (Array.isArray(data) ? data : [])
+      .filter(isPrayerStorySummary)
+      .reduce<Record<string, PrayerStorySummary>>((storyMap, story) => {
+        storyMap[story.id] = story;
+        return storyMap;
+      }, {});
+
+    setPrayerStories(nextPrayerStories);
+  }
 
   useEffect(() => {
     return () => {
@@ -225,13 +295,30 @@ export default function JourneyInboxPage() {
     });
   }, [activeFilter, messages]);
 
+  const inboxItems = useMemo(
+    () => buildInboxListItems(filteredMessages),
+    [filteredMessages]
+  );
+
+  const selectedThread = useMemo(() => {
+    if (!selectedThreadKey) return null;
+
+    return buildInboxThread(
+      messages.filter(
+        (message) =>
+          isPrayerConversationMessage(message) &&
+          getPrayerThreadKey(message) === selectedThreadKey
+      )
+    );
+  }, [messages, selectedThreadKey]);
+
   const unreadCount = useMemo(
     () => messages.filter((message) => !message.read).length,
     [messages]
   );
 
   const visibleUnreadIds = filteredMessages
-    .filter((message) => !message.read)
+    .filter((message) => !message.read && !isLocalInboxMessageId(message.id))
     .map((message) => message.id);
 
   async function markAsRead(id: string) {
@@ -241,6 +328,15 @@ export default function JourneyInboxPage() {
     }
 
     setStatusMessage("");
+
+    if (isLocalInboxMessageId(id)) {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === id ? { ...message, read: true } : message
+        )
+      );
+      return;
+    }
 
     const { error } = await supabase
       .from("inbox_messages")
@@ -293,9 +389,64 @@ export default function JourneyInboxPage() {
     );
   }
 
+  async function markMessagesAsRead(messageIds: string[]) {
+    if (!userId) {
+      setStatusMessage("Please sign in to update messages.");
+      return;
+    }
+
+    const unreadIds = messageIds.filter(
+      (messageId) =>
+        !isLocalInboxMessageId(messageId) &&
+        messages.some((message) => message.id === messageId && !message.read)
+    );
+
+    if (unreadIds.length === 0) return;
+
+    setStatusMessage("");
+
+    const { error } = await supabase
+      .from("inbox_messages")
+      .update({ read: true })
+      .eq("user_id", userId)
+      .in("id", unreadIds);
+
+    if (error) {
+      setStatusMessage(`Could not mark conversation as read: ${error.message}`);
+      return;
+    }
+
+    setMessages((current) =>
+      current.map((message) =>
+        unreadIds.includes(message.id) ? { ...message, read: true } : message
+      )
+    );
+  }
+
   function openClearMessageModal(message: InboxMessage) {
     setStatusMessage("");
     setClearMessageRequest({ mode: "single", messages: [message] });
+  }
+
+  function openThread(threadKey: string) {
+    setStatusMessage("");
+    setSelectedThreadKey(threadKey);
+  }
+
+  function closeThread() {
+    setSelectedThreadKey(null);
+  }
+
+  function replyFromThread(thread: InboxThread, mode: ReplyMode) {
+    const replyTarget = getThreadReplyTarget(thread, userId);
+
+    if (!replyTarget) {
+      setStatusMessage("This conversation does not have someone to reply to.");
+      return;
+    }
+
+    setSelectedThreadKey(null);
+    openReplyModal(replyTarget, mode);
   }
 
   function openClearAllMessagesModal() {
@@ -313,6 +464,9 @@ export default function JourneyInboxPage() {
     if (!clearMessageRequest) return;
 
     const messageIds = clearMessageRequest.messages.map((message) => message.id);
+    const persistedMessageIds = messageIds.filter(
+      (messageId) => !isLocalInboxMessageId(messageId)
+    );
 
     if (messageIds.length === 0) {
       setClearMessageRequest(null);
@@ -333,20 +487,23 @@ export default function JourneyInboxPage() {
       return;
     }
 
-    const hiddenAt = new Date().toISOString();
+    if (persistedMessageIds.length > 0) {
+      const hiddenAt = new Date().toISOString();
 
-    const { error } = await supabase
-      .from("inbox_messages")
-      .update({ hidden_at: hiddenAt })
-      .eq("user_id", user.id)
-      .in("id", messageIds);
+      const { error } = await supabase
+        .from("inbox_messages")
+        .update({ hidden_at: hiddenAt })
+        .eq("user_id", user.id)
+        .in("id", persistedMessageIds);
+
+      if (error) {
+        setClearingMessage(false);
+        setStatusMessage(`Could not clear message: ${error.message}`);
+        return;
+      }
+    }
 
     setClearingMessage(false);
-
-    if (error) {
-      setStatusMessage(`Could not clear message: ${error.message}`);
-      return;
-    }
 
     setMessages((current) =>
       current.filter((message) => !messageIds.includes(message.id))
@@ -495,23 +652,51 @@ export default function JourneyInboxPage() {
 
     const messageType =
       replyMode === "video" ? "prayer_video_reply" : "prayer_reply";
+    const threadId = getPrayerThreadIdForInsert(replyMessage);
+    const parentMessageId = replyMessage.id;
+    const recipientReplyTitle =
+      replyMode === "video"
+        ? "Someone replied with a prayer video"
+        : "Someone replied to your prayer video";
+    const senderReplyTitle =
+      replyMode === "video"
+        ? "You replied with a prayer video"
+        : "You replied with encouragement";
 
-    const { error } = await supabase.from("inbox_messages").insert({
-      user_id: replyMessage.sender_user_id,
-      sender_user_id: userId,
-      title:
-        replyMode === "video"
-          ? "Someone replied with a prayer video"
-          : "Someone replied to your prayer video",
-      body,
-      category: "prayer",
-      message_type: messageType,
-      story_id: replyMessage.story_id,
-      prayer_request_id: replyMessage.prayer_request_id,
-      action_url: "/journey/inbox",
-      video_url: videoUrl,
-      read: false,
-    });
+    const replyRows = [
+      {
+        user_id: replyMessage.sender_user_id,
+        sender_user_id: userId,
+        parent_message_id: parentMessageId,
+        thread_id: threadId,
+        title: recipientReplyTitle,
+        body,
+        category: "prayer",
+        message_type: messageType,
+        story_id: replyMessage.story_id,
+        prayer_request_id: replyMessage.prayer_request_id,
+        action_url: "/journey/inbox",
+        video_url: videoUrl,
+        read: false,
+      },
+      {
+        user_id: userId,
+        sender_user_id: userId,
+        parent_message_id: parentMessageId,
+        thread_id: threadId,
+        title: senderReplyTitle,
+        body,
+        category: "prayer",
+        message_type: messageType,
+        story_id: replyMessage.story_id,
+        prayer_request_id: replyMessage.prayer_request_id,
+        action_url: "/journey/inbox",
+        video_url: videoUrl,
+        read: true,
+      },
+    ];
+
+    const { error } = await supabase.from("inbox_messages").insert(replyRows);
 
     setSendingReply(false);
 
@@ -522,6 +707,26 @@ export default function JourneyInboxPage() {
 
     closeReplyModal();
     setStatusMessage("Prayer reply sent privately.");
+
+    const localSenderMessage: InboxMessage = {
+      id: `local-${Date.now()}`,
+      user_id: userId,
+      sender_user_id: userId,
+      parent_message_id: parentMessageId,
+      thread_id: threadId,
+      title: senderReplyTitle,
+      body,
+      read: true,
+      created_at: new Date().toISOString(),
+      category: "prayer",
+      message_type: messageType,
+      story_id: replyMessage.story_id,
+      prayer_request_id: replyMessage.prayer_request_id,
+      video_url: videoUrl,
+      action_url: "/journey/inbox",
+    };
+
+    setMessages((current) => [localSenderMessage, ...current]);
   }
 
   return (
@@ -578,8 +783,8 @@ export default function JourneyInboxPage() {
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-bold text-slate-500">
-              Showing {filteredMessages.length} message
-              {filteredMessages.length === 1 ? "" : "s"}.
+              Showing {inboxItems.length} inbox item
+              {inboxItems.length === 1 ? "" : "s"}.
             </p>
 
             <div className="flex flex-wrap gap-2">
@@ -608,7 +813,7 @@ export default function JourneyInboxPage() {
           <div className="rounded-[2rem] bg-white p-6 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200">
             Loading messages...
           </div>
-        ) : filteredMessages.length === 0 ? (
+        ) : inboxItems.length === 0 ? (
           <div className="rounded-[2rem] bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
             <h2 className="text-xl font-black text-[#062a57]">
               No Journey Inbox messages yet.
@@ -620,18 +825,61 @@ export default function JourneyInboxPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredMessages.map((message) => (
-              <InboxMessageCard
-                key={message.id}
-                message={message}
-                onMarkAsRead={markAsRead}
-                onClear={openClearMessageModal}
-                onReply={openReplyModal}
-              />
-            ))}
+            {inboxItems.map((item) =>
+              item.kind === "thread" ? (
+                <PrayerThreadCard
+                  key={item.thread.key}
+                  thread={item.thread}
+                  story={
+                    item.thread.storyId
+                      ? prayerStories[item.thread.storyId]
+                      : undefined
+                  }
+                  onOpen={() => openThread(item.thread.key)}
+                  onMarkAsRead={() =>
+                    markMessagesAsRead(
+                      item.thread.messages.map((message) => message.id)
+                    )
+                  }
+                  onClear={() =>
+                    setClearMessageRequest({
+                      mode: "all",
+                      messages: item.thread.messages,
+                    })
+                  }
+                />
+              ) : (
+                <InboxMessageCard
+                  key={item.message.id}
+                  message={item.message}
+                  onMarkAsRead={markAsRead}
+                  onClear={openClearMessageModal}
+                  onReply={openReplyModal}
+                />
+              )
+            )}
           </div>
         )}
       </div>
+
+      {selectedThread && (
+        <PrayerThreadModal
+          thread={selectedThread}
+          story={
+            selectedThread.storyId
+              ? prayerStories[selectedThread.storyId]
+              : undefined
+          }
+          userId={userId}
+          onClose={closeThread}
+          onReply={(mode) => replyFromThread(selectedThread, mode)}
+          onMarkAsRead={() =>
+            markMessagesAsRead(
+              selectedThread.messages.map((message) => message.id)
+            )
+          }
+        />
+      )}
 
       {replyMessage && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -808,6 +1056,397 @@ function MiniInboxStat({
         {label}
       </div>
     </div>
+  );
+}
+
+function PrayerThreadCard({
+  thread,
+  story,
+  onOpen,
+  onMarkAsRead,
+  onClear,
+}: {
+  thread: InboxThread;
+  story?: PrayerStorySummary;
+  onOpen: () => void;
+  onMarkAsRead: () => void;
+  onClear: () => void;
+}) {
+  const messageCount = thread.messages.length;
+  const latestBody = thread.latestMessage.body?.trim();
+
+  return (
+    <article className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-blue-200">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
+          Prayer Conversation
+        </span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+          {messageCount} Message{messageCount === 1 ? "" : "s"}
+        </span>
+        {thread.unreadCount > 0 && (
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
+            {thread.unreadCount} unread
+          </span>
+        )}
+        <span className="text-xs font-bold text-slate-400">
+          {formatMessageDate(thread.latestMessage.created_at)}
+        </span>
+      </div>
+
+      <div className="mt-4 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+          Private Prayer Thread
+        </div>
+        <h2 className="mt-2 text-xl font-black text-[#062a57]">
+          Prayer Conversation
+        </h2>
+        {story?.story_text && (
+          <p
+            className="mt-2 line-clamp-2 text-sm leading-6 text-[#082f63]"
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
+            {story.story_text}
+          </p>
+        )}
+        {latestBody && (
+          <p
+            className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600"
+            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+          >
+            Latest: {latestBody}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
+        >
+          View Conversation
+        </button>
+        {thread.unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={onMarkAsRead}
+            className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+          >
+            Mark as Read
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onClear}
+          className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
+        >
+          Clear
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function PrayerThreadModal({
+  thread,
+  story,
+  userId,
+  onClose,
+  onReply,
+  onMarkAsRead,
+}: {
+  thread: InboxThread;
+  story?: PrayerStorySummary;
+  userId: string | null;
+  onClose: () => void;
+  onReply: (mode: ReplyMode) => void;
+  onMarkAsRead: () => void;
+}) {
+  const chronologicalMessages = getThreadMessagesChronological(thread.messages);
+  const canReply = Boolean(getThreadReplyTarget(thread, userId));
+
+  return (
+    <div className="fixed inset-0 z-50 flex bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
+        <div className="border-b border-slate-100 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                Prayer Conversation
+              </div>
+              <h2 className="mt-1 text-2xl font-black text-[#062a57]">
+                {thread.messages.length} Message
+                {thread.messages.length === 1 ? "" : "s"}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {thread.unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={onMarkAsRead}
+                className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+              >
+                Mark Conversation Read
+              </button>
+            )}
+            {canReply && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onReply("text")}
+                  className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50"
+                >
+                  Reply with Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onReply("video")}
+                  className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
+                >
+                  Reply with Video
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto bg-[#f8fbff] p-5">
+          <div className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+              Original Prayer Request
+            </div>
+            {story?.story_text ? (
+              <p
+                className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700"
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+              >
+                {story.story_text}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                This conversation is linked to a private prayer request.
+              </p>
+            )}
+            {(story?.name || story?.location) && (
+              <p className="mt-3 text-xs font-bold text-slate-400">
+                {story.name || "HTBF Community"}
+                {story.location ? ` • ${story.location}` : ""}
+              </p>
+            )}
+          </div>
+
+          {chronologicalMessages.map((message) => (
+            <ThreadTimelineMessage
+              key={message.id}
+              message={message}
+              mine={Boolean(userId && message.sender_user_id === userId)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThreadTimelineMessage({
+  message,
+  mine,
+}: {
+  message: InboxMessage;
+  mine: boolean;
+}) {
+  const videoUrl = message.video_url?.trim();
+
+  return (
+    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[85%] rounded-[1.5rem] p-4 shadow-sm ring-1 ${
+          mine
+            ? "bg-[#0b63ce] text-white ring-blue-200"
+            : "bg-white text-slate-800 ring-slate-200"
+        }`}
+      >
+        <div
+          className={`mb-2 text-[10px] font-black uppercase tracking-[0.16em] ${
+            mine ? "text-blue-100" : "text-[#0b63ce]"
+          }`}
+        >
+          {mine ? "You" : "Prayer reply"} •{" "}
+          {formatMessageDate(message.created_at)}
+        </div>
+        <p
+          className="whitespace-pre-wrap text-sm leading-6"
+          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+        >
+          {message.body}
+        </p>
+        {videoUrl && (
+          <div className="mt-3 overflow-hidden rounded-2xl bg-black">
+            <video
+              src={videoUrl}
+              controls
+              playsInline
+              className="max-h-[360px] w-full bg-black object-contain"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function isPrayerStorySummary(value: unknown): value is PrayerStorySummary {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string"
+  );
+}
+
+function buildInboxListItems(messages: InboxMessage[]): InboxListItem[] {
+  const threadMap = new Map<string, InboxMessage[]>();
+  const items: InboxListItem[] = [];
+
+  messages.forEach((message) => {
+    if (!isPrayerConversationMessage(message)) {
+      items.push({ kind: "message", message });
+      return;
+    }
+
+    const threadKey = getPrayerThreadKey(message);
+    const threadMessages = threadMap.get(threadKey) ?? [];
+    threadMessages.push(message);
+    threadMap.set(threadKey, threadMessages);
+  });
+
+  threadMap.forEach((threadMessages) => {
+    const thread = buildInboxThread(threadMessages);
+
+    if (thread) {
+      items.push({ kind: "thread", thread });
+    }
+  });
+
+  return items.sort(
+    (first, second) =>
+      getInboxListItemTime(second) - getInboxListItemTime(first)
+  );
+}
+
+function buildInboxThread(messages: InboxMessage[]): InboxThread | null {
+  if (messages.length === 0) return null;
+
+  const sortedNewestFirst = [...messages].sort(
+    (first, second) => getMessageTime(second) - getMessageTime(first)
+  );
+  const latestMessage = sortedNewestFirst[0];
+
+  if (!latestMessage) return null;
+
+  return {
+    key: getPrayerThreadKey(latestMessage),
+    messages: sortedNewestFirst,
+    latestMessage,
+    unreadCount: messages.filter((message) => !message.read).length,
+    storyId:
+      latestMessage.prayer_request_id?.trim() ||
+      latestMessage.story_id?.trim() ||
+      null,
+  };
+}
+
+function getInboxListItemTime(item: InboxListItem) {
+  return item.kind === "thread"
+    ? getMessageTime(item.thread.latestMessage)
+    : getMessageTime(item.message);
+}
+
+function getThreadMessagesChronological(messages: InboxMessage[]) {
+  return [...messages].sort(
+    (first, second) => getMessageTime(first) - getMessageTime(second)
+  );
+}
+
+function getMessageTime(message: InboxMessage) {
+  const time = new Date(message.created_at).getTime();
+
+  return Number.isFinite(time) ? time : 0;
+}
+
+function isLocalInboxMessageId(messageId: string) {
+  return messageId.startsWith("local-");
+}
+
+function getPrayerThreadKey(message: InboxMessage) {
+  const cleanThreadId = message.thread_id?.trim();
+
+  if (cleanThreadId) return `thread:${cleanThreadId}`;
+
+  const linkedPrayerId =
+    message.prayer_request_id?.trim() || message.story_id?.trim();
+
+  if (linkedPrayerId) return `prayer:${linkedPrayerId}`;
+
+  return `message:${message.id}`;
+}
+
+function getPrayerThreadIdForInsert(message: InboxMessage) {
+  const cleanThreadId = message.thread_id?.trim();
+
+  if (cleanThreadId) return cleanThreadId;
+
+  const linkedPrayerId =
+    message.prayer_request_id?.trim() || message.story_id?.trim();
+
+  if (linkedPrayerId) return `prayer:${linkedPrayerId}`;
+
+  return `message:${message.id}`;
+}
+
+function getThreadReplyTarget(thread: InboxThread, userId: string | null) {
+  const chronologicalMessages = getThreadMessagesChronological(thread.messages);
+  const latestFromOtherPerson = [...chronologicalMessages]
+    .reverse()
+    .find(
+      (message) =>
+        message.sender_user_id && (!userId || message.sender_user_id !== userId)
+    );
+
+  return latestFromOtherPerson ?? null;
+}
+
+function isPrayerConversationMessage(message: InboxMessage) {
+  const searchable = normalizeSearchable([
+    message.message_type,
+    message.type,
+    message.category,
+    message.title,
+    message.body,
+  ]);
+
+  return Boolean(
+    message.sender_user_id &&
+      matchesAny(searchable, [
+        "prayer video response",
+        "prayer video reply",
+        "prayer reply",
+        "prayer video",
+        "prayer_video_response",
+        "prayer_video_reply",
+        "prayer_reply",
+      ])
   );
 }
 
