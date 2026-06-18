@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   HandHeart,
@@ -25,7 +24,6 @@ function formatUnreadBadge(count: number) {
 }
 
 export default function LoggedInBottomNav() {
-  const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -83,20 +81,13 @@ export default function LoggedInBottomNav() {
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const active =
-            pathname === item.href ||
-            (item.href !== "/feed" && pathname?.startsWith(item.href));
           const showJourneyBadge = item.href === "/journey" && unreadCount > 0;
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`relative flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black transition ${
-                active
-                  ? "bg-blue-50 text-[#0b63ce]"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-[#0b63ce]"
-              }`}
+              className="relative flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black text-slate-500 transition hover:bg-slate-50 hover:text-[#0b63ce]"
             >
               <span className="relative">
                 <Icon className="h-5 w-5" />
