@@ -1176,10 +1176,10 @@ function PrayerThreadModal({
   const canReply = Boolean(getThreadReplyTarget(thread, userId));
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
-      <div className="flex min-h-full items-end sm:items-center sm:justify-center">
-        <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
-          <div className="sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white p-5">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 p-4 backdrop-blur-sm">
+      <div className="flex h-full items-end sm:items-center sm:justify-center">
+        <div className="flex h-[88vh] max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
+          <div className="shrink-0 border-b border-slate-100 bg-white p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
@@ -1231,7 +1231,11 @@ function PrayerThreadModal({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[#f8fbff] p-5 pb-24 sm:pb-5">
+          <div
+            className="min-h-0 flex-1 overscroll-contain overflow-y-auto bg-[#f8fbff] p-5 pb-24 sm:pb-5"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            <div className="space-y-4">
             <div className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
               <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
                 Original Prayer Request
@@ -1263,6 +1267,7 @@ function PrayerThreadModal({
                 mine={Boolean(userId && message.sender_user_id === userId)}
               />
             ))}
+            </div>
           </div>
         </div>
       </div>
