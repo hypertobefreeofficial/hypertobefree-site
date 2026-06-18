@@ -52,6 +52,18 @@ type ReactionRow = {
   reaction_type: string | null;
 };
 
+type UnreadInboxMessageRow = {
+  id: string;
+  sender_user_id?: string | null;
+  thread_id?: string | null;
+  story_id?: string | null;
+  prayer_request_id?: string | null;
+  message_type?: string | null;
+  category?: string | null;
+  title?: string | null;
+  body?: string | null;
+};
+
 type ClearRemovedRequest =
   | { mode: "single"; story: StoryRow }
   | { mode: "all" };
@@ -209,15 +221,24 @@ export default function JourneyPage() {
   }
 
   async function loadJourneyInboxUnreadCount(currentUserId: string) {
-    const { count, error } = await supabase
+    const { data, error } = await supabase
       .from("inbox_messages")
-      .select("id", { count: "exact", head: true })
+      .select(
+        "id, sender_user_id, thread_id, story_id, prayer_request_id, message_type, category, title, body"
+      )
       .eq("user_id", currentUserId)
       .eq("read", false)
       .is("hidden_at", null);
 
-    if (!error) {
-      setJourneyInboxUnreadCount(count ?? 0);
+    if (!error && data) {
+      const unreadRows = (Array.isArray(data) ? data : []).filter(
+        isUnreadInboxMessageRow
+      );
+      const unreadConversationKeys = new Set(
+        unreadRows.map(getUnreadConversationKey)
+      );
+
+      setJourneyInboxUnreadCount(unreadConversationKeys.size);
     }
   }
 
@@ -769,13 +790,14 @@ export default function JourneyPage() {
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 {journeyInboxUnreadCount > 0
-                  ? `${formattedJourneyInboxUnreadCount} unread Journey Inbox message${
+                  ? `You have ${formattedJourneyInboxUnreadCount} unread conversation${
                       journeyInboxUnreadCount === 1 ? "" : "s"
                     }.`
                   : "Messages, updates, and milestones from your HTBF journey."}
               </p>
               <div className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-                {formattedJourneyInboxUnreadCount} unread
+                {formattedJourneyInboxUnreadCount} unread conversation
+                {journeyInboxUnreadCount === 1 ? "" : "s"}
               </div>
             </div>
 
@@ -1286,6 +1308,57 @@ function formatShortDate(value: string | null) {
 
 function formatUnreadBadge(count: number) {
   return count > 99 ? "99+" : String(count);
+}
+
+function isUnreadInboxMessageRow(value: unknown): value is UnreadInboxMessageRow {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
+function getUnreadConversationKey(message: UnreadInboxMessageRow) {
+  if (isPrayerConversationMessage(message)) {
+    const threadId = message.thread_id?.trim();
+
+    if (threadId) return `thread:${threadId}`;
+
+    const linkedPrayerId =
+      message.prayer_request_id?.trim() || message.story_id?.trim();
+
+    if (linkedPrayerId) return `prayer:${linkedPrayerId}`;
+  }
+
+  return `message:${message.id}`;
+}
+
+function isPrayerConversationMessage(message: UnreadInboxMessageRow) {
+  const searchable = [
+    message.message_type,
+    message.category,
+    message.title,
+    message.body,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
+  return Boolean(
+    message.sender_user_id &&
+      [
+        "prayer video response",
+        "prayer video reply",
+        "prayer reply",
+        "prayer video",
+        "prayer_video_response",
+        "prayer_video_reply",
+        "prayer_reply",
+      ].some((keyword) => searchable.includes(keyword))
+  );
 }
 
 function MissionButton({
