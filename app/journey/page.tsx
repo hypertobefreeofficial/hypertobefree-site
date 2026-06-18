@@ -949,7 +949,7 @@ export default function JourneyPage() {
             eyebrow="My God Did It Moments"
             title={`${myGodDidItMoments.length} Answered`}
             text="These are your prayer requests that have been marked answered."
-            href="/answered"
+            href="/prayer"
             button="View Answered"
           />
 
@@ -967,7 +967,7 @@ export default function JourneyPage() {
             eyebrow="Movement View"
             title="Testimony Map"
             text="See where stories, prayers, videos, and answered prayers are being shared."
-            href="/map"
+            href="/search"
             button="Open Map"
           />
         </section>
@@ -1025,7 +1025,7 @@ export default function JourneyPage() {
             </Link>
 
             <Link
-              href="/videos"
+              href="/video-feed"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-white/10 px-5 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/15"
             >
               Watch Testimonies
