@@ -316,6 +316,7 @@ export default function JourneyInboxPage() {
     () => messages.filter((message) => !message.read).length,
     [messages]
   );
+  const formattedUnreadCount = formatUnreadBadge(unreadCount);
 
   const visibleUnreadIds = filteredMessages
     .filter((message) => !message.read && !isLocalInboxMessageId(message.id))
@@ -753,7 +754,7 @@ export default function JourneyInboxPage() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <MiniInboxStat label="Messages" value={messages.length} />
-            <MiniInboxStat label="Unread" value={unreadCount} />
+            <MiniInboxStat label="Unread" value={formattedUnreadCount} />
           </div>
         </header>
 
@@ -1051,7 +1052,7 @@ function MiniInboxStat({
   value,
 }: {
   label: string;
-  value: number;
+  value: number | string;
 }) {
   return (
     <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
@@ -1061,6 +1062,10 @@ function MiniInboxStat({
       </div>
     </div>
   );
+}
+
+function formatUnreadBadge(count: number) {
+  return count > 99 ? "99+" : String(count);
 }
 
 function PrayerThreadCard({
