@@ -8,7 +8,6 @@ import {
   Bell,
   CheckCircle2,
   ChevronRight,
-  Inbox,
   LogOut,
   Mail,
   MapPin,
@@ -33,6 +32,28 @@ type ProfileRow = {
   allow_prayer_notifications?: boolean | null;
   allow_story_notifications?: boolean | null;
   journey_focus?: string | null;
+};
+
+type ProfileStoryRow = {
+  story_type: string | null;
+  video_url: string | null;
+  prayer_status?: string | null;
+  answered_text?: string | null;
+  status?: string | null;
+};
+
+type ProfileStats = {
+  stories: number;
+  videos: number;
+  prayers: number;
+  praise: number;
+};
+
+const emptyProfileStats: ProfileStats = {
+  stories: 0,
+  videos: 0,
+  prayers: 0,
+  praise: 0,
 };
 
 export default function ProfilePage() {
@@ -62,6 +83,7 @@ export default function ProfilePage() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [stats, setStats] = useState<ProfileStats>(emptyProfileStats);
 
   useEffect(() => {
     async function loadProfile() {
@@ -114,12 +136,41 @@ export default function ProfilePage() {
       setProfileVisibility(profile?.profile_visibility ?? "public");
       setJourneyFocus(profile?.journey_focus ?? "encouragement");
       setEditingProfile(!hasCompletedProfile);
+      await loadProfileStats(user.id);
 
       setLoading(false);
     }
 
     loadProfile();
   }, [router]);
+
+  async function loadProfileStats(currentUserId: string) {
+    const { data, error } = await supabase
+      .from("stories")
+      .select("story_type, video_url, prayer_status, answered_text, status")
+      .eq("user_id", currentUserId);
+
+    if (error || !Array.isArray(data)) {
+      setStats(emptyProfileStats);
+      return;
+    }
+
+    const rows = (data as ProfileStoryRow[]).filter(
+      (story) => story.status !== "removed"
+    );
+
+    setStats({
+      stories: rows.length,
+      videos: rows.filter((story) => Boolean(story.video_url)).length,
+      prayers: rows.filter((story) => isPrayerType(story.story_type)).length,
+      praise: rows.filter(
+        (story) =>
+          isPraiseType(story.story_type) ||
+          story.prayer_status === "answered" ||
+          Boolean(story.answered_text)
+      ).length,
+    });
+  }
 
   function cleanUsername(value: string) {
     return value
@@ -132,6 +183,9 @@ export default function ProfilePage() {
   const profileName = useMemo(() => {
     return displayName.trim() || username.trim() || email.split("@")[0] || "HTBF";
   }, [displayName, email, username]);
+
+  const publicLocation =
+    showLocation && location.trim() ? location.trim() : "";
 
   async function saveProfile() {
     setMessage("");
@@ -235,30 +289,53 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl space-y-5 px-4 py-8">
-        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
-            <Sparkles className="h-4 w-4" />
-            HTBF Profile
-          </div>
-
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.75rem] bg-white/15 text-white ring-1 ring-white/20">
-              <UserCircle className="h-12 w-12" />
+      <div className="mx-auto max-w-4xl space-y-5 px-4 py-8">
+        <section className="overflow-hidden rounded-[2rem] bg-white shadow-sm ring-1 ring-slate-200">
+          <div className="bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
+              <Sparkles className="h-4 w-4" />
+              Public HTBF Profile
             </div>
 
-            <div className="min-w-0 flex-1">
-              <h1 className="break-words text-4xl font-black tracking-tight">
-                {profileName}
-              </h1>
-              <p className="mt-2 text-sm font-bold text-blue-100">
-                {username ? `@${username}` : "Finish your HTBF profile"}
-              </p>
-              {bio && (
-                <p className="mt-3 whitespace-pre-wrap break-words leading-7 text-blue-50">
-                  {bio}
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[2rem] bg-white/15 text-white ring-1 ring-white/20">
+                <UserCircle className="h-16 w-16" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h1 className="break-words text-4xl font-black tracking-tight">
+                  {profileName}
+                </h1>
+                <p className="mt-2 text-sm font-bold text-blue-100">
+                  {username ? `@${username}` : "Finish your HTBF profile"}
                 </p>
-              )}
+
+                {bio ? (
+                  <p className="mt-3 whitespace-pre-wrap break-words leading-7 text-blue-50">
+                    {bio}
+                  </p>
+                ) : (
+                  <p className="mt-3 leading-7 text-blue-50">
+                    Add a short testimony line so people know the story God is
+                    writing in you.
+                  </p>
+                )}
+
+                {publicLocation && (
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-bold text-blue-50 ring-1 ring-white/15">
+                    <MapPin className="h-4 w-4" />
+                    {publicLocation}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditingProfile((current) => !current)}
+                className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-black text-[#0b63ce] shadow-sm hover:bg-blue-50"
+              >
+                {editingProfile ? "Close Editor" : "Edit Profile"}
+              </button>
             </div>
           </div>
         </section>
@@ -269,43 +346,56 @@ export default function ProfilePage() {
           </section>
         )}
 
-        <section className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setEditingProfile((current) => !current)}
-            className="rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <UserCircle className="h-6 w-6" />
-            </div>
+        <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4">
             <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-              Edit Profile
+              My Freedom Journey
             </div>
             <h2 className="mt-1 text-2xl font-black text-[#062a57]">
-              Profile setup
+              What you have shared through HTBF
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Update your name, username, location, bio, and profile defaults.
-            </p>
-          </button>
+          </div>
 
-          <Link
-            href="/journey/inbox"
-            className="rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
-          >
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <Inbox className="h-6 w-6" />
-            </div>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <ProfileStatCard label="Stories shared" value={stats.stories} />
+            <ProfileStatCard label="Videos shared" value={stats.videos} />
+            <ProfileStatCard label="Prayer requests" value={stats.prayers} />
+            <ProfileStatCard label="Praise reports" value={stats.praise} />
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4">
             <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-              Journey Inbox
+              My Content
             </div>
             <h2 className="mt-1 text-2xl font-black text-[#062a57]">
-              Messages
+              Your public HTBF activity
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Open your private HTBF messages, prayer replies, and updates.
-            </p>
-          </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ProfileContentCard
+              title="Stories"
+              count={stats.stories}
+              text="Testimonies, encouragement, and written updates you have shared."
+            />
+            <ProfileContentCard
+              title="Videos"
+              count={stats.videos}
+              text="Video testimonies and moments you have submitted."
+            />
+            <ProfileContentCard
+              title="Prayer"
+              count={stats.prayers}
+              text="Prayer requests you have invited the HTBF community into."
+            />
+            <ProfileContentCard
+              title="Praise"
+              count={stats.praise}
+              text="Praise reports and answered-prayer moments from your journey."
+            />
+          </div>
         </section>
 
         {editingProfile && (
@@ -332,17 +422,6 @@ export default function ProfilePage() {
             </div>
 
             <div className="space-y-4">
-              <Field label="Email">
-                <input
-                  value={email}
-                  disabled
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500"
-                />
-                <p className="mt-2 text-xs font-semibold text-slate-500">
-                  Your email is locked to your sign-in account.
-                </p>
-              </Field>
-
               <Field label="Real name">
                 <input
                   value={realName}
@@ -437,36 +516,98 @@ export default function ProfilePage() {
         <section className="space-y-4 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <SectionHeading
             icon={<Mail className="h-5 w-5" />}
-            label="Account Settings"
-            title="Your account"
+            label="Private Settings"
+            title="Account Settings"
           />
 
-          <InfoRow label="Email" value={email || "Signed in"} />
-          <InfoRow label="Profile visibility" value={profileVisibility} />
+          <p className="text-sm leading-6 text-slate-600">
+            These settings are private to you. Your email is not shown on your
+            public HTBF profile.
+          </p>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setProfileVisibility("public")}
-              className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${
-                profileVisibility === "public"
-                  ? "bg-blue-50 text-[#0b63ce] ring-blue-100"
-                  : "bg-slate-50 text-slate-600 ring-slate-200"
-              }`}
+          <InfoRow label="Sign-in email" value={email || "Signed in"} />
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            <SettingsPanel
+              icon={<ShieldCheck className="h-5 w-5 text-[#0b63ce]" />}
+              title="Privacy Settings"
             >
-              Public Profile
-            </button>
-            <button
-              type="button"
-              onClick={() => setProfileVisibility("private")}
-              className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${
-                profileVisibility === "private"
-                  ? "bg-blue-50 text-[#0b63ce] ring-blue-100"
-                  : "bg-slate-50 text-slate-600 ring-slate-200"
-              }`}
+              <ToggleRow
+                title="Show my location"
+                text="Allow your location to appear on public stories and movement views."
+                checked={showLocation}
+                onChange={setShowLocation}
+              />
+
+              <ToggleRow
+                title="Show my real name"
+                text="If turned off, HTBF uses your display name instead."
+                checked={showRealName}
+                onChange={setShowRealName}
+              />
+            </SettingsPanel>
+
+            <SettingsPanel
+              icon={<Bell className="h-5 w-5 text-[#0b63ce]" />}
+              title="Notification Preferences"
             >
-              Private Profile
-            </button>
+              <ToggleRow
+                title="Prayer notifications"
+                text="Receive updates related to prayer activity and answered prayers."
+                checked={allowPrayerNotifications}
+                onChange={setAllowPrayerNotifications}
+              />
+
+              <ToggleRow
+                title="Story notifications"
+                text="Receive updates about stories, encouragement, and community responses."
+                checked={allowStoryNotifications}
+                onChange={setAllowStoryNotifications}
+              />
+            </SettingsPanel>
+
+            <SettingsPanel
+              icon={<UserCircle className="h-5 w-5 text-[#0b63ce]" />}
+              title="Account Settings"
+            >
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProfileVisibility("public")}
+                  className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${
+                    profileVisibility === "public"
+                      ? "bg-blue-50 text-[#0b63ce] ring-blue-100"
+                      : "bg-white text-slate-600 ring-slate-200"
+                  }`}
+                >
+                  Public Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileVisibility("private")}
+                  className={`rounded-2xl px-4 py-3 text-sm font-black ring-1 ${
+                    profileVisibility === "private"
+                      ? "bg-blue-50 text-[#0b63ce] ring-blue-100"
+                      : "bg-white text-slate-600 ring-slate-200"
+                  }`}
+                >
+                  Private Profile
+                </button>
+              </div>
+
+              <Field label="Journey focus">
+                <select
+                  value={journeyFocus}
+                  onChange={(event) => setJourneyFocus(event.target.value)}
+                  className="input-style"
+                >
+                  <option value="encouragement">Encouragement</option>
+                  <option value="prayer">Prayer</option>
+                  <option value="testimony">Testimony</option>
+                  <option value="praise">Praise</option>
+                </select>
+              </Field>
+            </SettingsPanel>
           </div>
 
           <button
@@ -475,86 +616,15 @@ export default function ProfilePage() {
             disabled={saving}
             className="inline-flex items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Save Account Settings"}
-          </button>
-        </section>
-
-        <section className="space-y-4 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <SectionHeading
-            icon={<Bell className="h-5 w-5" />}
-            label="Notification Settings"
-            title="What HTBF can remind you about"
-          />
-
-          <ToggleRow
-            title="Prayer notifications"
-            text="Receive updates related to prayer activity and answered prayers."
-            checked={allowPrayerNotifications}
-            onChange={setAllowPrayerNotifications}
-          />
-
-          <ToggleRow
-            title="Story notifications"
-            text="Receive updates about stories, encouragement, and community responses."
-            checked={allowStoryNotifications}
-            onChange={setAllowStoryNotifications}
-          />
-
-          <button
-            type="button"
-            onClick={saveProfile}
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:opacity-60"
-          >
-            {saving ? "Saving..." : "Save Notification Settings"}
-          </button>
-        </section>
-
-        <section className="space-y-4 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <SectionHeading
-            icon={<ShieldCheck className="h-5 w-5" />}
-            label="Privacy Settings"
-            title="Control what people see"
-          />
-
-          <ToggleRow
-            title="Show my location"
-            text="Allow your location to appear on public stories and movement views."
-            checked={showLocation}
-            onChange={setShowLocation}
-          />
-
-          <ToggleRow
-            title="Show my real name"
-            text="If turned off, HTBF uses your display name instead."
-            checked={showRealName}
-            onChange={setShowRealName}
-          />
-
-          <Field label="Journey focus">
-            <select
-              value={journeyFocus}
-              onChange={(event) => setJourneyFocus(event.target.value)}
-              className="input-style"
-            >
-              <option value="encouragement">Encouragement</option>
-              <option value="prayer">Prayer</option>
-              <option value="testimony">Testimony</option>
-              <option value="praise">Praise</option>
-            </select>
-          </Field>
-
-          <button
-            type="button"
-            onClick={saveProfile}
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:opacity-60"
-          >
-            {saving ? "Saving..." : "Save Privacy Settings"}
+            {saving ? "Saving..." : "Save Settings"}
           </button>
         </section>
 
         <section className="space-y-3 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+            Account Actions
+          </div>
+
           <button
             type="button"
             onClick={signOut}
@@ -633,6 +703,39 @@ function Field({
       <div className="mb-2 text-sm font-black text-[#062a57]">{label}</div>
       {children}
     </label>
+  );
+}
+
+function ProfileStatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+      <div className="text-3xl font-black text-[#0b63ce]">{value}</div>
+      <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#062a57]">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function ProfileContentCard({
+  count,
+  text,
+  title,
+}: {
+  count: number;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-lg font-black text-[#062a57]">{title}</h3>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
+          {count}
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+    </div>
   );
 }
 
@@ -723,5 +826,19 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         {value}
       </div>
     </div>
+  );
+}
+
+function isPrayerType(storyType: string | null) {
+  return (storyType ?? "").toLowerCase().includes("prayer");
+}
+
+function isPraiseType(storyType: string | null) {
+  const normalized = (storyType ?? "").toLowerCase();
+
+  return (
+    normalized.includes("praise") ||
+    normalized.includes("answered") ||
+    normalized.includes("testimony")
   );
 }
