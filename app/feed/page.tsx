@@ -14,18 +14,29 @@ export default function FeedPage() {
         </div>
       </header>
 
-      <div className="relative mx-auto max-w-4xl px-4 py-6">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute right-8 top-[4.6rem] z-10 h-24 w-24 overflow-hidden rounded-[1.5rem] opacity-15 sm:right-16 sm:top-20 sm:h-32 sm:w-32 md:right-20"
-        >
-          <img
-            src="/images/hero-freedom.png"
-            alt=""
-            className="h-full w-full object-contain object-right"
-          />
-        </div>
+      <div className="feed-brand-shell mx-auto max-w-4xl px-4 py-6">
+        <style>{`
+          .feed-brand-shell a[href="/share-your-story"][class*="min-h-12"][class*="rounded-full"] {
+            overflow: hidden;
+            background-color: #dbeafe !important;
+            background-image:
+              linear-gradient(90deg, rgba(239, 248, 255, 0.96), rgba(191, 219, 254, 0.82)),
+              url("/images/hero-freedom.png");
+            background-position: center, center;
+            background-repeat: no-repeat, repeat;
+            background-size: cover, 8.5rem auto;
+            color: #062a57 !important;
+            box-shadow: inset 0 0 0 1px rgba(11, 99, 206, 0.12);
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+          }
 
+          .feed-brand-shell a[href="/share-your-story"][class*="min-h-12"][class*="rounded-full"]:hover {
+            background-color: #bfdbfe !important;
+            background-image:
+              linear-gradient(90deg, rgba(224, 242, 254, 0.95), rgba(147, 197, 253, 0.78)),
+              url("/images/hero-freedom.png");
+          }
+        `}</style>
         <FreedomFeed />
       </div>
 
