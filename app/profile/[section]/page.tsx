@@ -1,9 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  UserCircle,
+} from "lucide-react";
 import LoggedInBottomNav from "../../../components/LoggedInBottomNav";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -20,6 +26,12 @@ type EditProfileRow = {
   location: string | null;
   show_location: boolean | null;
   show_real_name: boolean | null;
+};
+
+type AccountCenterProfileRow = {
+  avatar_url: string | null;
+  display_name: string | null;
+  username: string | null;
 };
 
 type CategoryItem = {
@@ -475,6 +487,8 @@ export default function ProfileAccountCenterPlaceholderPage() {
             {content.description}
           </p>
 
+          <AccountCenterIdentity />
+
           <div className="mt-6 rounded-[1.5rem] bg-slate-50 p-4 text-sm leading-6 text-slate-600 ring-1 ring-slate-100">
             This page is a placeholder for Phase 4C. The route is ready, and the
             focused functionality can be connected in a later pass.
@@ -491,6 +505,65 @@ export default function ProfileAccountCenterPlaceholderPage() {
 
       <LoggedInBottomNav />
     </main>
+  );
+}
+
+function AccountCenterIdentity() {
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+
+  useEffect(() => {
+    async function loadIdentity() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("avatar_url, display_name, username")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const profile = data as AccountCenterProfileRow | null;
+
+      setAvatarUrl(profile?.avatar_url ?? "");
+      setDisplayName(profile?.display_name ?? "");
+      setUsername(profile?.username ?? "");
+    }
+
+    loadIdentity();
+  }, []);
+
+  const profileName =
+    displayName.trim() || username.trim() || "Your HTBF Profile";
+
+  return (
+    <div className="mt-6 flex items-center gap-4 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white text-[#0b63ce] ring-1 ring-blue-100">
+        {avatarUrl ? (
+          <Image
+            src={avatarUrl}
+            alt={`${profileName} profile photo`}
+            fill
+            sizes="56px"
+            className="object-cover"
+            unoptimized
+          />
+        ) : (
+          <UserCircle className="h-10 w-10" />
+        )}
+      </div>
+
+      <div className="min-w-0">
+        <div className="truncate font-black text-[#062a57]">{profileName}</div>
+        <div className="mt-1 truncate text-sm font-semibold text-slate-600">
+          {username ? `@${username}` : "Account Center"}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -528,6 +601,8 @@ function AccountCenterCategoryPage({ content }: { content: CategoryContent }) {
           <p className="mt-3 max-w-2xl leading-7 text-slate-600">
             {content.description}
           </p>
+
+          <AccountCenterIdentity />
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {content.items.map((item) => (
