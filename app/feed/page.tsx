@@ -16,25 +16,63 @@ export default function FeedPage() {
 
       <div className="feed-brand-shell mx-auto max-w-4xl px-4 py-6">
         <style>{`
-          .feed-brand-shell a[href="/share-your-story"][class*="min-h-12"][class*="rounded-full"] {
+          .feed-brand-shell > section > div > div:first-child {
+            isolation: isolate;
+            position: relative;
             overflow: hidden;
-            background-color: #dbeafe !important;
-            background-image:
-              linear-gradient(90deg, rgba(239, 248, 255, 0.96), rgba(191, 219, 254, 0.82)),
-              url("/images/hero-freedom.png");
-            background-position: center, center;
-            background-repeat: no-repeat, repeat;
-            background-size: cover, 8.5rem auto;
-            color: #062a57 !important;
+            background:
+              linear-gradient(115deg, rgba(255, 255, 255, 0.96), rgba(219, 234, 254, 0.72)),
+              #eff6ff !important;
             box-shadow: inset 0 0 0 1px rgba(11, 99, 206, 0.12);
-            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+          }
+
+          .feed-brand-shell > section > div > div:first-child::before {
+            content: "";
+            position: absolute;
+            inset: -18% -8% -18% 30%;
+            z-index: 0;
+            background-image: url("/images/hero-freedom.png");
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: contain;
+            opacity: 0.18;
+            pointer-events: none;
+          }
+
+          .feed-brand-shell > section > div > div:first-child::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            background:
+              radial-gradient(circle at 78% 42%, rgba(11, 99, 206, 0.18), transparent 42%),
+              linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(239, 248, 255, 0.58));
+            pointer-events: none;
+          }
+
+          .feed-brand-shell > section > div > div:first-child > * {
+            position: relative;
+            z-index: 1;
+          }
+
+          .feed-brand-shell a[href="/share-your-story"][class*="min-h-12"][class*="rounded-full"] {
+            overflow: visible;
+            background-color: rgb(241 245 249) !important;
+            background-image: none !important;
+            color: rgb(100 116 139) !important;
+            box-shadow: none;
+            text-shadow: none;
           }
 
           .feed-brand-shell a[href="/share-your-story"][class*="min-h-12"][class*="rounded-full"]:hover {
-            background-color: #bfdbfe !important;
-            background-image:
-              linear-gradient(90deg, rgba(224, 242, 254, 0.95), rgba(147, 197, 253, 0.78)),
-              url("/images/hero-freedom.png");
+            background-color: rgb(226 232 240) !important;
+          }
+
+          @media (max-width: 640px) {
+            .feed-brand-shell > section > div > div:first-child::before {
+              inset: -10% -26% -18% 18%;
+              opacity: 0.14;
+            }
           }
         `}</style>
         <FreedomFeed />
