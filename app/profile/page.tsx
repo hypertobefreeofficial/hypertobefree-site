@@ -57,6 +57,7 @@ type CompletionItem = {
 type AccountAction = {
   badge?: string;
   disabled?: boolean;
+  href?: string;
   meta?: string;
   onClick?: () => void;
   text: string;
@@ -228,7 +229,7 @@ export default function ProfilePage() {
     {
       title: "Edit Profile",
       text: "Update your name, username, bio, and location.",
-      onClick: () => showComingSoon("Edit Profile"),
+      href: "/profile/edit-profile",
     },
     {
       title: "Change Profile Photo",
@@ -239,91 +240,70 @@ export default function ProfilePage() {
       title: "View Public Profile",
       text: "Preview how your profile will appear.",
       badge: "Soon",
-      onClick: () => showComingSoon("View Public Profile"),
+      href: "/profile/public-preview",
     },
     {
       title: "My Posts",
       text: "Stories and written encouragement.",
       meta: `${stats.stories}`,
-      onClick: () => showComingSoon("My Posts"),
+      href: "/profile/my-stories",
     },
     {
       title: "My Videos",
       text: "Video testimonies you have shared.",
       meta: `${stats.videos}`,
-      onClick: () => showComingSoon("My Videos"),
+      href: "/profile/my-videos",
     },
     {
       title: "My Prayer Requests",
       text: "Requests you invited prayer around.",
       meta: `${stats.prayers}`,
-      onClick: () => showComingSoon("My Prayer Requests"),
+      href: "/profile/my-prayer-requests",
     },
     {
       title: "My Praise Reports",
       text: "Praise and answered-prayer moments.",
       meta: `${stats.praise}`,
-      onClick: () => showComingSoon("My Praise Reports"),
+      href: "/profile/my-praise-reports",
     },
   ];
 
-  const accountCenterActions: AccountAction[] = [
+  const accountSecurityActions: AccountAction[] = [
     {
       title: "Account Info",
       text: "Private sign-in email and account details.",
       meta: email || "Signed in",
-      onClick: () => showComingSoon("Account Info"),
+      href: "/profile/account-info",
     },
     {
-      title: "Password & Security",
-      text: "Password, sessions, and sign-in protection.",
-      onClick: () => showComingSoon("Password & Security"),
-    },
-    {
-      title: "Privacy Settings",
-      text: "Profile visibility, location, and name display.",
-      onClick: () => showComingSoon("Privacy Settings"),
-    },
-    {
-      title: "Notification Settings",
-      text: "Prayer, story, and account notifications.",
-      onClick: () => showComingSoon("Notification Settings"),
-    },
-    {
-      title: "Blocked Users",
-      text: "Manage people you have blocked.",
+      title: "Change Email",
+      text: "Update the email used for signing in.",
       badge: "Soon",
-      onClick: () => showComingSoon("Blocked Users"),
+      href: "/profile/change-email",
     },
     {
-      title: "Muted Users",
-      text: "Manage accounts you have muted.",
+      title: "Change Password",
+      text: "Update your password safely.",
       badge: "Soon",
-      onClick: () => showComingSoon("Muted Users"),
+      href: "/profile/change-password",
     },
     {
-      title: "Reported Content",
-      text: "Review content reports you have submitted.",
+      title: "Two-Factor Authentication",
+      text: "Add an extra layer of account protection.",
       badge: "Soon",
-      onClick: () => showComingSoon("Reported Content"),
+      href: "/profile/two-factor-authentication",
     },
     {
-      title: "Saved / Bookmarked",
-      text: "Return to stories you saved.",
+      title: "Active Sessions",
+      text: "Review devices signed in to your account.",
       badge: "Soon",
-      onClick: () => showComingSoon("Saved / Bookmarked"),
-    },
-    {
-      title: "Archived / Hidden Content",
-      text: "Manage items you hid or archived.",
-      badge: "Soon",
-      onClick: () => showComingSoon("Archived / Hidden Content"),
+      href: "/profile/active-sessions",
     },
     {
       title: "Download My Data",
       text: "Export tools will live here.",
       badge: "Soon",
-      onClick: () => showComingSoon("Download My Data"),
+      href: "/profile/download-my-data",
     },
     {
       title: "Delete Account",
@@ -339,14 +319,147 @@ export default function ProfilePage() {
     },
   ];
 
+  const privacySafetyActions: AccountAction[] = [
+    {
+      title: "Privacy Settings",
+      text: "Control profile privacy from one place.",
+      href: "/profile/privacy-settings",
+    },
+    {
+      title: "Blocked Users",
+      text: "Manage people you have blocked.",
+      badge: "Soon",
+      href: "/profile/blocked-users",
+    },
+    {
+      title: "Muted Users",
+      text: "Manage accounts you have muted.",
+      badge: "Soon",
+      href: "/profile/muted-users",
+    },
+    {
+      title: "Reported Content",
+      text: "Review content reports you have submitted.",
+      badge: "Soon",
+      href: "/profile/reported-content",
+    },
+    {
+      title: "Profile Visibility",
+      text: "Choose who can view your HTBF profile.",
+      badge: "Soon",
+      href: "/profile/profile-visibility",
+    },
+    {
+      title: "Location Visibility",
+      text: "Control when your location appears.",
+      badge: "Soon",
+      href: "/profile/location-visibility",
+    },
+  ];
+
+  const contentManagementActions: AccountAction[] = [
+    {
+      title: "My Stories",
+      text: "Review stories and written encouragement.",
+      meta: `${stats.stories}`,
+      href: "/profile/my-stories",
+    },
+    {
+      title: "My Videos",
+      text: "Review your video testimonies.",
+      meta: `${stats.videos}`,
+      href: "/profile/my-videos",
+    },
+    {
+      title: "My Prayer Requests",
+      text: "Manage prayer requests you shared.",
+      meta: `${stats.prayers}`,
+      href: "/profile/my-prayer-requests",
+    },
+    {
+      title: "My Praise Reports",
+      text: "Review praise and answered-prayer moments.",
+      meta: `${stats.praise}`,
+      href: "/profile/my-praise-reports",
+    },
+    {
+      title: "Saved Content",
+      text: "Return to saved stories and testimonies.",
+      badge: "Soon",
+      href: "/profile/saved-content",
+    },
+    {
+      title: "Archived / Hidden Content",
+      text: "Manage items you hid or archived.",
+      badge: "Soon",
+      href: "/profile/archived-hidden-content",
+    },
+  ];
+
+  const notificationActions: AccountAction[] = [
+    {
+      title: "Prayer Notifications",
+      text: "Choose prayer request and Prayer Circle alerts.",
+      badge: "Soon",
+      href: "/profile/prayer-notifications",
+    },
+    {
+      title: "Story Notifications",
+      text: "Choose story and community response alerts.",
+      badge: "Soon",
+      href: "/profile/story-notifications",
+    },
+    {
+      title: "Praise Notifications",
+      text: "Choose answered-prayer and praise updates.",
+      badge: "Soon",
+      href: "/profile/praise-notifications",
+    },
+    {
+      title: "Email Notifications",
+      text: "Choose which HTBF emails you receive.",
+      badge: "Soon",
+      href: "/profile/email-notifications",
+    },
+  ];
+
+  const supportActions: AccountAction[] = [
+    {
+      title: "Help Center",
+      text: "Find help using HTBF.",
+      badge: "Soon",
+      href: "/profile/help-center",
+    },
+    {
+      title: "Report a Problem",
+      text: "Tell HTBF about a bug or account issue.",
+      badge: "Soon",
+      href: "/profile/report-a-problem",
+    },
+    {
+      title: "Community Guidelines",
+      text: "Review how we keep HTBF safe.",
+      badge: "Soon",
+      href: "/profile/community-guidelines",
+    },
+    {
+      title: "Privacy Policy",
+      text: "Read HTBF privacy practices.",
+      badge: "Soon",
+      href: "/profile/privacy-policy",
+    },
+    {
+      title: "Terms of Service",
+      text: "Review HTBF terms and platform rules.",
+      badge: "Soon",
+      href: "/profile/terms-of-service",
+    },
+  ];
+
   async function signOut() {
     setSigningOut(true);
     await supabase.auth.signOut();
     router.push("/login");
-  }
-
-  function showComingSoon(label: string) {
-    setMessage(`${label} will open in a focused Account Center page next.`);
   }
 
   function openAvatarPicker() {
@@ -560,13 +673,12 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => showComingSoon("Edit Profile")}
+                <Link
+                  href="/profile/edit-profile"
                   className="mt-5 inline-flex rounded-full bg-white px-5 py-3 text-sm font-black text-[#0b63ce] shadow-sm hover:bg-blue-50"
                 >
                   Edit Profile
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -636,14 +748,28 @@ export default function ProfilePage() {
             <div className="mt-5">
               <SectionIntro
                 label="Account Center"
-                title="More profile and account controls"
-                text="These tools are secondary so the main profile page stays clean."
+                title="More profile, privacy, and support controls"
+                text="Focused tools live here so your main profile setup stays clean."
               />
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {accountCenterActions.map((action) => (
-                  <ActionCard key={action.title} action={action} />
-                ))}
+              <div className="mt-5 space-y-6">
+                <AccountCenterSection
+                  title="Account & Security"
+                  actions={accountSecurityActions}
+                />
+                <AccountCenterSection
+                  title="Privacy & Safety"
+                  actions={privacySafetyActions}
+                />
+                <AccountCenterSection
+                  title="Content Management"
+                  actions={contentManagementActions}
+                />
+                <AccountCenterSection
+                  title="Notifications"
+                  actions={notificationActions}
+                />
+                <AccountCenterSection title="Support" actions={supportActions} />
               </div>
             </div>
           )}
@@ -707,18 +833,13 @@ function CompletionCard({ item }: { item: CompletionItem }) {
 
 function ActionCard({ action }: { action: AccountAction }) {
   const isDanger = action.tone === "danger";
-
-  return (
-    <button
-      type="button"
-      onClick={action.onClick}
-      disabled={action.disabled}
-      className={`group rounded-[1.5rem] p-4 text-left ring-1 transition disabled:cursor-not-allowed disabled:opacity-70 ${
-        isDanger
-          ? "bg-red-50 text-red-800 ring-red-100 hover:bg-red-100"
-          : "bg-slate-50 text-slate-900 ring-slate-100 hover:bg-blue-50 hover:ring-blue-100"
-      }`}
-    >
+  const className = `group rounded-[1.5rem] p-4 text-left ring-1 transition disabled:cursor-not-allowed disabled:opacity-70 ${
+    isDanger
+      ? "bg-red-50 text-red-800 ring-red-100 hover:bg-red-100"
+      : "bg-slate-50 text-slate-900 ring-slate-100 hover:bg-blue-50 hover:ring-blue-100"
+  }`;
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-3">
         <h3
           className={`text-base font-black ${
@@ -748,7 +869,47 @@ function ActionCard({ action }: { action: AccountAction }) {
           </span>
         )}
       </div>
+    </>
+  );
+
+  if (action.href) {
+    return (
+      <Link href={action.href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      disabled={action.disabled}
+      className={className}
+    >
+      {content}
     </button>
+  );
+}
+
+function AccountCenterSection({
+  actions,
+  title,
+}: {
+  actions: AccountAction[];
+  title: string;
+}) {
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#082f63]">
+        {title}
+      </h3>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {actions.map((action) => (
+          <ActionCard key={action.title} action={action} />
+        ))}
+      </div>
+    </section>
   );
 }
 
