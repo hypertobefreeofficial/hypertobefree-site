@@ -28,31 +28,14 @@ type LoggedInBottomNavProps = {
 
 export default function LoggedInBottomNav({
   variant = "default",
-  hapticsEnabled = false,
   onToggleHaptics,
   onNavTap,
 }: LoggedInBottomNavProps) {
+  void onToggleHaptics;
+
   if (variant === "video") {
     return (
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-none bg-transparent px-3 pb-[calc(0.6rem+env(safe-area-inset-bottom))] pt-2 shadow-none">
-        {onToggleHaptics && (
-          <div className="mx-auto mb-1 flex max-w-lg justify-end">
-            <button
-              type="button"
-              onClick={() => onToggleHaptics?.()}
-              className={`rounded-full px-3 py-1.5 text-[11px] font-black ring-1 backdrop-blur-md transition ${
-                hapticsEnabled
-                  ? "bg-white/80 text-[#0b63ce] ring-white/50"
-                  : "bg-black/10 text-white/75 ring-white/10 hover:bg-white/10 hover:text-white"
-              }`}
-              aria-pressed={hapticsEnabled}
-              aria-label="Toggle haptics"
-            >
-              Haptics {hapticsEnabled ? "On" : "Off"}
-            </button>
-          </div>
-        )}
-
+      <nav className="fixed inset-x-0 bottom-0 z-50 bg-transparent px-3 pb-[calc(0.6rem+env(safe-area-inset-bottom))] pt-2">
         <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
           {navItems.map((item) => {
             const Icon = item.icon;
