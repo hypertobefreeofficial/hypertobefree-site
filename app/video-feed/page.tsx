@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
+  Bookmark,
   Bug,
   Captions,
   Copy,
@@ -31,6 +32,7 @@ import {
   Share2,
   Sparkles,
   Trash2,
+  UserX,
   UserRound,
   Video,
   Volume2,
@@ -186,6 +188,15 @@ type VideoFeedCopy = {
   signInToReport: string;
   reportSubmitError: string;
   reportSubmitted: string;
+  signInToSave: string;
+  saveVideo: string;
+  unsaveVideo: string;
+  saveVideoError: string;
+  videoSaved: string;
+  videoUnsaved: string;
+  blockUser: string;
+  blockUserError: string;
+  userBlocked: string;
   shareTitle: string;
   shareWithTextPrefix: string;
   shareFallback: string;
@@ -293,6 +304,15 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     signInToReport: "Please sign in to report a video.",
     reportSubmitError: "Could not submit report",
     reportSubmitted: "Report submitted. Thank you for helping keep HTBF safe.",
+    signInToSave: "Please sign in to save videos.",
+    saveVideo: "Save Video",
+    unsaveVideo: "Remove from Saved",
+    saveVideoError: "Could not update saved content",
+    videoSaved: "Video saved.",
+    videoUnsaved: "Video removed from saved content.",
+    blockUser: "Block User",
+    blockUserError: "Could not block user",
+    userBlocked: "User blocked. Their videos are now hidden.",
     shareTitle: "HTBF Video Testimony",
     shareWithTextPrefix: "Watch this video testimony",
     shareFallback: "Watch this video testimony on Hyper to Be Free.",
@@ -393,6 +413,15 @@ const videoFeedCopy: Record<VideoLanguage, VideoFeedCopy> = {
     signInToReport: "Inicia sesión para reportar un video.",
     reportSubmitError: "No se pudo enviar el reporte",
     reportSubmitted: "Reporte enviado. Gracias por ayudar a cuidar HTBF.",
+    signInToSave: "Inicia sesión para guardar videos.",
+    saveVideo: "Guardar video",
+    unsaveVideo: "Quitar de guardados",
+    saveVideoError: "No se pudo actualizar el contenido guardado",
+    videoSaved: "Video guardado.",
+    videoUnsaved: "Video eliminado de guardados.",
+    blockUser: "Bloquear usuario",
+    blockUserError: "No se pudo bloquear al usuario",
+    userBlocked: "Usuario bloqueado. Sus videos ahora están ocultos.",
     shareTitle: "Testimonio en video de HTBF",
     shareWithTextPrefix: "Mira este testimonio en video",
     shareFallback: "Mira este testimonio en video en Hyper to Be Free.",
@@ -590,6 +619,8 @@ export default function VideoFeedPage() {
     useState<VideoViewingMode>("standard");
   const [hapticsEnabled, setHapticsEnabled] = useState(false);
   const [optionsStoryId, setOptionsStoryId] = useState<string | null>(null);
+  const [savedStoryIds, setSavedStoryIds] = useState<string[]>([]);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [hiddenCaptionStoryIds, setHiddenCaptionStoryIds] = useState<string[]>(
     []
   );
@@ -654,7 +685,7 @@ export default function VideoFeedPage() {
       currentUserId = user.id;
       setUserId(user.id);
 
-      await loadVideoStories(user.id);
+      await Promise.all([loadVideoStories(user.id), loadAccountSafety(user.id)]);
       setCheckingUser(false);
     }
 
@@ -876,6 +907,51 @@ export default function VideoFeedPage() {
     return null;
   }
 
+  async function loadAccountSafety(currentUserId: string) {
+    const [savedResult, blockedResult] = await Promise.all([
+      supabase
+        .from("saved_content")
+        .select("story_id")
+        .eq("user_id", currentUserId),
+      supabase
+        .from("blocked_users")
+        .select("blocked_user_id")
+        .eq("blocker_user_id", currentUserId),
+    ]);
+
+    if (!savedResult.error) {
+      const savedRows: unknown[] = Array.isArray(savedResult.data)
+        ? savedResult.data
+        : [];
+      setSavedStoryIds(
+        savedRows.flatMap((row) =>
+          typeof row === "object" &&
+          row !== null &&
+          "story_id" in row &&
+          typeof row.story_id === "string"
+            ? [row.story_id]
+            : []
+        )
+      );
+    }
+
+    if (!blockedResult.error) {
+      const blockedRows: unknown[] = Array.isArray(blockedResult.data)
+        ? blockedResult.data
+        : [];
+      setBlockedUserIds(
+        blockedRows.flatMap((row) =>
+          typeof row === "object" &&
+          row !== null &&
+          "blocked_user_id" in row &&
+          typeof row.blocked_user_id === "string"
+            ? [row.blocked_user_id]
+            : []
+        )
+      );
+    }
+  }
+
   async function loadVideoStories(currentUserId: string | null) {
     const { data, error } = await supabase
       .from("stories")
@@ -1005,13 +1081,22 @@ export default function VideoFeedPage() {
   }
 
   const orderedStories = useMemo(() => {
-    if (!selectedStoryId) return stories;
+    const visibleStories = stories.filter(
+      (story) =>
+        !story.user_id || !blockedUserIds.includes(story.user_id)
+    );
 
-    const selected = stories.find((story) => story.id === selectedStoryId);
-    const rest = stories.filter((story) => story.id !== selectedStoryId);
+    if (!selectedStoryId) return visibleStories;
 
-    return selected ? [selected, ...rest] : stories;
-  }, [stories, selectedStoryId]);
+    const selected = visibleStories.find(
+      (story) => story.id === selectedStoryId
+    );
+    const rest = visibleStories.filter(
+      (story) => story.id !== selectedStoryId
+    );
+
+    return selected ? [selected, ...rest] : visibleStories;
+  }, [blockedUserIds, stories, selectedStoryId]);
 
   useEffect(() => {
     const scroller = videoFeedScrollerRef.current;
@@ -1229,6 +1314,61 @@ export default function VideoFeedPage() {
     setReplyStory(null);
     setSendingReply(false);
     setMessage(copy.responseSent);
+  }
+
+  async function toggleSavedVideo(story: VideoStory) {
+    if (!userId) {
+      setMessage(copy.signInToSave);
+      return;
+    }
+
+    const isSaved = savedStoryIds.includes(story.id);
+    const { error } = isSaved
+      ? await supabase
+          .from("saved_content")
+          .delete()
+          .eq("user_id", userId)
+          .eq("story_id", story.id)
+      : await supabase.from("saved_content").insert({
+          user_id: userId,
+          story_id: story.id,
+        });
+
+    if (error) {
+      setMessage(`${copy.saveVideoError}: ${error.message}`);
+      return;
+    }
+
+    setSavedStoryIds((current) =>
+      isSaved
+        ? current.filter((storyId) => storyId !== story.id)
+        : [...current, story.id]
+    );
+    setMessage(isSaved ? copy.videoUnsaved : copy.videoSaved);
+  }
+
+  async function blockVideoUser(story: VideoStory) {
+    if (!userId || !story.user_id || story.user_id === userId) return;
+
+    const blockedUserId = story.user_id;
+    const { error } = await supabase.from("blocked_users").upsert(
+      {
+        blocker_user_id: userId,
+        blocked_user_id: blockedUserId,
+      },
+      { onConflict: "blocker_user_id,blocked_user_id" }
+    );
+
+    if (error) {
+      setMessage(`${copy.blockUserError}: ${error.message}`);
+      return;
+    }
+
+    setOptionsStoryId(null);
+    setBlockedUserIds((current) =>
+      current.includes(blockedUserId) ? current : [...current, blockedUserId]
+    );
+    setMessage(copy.userBlocked);
   }
 
   async function removeMyVideo(story: VideoStory) {
@@ -1449,6 +1589,7 @@ export default function VideoFeedPage() {
             if (!story.signed_video_url) return null;
 
             const isOwner = Boolean(userId && story.user_id === userId);
+            const isSaved = savedStoryIds.includes(story.id);
             const captionHidden = hiddenCaptionStoryIds.includes(story.id);
 
             return (
@@ -1504,6 +1645,7 @@ export default function VideoFeedPage() {
                 {optionsStoryId === story.id && !beStillMode && (
                   <VideoOptionsMenu
                     isOwner={isOwner}
+                    isSaved={isSaved}
                     playbackRate={playbackRate}
                     setPlaybackRate={setPlaybackRate}
                     selectedLanguage={selectedLanguage}
@@ -1536,6 +1678,13 @@ export default function VideoFeedPage() {
                     onCopyLink={() => {
                       setOptionsStoryId(null);
                       copyStoryLink(story);
+                    }}
+                    onToggleSaved={() => {
+                      setOptionsStoryId(null);
+                      void toggleSavedVideo(story);
+                    }}
+                    onBlockUser={() => {
+                      void blockVideoUser(story);
                     }}
                     onReport={() => {
                       setOptionsStoryId(null);
@@ -1821,6 +1970,7 @@ export default function VideoFeedPage() {
 function VideoOptionsMenu({
   captionHidden,
   isOwner,
+  isSaved,
   playbackRate,
   setPlaybackRate,
   selectedLanguage,
@@ -1833,6 +1983,8 @@ function VideoOptionsMenu({
   onToggleHaptics,
   onBugReport,
   onCopyLink,
+  onToggleSaved,
+  onBlockUser,
   onShare,
   onReport,
   onToggleCaption,
@@ -1841,6 +1993,7 @@ function VideoOptionsMenu({
 }: {
   captionHidden: boolean;
   isOwner: boolean;
+  isSaved: boolean;
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
   selectedLanguage: VideoLanguage;
@@ -1853,6 +2006,8 @@ function VideoOptionsMenu({
   onToggleHaptics: () => void;
   onBugReport: () => void;
   onCopyLink: () => void;
+  onToggleSaved: () => void;
+  onBlockUser: () => void;
   onShare: () => void;
   onReport: () => void;
   onToggleCaption: () => void;
@@ -2011,6 +2166,26 @@ function VideoOptionsMenu({
         <Copy className="h-4 w-4" />
         {copy.copyLink}
       </button>
+
+      <button
+        type="button"
+        onClick={onToggleSaved}
+        className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+      >
+        <Bookmark className={`h-4 w-4 ${isSaved ? "fill-current" : ""}`} />
+        {isSaved ? copy.unsaveVideo : copy.saveVideo}
+      </button>
+
+      {!isOwner && (
+        <button
+          type="button"
+          onClick={onBlockUser}
+          className="mb-2 flex w-full items-center gap-2 rounded-2xl bg-red-50 px-3 py-3 text-sm font-black text-red-700 hover:bg-red-100"
+        >
+          <UserX className="h-4 w-4" />
+          {copy.blockUser}
+        </button>
+      )}
 
       <button
         type="button"
