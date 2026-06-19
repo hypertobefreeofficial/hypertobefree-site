@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   HandHeart,
   Home,
@@ -31,7 +32,11 @@ export default function LoggedInBottomNav({
   onToggleHaptics,
   onNavTap,
 }: LoggedInBottomNavProps) {
+  const pathname = usePathname();
+
   void onToggleHaptics;
+
+  if (pathname?.startsWith("/video-feed")) return null;
 
   if (variant === "video") {
     return (
