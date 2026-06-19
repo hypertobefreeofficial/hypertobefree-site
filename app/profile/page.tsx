@@ -12,11 +12,8 @@ import {
 import { useRouter } from "next/navigation";
 import {
   Camera,
-  CheckCircle2,
   ChevronRight,
-  Circle,
   MapPin,
-  MoreHorizontal,
   Sparkles,
   UserCircle,
 } from "lucide-react";
@@ -30,7 +27,6 @@ type ProfileRow = {
   location: string | null;
   bio: string | null;
   show_location: boolean | null;
-  profile_visibility?: string | null;
 };
 
 type ProfileStoryRow = {
@@ -46,12 +42,6 @@ type ProfileStats = {
   videos: number;
   prayers: number;
   praise: number;
-};
-
-type CompletionItem = {
-  complete: boolean;
-  helper: string;
-  title: string;
 };
 
 type AccountAction = {
@@ -84,8 +74,6 @@ export default function ProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [message, setMessage] = useState("");
-  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
-  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
@@ -96,7 +84,6 @@ export default function ProfilePage() {
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [showLocation, setShowLocation] = useState(true);
-  const [privacyConfigured, setPrivacyConfigured] = useState(false);
   const [stats, setStats] = useState<ProfileStats>(emptyProfileStats);
 
   useEffect(() => {
@@ -120,7 +107,7 @@ export default function ProfilePage() {
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "avatar_url, display_name, username, location, bio, show_location, profile_visibility"
+          "avatar_url, display_name, username, location, bio, show_location"
         )
         .eq("id", user.id)
         .maybeSingle();
@@ -139,13 +126,6 @@ export default function ProfilePage() {
       setLocation(profile?.location ?? "");
       setBio(profile?.bio ?? "");
       setShowLocation(profile?.show_location ?? true);
-      setPrivacyConfigured(
-        Boolean(
-          profile?.profile_visibility ||
-            (profile?.show_location !== null &&
-              profile?.show_location !== undefined)
-        )
-      );
 
       await loadProfileStats(user.id);
 
@@ -198,261 +178,38 @@ export default function ProfilePage() {
   const visibleLocation =
     showLocation && location.trim() ? location.trim() : "";
 
-  const completionItems: CompletionItem[] = [
+  const accountCenterActions: AccountAction[] = [
     {
-      complete: Boolean(avatarUrl),
-      helper: avatarUrl
-        ? "Your profile photo is set."
-        : "Add a clear photo for your HTBF identity.",
-      title: "Add photo",
+      title: "Account & Security",
+      text: "Email, password, active sessions, delete account.",
+      href: "/profile/account-security",
     },
     {
-      complete: Boolean(bio.trim()),
-      helper: "Add a short testimony line.",
-      title: "Add bio",
+      title: "Privacy & Safety",
+      text: "Profile visibility, blocked users, muted users, reports.",
+      href: "/profile/privacy-safety",
     },
     {
-      complete: username.trim().length >= 3,
-      helper: "Choose a clear HTBF username.",
-      title: "Confirm username",
+      title: "Notifications",
+      text: "Prayer, story, praise, email notifications.",
+      href: "/profile/notifications",
     },
     {
-      complete: privacyConfigured,
-      helper: "Review what appears on your profile.",
-      title: "Set privacy preferences",
-    },
-  ];
-
-  const completedCount = completionItems.filter((item) => item.complete).length;
-
-  const quickActions: AccountAction[] = [
-    {
-      title: "Edit Profile",
-      text: "Update your name, username, bio, and location.",
-      href: "/profile/edit-profile",
+      title: "Content Management",
+      text: "Posts, videos, prayer requests, praise reports, saved content.",
+      meta: `${stats.stories + stats.videos + stats.prayers + stats.praise}`,
+      href: "/profile/content-management",
     },
     {
-      title: "Change Profile Photo",
-      text: "Add or update your HTBF profile image.",
-      onClick: openAvatarPicker,
-    },
-    {
-      title: "View Public Profile",
-      text: "Preview how your profile will appear.",
-      badge: "Soon",
-      href: "/profile/public-preview",
-    },
-    {
-      title: "My Posts",
-      text: "Stories and written encouragement.",
-      meta: `${stats.stories}`,
-      href: "/profile/my-stories",
-    },
-    {
-      title: "My Videos",
-      text: "Video testimonies you have shared.",
-      meta: `${stats.videos}`,
-      href: "/profile/my-videos",
-    },
-    {
-      title: "My Prayer Requests",
-      text: "Requests you invited prayer around.",
-      meta: `${stats.prayers}`,
-      href: "/profile/my-prayer-requests",
-    },
-    {
-      title: "My Praise Reports",
-      text: "Praise and answered-prayer moments.",
-      meta: `${stats.praise}`,
-      href: "/profile/my-praise-reports",
-    },
-  ];
-
-  const accountSecurityActions: AccountAction[] = [
-    {
-      title: "Account Info",
-      text: "Private sign-in email and account details.",
-      meta: email || "Signed in",
-      href: "/profile/account-info",
-    },
-    {
-      title: "Change Email",
-      text: "Update the email used for signing in.",
-      badge: "Soon",
-      href: "/profile/change-email",
-    },
-    {
-      title: "Change Password",
-      text: "Update your password safely.",
-      badge: "Soon",
-      href: "/profile/change-password",
-    },
-    {
-      title: "Two-Factor Authentication",
-      text: "Add an extra layer of account protection.",
-      badge: "Soon",
-      href: "/profile/two-factor-authentication",
-    },
-    {
-      title: "Active Sessions",
-      text: "Review devices signed in to your account.",
-      badge: "Soon",
-      href: "/profile/active-sessions",
-    },
-    {
-      title: "Download My Data",
-      text: "Export tools will live here.",
-      badge: "Soon",
-      href: "/profile/download-my-data",
-    },
-    {
-      title: "Delete Account",
-      text: "Request safe account deletion support.",
-      tone: "danger",
-      onClick: () => setDeleteAccountOpen(true),
+      title: "Support",
+      text: "Help center, report a problem, policies, terms.",
+      href: "/profile/support",
     },
     {
       title: signingOut ? "Signing out..." : "Sign Out",
       text: "Leave this device safely.",
       disabled: signingOut,
       onClick: signOut,
-    },
-  ];
-
-  const privacySafetyActions: AccountAction[] = [
-    {
-      title: "Privacy Settings",
-      text: "Control profile privacy from one place.",
-      href: "/profile/privacy-settings",
-    },
-    {
-      title: "Blocked Users",
-      text: "Manage people you have blocked.",
-      badge: "Soon",
-      href: "/profile/blocked-users",
-    },
-    {
-      title: "Muted Users",
-      text: "Manage accounts you have muted.",
-      badge: "Soon",
-      href: "/profile/muted-users",
-    },
-    {
-      title: "Reported Content",
-      text: "Review content reports you have submitted.",
-      badge: "Soon",
-      href: "/profile/reported-content",
-    },
-    {
-      title: "Profile Visibility",
-      text: "Choose who can view your HTBF profile.",
-      badge: "Soon",
-      href: "/profile/profile-visibility",
-    },
-    {
-      title: "Location Visibility",
-      text: "Control when your location appears.",
-      badge: "Soon",
-      href: "/profile/location-visibility",
-    },
-  ];
-
-  const contentManagementActions: AccountAction[] = [
-    {
-      title: "My Stories",
-      text: "Review stories and written encouragement.",
-      meta: `${stats.stories}`,
-      href: "/profile/my-stories",
-    },
-    {
-      title: "My Videos",
-      text: "Review your video testimonies.",
-      meta: `${stats.videos}`,
-      href: "/profile/my-videos",
-    },
-    {
-      title: "My Prayer Requests",
-      text: "Manage prayer requests you shared.",
-      meta: `${stats.prayers}`,
-      href: "/profile/my-prayer-requests",
-    },
-    {
-      title: "My Praise Reports",
-      text: "Review praise and answered-prayer moments.",
-      meta: `${stats.praise}`,
-      href: "/profile/my-praise-reports",
-    },
-    {
-      title: "Saved Content",
-      text: "Return to saved stories and testimonies.",
-      badge: "Soon",
-      href: "/profile/saved-content",
-    },
-    {
-      title: "Archived / Hidden Content",
-      text: "Manage items you hid or archived.",
-      badge: "Soon",
-      href: "/profile/archived-hidden-content",
-    },
-  ];
-
-  const notificationActions: AccountAction[] = [
-    {
-      title: "Prayer Notifications",
-      text: "Choose prayer request and Prayer Circle alerts.",
-      badge: "Soon",
-      href: "/profile/prayer-notifications",
-    },
-    {
-      title: "Story Notifications",
-      text: "Choose story and community response alerts.",
-      badge: "Soon",
-      href: "/profile/story-notifications",
-    },
-    {
-      title: "Praise Notifications",
-      text: "Choose answered-prayer and praise updates.",
-      badge: "Soon",
-      href: "/profile/praise-notifications",
-    },
-    {
-      title: "Email Notifications",
-      text: "Choose which HTBF emails you receive.",
-      badge: "Soon",
-      href: "/profile/email-notifications",
-    },
-  ];
-
-  const supportActions: AccountAction[] = [
-    {
-      title: "Help Center",
-      text: "Find help using HTBF.",
-      badge: "Soon",
-      href: "/profile/help-center",
-    },
-    {
-      title: "Report a Problem",
-      text: "Tell HTBF about a bug or account issue.",
-      badge: "Soon",
-      href: "/profile/report-a-problem",
-    },
-    {
-      title: "Community Guidelines",
-      text: "Review how we keep HTBF safe.",
-      badge: "Soon",
-      href: "/profile/community-guidelines",
-    },
-    {
-      title: "Privacy Policy",
-      text: "Read HTBF privacy practices.",
-      badge: "Soon",
-      href: "/profile/privacy-policy",
-    },
-    {
-      title: "Terms of Service",
-      text: "Review HTBF terms and platform rules.",
-      badge: "Soon",
-      href: "/profile/terms-of-service",
     },
   ];
 
@@ -674,7 +431,7 @@ export default function ProfilePage() {
                 )}
 
                 <Link
-                  href="/profile/edit-profile"
+                  href="/profile/edit"
                   className="mt-5 inline-flex rounded-full bg-white px-5 py-3 text-sm font-black text-[#0b63ce] shadow-sm hover:bg-blue-50"
                 >
                   Edit Profile
@@ -692,142 +449,21 @@ export default function ProfilePage() {
 
         <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <SectionIntro
-            label="Profile Completion"
-            title={`${completedCount} of ${completionItems.length} steps complete`}
-            text="Finish the essentials so your HTBF identity is ready."
-          />
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {completionItems.map((item) => (
-              <CompletionCard key={item.title} item={item} />
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <SectionIntro
-            label="Quick Actions"
-            title="Set up and manage your profile"
-            text="Keep the main profile screen focused on the things you use most."
+            label="Account Center"
+            title="Choose what you need"
+            text="Focused profile, privacy, content, notification, and support tools live one tap away."
           />
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {quickActions.map((action) => (
+            {accountCenterActions.map((action) => (
               <ActionCard key={action.title} action={action} />
             ))}
           </div>
         </section>
-
-        <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <button
-            type="button"
-            onClick={() => setMoreOptionsOpen((current) => !current)}
-            className="flex w-full items-center justify-between gap-4 rounded-[1.5rem] bg-slate-50 p-4 text-left ring-1 ring-slate-100 transition hover:bg-blue-50 hover:ring-blue-100"
-          >
-            <span className="inline-flex min-w-0 items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-                <MoreHorizontal className="h-5 w-5" />
-              </span>
-              <span>
-                <span className="block text-lg font-black text-[#062a57]">
-                  More Options
-                </span>
-                <span className="mt-1 block text-sm leading-6 text-slate-600">
-                  Account Center tools, privacy, safety, and sign out.
-                </span>
-              </span>
-            </span>
-            <ChevronRight
-              className={`h-5 w-5 shrink-0 text-[#0b63ce] transition ${
-                moreOptionsOpen ? "rotate-90" : ""
-              }`}
-            />
-          </button>
-
-          {moreOptionsOpen && (
-            <div className="mt-5">
-              <SectionIntro
-                label="Account Center"
-                title="More profile, privacy, and support controls"
-                text="Focused tools live here so your main profile setup stays clean."
-              />
-
-              <div className="mt-5 space-y-6">
-                <AccountCenterSection
-                  title="Account & Security"
-                  actions={accountSecurityActions}
-                />
-                <AccountCenterSection
-                  title="Privacy & Safety"
-                  actions={privacySafetyActions}
-                />
-                <AccountCenterSection
-                  title="Content Management"
-                  actions={contentManagementActions}
-                />
-                <AccountCenterSection
-                  title="Notifications"
-                  actions={notificationActions}
-                />
-                <AccountCenterSection title="Support" actions={supportActions} />
-              </div>
-            </div>
-          )}
-        </section>
       </div>
 
       <LoggedInBottomNav />
-
-      {deleteAccountOpen && (
-        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
-              HYPER TO BE FREE
-            </div>
-            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
-              Delete account?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Account deletion is permanent. For now, please contact HTBF
-              support so your account, uploads, messages, and prayer activity can
-              be handled safely.
-            </p>
-
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setDeleteAccountOpen(false)}
-                className="flex-1 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
-              >
-                Not Yet
-              </button>
-              <a
-                href="mailto:support@hypertobefree.com?subject=Delete%20my%20HTBF%20account"
-                className="flex-1 rounded-full bg-red-600 px-5 py-3 text-center text-sm font-black text-white"
-              >
-                Contact Support
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
-  );
-}
-
-function CompletionCard({ item }: { item: CompletionItem }) {
-  return (
-    <div className="flex items-start gap-3 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100">
-      {item.complete ? (
-        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-      ) : (
-        <Circle className="mt-0.5 h-5 w-5 shrink-0 text-slate-300" />
-      )}
-      <div>
-        <h3 className="font-black text-[#062a57]">{item.title}</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{item.helper}</p>
-      </div>
-    </div>
   );
 }
 
@@ -889,27 +525,6 @@ function ActionCard({ action }: { action: AccountAction }) {
     >
       {content}
     </button>
-  );
-}
-
-function AccountCenterSection({
-  actions,
-  title,
-}: {
-  actions: AccountAction[];
-  title: string;
-}) {
-  return (
-    <section>
-      <h3 className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#082f63]">
-        {title}
-      </h3>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {actions.map((action) => (
-          <ActionCard key={action.title} action={action} />
-        ))}
-      </div>
-    </section>
   );
 }
 
