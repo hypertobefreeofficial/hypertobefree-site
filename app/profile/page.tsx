@@ -79,6 +79,9 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(
+    null
+  );
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [location, setLocation] = useState("");
@@ -223,21 +226,18 @@ export default function ProfilePage() {
     avatarInputRef.current?.click();
   }
 
-  async function uploadAvatar(file: File) {
+  async function uploadAvatar() {
     setMessage("");
+
+    const file = selectedAvatarFile;
+
+    if (!file) {
+      setMessage("Choose a profile photo before saving.");
+      return;
+    }
 
     if (!userId) {
       setMessage("Please sign in again before changing your profile photo.");
-      return;
-    }
-
-    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
-      setMessage("Choose a JPG, PNG, or WebP image for your profile photo.");
-      return;
-    }
-
-    if (file.size > MAX_AVATAR_SIZE_BYTES) {
-      setMessage("Profile photo must be 5 MB or smaller.");
       return;
     }
 
@@ -251,13 +251,7 @@ export default function ProfilePage() {
             ? "jpeg"
             : "jpg";
     const filePath = `${userId}/avatar.${extension}`;
-    const previewUrl = URL.createObjectURL(file);
 
-    if (avatarPreviewUrl) {
-      URL.revokeObjectURL(avatarPreviewUrl);
-    }
-
-    setAvatarPreviewUrl(previewUrl);
     setUploadingAvatar(true);
     setMessage("Uploading profile photo...");
 
@@ -271,8 +265,6 @@ export default function ProfilePage() {
 
     if (uploadError) {
       setUploadingAvatar(false);
-      setAvatarPreviewUrl("");
-      URL.revokeObjectURL(previewUrl);
       setMessage(`Could not upload profile photo: ${uploadError.message}`);
       return;
     }
@@ -295,15 +287,13 @@ export default function ProfilePage() {
 
     if (profileError) {
       setUploadingAvatar(false);
-      setAvatarPreviewUrl("");
-      URL.revokeObjectURL(previewUrl);
       setMessage(`Could not save profile photo: ${profileError.message}`);
       return;
     }
 
-    setAvatarUrl(nextAvatarUrl);
+    setAvatarUrl(`${nextAvatarUrl}?v=${Date.now()}`);
+    setSelectedAvatarFile(null);
     setAvatarPreviewUrl("");
-    URL.revokeObjectURL(previewUrl);
     setUploadingAvatar(false);
     setMessage("Profile photo updated.");
   }
@@ -314,7 +304,31 @@ export default function ProfilePage() {
 
     if (!file) return;
 
-    uploadAvatar(file);
+    setMessage("");
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setSelectedAvatarFile(null);
+      setAvatarPreviewUrl("");
+      setMessage("Choose a JPG, JPEG, PNG, or WebP image.");
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_SIZE_BYTES) {
+      setSelectedAvatarFile(null);
+      setAvatarPreviewUrl("");
+      setMessage("Profile photo must be 5 MB or smaller.");
+      return;
+    }
+
+    setSelectedAvatarFile(file);
+    setAvatarPreviewUrl(URL.createObjectURL(file));
+    setMessage("Preview ready. Tap Save Photo to upload it.");
+  }
+
+  function cancelAvatarPreview() {
+    setSelectedAvatarFile(null);
+    setAvatarPreviewUrl("");
+    setMessage("");
   }
 
   if (loading) {
@@ -387,15 +401,38 @@ export default function ProfilePage() {
                     </span>
                   )}
                 </button>
-                <button
-                  type="button"
-                  onClick={openAvatarPicker}
-                  disabled={uploadingAvatar}
-                  className="mt-3 inline-flex w-28 items-center justify-center gap-1.5 rounded-full bg-white px-3 py-2 text-[11px] font-black text-[#0b63ce] shadow-sm hover:bg-blue-50"
-                >
-                  <Camera className="h-3.5 w-3.5" />
-                  {avatarUrl ? "Change Photo" : "Add Photo"}
-                </button>
+                <div className="mt-3 flex w-28 flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={openAvatarPicker}
+                    disabled={uploadingAvatar}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-full bg-white px-3 py-2 text-[11px] font-black text-[#0b63ce] shadow-sm hover:bg-blue-50 disabled:opacity-70"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    {avatarUrl ? "Change Photo" : "Add Photo"}
+                  </button>
+
+                  {selectedAvatarFile && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={uploadAvatar}
+                        disabled={uploadingAvatar}
+                        className="rounded-full bg-[#062a57] px-3 py-2 text-[11px] font-black text-white shadow-sm hover:bg-[#041f41] disabled:opacity-70"
+                      >
+                        {uploadingAvatar ? "Saving..." : "Save Photo"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelAvatarPreview}
+                        disabled={uploadingAvatar}
+                        className="rounded-full bg-white/10 px-3 py-2 text-[11px] font-black text-white ring-1 ring-white/20 hover:bg-white/15 disabled:opacity-70"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
                 <input
                   ref={avatarInputRef}
                   type="file"
