@@ -294,12 +294,25 @@ export default function ProfilePage() {
           <div className="bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
               <Sparkles className="h-4 w-4" />
-              Public HTBF Profile
+              Profile Control Center
             </div>
 
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[2rem] bg-white/15 text-white ring-1 ring-white/20">
-                <UserCircle className="h-16 w-16" />
+              <div className="shrink-0">
+                <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] bg-white/15 text-white ring-1 ring-white/20">
+                  <UserCircle className="h-16 w-16" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMessage(
+                      "Profile photo uploads need a profile avatar field and storage support before they can be saved."
+                    )
+                  }
+                  className="mt-3 inline-flex w-24 items-center justify-center rounded-full bg-white px-3 py-2 text-[11px] font-black text-[#0b63ce] shadow-sm hover:bg-blue-50"
+                >
+                  Add Photo
+                </button>
               </div>
 
               <div className="min-w-0 flex-1">
@@ -331,10 +344,10 @@ export default function ProfilePage() {
 
               <button
                 type="button"
-                onClick={() => setEditingProfile((current) => !current)}
+                onClick={() => setEditingProfile(true)}
                 className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-black text-[#0b63ce] shadow-sm hover:bg-blue-50"
               >
-                {editingProfile ? "Close Editor" : "Edit Profile"}
+                Edit Profile
               </button>
             </div>
           </div>
@@ -349,18 +362,75 @@ export default function ProfilePage() {
         <section className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <div className="mb-4">
             <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-              My Freedom Journey
+              Profile Control Center
             </div>
             <h2 className="mt-1 text-2xl font-black text-[#062a57]">
-              What you have shared through HTBF
+              Manage your HTBF account
+            </h2>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <ControlActionCard
+              title="Edit Profile"
+              text="Update your photo, name, bio, and location."
+              onClick={() => setEditingProfile(true)}
+            />
+            <ControlActionCard
+              title="My Posts"
+              text="Review stories and written updates."
+              href="#profile-activity"
+            />
+            <ControlActionCard
+              title="My Videos"
+              text="See your submitted video testimonies."
+              href="#profile-activity"
+            />
+            <ControlActionCard
+              title="My Prayer Requests"
+              text="Manage prayer-related activity."
+              href="#profile-activity"
+            />
+            <ControlActionCard
+              title="My Praise Reports"
+              text="Track answered prayer and praise moments."
+              href="#profile-activity"
+            />
+            <ControlActionCard
+              title="Privacy Settings"
+              text="Control what others can see."
+              href="#account-settings"
+            />
+            <ControlActionCard
+              title="Notification Settings"
+              text="Choose HTBF reminders."
+              href="#account-settings"
+            />
+            <ControlActionCard
+              title="Account Settings"
+              text="Private email, visibility, and sign out."
+              href="#account-settings"
+            />
+          </div>
+        </section>
+
+        <section
+          id="profile-activity"
+          className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200"
+        >
+          <div className="mb-4">
+            <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+              My HTBF Activity
+            </div>
+            <h2 className="mt-1 text-2xl font-black text-[#062a57]">
+              Your personal dashboard
             </h2>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-4">
-            <ProfileStatCard label="Stories shared" value={stats.stories} />
-            <ProfileStatCard label="Videos shared" value={stats.videos} />
-            <ProfileStatCard label="Prayer requests" value={stats.prayers} />
-            <ProfileStatCard label="Praise reports" value={stats.praise} />
+            <ProfileStatCard label="Stories" value={stats.stories} />
+            <ProfileStatCard label="Videos" value={stats.videos} />
+            <ProfileStatCard label="Prayers" value={stats.prayers} />
+            <ProfileStatCard label="Praise" value={stats.praise} />
           </div>
         </section>
 
@@ -370,7 +440,7 @@ export default function ProfilePage() {
               My Content
             </div>
             <h2 className="mt-1 text-2xl font-black text-[#062a57]">
-              Your public HTBF activity
+              Your HTBF posts by type
             </h2>
           </div>
 
@@ -399,29 +469,59 @@ export default function ProfilePage() {
         </section>
 
         {editingProfile && (
-          <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <section
+            id="profile-edit"
+            className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200"
+          >
             <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce]">
               <Sparkles className="h-4 w-4" />
-              Profile Setup
+              Edit Profile
             </div>
 
             <div className="mb-6 flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
                 <UserCircle className="h-8 w-8" />
               </div>
 
               <div>
                 <h2 className="text-3xl font-black tracking-tight text-[#062a57]">
-                  Create your profile
+                  Update your profile
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Choose how people will recognize you before posting, praying,
-                  or sharing stories.
+                  Keep your HTBF identity, bio, and privacy preferences current.
                 </p>
               </div>
             </div>
 
             <div className="space-y-4">
+              <SettingsPanel
+                icon={<UserCircle className="h-5 w-5 text-[#0b63ce]" />}
+                title="Profile photo"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.5rem] bg-blue-50 text-[#0b63ce] ring-1 ring-blue-100">
+                    <UserCircle className="h-12 w-12" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm leading-6 text-slate-600">
+                      Add or change your profile photo once avatar storage is
+                      connected.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setMessage(
+                          "Profile photo uploads need a profile avatar field and storage support before they can be saved."
+                        )
+                      }
+                      className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50"
+                    >
+                      Add Photo
+                    </button>
+                  </div>
+                </div>
+              </SettingsPanel>
+
               <Field label="Real name">
                 <input
                   value={realName}
@@ -500,20 +600,33 @@ export default function ProfilePage() {
                 />
               </SettingsPanel>
 
-              <button
-                type="button"
-                onClick={saveProfile}
-                disabled={saving}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:opacity-60"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                {saving ? "Saving..." : "Save Profile"}
-              </button>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={saveProfile}
+                  disabled={saving}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:opacity-60"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditingProfile(false)}
+                  className="flex flex-1 items-center justify-center rounded-full bg-slate-100 px-6 py-3 text-sm font-black text-slate-700 hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </section>
         )}
 
-        <section className="space-y-4 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section
+          id="account-settings"
+          className="space-y-4 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200"
+        >
           <SectionHeading
             icon={<Mail className="h-5 w-5" />}
             label="Private Settings"
@@ -521,8 +634,8 @@ export default function ProfilePage() {
           />
 
           <p className="text-sm leading-6 text-slate-600">
-            These settings are private to you. Your email is not shown on your
-            public HTBF profile.
+            These settings are private to you. Your email is not shown in your
+            profile header or activity cards.
           </p>
 
           <InfoRow label="Sign-in email" value={email || "Signed in"} />
@@ -736,6 +849,45 @@ function ProfileContentCard({
       </div>
       <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </div>
+  );
+}
+
+function ControlActionCard({
+  href,
+  onClick,
+  text,
+  title,
+}: {
+  href?: string;
+  onClick?: () => void;
+  text: string;
+  title: string;
+}) {
+  const className =
+    "rounded-[1.5rem] bg-slate-50 p-4 text-left ring-1 ring-slate-100 transition hover:bg-blue-50 hover:ring-blue-100";
+
+  const content = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-base font-black text-[#062a57]">{title}</h3>
+        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#0b63ce]" />
+      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
   );
 }
 
