@@ -10,10 +10,7 @@ import {
   Send,
   Share2,
   Sparkles,
-  UploadCloud,
   Users,
-  Video,
-  X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -40,6 +37,17 @@ type ReactionRow = {
   reaction_type: string | null;
 };
 
+type PrayerUpdate = {
+  id: string;
+  story_id: string;
+  author_user_id: string;
+  body: string;
+  update_type: "update" | "answered" | "praise";
+  created_at: string;
+  edited_at: string | null;
+  hidden_at: string | null;
+};
+
 type PrayerStory = PrayerStoryRow & {
   reaction_counts: {
     amen: number;
@@ -48,10 +56,8 @@ type PrayerStory = PrayerStoryRow & {
     praying: number;
   };
   user_reactions: ReactionType[];
+  updates: PrayerUpdate[];
 };
-
-const PRAYER_VIDEO_BUCKET = "story-videos";
-const MAX_PRAYER_VIDEO_SECONDS = 30;
 
 const filters: { label: string; value: PrayerFilter }[] = [
   { label: "All", value: "all" },
@@ -59,15 +65,6 @@ const filters: { label: string; value: PrayerFilter }[] = [
   { label: "Answered", value: "answered" },
   { label: "Most Prayed For", value: "most-prayed" },
   { label: "Recently Shared", value: "recent" },
-];
-
-const prayerFocusMessages = [
-  "Pray for marriages today.",
-  "Pray for healing today.",
-  "Pray for those battling addiction.",
-  "Pray for salvation.",
-  "Pray for families under stress.",
-  "Pray for someone who feels alone today.",
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -91,6 +88,23 @@ function isReactionRow(value: unknown): value is ReactionRow {
   );
 }
 
+function isPrayerUpdate(value: unknown): value is PrayerUpdate {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.story_id === "string" &&
+    typeof value.author_user_id === "string" &&
+    typeof value.body === "string" &&
+    (value.update_type === "update" ||
+      value.update_type === "answered" ||
+      value.update_type === "praise") &&
+    typeof value.created_at === "string" &&
+    (typeof value.edited_at === "string" || value.edited_at === null) &&
+    (typeof value.hidden_at === "string" || value.hidden_at === null)
+  );
+}
+
 function storyIncludesPrayer(story: PrayerStoryRow) {
   const storyType = story.story_type?.toLowerCase() ?? "";
   return storyType.includes("prayer");
@@ -101,31 +115,13 @@ function isAnswered(story: PrayerStory) {
 }
 
 function formatPrayerCircleCount(count: number) {
-  if (count === 1) return "1 believer praying";
-  return `${count} believers praying`;
+  if (count === 1) return "Prayer Circle • 1 person praying";
+  return `Prayer Circle • ${count} people praying`;
 }
 
 function formatBelieverCount(count: number) {
   if (count === 1) return "1 believer prayed with this request";
   return `${count} believers prayed with this request`;
-}
-
-function getVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    const url = URL.createObjectURL(file);
-
-    video.preload = "metadata";
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(video.duration);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read video duration."));
-    };
-    video.src = url;
-  });
 }
 
 export default function PrayerPage() {
@@ -137,21 +133,12 @@ export default function PrayerPage() {
   const [answeringStory, setAnsweringStory] = useState<PrayerStory | null>(
     null
   );
+  const [updatingStory, setUpdatingStory] = useState<PrayerStory | null>(null);
   const [prayerMomentStory, setPrayerMomentStory] =
     useState<PrayerStory | null>(null);
   const [answeredPrayerText, setAnsweredPrayerText] = useState("");
-
-  const [prayerVideoStory, setPrayerVideoStory] = useState<PrayerStory | null>(
-    null
-  );
-  const [prayerVideoFile, setPrayerVideoFile] = useState<File | null>(null);
-  const [prayerVideoPreviewUrl, setPrayerVideoPreviewUrl] = useState("");
-  const [prayerVideoDuration, setPrayerVideoDuration] = useState<number | null>(
-    null
-  );
-  const [prayerVideoError, setPrayerVideoError] = useState("");
-  const [sendingPrayerVideo, setSendingPrayerVideo] = useState(false);
-
+  const [prayerUpdateText, setPrayerUpdateText] = useState("");
+  const [savingPrayerUpdate, setSavingPrayerUpdate] = useState(false);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
   );
@@ -208,16 +195,35 @@ export default function PrayerPage() {
 
       const storyIds = prayerRows.map((story) => story.id);
       let reactions: ReactionRow[] = [];
+      let prayerUpdates: PrayerUpdate[] = [];
 
       if (storyIds.length > 0) {
-        const { data: reactionData } = await supabase
-          .from("story_reactions")
-          .select("story_id, user_id, reaction_type")
-          .in("story_id", storyIds);
+        const [reactionResult, updateResult] = await Promise.all([
+          supabase
+            .from("story_reactions")
+            .select("story_id, user_id, reaction_type")
+            .in("story_id", storyIds),
+          supabase
+            .from("prayer_updates")
+            .select(
+              "id, story_id, author_user_id, body, update_type, created_at, edited_at, hidden_at"
+            )
+            .in("story_id", storyIds)
+            .is("hidden_at", null)
+            .order("created_at", { ascending: true }),
+        ]);
 
-        reactions = (Array.isArray(reactionData) ? reactionData : []).filter(
-          isReactionRow
-        );
+        reactions = (
+          Array.isArray(reactionResult.data) ? reactionResult.data : []
+        ).filter(isReactionRow);
+
+        if (updateResult.error) {
+          console.error("Could not load prayer updates:", updateResult.error);
+        } else {
+          prayerUpdates = (
+            Array.isArray(updateResult.data) ? updateResult.data : []
+          ).filter(isPrayerUpdate);
+        }
       }
 
       if (cancelled) return;
@@ -255,6 +261,9 @@ export default function PrayerPage() {
             ).length,
           },
           user_reactions: userReactions,
+          updates: prayerUpdates.filter(
+            (update) => update.story_id === story.id
+          ),
         };
       });
 
@@ -295,12 +304,6 @@ export default function PrayerPage() {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (prayerVideoPreviewUrl) URL.revokeObjectURL(prayerVideoPreviewUrl);
-    };
-  }, [prayerVideoPreviewUrl]);
-
   const stats = useMemo(() => {
     return {
       activeRequests: stories.filter((story) => !isAnswered(story)).length,
@@ -309,14 +312,8 @@ export default function PrayerPage() {
         0
       ),
       answeredPrayers: stories.filter(isAnswered).length,
-      prayerCircles: stories.filter(
-        (story) => story.reaction_counts.praying > 0
-      ).length,
     };
   }, [stories]);
-
-  const todayPrayerFocus =
-    prayerFocusMessages[new Date().getDate() % prayerFocusMessages.length];
 
   const filteredStories = useMemo(() => {
     const sortedByRecent = [...stories].sort((first, second) => {
@@ -415,10 +412,7 @@ export default function PrayerPage() {
       .limit(1);
 
     if (existingError) {
-      console.error(
-        "Could not check Prayer Circle inbox message:",
-        existingError
-      );
+      console.error("Could not check Prayer Circle inbox message:", existingError);
       prayerCircleInboxKeysRef.current.delete(notificationKey);
       return;
     }
@@ -481,10 +475,7 @@ export default function PrayerPage() {
       .in("user_id", prayerUserIds);
 
     if (existingError) {
-      console.error(
-        "Could not check answered prayer inbox messages:",
-        existingError
-      );
+      console.error("Could not check answered prayer inbox messages:", existingError);
       return;
     }
 
@@ -520,6 +511,153 @@ export default function PrayerPage() {
     if (error) {
       console.error("Could not create answered prayer inbox messages:", error);
     }
+  }
+
+  function openPrayerUpdateModal(story: PrayerStory) {
+    if (!userId || story.user_id !== userId) {
+      setMessage("Only the person who shared this prayer can post an update.");
+      return;
+    }
+
+    setUpdatingStory(story);
+    setPrayerUpdateText("");
+    setMessage("");
+  }
+
+  function closePrayerUpdateModal() {
+    if (savingPrayerUpdate) return;
+
+    setUpdatingStory(null);
+    setPrayerUpdateText("");
+  }
+
+  async function notifyPrayerCircleOfUpdate(
+    story: PrayerStory,
+    prayerUpdateId: string
+  ) {
+    if (!userId || story.user_id !== userId) return true;
+
+    const { data: reactionData, error: reactionError } = await supabase
+      .from("story_reactions")
+      .select("user_id")
+      .eq("story_id", story.id)
+      .eq("reaction_type", "praying");
+
+    if (reactionError) {
+      console.error("Could not load Prayer Circle members:", reactionError);
+      return false;
+    }
+
+    const prayerCircleUserIds = Array.from(
+      new Set(
+        (Array.isArray(reactionData) ? reactionData : [])
+          .map((reaction) =>
+            isRecord(reaction) ? readString(reaction.user_id) : null
+          )
+          .filter(
+            (reactionUserId): reactionUserId is string =>
+              typeof reactionUserId === "string" && reactionUserId !== userId
+          )
+      )
+    );
+
+    if (prayerCircleUserIds.length === 0) return true;
+
+    const notificationRows = prayerCircleUserIds.map((recipientUserId) => ({
+      user_id: recipientUserId,
+      sender_user_id: userId,
+      title: "A prayer you joined has an update",
+      body: "The person who shared this prayer posted a new update.",
+      category: "prayer",
+      message_type: "prayer_update",
+      story_id: story.id,
+      prayer_update_id: prayerUpdateId,
+      action_url: "/prayer",
+      read: false,
+    }));
+
+    const { error: notificationError } = await supabase
+      .from("inbox_messages")
+      .insert(notificationRows);
+
+    if (!notificationError || notificationError.code === "23505") return true;
+
+    console.error(
+      "Could not notify Prayer Circle members:",
+      notificationError
+    );
+    return false;
+  }
+
+  async function savePrayerUpdate() {
+    if (!userId || !updatingStory) return;
+
+    if (updatingStory.user_id !== userId) {
+      setMessage("Only the person who shared this prayer can post an update.");
+      closePrayerUpdateModal();
+      return;
+    }
+
+    const cleanUpdateText = prayerUpdateText.trim();
+
+    if (!cleanUpdateText) {
+      setMessage("Please write a prayer update before sharing.");
+      return;
+    }
+
+    setSavingPrayerUpdate(true);
+    setMessage("");
+
+    const { data, error } = await supabase
+      .from("prayer_updates")
+      .insert({
+        story_id: updatingStory.id,
+        author_user_id: userId,
+        body: cleanUpdateText,
+        update_type: "update",
+      })
+      .select(
+        "id, story_id, author_user_id, body, update_type, created_at, edited_at, hidden_at"
+      )
+      .single();
+
+    if (error || !isPrayerUpdate(data)) {
+      setSavingPrayerUpdate(false);
+      setMessage(
+        error
+          ? `Could not share prayer update: ${error.message}`
+          : "The prayer update was saved, but it could not be displayed yet."
+      );
+      return;
+    }
+
+    const savedUpdate = data;
+    const story = updatingStory;
+
+    setStories((currentStories) =>
+      currentStories.map((currentStory) =>
+        currentStory.id === story.id
+          ? {
+              ...currentStory,
+              updates: [...currentStory.updates, savedUpdate],
+            }
+          : currentStory
+      )
+    );
+
+    const notificationsSent = await notifyPrayerCircleOfUpdate(
+      story,
+      savedUpdate.id
+    );
+
+    setSavingPrayerUpdate(false);
+    setUpdatingStory(null);
+    setPrayerUpdateText("");
+    setMessage(
+      notificationsSent
+        ? "Prayer Circle update shared."
+        : "Prayer update shared, but some notifications could not be sent."
+    );
   }
 
   async function toggleReaction(
@@ -594,163 +732,6 @@ export default function PrayerPage() {
     setAnsweringStory(null);
     setAnsweredPrayerText("");
     setMessage("");
-  }
-
-  function openPrayerVideoModal(story: PrayerStory) {
-    setMessage("");
-    setPrayerVideoError("");
-
-    if (!userId) {
-      setMessage("Please sign in to send a prayer video.");
-      return;
-    }
-
-    if (!story.user_id) {
-      setMessage("This prayer request cannot receive video responses yet.");
-      return;
-    }
-
-    if (story.user_id === userId) {
-      setMessage("You cannot send a prayer video to your own request.");
-      return;
-    }
-
-    setPrayerVideoStory(story);
-    setPrayerVideoFile(null);
-    setPrayerVideoDuration(null);
-
-    if (prayerVideoPreviewUrl) {
-      URL.revokeObjectURL(prayerVideoPreviewUrl);
-      setPrayerVideoPreviewUrl("");
-    }
-  }
-
-  function closePrayerVideoModal() {
-    setPrayerVideoStory(null);
-    setPrayerVideoFile(null);
-    setPrayerVideoDuration(null);
-    setPrayerVideoError("");
-    setSendingPrayerVideo(false);
-
-    if (prayerVideoPreviewUrl) {
-      URL.revokeObjectURL(prayerVideoPreviewUrl);
-      setPrayerVideoPreviewUrl("");
-    }
-  }
-
-  async function handlePrayerVideoFile(file: File | null) {
-    setPrayerVideoError("");
-    setPrayerVideoFile(null);
-    setPrayerVideoDuration(null);
-
-    if (prayerVideoPreviewUrl) {
-      URL.revokeObjectURL(prayerVideoPreviewUrl);
-      setPrayerVideoPreviewUrl("");
-    }
-
-    if (!file) return;
-
-    if (!file.type.startsWith("video/")) {
-      setPrayerVideoError("Please choose a video file.");
-      return;
-    }
-
-    try {
-      const duration = await getVideoDuration(file);
-
-      if (duration > MAX_PRAYER_VIDEO_SECONDS + 0.5) {
-        setPrayerVideoError("Prayer videos must be 30 seconds or less.");
-        return;
-      }
-
-      setPrayerVideoDuration(duration);
-      setPrayerVideoFile(file);
-      setPrayerVideoPreviewUrl(URL.createObjectURL(file));
-    } catch (error) {
-      console.error("Could not validate prayer video:", error);
-      setPrayerVideoError("Could not read this video. Please choose another one.");
-    }
-  }
-
-  async function sendPrayerVideo() {
-    setPrayerVideoError("");
-    setMessage("");
-
-    if (!userId) {
-      setPrayerVideoError("Please sign in to send a prayer video.");
-      return;
-    }
-
-    if (!prayerVideoStory || !prayerVideoStory.user_id) {
-      setPrayerVideoError("Could not find the prayer request owner.");
-      return;
-    }
-
-    if (prayerVideoStory.user_id === userId) {
-      setPrayerVideoError("You cannot send a prayer video to your own request.");
-      return;
-    }
-
-    if (!prayerVideoFile) {
-      setPrayerVideoError("Choose or record a video first.");
-      return;
-    }
-
-    setSendingPrayerVideo(true);
-
-    const extension =
-      prayerVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
-    const path = `prayer-videos/${prayerVideoStory.id}/${userId}-${Date.now()}.${extension}`;
-
-const { error: uploadError } = await supabase.storage
-  .from("story-videos")
-  .upload(path, prayerVideoFile, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: prayerVideoFile.type,
-      });
-
-    if (uploadError) {
-      setSendingPrayerVideo(false);
-      setPrayerVideoError(
-        `Could not upload prayer video: ${uploadError.message}`
-      );
-      return;
-    }
-
-const { data: publicUrlData } = supabase.storage
-  .from("story-videos")
-  .getPublicUrl(path);
-
-    const videoUrl = publicUrlData.publicUrl;
-
-    const { error: inboxError } = await supabase.from("inbox_messages").insert({
-      user_id: prayerVideoStory.user_id,
-      sender_user_id: userId,
-      title: "Someone sent you a prayer video",
-      body: "A believer prayed for your request.",
-      category: "prayer",
-      message_type: "prayer_video_response",
-      story_id: prayerVideoStory.id,
-      action_url: "/journey/inbox",
-      video_url: videoUrl,
-      read: false,
-    });
-
-    if (inboxError) {
-      setSendingPrayerVideo(false);
-      setPrayerVideoError(
-        `Video uploaded, but inbox message failed: ${inboxError.message}`
-      );
-      return;
-    }
-
-    await toggleReaction(prayerVideoStory.id, "praying", {
-      showPrayingMessage: false,
-    });
-
-    closePrayerVideoModal();
-    setMessage("Prayer video sent privately to their Journey Inbox.");
   }
 
   async function markPrayerAnswered(storyId: string, answeredText: string) {
@@ -879,8 +860,8 @@ const { data: publicUrlData } = supabase.storage
           </h1>
 
           <p className="mt-3 max-w-2xl text-base font-semibold leading-7 text-blue-100">
-            Pray with the HTBF community, encourage others, send private prayer
-            videos, and celebrate when God answers.
+            Pray with the HTBF community, encourage others, and celebrate when
+            God answers.
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -903,7 +884,7 @@ const { data: publicUrlData } = supabase.storage
           </div>
         </section>
 
-        <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-5 grid gap-3 sm:grid-cols-3">
           <StatCard
             icon={<MessageCircleHeart className="h-5 w-5" />}
             label="Active Requests"
@@ -919,11 +900,6 @@ const { data: publicUrlData } = supabase.storage
             label="Answered Prayers"
             value={stats.answeredPrayers}
           />
-          <StatCard
-            icon={<HeartHandshake className="h-5 w-5" />}
-            label="Prayer Circles"
-            value={stats.prayerCircles}
-          />
         </section>
 
         <section className="mt-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
@@ -937,7 +913,7 @@ const { data: publicUrlData } = supabase.storage
                 Today&apos;s Prayer Focus
               </div>
               <p className="mt-1 text-lg font-black leading-7 text-[#062a57]">
-                {todayPrayerFocus}
+                Ask God to strengthen someone who feels alone today.
               </p>
             </div>
           </div>
@@ -1014,7 +990,9 @@ const { data: publicUrlData } = supabase.storage
                   <AnsweredPrayerCard
                     key={story.id}
                     story={story}
+                    owner={isOriginalPoster(story)}
                     onShare={() => shareStory(story)}
+                    onAddUpdate={() => openPrayerUpdateModal(story)}
                   />
                 ) : (
                   <PrayerRequestCard
@@ -1024,7 +1002,7 @@ const { data: publicUrlData } = supabase.storage
                     onPray={() => handlePrayNow(story)}
                     onEncourage={() => toggleReaction(story.id, "encouraged")}
                     onShare={() => shareStory(story)}
-                    onSendPrayerVideo={() => openPrayerVideoModal(story)}
+                    onAddUpdate={() => openPrayerUpdateModal(story)}
                     onGodDidIt={() => {
                       setAnsweringStory(story);
                       setAnsweredPrayerText("");
@@ -1067,85 +1045,58 @@ const { data: publicUrlData } = supabase.storage
         </div>
       )}
 
-      {prayerVideoStory && (
-        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                  PRAYER VIDEO
-                </div>
-                <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
-                  Send a private prayer video
-                </h3>
+      {updatingStory && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
+            <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                PRAYER CIRCLE UPDATE
               </div>
 
-              <button
-                type="button"
-                onClick={closePrayerVideoModal}
-                className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
-                aria-label="Close prayer video"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+              <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
+                Share an update with your Prayer Circle
+              </h3>
 
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Record or upload a short prayer video up to 30 seconds. It will go
-              privately to their Journey Inbox.
-            </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Everyone currently praying with this request will receive a
+                Journey Inbox notification.
+              </p>
 
-            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/60 p-6 text-center transition hover:bg-blue-50">
-              <UploadCloud className="h-8 w-8 text-[#0b63ce]" />
-              <span className="mt-3 text-sm font-black text-[#082f63]">
-                Choose or record prayer video
-              </span>
-              <span className="mt-1 text-xs font-semibold text-slate-500">
-                30 seconds max
-              </span>
-              <input
-                type="file"
-                accept="video/*"
-                capture="user"
-                className="hidden"
-                onChange={(event) =>
-                  void handlePrayerVideoFile(event.target.files?.[0] ?? null)
-                }
+              <textarea
+                value={prayerUpdateText}
+                onChange={(event) => setPrayerUpdateText(event.target.value)}
+                rows={7}
+                placeholder="Share what has changed or how the Prayer Circle can keep praying..."
+                className="mt-4 min-h-[11rem] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
               />
-            </label>
 
-            {prayerVideoPreviewUrl && (
-              <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-black">
-                <video
-                  src={prayerVideoPreviewUrl}
-                  controls
-                  playsInline
-                  className="max-h-[420px] w-full bg-black object-contain"
-                />
+              {message && (
+                <div className="mt-3 rounded-2xl bg-blue-50 p-3 text-sm font-semibold text-[#082f63]">
+                  {message}
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closePrayerUpdateModal}
+                  disabled={savingPrayerUpdate}
+                  className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
+                >
+                  Not Yet
+                </button>
+
+                <button
+                  type="button"
+                  onClick={savePrayerUpdate}
+                  disabled={savingPrayerUpdate}
+                  className="rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f] disabled:opacity-60"
+                >
+                  {savingPrayerUpdate ? "Sharing..." : "Share Update"}
+                </button>
               </div>
-            )}
-
-            {prayerVideoDuration !== null && (
-              <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-600">
-                Video length: {Math.round(prayerVideoDuration)} seconds
-              </div>
-            )}
-
-            {prayerVideoError && (
-              <div className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 ring-1 ring-red-100">
-                {prayerVideoError}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={sendPrayerVideo}
-              disabled={!prayerVideoFile || sendingPrayerVideo}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0b63ce] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              <Video className="h-4 w-4" />
-              {sendingPrayerVideo ? "Sending Prayer..." : "Send Prayer Video"}
-            </button>
+            </div>
           </div>
         </div>
       )}
@@ -1235,7 +1186,7 @@ function PrayerRequestCard({
   onPray,
   onEncourage,
   onShare,
-  onSendPrayerVideo,
+  onAddUpdate,
   onGodDidIt,
 }: {
   story: PrayerStory;
@@ -1243,7 +1194,7 @@ function PrayerRequestCard({
   onPray: () => void;
   onEncourage: () => void;
   onShare: () => void;
-  onSendPrayerVideo: () => void;
+  onAddUpdate: () => void;
   onGodDidIt: () => void;
 }) {
   const praying = story.user_reactions.includes("praying");
@@ -1293,54 +1244,28 @@ function PrayerRequestCard({
           <div className="mt-1 text-base font-black text-[#062a57]">
             {formatPrayerCircleCount(story.reaction_counts.praying)}
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Community members standing in prayer for this request.
-          </p>
         </div>
 
-        <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-            Prayer Journey
-          </div>
-
-          <div className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
-            <div>✓ Prayer Request Shared</div>
-
-            {story.reaction_counts.praying > 0 && (
-              <div>✓ {story.reaction_counts.praying} believers joined</div>
-            )}
-
-            {story.reaction_counts.encouraged > 0 && (
-              <div>
-                ✓ {story.reaction_counts.encouraged} encouragements received
-              </div>
-            )}
-          </div>
-        </div>
+        <PrayerUpdateHistory updates={story.updates} />
       </div>
 
       <div className="border-t border-slate-100 p-4">
-        <div className="grid gap-2 sm:grid-cols-5">
+        <div className="grid gap-2 sm:grid-cols-4">
           <PrayerButton active={praying} onClick={onPray}>
             {praying ? "Praying" : "Pray Now"}
           </PrayerButton>
           <PrayerButton active={encouraged} onClick={onEncourage}>
             {encouraged ? "Encouraged" : "Encourage"}
           </PrayerButton>
-        
-            <PrayerButton onClick={onSendPrayerVideo}>
-              <span className="inline-flex items-center justify-center gap-1">
-                <Video className="h-4 w-4" />
-                Video Prayer
-              </span>
-            </PrayerButton>
-          
           <PrayerButton onClick={onShare}>
-            <span className="inline-flex items-center justify-center gap-1">
+            <span className="inline-flex items-center gap-1">
               <Share2 className="h-4 w-4" />
               Share
             </span>
           </PrayerButton>
+          {owner && (
+            <PrayerButton onClick={onAddUpdate}>Post Update</PrayerButton>
+          )}
           {owner && (
             <button
               type="button"
@@ -1358,10 +1283,14 @@ function PrayerRequestCard({
 
 function AnsweredPrayerCard({
   story,
+  owner,
   onShare,
+  onAddUpdate,
 }: {
   story: PrayerStory;
+  owner: boolean;
   onShare: () => void;
+  onAddUpdate: () => void;
 }) {
   return (
     <article className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-emerald-100">
@@ -1417,17 +1346,89 @@ function AnsweredPrayerCard({
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={onShare}
-          className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 ring-1 ring-emerald-100 transition hover:bg-emerald-100"
-        >
-          <Share2 className="h-4 w-4" />
-          Share Testimony
-        </button>
+        <PrayerUpdateHistory updates={story.updates} />
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onShare}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 ring-1 ring-emerald-100 transition hover:bg-emerald-100"
+          >
+            <Share2 className="h-4 w-4" />
+            Share Testimony
+          </button>
+
+          {owner && (
+            <button
+              type="button"
+              onClick={onAddUpdate}
+              className="rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f]"
+            >
+              Post Update
+            </button>
+          )}
+        </div>
       </div>
     </article>
   );
+}
+
+function PrayerUpdateHistory({ updates }: { updates: PrayerUpdate[] }) {
+  if (updates.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+          Prayer Circle Updates
+        </div>
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-500 ring-1 ring-slate-200">
+          {updates.length}
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        {updates.map((update) => (
+          <div
+            key={update.id}
+            className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                {formatPrayerUpdateType(update.update_type)}
+              </span>
+              <span className="text-xs font-bold text-slate-400">
+                {formatPrayerUpdateDate(update.created_at)}
+              </span>
+            </div>
+            <p
+              className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700"
+              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+            >
+              {update.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatPrayerUpdateType(updateType: PrayerUpdate["update_type"]) {
+  if (updateType === "answered") return "Answered Update";
+  if (updateType === "praise") return "Praise Update";
+  return "Prayer Update";
+}
+
+function formatPrayerUpdateDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function PrayerButton({
