@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bell,
   Check,
@@ -25,8 +25,28 @@ type InboxNotification = {
   action_url: string | null;
 };
 
+const PRAYER_MESSAGE_TYPES = [
+  "prayer_update",
+  "answered_prayer",
+  "prayer_circle",
+  "prayer_video_response",
+] as const;
+
+const PRAYER_NOTIFICATION_FILTER =
+  `category.eq.prayer,message_type.in.(${PRAYER_MESSAGE_TYPES.join(",")})`;
+
 export default function NotificationsPage() {
+  return (
+    <Suspense fallback={<NotificationsLoading />}>
+      <NotificationsContent />
+    </Suspense>
+  );
+}
+
+function NotificationsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prayerOnly = searchParams.get("category") === "prayer";
   const [userId, setUserId] = useState("");
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,14 +73,23 @@ export default function NotificationsPage() {
 
       setUserId(user.id);
 
-      const { data, error } = await supabase
+      let notificationsQuery = supabase
         .from("inbox_messages")
         .select(
           "id, title, body, read, created_at, category, message_type, action_url"
         )
         .eq("user_id", user.id)
-        .is("hidden_at", null)
-        .order("created_at", { ascending: false });
+        .is("hidden_at", null);
+
+      if (prayerOnly) {
+        notificationsQuery = notificationsQuery.or(
+          PRAYER_NOTIFICATION_FILTER
+        );
+      }
+
+      const { data, error } = await notificationsQuery.order("created_at", {
+        ascending: false,
+      });
 
       if (cancelled) return;
 
@@ -80,7 +109,7 @@ export default function NotificationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [prayerOnly, router]);
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.read).length,
@@ -118,12 +147,18 @@ export default function NotificationsPage() {
     setMarkingAllRead(true);
     setMessage("");
 
-    const { error } = await supabase
+    let markAllQuery = supabase
       .from("inbox_messages")
       .update({ read: true })
       .eq("user_id", userId)
       .eq("read", false)
       .is("hidden_at", null);
+
+    if (prayerOnly) {
+      markAllQuery = markAllQuery.or(PRAYER_NOTIFICATION_FILTER);
+    }
+
+    const { error } = await markAllQuery;
 
     setMarkingAllRead(false);
 
@@ -164,11 +199,11 @@ export default function NotificationsPage() {
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-4">
           <Link
-            href="/profile"
+            href={prayerOnly ? "/prayer" : "/profile"}
             className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
           >
             <ChevronLeft className="h-4 w-4" />
-            Profile
+            {prayerOnly ? "Prayer" : "Profile"}
           </Link>
 
           <Link
@@ -185,14 +220,15 @@ export default function NotificationsPage() {
         <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-blue-100 ring-1 ring-white/15">
             <Bell className="h-4 w-4" />
-            Notifications
+            {prayerOnly ? "Prayer Updates" : "Notifications"}
           </div>
           <h1 className="mt-4 text-4xl font-black tracking-tight">
-            Your HTBF alerts
+            {prayerOnly ? "Your Prayer Circle alerts" : "Your HTBF alerts"}
           </h1>
           <p className="mt-3 max-w-2xl leading-7 text-blue-100">
-            Prayer updates, answered prayers, approvals, milestones, and account
-            alerts appear here.
+            {prayerOnly
+              ? "Prayer updates, answered prayers, Circle activity, and private prayer videos appear here."
+              : "Prayer updates, answered prayers, approvals, milestones, and account alerts appear here."}
           </p>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] bg-white/10 p-4 ring-1 ring-white/15">
@@ -229,7 +265,9 @@ export default function NotificationsPage() {
               No notifications yet
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              New prayer, approval, and account alerts will appear here.
+              {prayerOnly
+                ? "New Prayer Circle updates will appear here."
+                : "New prayer, approval, and account alerts will appear here."}
             </p>
           </div>
         ) : (
@@ -331,6 +369,16 @@ export default function NotificationsPage() {
       </div>
 
       <LoggedInBottomNav />
+    </main>
+  );
+}
+
+function NotificationsLoading() {
+  return (
+    <main className="min-h-screen bg-[#f8fbff] px-4 py-8 text-slate-900">
+      <div className="mx-auto max-w-4xl rounded-[2rem] bg-white p-6 text-sm font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
+        Loading notifications...
+      </div>
     </main>
   );
 }
