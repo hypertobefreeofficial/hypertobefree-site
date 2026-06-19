@@ -1508,6 +1508,7 @@ export default function VideoFeedPage() {
                     setPlaybackRate={setPlaybackRate}
                     selectedLanguage={selectedLanguage}
                     audioTestimonyMode={audioTestimonyMode}
+                    hapticsEnabled={hapticsEnabled}
                     onLanguageSelect={(language) => {
                       const nextCopy = videoFeedCopy[language];
 
@@ -1527,6 +1528,7 @@ export default function VideoFeedPage() {
                       setOptionsStoryId(null);
                       toggleAudioTestimonyMode();
                     }}
+                    onToggleHaptics={toggleHaptics}
                     onShare={() => {
                       setOptionsStoryId(null);
                       shareStory(story);
@@ -1630,11 +1632,6 @@ export default function VideoFeedPage() {
 
       {!beStillMode && (
         <VideoFeedBottomNav
-          hapticsEnabled={hapticsEnabled}
-          hapticsLabel={copy.haptics}
-          hapticsOffLabel={copy.hapticsOff}
-          hapticsOnLabel={copy.hapticsOn}
-          onToggleHaptics={toggleHaptics}
           onNavTap={() => triggerHaptic(hapticsEnabled)}
         />
       )}
@@ -1828,10 +1825,12 @@ function VideoOptionsMenu({
   setPlaybackRate,
   selectedLanguage,
   audioTestimonyMode,
+  hapticsEnabled,
   onLanguageSelect,
   copy,
   onBeStill,
   onToggleAudioTestimonyMode,
+  onToggleHaptics,
   onBugReport,
   onCopyLink,
   onShare,
@@ -1846,10 +1845,12 @@ function VideoOptionsMenu({
   setPlaybackRate: (rate: number) => void;
   selectedLanguage: VideoLanguage;
   audioTestimonyMode: boolean;
+  hapticsEnabled: boolean;
   onLanguageSelect: (language: VideoLanguage) => void;
   copy: VideoFeedCopy;
   onBeStill: () => void;
   onToggleAudioTestimonyMode: () => void;
+  onToggleHaptics: () => void;
   onBugReport: () => void;
   onCopyLink: () => void;
   onShare: () => void;
@@ -1908,6 +1909,33 @@ function VideoOptionsMenu({
           >
             {audioTestimonyMode ? copy.audioModeOn : copy.audioModeOff} ·{" "}
             {copy.audioTestimonyModeDescription}
+          </span>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleHaptics}
+        aria-pressed={hapticsEnabled}
+        className={`mb-3 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black transition ${
+          hapticsEnabled
+            ? "bg-[#0b63ce] text-white shadow-md shadow-blue-900/20"
+            : "bg-slate-50 text-slate-700 hover:bg-blue-50 hover:text-[#0b63ce]"
+        }`}
+      >
+        <span className="mt-0.5 shrink-0" aria-hidden="true">
+          ✨
+        </span>
+        <span className="min-w-0">
+          <span className="block">
+            {copy.haptics}: {hapticsEnabled ? copy.hapticsOn : copy.hapticsOff}
+          </span>
+          <span
+            className={`mt-1 block text-xs font-bold leading-5 ${
+              hapticsEnabled ? "text-blue-50" : "text-slate-500"
+            }`}
+          >
+            {copy.hapticsDescription}
           </span>
         </span>
       </button>
@@ -2799,35 +2827,14 @@ function VideoCaptionStyleOverlay({
 }
 
 function VideoFeedBottomNav({
-  hapticsEnabled,
-  hapticsLabel,
-  hapticsOffLabel,
-  hapticsOnLabel,
   onNavTap,
-  onToggleHaptics,
 }: {
-  hapticsEnabled: boolean;
-  hapticsLabel: string;
-  hapticsOffLabel: string;
-  hapticsOnLabel: string;
   onNavTap: () => void;
-  onToggleHaptics: () => void;
 }) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-0 bg-transparent px-3 pb-[calc(0.6rem+env(safe-area-inset-bottom))] pt-2 shadow-none">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-0 bg-transparent px-3 pb-2 pt-2 shadow-none">
       <div className="mx-auto max-w-lg">
-        <div className="mb-1 flex justify-end">
-          <button
-            type="button"
-            onClick={onToggleHaptics}
-            className="rounded-full bg-black/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/80 ring-1 ring-white/10 backdrop-blur-md transition hover:bg-white/10 hover:text-white"
-            aria-pressed={hapticsEnabled}
-          >
-            {hapticsLabel}: {hapticsEnabled ? hapticsOnLabel : hapticsOffLabel}
-          </button>
-        </div>
-
-        <div className="grid grid-cols-6 gap-1 rounded-[1.5rem] bg-black/10 p-1 ring-1 ring-white/10 backdrop-blur-md">
+        <div className="grid grid-cols-6 gap-1 rounded-[1.5rem] bg-transparent p-1 ring-1 ring-white/10 backdrop-blur-sm">
           {videoFeedBottomNavItems.map((item) => {
             const Icon = item.icon;
             const active = item.href === "/video-feed";
