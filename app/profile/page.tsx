@@ -29,21 +29,6 @@ type ProfileRow = {
   show_location: boolean | null;
 };
 
-type ProfileStoryRow = {
-  story_type: string | null;
-  video_url: string | null;
-  prayer_status?: string | null;
-  answered_text?: string | null;
-  status?: string | null;
-};
-
-type ProfileStats = {
-  stories: number;
-  videos: number;
-  prayers: number;
-  praise: number;
-};
-
 type AccountAction = {
   badge?: string;
   disabled?: boolean;
@@ -53,13 +38,6 @@ type AccountAction = {
   text: string;
   title: string;
   tone?: "default" | "danger";
-};
-
-const emptyProfileStats: ProfileStats = {
-  stories: 0,
-  videos: 0,
-  prayers: 0,
-  praise: 0,
 };
 
 const PROFILE_AVATAR_BUCKET = "profile-avatars";
@@ -87,7 +65,7 @@ export default function ProfilePage() {
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [showLocation, setShowLocation] = useState(true);
-  const [stats, setStats] = useState<ProfileStats>(emptyProfileStats);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   useEffect(() => {
     async function loadProfile() {
@@ -130,7 +108,7 @@ export default function ProfilePage() {
       setBio(profile?.bio ?? "");
       setShowLocation(profile?.show_location ?? true);
 
-      await loadProfileStats(user.id);
+      await loadUnreadNotificationCount(user.id);
 
       setLoading(false);
     }
@@ -146,32 +124,15 @@ export default function ProfilePage() {
     };
   }, [avatarPreviewUrl]);
 
-  async function loadProfileStats(currentUserId: string) {
-    const { data, error } = await supabase
-      .from("stories")
-      .select("story_type, video_url, prayer_status, answered_text, status")
-      .eq("user_id", currentUserId);
+  async function loadUnreadNotificationCount(currentUserId: string) {
+    const { count, error } = await supabase
+      .from("inbox_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", currentUserId)
+      .eq("read", false)
+      .is("hidden_at", null);
 
-    if (error || !Array.isArray(data)) {
-      setStats(emptyProfileStats);
-      return;
-    }
-
-    const rows = (data as ProfileStoryRow[]).filter(
-      (story) => story.status !== "removed"
-    );
-
-    setStats({
-      stories: rows.length,
-      videos: rows.filter((story) => Boolean(story.video_url)).length,
-      prayers: rows.filter((story) => isPrayerType(story.story_type)).length,
-      praise: rows.filter(
-        (story) =>
-          isPraiseType(story.story_type) ||
-          story.prayer_status === "answered" ||
-          Boolean(story.answered_text)
-      ).length,
-    });
+    setUnreadNotificationCount(error ? 0 : count ?? 0);
   }
 
   const profileName = useMemo(() => {
@@ -195,12 +156,17 @@ export default function ProfilePage() {
     {
       title: "Notifications",
       text: "Prayer, story, praise, email notifications.",
+      meta:
+        unreadNotificationCount > 0
+          ? `${Math.min(unreadNotificationCount, 99)}${
+              unreadNotificationCount > 99 ? "+" : ""
+            } unread`
+          : undefined,
       href: "/profile/notifications",
     },
     {
       title: "Content Management",
       text: "Posts, videos, prayer requests, praise reports, saved content.",
-      meta: `${stats.stories + stats.videos + stats.prayers + stats.praise}`,
       href: "/profile/content-management",
     },
     {
@@ -582,19 +548,5 @@ function SectionIntro({
       <h2 className="mt-1 text-2xl font-black text-[#062a57]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </div>
-  );
-}
-
-function isPrayerType(storyType: string | null) {
-  return (storyType ?? "").toLowerCase().includes("prayer");
-}
-
-function isPraiseType(storyType: string | null) {
-  const normalized = (storyType ?? "").toLowerCase();
-
-  return (
-    normalized.includes("praise") ||
-    normalized.includes("answered") ||
-    normalized.includes("testimony")
   );
 }
