@@ -124,13 +124,8 @@ function isAnswered(story: PrayerStory) {
 }
 
 function formatPrayerCircleCount(count: number) {
-  if (count === 1) return "Prayer Circle • 1 person praying";
-  return `Prayer Circle • ${count} people praying`;
-}
-
-function formatBelieverCount(count: number) {
-  if (count === 1) return "1 believer prayed with this request";
-  return `${count} believers prayed with this request`;
+  if (count === 1) return "🙏 1 person is praying for this request";
+  return `🙏 ${count} people are praying for this request`;
 }
 
 function getVideoDuration(file: File): Promise<number> {
@@ -1592,6 +1587,11 @@ function PrayerRequestCard({
           <div className="mt-1 text-base font-black text-[#062a57]">
             {formatPrayerCircleCount(story.reaction_counts.praying)}
           </div>
+          {praying && (
+            <div className="mt-2 text-sm font-bold text-[#0b63ce]">
+              You are in this Prayer Circle
+            </div>
+          )}
         </div>
 
         <PrayerUpdateHistory updates={story.updates} />
@@ -1608,7 +1608,7 @@ function PrayerRequestCard({
           <PrayerButton onClick={onSendPrayerVideo}>
             <span className="inline-flex items-center justify-center gap-1">
               <Video className="h-4 w-4" />
-              Video Prayer
+              Send Video Prayer
             </span>
           </PrayerButton>
           <PrayerButton onClick={onShare}>
@@ -1618,7 +1618,7 @@ function PrayerRequestCard({
             </span>
           </PrayerButton>
           {owner && (
-            <PrayerButton onClick={onAddUpdate}>Post Update</PrayerButton>
+            <PrayerButton onClick={onAddUpdate}>Circle Update</PrayerButton>
           )}
           {owner && (
             <button
@@ -1646,13 +1646,19 @@ function AnsweredPrayerCard({
   onShare: () => void;
   onAddUpdate: () => void;
 }) {
+  const praying = story.user_reactions.includes("praying");
+
   return (
-    <article className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-emerald-100">
-      <div className="rounded-2xl bg-emerald-50 p-4">
-        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+    <article className="overflow-hidden rounded-[2rem] bg-white shadow-sm ring-1 ring-emerald-200">
+      <div className="bg-emerald-600 px-5 py-4 text-white">
+        <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] ring-1 ring-white/20">
           <CheckCircle2 className="h-4 w-4" />
           Answered Prayer
         </div>
+        <div className="mt-2 text-xl font-black">God Did It</div>
+      </div>
+
+      <div className="bg-emerald-50 p-5">
 
         {story.story_text && (
           <div className="mt-4">
@@ -1673,11 +1679,16 @@ function AnsweredPrayerCard({
           </div>
         )}
 
-        {story.reaction_counts.praying > 0 && (
-          <div className="mt-4 inline-flex rounded-full bg-emerald-100 px-3.5 py-2 text-sm font-black text-emerald-800 ring-1 ring-emerald-200">
-            {formatBelieverCount(story.reaction_counts.praying)}
+        <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-emerald-100">
+          <div className="text-sm font-black text-emerald-800">
+            {formatPrayerCircleCount(story.reaction_counts.praying)}
           </div>
-        )}
+          {praying && (
+            <div className="mt-2 text-sm font-bold text-emerald-700">
+              You are in this Prayer Circle
+            </div>
+          )}
+        </div>
 
         <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
           How God Answered
@@ -1718,7 +1729,7 @@ function AnsweredPrayerCard({
               onClick={onAddUpdate}
               className="rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f]"
             >
-              Post Update
+              Circle Update
             </button>
           )}
         </div>
@@ -1734,7 +1745,7 @@ function PrayerUpdateHistory({ updates }: { updates: PrayerUpdate[] }) {
     <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-          Prayer Circle Updates
+          Circle Updates
         </div>
         <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-500 ring-1 ring-slate-200">
           {updates.length}
@@ -1749,7 +1760,7 @@ function PrayerUpdateHistory({ updates }: { updates: PrayerUpdate[] }) {
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-                {formatPrayerUpdateType(update.update_type)}
+                Circle Update
               </span>
               <span className="text-xs font-bold text-slate-400">
                 {formatPrayerUpdateDate(update.created_at)}
@@ -1766,12 +1777,6 @@ function PrayerUpdateHistory({ updates }: { updates: PrayerUpdate[] }) {
       </div>
     </div>
   );
-}
-
-function formatPrayerUpdateType(updateType: PrayerUpdate["update_type"]) {
-  if (updateType === "answered") return "Answered Update";
-  if (updateType === "praise") return "Praise Update";
-  return "Prayer Update";
 }
 
 function formatPrayerUpdateDate(value: string) {
