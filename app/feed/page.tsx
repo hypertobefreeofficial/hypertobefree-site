@@ -84,6 +84,29 @@ export default function FeedPage() {
               opacity: 0.28;
             }
           }
+
+          @media (min-width: 768px) {
+            .feed-brand-shell > section > div > div:first-child::before {
+              background-position: center 44%;
+              background-size: 112% auto;
+              opacity: 0.3;
+            }
+
+            .feed-brand-shell > section > div > div:first-child::after {
+              background:
+                linear-gradient(90deg, rgba(255, 255, 255, 0.94) 0%, rgba(239, 248, 255, 0.78) 42%, rgba(11, 99, 206, 0.34) 100%),
+                radial-gradient(circle at 66% 44%, rgba(11, 99, 206, 0.24), transparent 36%),
+                linear-gradient(135deg, rgba(11, 99, 206, 0.16), rgba(147, 197, 253, 0.08));
+            }
+          }
+
+          @media (min-width: 1024px) {
+            .feed-brand-shell > section > div > div:first-child::before {
+              background-position: center 43%;
+              background-size: 100% auto;
+              opacity: 0.32;
+            }
+          }
         `}</style>
         <FreedomFeed />
       </div>
