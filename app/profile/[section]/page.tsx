@@ -7,11 +7,9 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Bell,
   Bookmark,
-  Check,
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  Trash2,
   UserX,
   UserCircle,
 } from "lucide-react";
@@ -55,16 +53,13 @@ type CategoryContent = {
   title: string;
 };
 
-type InboxNotification = {
-  id: string;
-  title: string;
-  body: string;
-  read: boolean;
-  created_at: string;
-  category: string | null;
-  message_type: string | null;
-  action_url: string | null;
-};
+type NotificationPreferenceKey =
+  | "prayer"
+  | "story"
+  | "praise"
+  | "videoReply";
+
+type NotificationPreferences = Record<NotificationPreferenceKey, boolean>;
 
 type SavedFilter = "all" | "stories" | "videos" | "prayer" | "praise";
 
@@ -95,6 +90,40 @@ type BlockedUserItem = {
   username: string | null;
   avatar_url: string | null;
 };
+
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  prayer: true,
+  story: true,
+  praise: true,
+  videoReply: true,
+};
+
+const NOTIFICATION_PREFERENCE_OPTIONS: Array<{
+  key: NotificationPreferenceKey;
+  title: string;
+  text: string;
+}> = [
+  {
+    key: "prayer",
+    title: "Prayer Notifications",
+    text: "Prayer Circle updates and answered-prayer alerts.",
+  },
+  {
+    key: "story",
+    title: "Story Notifications",
+    text: "Story approval and community response alerts.",
+  },
+  {
+    key: "praise",
+    title: "Praise Notifications",
+    text: "Praise report and God Did It updates.",
+  },
+  {
+    key: "videoReply",
+    title: "Video Reply Notifications",
+    text: "Private prayer video and testimony response alerts.",
+  },
+];
 
 const categoryContent: Record<string, CategoryContent> = {
   "account-security": {
@@ -489,7 +518,7 @@ export default function ProfileAccountCenterPlaceholderPage() {
   }
 
   if (section === "notifications") {
-    return <NotificationsCenterSection />;
+    return <NotificationSettingsSection />;
   }
 
   if (section === "content-management" || section === "saved-content") {
@@ -625,15 +654,17 @@ function AccountCenterIdentity() {
   );
 }
 
-function NotificationsCenterSection() {
+function NotificationSettingsSection() {
   const router = useRouter();
   const [userId, setUserId] = useState("");
-  const [notifications, setNotifications] = useState<InboxNotification[]>([]);
+  const [preferences, setPreferences] = useState<NotificationPreferences>(
+    DEFAULT_NOTIFICATION_PREFERENCES
+  );
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadNotifications() {
+    async function loadPreferences() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -645,197 +676,164 @@ function NotificationsCenterSection() {
 
       setUserId(user.id);
 
-      const { data, error } = await supabase
-        .from("inbox_messages")
-        .select(
-          "id, title, body, read, created_at, category, message_type, action_url"
-        )
-        .eq("user_id", user.id)
-        .is("hidden_at", null)
-        .order("created_at", { ascending: false });
+      const savedPreferences = window.localStorage.getItem(
+        getNotificationPreferenceStorageKey(user.id)
+      );
 
-      if (error) {
-        setMessage(`Could not load notifications: ${error.message}`);
-        setLoading(false);
-        return;
+      if (savedPreferences) {
+        try {
+          const parsedPreferences: unknown = JSON.parse(savedPreferences);
+
+          if (isNotificationPreferences(parsedPreferences)) {
+            setPreferences(parsedPreferences);
+          }
+        } catch {
+          window.localStorage.removeItem(
+            getNotificationPreferenceStorageKey(user.id)
+          );
+        }
       }
 
-      const rawNotifications: unknown[] = Array.isArray(data) ? data : [];
-      setNotifications(rawNotifications.filter(isInboxNotification));
       setLoading(false);
     }
 
-    void loadNotifications();
+    void loadPreferences();
   }, [router]);
 
-  const unreadCount = notifications.filter(
-    (notification) => !notification.read
-  ).length;
-
-  async function markNotificationRead(notificationId: string) {
+  function togglePreference(key: NotificationPreferenceKey) {
     if (!userId) return;
 
-    const { error } = await supabase
-      .from("inbox_messages")
-      .update({ read: true })
-      .eq("id", notificationId)
-      .eq("user_id", userId);
+    setPreferences((current) => {
+      const nextPreferences = { ...current, [key]: !current[key] };
 
-    if (error) {
-      setMessage(`Could not mark notification read: ${error.message}`);
-      return;
-    }
+      window.localStorage.setItem(
+        getNotificationPreferenceStorageKey(userId),
+        JSON.stringify(nextPreferences)
+      );
 
-    setNotifications((current) =>
-      current.map((notification) =>
-        notification.id === notificationId
-          ? { ...notification, read: true }
-          : notification
-      )
-    );
-  }
-
-  async function markAllNotificationsRead() {
-    if (!userId || unreadCount === 0) return;
-
-    const { error } = await supabase
-      .from("inbox_messages")
-      .update({ read: true })
-      .eq("user_id", userId)
-      .eq("read", false)
-      .is("hidden_at", null);
-
-    if (error) {
-      setMessage(`Could not mark notifications read: ${error.message}`);
-      return;
-    }
-
-    setNotifications((current) =>
-      current.map((notification) => ({ ...notification, read: true }))
-    );
-    setMessage("All notifications marked as read.");
-  }
-
-  async function hideNotification(notificationId: string) {
-    if (!userId) return;
-
-    const { error } = await supabase
-      .from("inbox_messages")
-      .update({ hidden_at: new Date().toISOString() })
-      .eq("id", notificationId)
-      .eq("user_id", userId);
-
-    if (error) {
-      setMessage(`Could not hide notification: ${error.message}`);
-      return;
-    }
-
-    setNotifications((current) =>
-      current.filter((notification) => notification.id !== notificationId)
-    );
+      return nextPreferences;
+    });
+    setMessage("Notification preference saved on this device.");
   }
 
   return (
     <AccountCenterDataShell
       icon={<Bell className="h-4 w-4" />}
-      eyebrow="Notifications Center"
-      title="Your HTBF notifications"
-      description="Approvals, prayer updates, milestones, and Journey activity in one place."
+      eyebrow="Notification Settings"
+      title="Choose what keeps you informed"
+      description="Manage notification preferences here. Your actual alerts live in the separate Notification Inbox."
     >
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm font-black text-[#062a57]">
-          {unreadCount === 0
-            ? "You are all caught up"
-            : `${unreadCount > 99 ? "99+" : unreadCount} unread`}
+      <div className="mt-6 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="font-black text-[#062a57]">Notification Inbox</div>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Read prayer updates, approvals, answered prayers, and other HTBF
+              alerts.
+            </p>
+          </div>
+          <Link
+            href="/notifications"
+            className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white"
+          >
+            Open Inbox
+          </Link>
         </div>
-        <button
-          type="button"
-          onClick={markAllNotificationsRead}
-          disabled={unreadCount === 0}
-          className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 disabled:opacity-50"
-        >
-          Mark All Read
-        </button>
       </div>
 
       {message && (
-        <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
+        <div className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800 ring-1 ring-emerald-100">
           {message}
         </div>
       )}
 
       {loading ? (
-        <AccountCenterLoading text="Loading notifications..." />
-      ) : notifications.length === 0 ? (
-        <AccountCenterEmpty text="No notifications yet." />
+        <AccountCenterLoading text="Loading notification settings..." />
       ) : (
         <div className="mt-5 space-y-3">
-          {notifications.map((notification) => (
-            <article
-              key={notification.id}
-              className={`rounded-[1.5rem] p-4 ring-1 ${
-                notification.read
-                  ? "bg-slate-50 ring-slate-100"
-                  : "bg-blue-50 ring-blue-200"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    {!notification.read && (
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
-                    )}
-                    <h2 className="break-words font-black text-[#062a57]">
-                      {notification.title}
-                    </h2>
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
-                    {notification.body}
-                  </p>
-                  <div className="mt-2 text-xs font-semibold text-slate-500">
-                    {formatAccountCenterDate(notification.created_at)}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {!notification.read && (
-                  <button
-                    type="button"
-                    onClick={() => markNotificationRead(notification.id)}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                    Mark Read
-                  </button>
-                )}
-                {isInternalActionUrl(notification.action_url) && (
-                  <Link
-                    href={notification.action_url as string}
-                    onClick={() => {
-                      if (!notification.read) {
-                        void markNotificationRead(notification.id);
-                      }
-                    }}
-                    className="rounded-full bg-[#0b63ce] px-3 py-2 text-xs font-black text-white"
-                  >
-                    View
-                  </Link>
-                )}
-                <button
-                  type="button"
-                  onClick={() => hideNotification(notification.id)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Hide
-                </button>
-              </div>
-            </article>
+          {NOTIFICATION_PREFERENCE_OPTIONS.map((option) => (
+            <NotificationPreferenceToggle
+              key={option.key}
+              enabled={preferences[option.key]}
+              text={option.text}
+              title={option.title}
+              onToggle={() => togglePreference(option.key)}
+            />
           ))}
+
+          <NotificationPreferencePlaceholder
+            title="Email Notifications"
+            text="Email delivery preferences will appear here when HTBF email alerts are connected."
+          />
+          <NotificationPreferencePlaceholder
+            title="Push Notifications"
+            text="Push notification controls are coming in a future release."
+          />
         </div>
       )}
+
+      <p className="mt-4 text-xs font-semibold leading-5 text-slate-500">
+        Current preferences are saved on this device and do not remove messages
+        from your Notification Inbox.
+      </p>
     </AccountCenterDataShell>
+  );
+}
+
+function NotificationPreferenceToggle({
+  enabled,
+  onToggle,
+  text,
+  title,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100">
+      <div className="min-w-0">
+        <div className="font-black text-[#062a57]">{title}</div>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        aria-label={`${enabled ? "Disable" : "Enable"} ${title}`}
+        onClick={onToggle}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+          enabled ? "bg-[#0b63ce]" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
+            enabled ? "left-6" : "left-1"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function NotificationPreferencePlaceholder({
+  text,
+  title,
+}: {
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-[1.5rem] bg-slate-50 p-4 opacity-75 ring-1 ring-slate-100">
+      <div>
+        <div className="font-black text-[#062a57]">{title}</div>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+      </div>
+      <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 ring-1 ring-slate-200">
+        Coming Soon
+      </span>
+    </div>
   );
 }
 
@@ -1629,18 +1627,20 @@ function readNullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function isInboxNotification(value: unknown): value is InboxNotification {
+function getNotificationPreferenceStorageKey(userId: string) {
+  return `htbf-notification-preferences-${userId}`;
+}
+
+function isNotificationPreferences(
+  value: unknown
+): value is NotificationPreferences {
   if (!isRecord(value)) return false;
 
   return (
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    typeof value.body === "string" &&
-    typeof value.read === "boolean" &&
-    typeof value.created_at === "string" &&
-    (typeof value.category === "string" || value.category === null) &&
-    (typeof value.message_type === "string" || value.message_type === null) &&
-    (typeof value.action_url === "string" || value.action_url === null)
+    typeof value.prayer === "boolean" &&
+    typeof value.story === "boolean" &&
+    typeof value.praise === "boolean" &&
+    typeof value.videoReply === "boolean"
   );
 }
 
@@ -1747,24 +1747,6 @@ function parseBlockedProfiles(value: unknown) {
   });
 
   return profiles;
-}
-
-function isInternalActionUrl(value: string | null) {
-  return Boolean(value && value.startsWith("/") && !value.startsWith("//"));
-}
-
-function formatAccountCenterDate(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 function Field({
