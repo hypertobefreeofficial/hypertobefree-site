@@ -5,9 +5,14 @@ import Image from "next/image";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
+  Bell,
+  Bookmark,
+  Check,
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Trash2,
+  UserX,
   UserCircle,
 } from "lucide-react";
 import LoggedInBottomNav from "../../../components/LoggedInBottomNav";
@@ -48,6 +53,47 @@ type CategoryContent = {
   eyebrow: string;
   items: CategoryItem[];
   title: string;
+};
+
+type InboxNotification = {
+  id: string;
+  title: string;
+  body: string;
+  read: boolean;
+  created_at: string;
+  category: string | null;
+  message_type: string | null;
+  action_url: string | null;
+};
+
+type SavedFilter = "all" | "stories" | "videos" | "prayer" | "praise";
+
+type SavedStory = {
+  id: string;
+  user_id: string | null;
+  name: string | null;
+  story_type: string | null;
+  story_text: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  prayer_status: string | null;
+  answered_text: string | null;
+  status: string | null;
+  created_at: string | null;
+};
+
+type SavedContentItem = {
+  story_id: string;
+  saved_at: string | null;
+  story: SavedStory;
+};
+
+type BlockedUserItem = {
+  blocked_user_id: string;
+  created_at: string | null;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
 };
 
 const categoryContent: Record<string, CategoryContent> = {
@@ -442,6 +488,18 @@ export default function ProfileAccountCenterPlaceholderPage() {
     return <EditProfileSection />;
   }
 
+  if (section === "notifications") {
+    return <NotificationsCenterSection />;
+  }
+
+  if (section === "content-management" || section === "saved-content") {
+    return <SavedContentSection />;
+  }
+
+  if (section === "privacy-safety" || section === "blocked-users") {
+    return <BlockedUsersSection />;
+  }
+
   if (section && categoryContent[section]) {
     return <AccountCenterCategoryPage content={categoryContent[section]} />;
   }
@@ -563,6 +621,604 @@ function AccountCenterIdentity() {
           {username ? `@${username}` : "Account Center"}
         </div>
       </div>
+    </div>
+  );
+}
+
+function NotificationsCenterSection() {
+  const router = useRouter();
+  const [userId, setUserId] = useState("");
+  const [notifications, setNotifications] = useState<InboxNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function loadNotifications() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data, error } = await supabase
+        .from("inbox_messages")
+        .select(
+          "id, title, body, read, created_at, category, message_type, action_url"
+        )
+        .eq("user_id", user.id)
+        .is("hidden_at", null)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setMessage(`Could not load notifications: ${error.message}`);
+        setLoading(false);
+        return;
+      }
+
+      const rawNotifications: unknown[] = Array.isArray(data) ? data : [];
+      setNotifications(rawNotifications.filter(isInboxNotification));
+      setLoading(false);
+    }
+
+    void loadNotifications();
+  }, [router]);
+
+  const unreadCount = notifications.filter(
+    (notification) => !notification.read
+  ).length;
+
+  async function markNotificationRead(notificationId: string) {
+    if (!userId) return;
+
+    const { error } = await supabase
+      .from("inbox_messages")
+      .update({ read: true })
+      .eq("id", notificationId)
+      .eq("user_id", userId);
+
+    if (error) {
+      setMessage(`Could not mark notification read: ${error.message}`);
+      return;
+    }
+
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === notificationId
+          ? { ...notification, read: true }
+          : notification
+      )
+    );
+  }
+
+  async function markAllNotificationsRead() {
+    if (!userId || unreadCount === 0) return;
+
+    const { error } = await supabase
+      .from("inbox_messages")
+      .update({ read: true })
+      .eq("user_id", userId)
+      .eq("read", false)
+      .is("hidden_at", null);
+
+    if (error) {
+      setMessage(`Could not mark notifications read: ${error.message}`);
+      return;
+    }
+
+    setNotifications((current) =>
+      current.map((notification) => ({ ...notification, read: true }))
+    );
+    setMessage("All notifications marked as read.");
+  }
+
+  async function hideNotification(notificationId: string) {
+    if (!userId) return;
+
+    const { error } = await supabase
+      .from("inbox_messages")
+      .update({ hidden_at: new Date().toISOString() })
+      .eq("id", notificationId)
+      .eq("user_id", userId);
+
+    if (error) {
+      setMessage(`Could not hide notification: ${error.message}`);
+      return;
+    }
+
+    setNotifications((current) =>
+      current.filter((notification) => notification.id !== notificationId)
+    );
+  }
+
+  return (
+    <AccountCenterDataShell
+      icon={<Bell className="h-4 w-4" />}
+      eyebrow="Notifications Center"
+      title="Your HTBF notifications"
+      description="Approvals, prayer updates, milestones, and Journey activity in one place."
+    >
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm font-black text-[#062a57]">
+          {unreadCount === 0
+            ? "You are all caught up"
+            : `${unreadCount > 99 ? "99+" : unreadCount} unread`}
+        </div>
+        <button
+          type="button"
+          onClick={markAllNotificationsRead}
+          disabled={unreadCount === 0}
+          className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 disabled:opacity-50"
+        >
+          Mark All Read
+        </button>
+      </div>
+
+      {message && (
+        <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
+          {message}
+        </div>
+      )}
+
+      {loading ? (
+        <AccountCenterLoading text="Loading notifications..." />
+      ) : notifications.length === 0 ? (
+        <AccountCenterEmpty text="No notifications yet." />
+      ) : (
+        <div className="mt-5 space-y-3">
+          {notifications.map((notification) => (
+            <article
+              key={notification.id}
+              className={`rounded-[1.5rem] p-4 ring-1 ${
+                notification.read
+                  ? "bg-slate-50 ring-slate-100"
+                  : "bg-blue-50 ring-blue-200"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    {!notification.read && (
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />
+                    )}
+                    <h2 className="break-words font-black text-[#062a57]">
+                      {notification.title}
+                    </h2>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
+                    {notification.body}
+                  </p>
+                  <div className="mt-2 text-xs font-semibold text-slate-500">
+                    {formatAccountCenterDate(notification.created_at)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {!notification.read && (
+                  <button
+                    type="button"
+                    onClick={() => markNotificationRead(notification.id)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Mark Read
+                  </button>
+                )}
+                {isInternalActionUrl(notification.action_url) && (
+                  <Link
+                    href={notification.action_url as string}
+                    onClick={() => {
+                      if (!notification.read) {
+                        void markNotificationRead(notification.id);
+                      }
+                    }}
+                    className="rounded-full bg-[#0b63ce] px-3 py-2 text-xs font-black text-white"
+                  >
+                    View
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => hideNotification(notification.id)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Hide
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </AccountCenterDataShell>
+  );
+}
+
+function SavedContentSection() {
+  const router = useRouter();
+  const [userId, setUserId] = useState("");
+  const [items, setItems] = useState<SavedContentItem[]>([]);
+  const [activeFilter, setActiveFilter] = useState<SavedFilter>("all");
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function loadSavedContent() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data, error } = await supabase
+        .from("saved_content")
+        .select(
+          "story_id, created_at, stories(id, user_id, name, story_type, story_text, image_url, video_url, prayer_status, answered_text, status, created_at)"
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setMessage(`Could not load saved content: ${error.message}`);
+        setLoading(false);
+        return;
+      }
+
+      setItems(parseSavedContentItems(data));
+      setLoading(false);
+    }
+
+    void loadSavedContent();
+  }, [router]);
+
+  const filteredItems = items.filter((item) =>
+    savedStoryMatchesFilter(item.story, activeFilter)
+  );
+
+  async function removeSavedItem(storyId: string) {
+    if (!userId) return;
+
+    const { error } = await supabase
+      .from("saved_content")
+      .delete()
+      .eq("user_id", userId)
+      .eq("story_id", storyId);
+
+    if (error) {
+      setMessage(`Could not remove saved content: ${error.message}`);
+      return;
+    }
+
+    setItems((current) => current.filter((item) => item.story_id !== storyId));
+    setMessage("Removed from saved content.");
+  }
+
+  const filters: { label: string; value: SavedFilter }[] = [
+    { label: "All", value: "all" },
+    { label: "Stories", value: "stories" },
+    { label: "Videos", value: "videos" },
+    { label: "Prayer", value: "prayer" },
+    { label: "Praise", value: "praise" },
+  ];
+
+  return (
+    <AccountCenterDataShell
+      icon={<Bookmark className="h-4 w-4" />}
+      eyebrow="Content Management"
+      title="Saved Content"
+      description="Return to stories, videos, prayer requests, and praise moments you saved."
+    >
+      <div className="mt-6 flex max-w-full gap-2 overflow-x-auto pb-1">
+        {filters.map((filter) => (
+          <button
+            key={filter.value}
+            type="button"
+            onClick={() => setActiveFilter(filter.value)}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 ${
+              activeFilter === filter.value
+                ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                : "bg-white text-slate-600 ring-slate-200"
+            }`}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+
+      {message && (
+        <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
+          {message}
+        </div>
+      )}
+
+      {loading ? (
+        <AccountCenterLoading text="Loading saved content..." />
+      ) : filteredItems.length === 0 ? (
+        <AccountCenterEmpty text="No saved content in this category yet." />
+      ) : (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {filteredItems.map((item) => (
+            <article
+              key={item.story_id}
+              className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                    {item.story.story_type || "Story"}
+                  </div>
+                  <h2 className="mt-1 break-words font-black text-[#062a57]">
+                    {item.story.name || "HTBF Community"}
+                  </h2>
+                </div>
+                <Bookmark className="h-5 w-5 shrink-0 fill-current text-[#0b63ce]" />
+              </div>
+
+              <p className="mt-3 line-clamp-4 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
+                {item.story.story_text ||
+                  item.story.answered_text ||
+                  "Saved HTBF media post"}
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  href={
+                    item.story.video_url
+                      ? `/video-feed?story=${item.story.id}`
+                      : "/feed"
+                  }
+                  className="rounded-full bg-[#0b63ce] px-3 py-2 text-xs font-black text-white"
+                >
+                  View
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => removeSavedItem(item.story_id)}
+                  className="rounded-full bg-white px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200"
+                >
+                  Remove Saved Item
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </AccountCenterDataShell>
+  );
+}
+
+function BlockedUsersSection() {
+  const router = useRouter();
+  const [userId, setUserId] = useState("");
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function loadBlockedUsers() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      setUserId(user.id);
+
+      const { data: blockData, error: blockError } = await supabase
+        .from("blocked_users")
+        .select("blocked_user_id, created_at")
+        .eq("blocker_user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (blockError) {
+        setMessage(`Could not load blocked users: ${blockError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      const blockRows = parseBlockedRows(blockData);
+      const blockedIds = blockRows.map((row) => row.blocked_user_id);
+
+      if (blockedIds.length === 0) {
+        setBlockedUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, display_name, username, avatar_url")
+        .in("id", blockedIds);
+
+      if (profileError) {
+        setMessage(`Could not load blocked profiles: ${profileError.message}`);
+      }
+
+      const profileMap = parseBlockedProfiles(profileData);
+
+      setBlockedUsers(
+        blockRows.map((row) => ({
+          ...row,
+          display_name: profileMap.get(row.blocked_user_id)?.display_name ?? null,
+          username: profileMap.get(row.blocked_user_id)?.username ?? null,
+          avatar_url: profileMap.get(row.blocked_user_id)?.avatar_url ?? null,
+        }))
+      );
+      setLoading(false);
+    }
+
+    void loadBlockedUsers();
+  }, [router]);
+
+  async function unblockUser(blockedUserId: string) {
+    if (!userId) return;
+
+    const { error } = await supabase
+      .from("blocked_users")
+      .delete()
+      .eq("blocker_user_id", userId)
+      .eq("blocked_user_id", blockedUserId);
+
+    if (error) {
+      setMessage(`Could not unblock user: ${error.message}`);
+      return;
+    }
+
+    setBlockedUsers((current) =>
+      current.filter((user) => user.blocked_user_id !== blockedUserId)
+    );
+    setMessage("User unblocked.");
+  }
+
+  return (
+    <AccountCenterDataShell
+      icon={<UserX className="h-4 w-4" />}
+      eyebrow="Privacy & Safety"
+      title="Blocked Users"
+      description="Blocked accounts are hidden from your Freedom Feed and Video Feed."
+    >
+      {message && (
+        <div className="mt-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
+          {message}
+        </div>
+      )}
+
+      {loading ? (
+        <AccountCenterLoading text="Loading blocked users..." />
+      ) : blockedUsers.length === 0 ? (
+        <AccountCenterEmpty text="You have not blocked anyone." />
+      ) : (
+        <div className="mt-5 space-y-3">
+          {blockedUsers.map((blockedUser) => {
+            const name =
+              blockedUser.display_name ||
+              blockedUser.username ||
+              "Blocked HTBF user";
+
+            return (
+              <article
+                key={blockedUser.blocked_user_id}
+                className="flex items-center gap-4 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100"
+              >
+                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white text-[#0b63ce] ring-1 ring-slate-200">
+                  {blockedUser.avatar_url ? (
+                    <Image
+                      src={blockedUser.avatar_url}
+                      alt={`${name} profile photo`}
+                      fill
+                      sizes="48px"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <UserCircle className="h-9 w-9" />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-black text-[#062a57]">
+                    {name}
+                  </div>
+                  <div className="mt-1 truncate text-sm text-slate-500">
+                    {blockedUser.username
+                      ? `@${blockedUser.username}`
+                      : "Profile hidden"}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => unblockUser(blockedUser.blocked_user_id)}
+                  className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100"
+                >
+                  Unblock
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </AccountCenterDataShell>
+  );
+}
+
+function AccountCenterDataShell({
+  children,
+  description,
+  eyebrow,
+  icon,
+  title,
+}: {
+  children: ReactNode;
+  description: string;
+  eyebrow: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+          <Link
+            href="/profile"
+            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Profile
+          </Link>
+          <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+            Account Center
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce]">
+            {icon}
+            {eyebrow}
+          </div>
+          <h1 className="mt-5 text-4xl font-black tracking-tight text-[#062a57]">
+            {title}
+          </h1>
+          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+            {description}
+          </p>
+          <AccountCenterIdentity />
+          {children}
+        </section>
+      </div>
+
+      <LoggedInBottomNav />
+    </main>
+  );
+}
+
+function AccountCenterLoading({ text }: { text: string }) {
+  return (
+    <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-5 text-sm font-semibold text-slate-600 ring-1 ring-slate-100">
+      {text}
+    </div>
+  );
+}
+
+function AccountCenterEmpty({ text }: { text: string }) {
+  return (
+    <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-6 text-center text-sm leading-6 text-slate-600 ring-1 ring-slate-100">
+      {text}
     </div>
   );
 }
@@ -963,6 +1619,152 @@ function EditProfileSection() {
       <LoggedInBottomNav />
     </main>
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readNullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function isInboxNotification(value: unknown): value is InboxNotification {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.body === "string" &&
+    typeof value.read === "boolean" &&
+    typeof value.created_at === "string" &&
+    (typeof value.category === "string" || value.category === null) &&
+    (typeof value.message_type === "string" || value.message_type === null) &&
+    (typeof value.action_url === "string" || value.action_url === null)
+  );
+}
+
+function parseSavedContentItems(value: unknown): SavedContentItem[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((candidate) => {
+    if (!isRecord(candidate) || typeof candidate.story_id !== "string") {
+      return [];
+    }
+
+    const relationship = Array.isArray(candidate.stories)
+      ? candidate.stories[0]
+      : candidate.stories;
+
+    if (!isRecord(relationship) || typeof relationship.id !== "string") {
+      return [];
+    }
+
+    const story: SavedStory = {
+      id: relationship.id,
+      user_id: readNullableString(relationship.user_id),
+      name: readNullableString(relationship.name),
+      story_type: readNullableString(relationship.story_type),
+      story_text: readNullableString(relationship.story_text),
+      image_url: readNullableString(relationship.image_url),
+      video_url: readNullableString(relationship.video_url),
+      prayer_status: readNullableString(relationship.prayer_status),
+      answered_text: readNullableString(relationship.answered_text),
+      status: readNullableString(relationship.status),
+      created_at: readNullableString(relationship.created_at),
+    };
+
+    if (story.status === "removed") return [];
+
+    return [
+      {
+        story_id: candidate.story_id,
+        saved_at: readNullableString(candidate.created_at),
+        story,
+      },
+    ];
+  });
+}
+
+function savedStoryMatchesFilter(story: SavedStory, filter: SavedFilter) {
+  if (filter === "all") return true;
+
+  const storyType = (story.story_type ?? "").toLowerCase();
+  const isVideo = Boolean(story.video_url);
+  const isPrayer = storyType.includes("prayer");
+  const isPraise =
+    storyType.includes("praise") ||
+    storyType.includes("answered") ||
+    story.prayer_status === "answered" ||
+    Boolean(story.answered_text);
+
+  if (filter === "videos") return isVideo;
+  if (filter === "prayer") return isPrayer;
+  if (filter === "praise") return isPraise;
+
+  return !isVideo && !isPrayer && !isPraise;
+}
+
+function parseBlockedRows(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as { blocked_user_id: string; created_at: string | null }[];
+  }
+
+  return value.flatMap((candidate) => {
+    if (!isRecord(candidate) || typeof candidate.blocked_user_id !== "string") {
+      return [];
+    }
+
+    return [
+      {
+        blocked_user_id: candidate.blocked_user_id,
+        created_at: readNullableString(candidate.created_at),
+      },
+    ];
+  });
+}
+
+function parseBlockedProfiles(value: unknown) {
+  const profiles = new Map<
+    string,
+    {
+      display_name: string | null;
+      username: string | null;
+      avatar_url: string | null;
+    }
+  >();
+
+  if (!Array.isArray(value)) return profiles;
+
+  value.forEach((candidate) => {
+    if (!isRecord(candidate) || typeof candidate.id !== "string") return;
+
+    profiles.set(candidate.id, {
+      display_name: readNullableString(candidate.display_name),
+      username: readNullableString(candidate.username),
+      avatar_url: readNullableString(candidate.avatar_url),
+    });
+  });
+
+  return profiles;
+}
+
+function isInternalActionUrl(value: string | null) {
+  return Boolean(value && value.startsWith("/") && !value.startsWith("//"));
+}
+
+function formatAccountCenterDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function Field({
