@@ -14,7 +14,18 @@ export default function FeedPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-4xl px-4 py-6">
+      <div className="relative mx-auto max-w-4xl px-4 py-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-8 top-[4.6rem] z-10 h-24 w-24 overflow-hidden rounded-[1.5rem] opacity-15 sm:right-16 sm:top-20 sm:h-32 sm:w-32 md:right-20"
+        >
+          <img
+            src="/images/hero-freedom.png"
+            alt=""
+            className="h-full w-full object-contain object-right"
+          />
+        </div>
+
         <FreedomFeed />
       </div>
 
