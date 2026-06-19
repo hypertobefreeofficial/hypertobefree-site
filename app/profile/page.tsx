@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Camera,
@@ -17,6 +24,7 @@ import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import { supabase } from "../../lib/supabaseClient";
 
 type ProfileRow = {
+  avatar_url: string | null;
   display_name: string | null;
   username: string | null;
   location: string | null;
@@ -63,16 +71,25 @@ const emptyProfileStats: ProfileStats = {
   praise: 0,
 };
 
+const PROFILE_AVATAR_BUCKET = "profile-avatars";
+const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 export default function ProfilePage() {
   const router = useRouter();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [message, setMessage] = useState("");
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
+  const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [location, setLocation] = useState("");
@@ -96,12 +113,13 @@ export default function ProfilePage() {
       }
 
       const userEmail = user.email ?? "";
+      setUserId(user.id);
       setEmail(userEmail);
 
       const { data, error } = await supabase
         .from("profiles")
         .select(
-          "display_name, username, location, bio, show_location, profile_visibility"
+          "avatar_url, display_name, username, location, bio, show_location, profile_visibility"
         )
         .eq("id", user.id)
         .maybeSingle();
@@ -114,6 +132,7 @@ export default function ProfilePage() {
 
       const profile = data as ProfileRow | null;
 
+      setAvatarUrl(profile?.avatar_url ?? "");
       setDisplayName(profile?.display_name ?? "");
       setUsername(profile?.username ?? "");
       setLocation(profile?.location ?? "");
@@ -134,6 +153,14 @@ export default function ProfilePage() {
 
     loadProfile();
   }, [router]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
 
   async function loadProfileStats(currentUserId: string) {
     const { data, error } = await supabase
@@ -172,8 +199,10 @@ export default function ProfilePage() {
 
   const completionItems: CompletionItem[] = [
     {
-      complete: false,
-      helper: "Photo uploads need avatar storage first.",
+      complete: Boolean(avatarUrl),
+      helper: avatarUrl
+        ? "Your profile photo is set."
+        : "Add a clear photo for your HTBF identity.",
       title: "Add photo",
     },
     {
@@ -204,8 +233,7 @@ export default function ProfilePage() {
     {
       title: "Change Profile Photo",
       text: "Add or update your HTBF profile image.",
-      badge: "Coming next",
-      onClick: showPhotoComingSoon,
+      onClick: openAvatarPicker,
     },
     {
       title: "View Public Profile",
@@ -321,10 +349,102 @@ export default function ProfilePage() {
     setMessage(`${label} will open in a focused Account Center page next.`);
   }
 
-  function showPhotoComingSoon() {
-    setMessage(
-      "Profile photo uploads need a profile avatar field and storage support before they can be saved."
+  function openAvatarPicker() {
+    avatarInputRef.current?.click();
+  }
+
+  async function uploadAvatar(file: File) {
+    setMessage("");
+
+    if (!userId) {
+      setMessage("Please sign in again before changing your profile photo.");
+      return;
+    }
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setMessage("Choose a JPG, PNG, or WebP image for your profile photo.");
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_SIZE_BYTES) {
+      setMessage("Profile photo must be 5 MB or smaller.");
+      return;
+    }
+
+    const extensionFromName = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const extension =
+      file.type === "image/png"
+        ? "png"
+        : file.type === "image/webp"
+          ? "webp"
+          : extensionFromName === "jpeg"
+            ? "jpeg"
+            : "jpg";
+    const filePath = `${userId}/avatar.${extension}`;
+    const previewUrl = URL.createObjectURL(file);
+
+    if (avatarPreviewUrl) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+
+    setAvatarPreviewUrl(previewUrl);
+    setUploadingAvatar(true);
+    setMessage("Uploading profile photo...");
+
+    const { error: uploadError } = await supabase.storage
+      .from(PROFILE_AVATAR_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      setUploadingAvatar(false);
+      setAvatarPreviewUrl("");
+      URL.revokeObjectURL(previewUrl);
+      setMessage(`Could not upload profile photo: ${uploadError.message}`);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(PROFILE_AVATAR_BUCKET)
+      .getPublicUrl(filePath);
+
+    const nextAvatarUrl = publicUrlData.publicUrl;
+
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      {
+        id: userId,
+        email: email || null,
+        avatar_url: nextAvatarUrl,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
     );
+
+    if (profileError) {
+      setUploadingAvatar(false);
+      setAvatarPreviewUrl("");
+      URL.revokeObjectURL(previewUrl);
+      setMessage(`Could not save profile photo: ${profileError.message}`);
+      return;
+    }
+
+    setAvatarUrl(nextAvatarUrl);
+    setAvatarPreviewUrl("");
+    URL.revokeObjectURL(previewUrl);
+    setUploadingAvatar(false);
+    setMessage("Profile photo updated.");
+  }
+
+  function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    uploadAvatar(file);
   }
 
   if (loading) {
@@ -364,17 +484,55 @@ export default function ProfilePage() {
 
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
               <div className="shrink-0">
-                <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] bg-white/15 text-white ring-1 ring-white/20">
-                  <UserCircle className="h-20 w-20" />
-                </div>
                 <button
                   type="button"
-                  onClick={showPhotoComingSoon}
+                  onClick={openAvatarPicker}
+                  disabled={uploadingAvatar}
+                  className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-[2rem] bg-white/15 text-white ring-1 ring-white/20 transition hover:bg-white/20 disabled:opacity-70"
+                  aria-label="Change profile photo"
+                >
+                  {avatarPreviewUrl ? (
+                    <img
+                      src={avatarPreviewUrl}
+                      alt="Selected profile preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : avatarUrl ? (
+                    <Image
+                      src={avatarUrl}
+                      alt="Profile photo"
+                      fill
+                      sizes="112px"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <UserCircle className="h-20 w-20" />
+                  )}
+
+                  {uploadingAvatar && (
+                    <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#062a57]/60 text-[11px] font-black uppercase tracking-[0.12em] text-white">
+                      <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      Uploading
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={openAvatarPicker}
+                  disabled={uploadingAvatar}
                   className="mt-3 inline-flex w-28 items-center justify-center gap-1.5 rounded-full bg-white px-3 py-2 text-[11px] font-black text-[#0b63ce] shadow-sm hover:bg-blue-50"
                 >
                   <Camera className="h-3.5 w-3.5" />
-                  Add Photo
+                  {avatarUrl ? "Change Photo" : "Add Photo"}
                 </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
               </div>
 
               <div className="min-w-0 flex-1">
