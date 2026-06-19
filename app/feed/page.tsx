@@ -20,8 +20,9 @@ export default function FeedPage() {
             isolation: isolate;
             position: relative;
             overflow: hidden;
+            border-radius: 1.75rem;
             background:
-              linear-gradient(115deg, rgba(255, 255, 255, 0.93), rgba(147, 197, 253, 0.62)),
+              linear-gradient(115deg, rgba(255, 255, 255, 0.86), rgba(147, 197, 253, 0.72)),
               #dbeafe !important;
             box-shadow: inset 0 0 0 1px rgba(11, 99, 206, 0.12);
           }
@@ -29,14 +30,14 @@ export default function FeedPage() {
           .feed-brand-shell > section > div > div:first-child::before {
             content: "";
             position: absolute;
-            inset: -20% -4% -20% 28%;
+            inset: 0;
             z-index: 0;
             background-image: url("/images/hero-freedom.png");
             background-position: center;
             background-repeat: no-repeat;
-            background-size: contain;
-            filter: saturate(1.45) contrast(1.18) drop-shadow(0 22px 34px rgba(8, 47, 99, 0.2));
-            opacity: 0.68;
+            background-size: cover;
+            filter: saturate(1.45) contrast(1.16);
+            opacity: 0.58;
             pointer-events: none;
           }
 
@@ -46,8 +47,9 @@ export default function FeedPage() {
             inset: 0;
             z-index: 0;
             background:
-              radial-gradient(circle at 76% 42%, rgba(11, 99, 206, 0.34), transparent 40%),
-              linear-gradient(90deg, rgba(255, 255, 255, 0.92) 0%, rgba(239, 248, 255, 0.78) 48%, rgba(37, 99, 235, 0.12) 100%);
+              linear-gradient(90deg, rgba(255, 255, 255, 0.86) 0%, rgba(239, 248, 255, 0.68) 45%, rgba(11, 99, 206, 0.24) 100%),
+              radial-gradient(circle at 24% 42%, rgba(14, 165, 233, 0.18), transparent 36%),
+              radial-gradient(circle at 78% 48%, rgba(11, 99, 206, 0.28), transparent 42%);
             pointer-events: none;
           }
 
@@ -71,8 +73,9 @@ export default function FeedPage() {
 
           @media (max-width: 640px) {
             .feed-brand-shell > section > div > div:first-child::before {
-              inset: -10% -28% -16% 16%;
-              opacity: 0.56;
+              background-position: center;
+              background-size: cover;
+              opacity: 0.52;
             }
           }
         `}</style>
