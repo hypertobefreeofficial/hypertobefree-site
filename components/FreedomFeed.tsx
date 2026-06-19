@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
+  Bookmark,
   Copy,
   Download,
   Eye,
@@ -17,6 +18,7 @@ import {
   Sparkles,
   CheckCircle2,
   Share2,
+  UserX,
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
@@ -175,6 +177,8 @@ export default function FreedomFeed({
     useState<ReportReason>("inappropriate");
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
+  const [savedStoryIds, setSavedStoryIds] = useState<string[]>([]);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const currentUserIdRef = useRef<string | null>(null);
   const feedReloadInFlightRef = useRef(false);
   const feedReloadQueuedRef = useRef(false);
@@ -214,6 +218,13 @@ export default function FreedomFeed({
 
       currentUserIdRef.current = user?.id ?? null;
       setUserId(currentUserIdRef.current);
+
+      if (currentUserIdRef.current) {
+        await loadAccountSafety(currentUserIdRef.current);
+      } else {
+        setSavedStoryIds([]);
+        setBlockedUserIds([]);
+      }
 
       await reloadFeed();
     }
@@ -470,6 +481,55 @@ export default function FreedomFeed({
     return null;
   }
 
+  async function loadAccountSafety(currentUserId: string) {
+    const [savedResult, blockedResult] = await Promise.all([
+      supabase
+        .from("saved_content")
+        .select("story_id")
+        .eq("user_id", currentUserId),
+      supabase
+        .from("blocked_users")
+        .select("blocked_user_id")
+        .eq("blocker_user_id", currentUserId),
+    ]);
+
+    if (savedResult.error) {
+      console.error("Could not load saved stories:", savedResult.error);
+    } else {
+      const savedRows: unknown[] = Array.isArray(savedResult.data)
+        ? savedResult.data
+        : [];
+      setSavedStoryIds(
+        savedRows.flatMap((row) =>
+          typeof row === "object" &&
+          row !== null &&
+          "story_id" in row &&
+          typeof row.story_id === "string"
+            ? [row.story_id]
+            : []
+        )
+      );
+    }
+
+    if (blockedResult.error) {
+      console.error("Could not load blocked users:", blockedResult.error);
+    } else {
+      const blockedRows: unknown[] = Array.isArray(blockedResult.data)
+        ? blockedResult.data
+        : [];
+      setBlockedUserIds(
+        blockedRows.flatMap((row) =>
+          typeof row === "object" &&
+          row !== null &&
+          "blocked_user_id" in row &&
+          typeof row.blocked_user_id === "string"
+            ? [row.blocked_user_id]
+            : []
+        )
+      );
+    }
+  }
+
   async function loadApprovedStories(currentUserId: string | null) {
     const { data, error } = await supabase
       .from("stories")
@@ -616,40 +676,112 @@ export default function FreedomFeed({
   }
 
   const filteredStories = useMemo(() => {
-    if (activeFilter === "all") return stories;
+    const visibleStories = stories.filter(
+      (story) =>
+        !story.user_id || !blockedUserIds.includes(story.user_id)
+    );
+
+    if (activeFilter === "all") return visibleStories;
 
     if (activeFilter === "videos") {
-      return stories.filter((story) => story.signed_video_url || story.video_url);
+      return visibleStories.filter(
+        (story) => story.signed_video_url || story.video_url
+      );
     }
 
     if (activeFilter === "testimony") {
-      return stories.filter((story) =>
+      return visibleStories.filter((story) =>
         story.story_type?.toLowerCase().includes("testimony")
       );
     }
 
     if (activeFilter === "praise") {
-      return stories.filter((story) =>
+      return visibleStories.filter((story) =>
         story.story_type?.toLowerCase().includes("praise")
       );
     }
 
     if (activeFilter === "prayer") {
-      return stories.filter((story) =>
+      return visibleStories.filter((story) =>
         story.story_type?.toLowerCase().includes("prayer")
       );
     }
 
     if (activeFilter === "answered") {
-      return stories.filter(
+      return visibleStories.filter(
         (story) =>
           story.story_type?.toLowerCase().includes("prayer") &&
           story.prayer_status === "answered"
       );
     }
 
-    return stories;
-  }, [activeFilter, stories]);
+    return visibleStories;
+  }, [activeFilter, blockedUserIds, stories]);
+
+  async function toggleSavedStory(story: ApprovedStory) {
+    setReactionMessage("");
+
+    if (!userId) {
+      setReactionMessage("Please sign in to save stories.");
+      return;
+    }
+
+    const isSaved = savedStoryIds.includes(story.id);
+
+    const { error } = isSaved
+      ? await supabase
+          .from("saved_content")
+          .delete()
+          .eq("user_id", userId)
+          .eq("story_id", story.id)
+      : await supabase.from("saved_content").insert({
+          user_id: userId,
+          story_id: story.id,
+        });
+
+    if (error) {
+      setReactionMessage(`Could not update saved content: ${error.message}`);
+      return;
+    }
+
+    setSavedStoryIds((current) =>
+      isSaved
+        ? current.filter((storyId) => storyId !== story.id)
+        : [...current, story.id]
+    );
+    setReactionMessage(isSaved ? "Removed from saved content." : "Story saved.");
+  }
+
+  async function blockStoryUser(story: ApprovedStory) {
+    setReactionMessage("");
+
+    if (!userId || !story.user_id) {
+      setReactionMessage("Please sign in to block users.");
+      return;
+    }
+
+    if (story.user_id === userId) return;
+
+    const { error } = await supabase.from("blocked_users").upsert(
+      {
+        blocker_user_id: userId,
+        blocked_user_id: story.user_id,
+      },
+      { onConflict: "blocker_user_id,blocked_user_id" }
+    );
+
+    if (error) {
+      setReactionMessage(`Could not block user: ${error.message}`);
+      return;
+    }
+
+    setBlockedUserIds((current) =>
+      current.includes(story.user_id as string)
+        ? current
+        : [...current, story.user_id as string]
+    );
+    setReactionMessage("User blocked. Their content is now hidden.");
+  }
 
   async function toggleReaction(storyId: string, reactionType: ReactionType) {
     setReactionMessage("");
@@ -1538,6 +1670,38 @@ export default function FreedomFeed({
                         </div>
                       </>
                     )}
+
+                    <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleSavedStory(story)}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                          savedStoryIds.includes(story.id)
+                            ? "bg-blue-50 text-[#0b63ce] ring-blue-100"
+                            : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
+                        }`}
+                      >
+                        <Bookmark
+                          className={`h-4 w-4 ${
+                            savedStoryIds.includes(story.id)
+                              ? "fill-current"
+                              : ""
+                          }`}
+                        />
+                        {savedStoryIds.includes(story.id) ? "Saved" : "Save"}
+                      </button>
+
+                      {!originalPoster && story.user_id && (
+                        <button
+                          type="button"
+                          onClick={() => blockStoryUser(story)}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-black text-red-700 ring-1 ring-red-100 transition hover:bg-red-50"
+                        >
+                          <UserX className="h-4 w-4" />
+                          Block User
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </article>
               );
