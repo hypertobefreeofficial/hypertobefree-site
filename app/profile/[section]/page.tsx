@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import LoggedInBottomNav from "../../../components/LoggedInBottomNav";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -20,6 +20,221 @@ type EditProfileRow = {
   location: string | null;
   show_location: boolean | null;
   show_real_name: boolean | null;
+};
+
+type CategoryItem = {
+  badge?: string;
+  href?: string;
+  text: string;
+  title: string;
+  tone?: "default" | "danger";
+  type?: "delete-account";
+};
+
+type CategoryContent = {
+  description: string;
+  eyebrow: string;
+  items: CategoryItem[];
+  title: string;
+};
+
+const categoryContent: Record<string, CategoryContent> = {
+  "account-security": {
+    eyebrow: "Account Center",
+    title: "Account & Security",
+    description:
+      "Manage private sign-in details, security tools, sessions, and account deletion.",
+    items: [
+      {
+        title: "Account Info",
+        text: "Private sign-in email and account details.",
+        href: "/profile/account-info",
+      },
+      {
+        title: "Change Email",
+        text: "Update the email used for signing in.",
+        badge: "Soon",
+        href: "/profile/change-email",
+      },
+      {
+        title: "Change Password",
+        text: "Update your password safely.",
+        badge: "Soon",
+        href: "/profile/change-password",
+      },
+      {
+        title: "Two-Factor Authentication",
+        text: "Add an extra layer of account protection.",
+        badge: "Soon",
+        href: "/profile/two-factor-authentication",
+      },
+      {
+        title: "Active Sessions",
+        text: "Review devices signed in to your account.",
+        badge: "Soon",
+        href: "/profile/active-sessions",
+      },
+      {
+        title: "Delete Account",
+        text: "Request safe account deletion support.",
+        tone: "danger",
+        type: "delete-account",
+      },
+    ],
+  },
+  "privacy-safety": {
+    eyebrow: "Account Center",
+    title: "Privacy & Safety",
+    description:
+      "Control visibility, location sharing, muted or blocked users, and reports.",
+    items: [
+      {
+        title: "Privacy Settings",
+        text: "Control profile privacy from one place.",
+        href: "/profile/privacy-settings",
+      },
+      {
+        title: "Profile Visibility",
+        text: "Choose who can view your HTBF profile.",
+        badge: "Soon",
+        href: "/profile/profile-visibility",
+      },
+      {
+        title: "Location Visibility",
+        text: "Control when your location appears.",
+        badge: "Soon",
+        href: "/profile/location-visibility",
+      },
+      {
+        title: "Blocked Users",
+        text: "Manage people you have blocked.",
+        badge: "Soon",
+        href: "/profile/blocked-users",
+      },
+      {
+        title: "Muted Users",
+        text: "Manage accounts you have muted.",
+        badge: "Soon",
+        href: "/profile/muted-users",
+      },
+      {
+        title: "Reported Content",
+        text: "Review content reports you have submitted.",
+        badge: "Soon",
+        href: "/profile/reported-content",
+      },
+    ],
+  },
+  notifications: {
+    eyebrow: "Account Center",
+    title: "Notifications",
+    description:
+      "Choose how HTBF keeps you aware of prayer, story, praise, and email updates.",
+    items: [
+      {
+        title: "Prayer Notifications",
+        text: "Prayer request, Prayer Circle, and answered-prayer alerts.",
+        badge: "Soon",
+        href: "/profile/prayer-notifications",
+      },
+      {
+        title: "Story Notifications",
+        text: "Story approval, reply, and community response alerts.",
+        badge: "Soon",
+        href: "/profile/story-notifications",
+      },
+      {
+        title: "Praise Notifications",
+        text: "Answered-prayer and praise report updates.",
+        badge: "Soon",
+        href: "/profile/praise-notifications",
+      },
+      {
+        title: "Email Notifications",
+        text: "Choose which HTBF emails you receive.",
+        badge: "Soon",
+        href: "/profile/email-notifications",
+      },
+    ],
+  },
+  "content-management": {
+    eyebrow: "Account Center",
+    title: "Content Management",
+    description:
+      "Review and manage your posts, videos, prayers, praise reports, and saved content.",
+    items: [
+      {
+        title: "My Stories",
+        text: "Review stories and written encouragement.",
+        href: "/profile/my-stories",
+      },
+      {
+        title: "My Videos",
+        text: "Review your video testimonies.",
+        href: "/profile/my-videos",
+      },
+      {
+        title: "My Prayer Requests",
+        text: "Manage prayer requests you shared.",
+        href: "/profile/my-prayer-requests",
+      },
+      {
+        title: "My Praise Reports",
+        text: "Review praise and answered-prayer moments.",
+        href: "/profile/my-praise-reports",
+      },
+      {
+        title: "Saved Content",
+        text: "Return to saved stories and testimonies.",
+        badge: "Soon",
+        href: "/profile/saved-content",
+      },
+      {
+        title: "Archived / Hidden Content",
+        text: "Manage items you hid or archived.",
+        badge: "Soon",
+        href: "/profile/archived-hidden-content",
+      },
+    ],
+  },
+  support: {
+    eyebrow: "Account Center",
+    title: "Support",
+    description:
+      "Find help, report an issue, and review HTBF guidelines, privacy, and terms.",
+    items: [
+      {
+        title: "Help Center",
+        text: "Find help using HTBF.",
+        badge: "Soon",
+        href: "/profile/help-center",
+      },
+      {
+        title: "Report a Problem",
+        text: "Tell HTBF about a bug or account issue.",
+        badge: "Soon",
+        href: "/profile/report-a-problem",
+      },
+      {
+        title: "Community Guidelines",
+        text: "Review how we keep HTBF safe.",
+        badge: "Soon",
+        href: "/profile/community-guidelines",
+      },
+      {
+        title: "Privacy Policy",
+        text: "Read HTBF privacy practices.",
+        badge: "Soon",
+        href: "/profile/privacy-policy",
+      },
+      {
+        title: "Terms of Service",
+        text: "Review HTBF terms and platform rules.",
+        badge: "Soon",
+        href: "/profile/terms-of-service",
+      },
+    ],
+  },
 };
 
 const placeholderContent: Record<string, PlaceholderContent> = {
@@ -215,6 +430,10 @@ export default function ProfileAccountCenterPlaceholderPage() {
     return <EditProfileSection />;
   }
 
+  if (section && categoryContent[section]) {
+    return <AccountCenterCategoryPage content={categoryContent[section]} />;
+  }
+
   const content =
     placeholderContent[section ?? ""] ?? {
       eyebrow: "Account Center",
@@ -272,6 +491,145 @@ export default function ProfileAccountCenterPlaceholderPage() {
 
       <LoggedInBottomNav />
     </main>
+  );
+}
+
+function AccountCenterCategoryPage({ content }: { content: CategoryContent }) {
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+
+  return (
+    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+          <Link
+            href="/profile"
+            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Profile
+          </Link>
+
+          <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+            Account Center
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce]">
+            <Sparkles className="h-4 w-4" />
+            {content.eyebrow}
+          </div>
+
+          <h1 className="text-4xl font-black tracking-tight text-[#062a57]">
+            {content.title}
+          </h1>
+          <p className="mt-3 max-w-2xl leading-7 text-slate-600">
+            {content.description}
+          </p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {content.items.map((item) => (
+              <CategoryActionCard
+                key={item.title}
+                item={item}
+                onDeleteAccount={() => setDeleteAccountOpen(true)}
+              />
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <LoggedInBottomNav />
+
+      {deleteAccountOpen && (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
+              HYPER TO BE FREE
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Delete account?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Account deletion is permanent. For now, please contact HTBF
+              support so your account, uploads, messages, and prayer activity can
+              be handled safely.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setDeleteAccountOpen(false)}
+                className="flex-1 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+              >
+                Not Yet
+              </button>
+              <a
+                href="mailto:support@hypertobefree.com?subject=Delete%20my%20HTBF%20account"
+                className="flex-1 rounded-full bg-red-600 px-5 py-3 text-center text-sm font-black text-white"
+              >
+                Contact Support
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function CategoryActionCard({
+  item,
+  onDeleteAccount,
+}: {
+  item: CategoryItem;
+  onDeleteAccount: () => void;
+}) {
+  const isDanger = item.tone === "danger";
+  const className = `group rounded-[1.5rem] p-4 text-left ring-1 transition ${
+    isDanger
+      ? "bg-red-50 text-red-800 ring-red-100 hover:bg-red-100"
+      : "bg-slate-50 text-slate-900 ring-slate-100 hover:bg-blue-50 hover:ring-blue-100"
+  }`;
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <h2
+          className={`font-black ${
+            isDanger ? "text-red-800" : "text-[#062a57]"
+          }`}
+        >
+          {item.title}
+        </h2>
+        <ChevronRight
+          className={`mt-0.5 h-4 w-4 shrink-0 transition group-hover:translate-x-0.5 ${
+            isDanger ? "text-red-500" : "text-[#0b63ce]"
+          }`}
+        />
+      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
+      {item.badge && (
+        <span className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#0b63ce] ring-1 ring-blue-100">
+          {item.badge}
+        </span>
+      )}
+    </>
+  );
+
+  if (item.type === "delete-account") {
+    return (
+      <button type="button" onClick={onDeleteAccount} className={className}>
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={item.href ?? "/profile"} className={className}>
+      {body}
+    </Link>
   );
 }
 
