@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  Bell,
   CheckCircle2,
   Clock,
   HeartHandshake,
@@ -64,6 +65,8 @@ type PrayerStory = PrayerStoryRow & {
 
 const PRAYER_VIDEO_BUCKET = "story-videos";
 const MAX_PRAYER_VIDEO_SECONDS = 30;
+const PRAYER_NOTIFICATION_FILTER =
+  "category.eq.prayer,message_type.in.(prayer_update,answered_prayer,prayer_circle,prayer_video_response)";
 
 const filters: { label: string; value: PrayerFilter }[] = [
   { label: "All", value: "all" },
@@ -173,6 +176,7 @@ export default function PrayerPage() {
   );
   const [prayerVideoError, setPrayerVideoError] = useState("");
   const [sendingPrayerVideo, setSendingPrayerVideo] = useState(false);
+  const [unreadPrayerCount, setUnreadPrayerCount] = useState(0);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
   );
@@ -345,6 +349,44 @@ export default function PrayerPage() {
       }
     };
   }, [prayerVideoPreviewUrl]);
+
+  useEffect(() => {
+    if (!userId) {
+      setUnreadPrayerCount(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadUnreadPrayerCount() {
+      const { count, error } = await supabase
+        .from("inbox_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("read", false)
+        .is("hidden_at", null)
+        .or(PRAYER_NOTIFICATION_FILTER);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Could not load unread prayer updates:", error);
+        return;
+      }
+
+      setUnreadPrayerCount(count ?? 0);
+    }
+
+    void loadUnreadPrayerCount();
+    const pollId = window.setInterval(() => {
+      void loadUnreadPrayerCount();
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollId);
+    };
+  }, [userId]);
 
   const stats = useMemo(() => {
     return {
@@ -1045,8 +1087,22 @@ export default function PrayerPage() {
             HTBF
           </Link>
 
-          <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-            Prayer
+          <div className="flex items-center gap-2">
+            <div className="hidden text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce] sm:block">
+              Prayer
+            </div>
+            <Link
+              href="/notifications?category=prayer"
+              className="relative inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-100"
+            >
+              <Bell className="h-4 w-4" />
+              <span>Prayer Updates</span>
+              {unreadPrayerCount > 0 && (
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">
+                  {unreadPrayerCount > 99 ? "99+" : unreadPrayerCount}
+                </span>
+              )}
+            </Link>
           </div>
         </div>
       </header>
