@@ -21,21 +21,22 @@ export default function FeedPage() {
             position: relative;
             overflow: hidden;
             background:
-              linear-gradient(115deg, rgba(255, 255, 255, 0.96), rgba(219, 234, 254, 0.72)),
-              #eff6ff !important;
+              linear-gradient(115deg, rgba(255, 255, 255, 0.93), rgba(147, 197, 253, 0.62)),
+              #dbeafe !important;
             box-shadow: inset 0 0 0 1px rgba(11, 99, 206, 0.12);
           }
 
           .feed-brand-shell > section > div > div:first-child::before {
             content: "";
             position: absolute;
-            inset: -18% -8% -18% 30%;
+            inset: -20% -4% -20% 28%;
             z-index: 0;
             background-image: url("/images/hero-freedom.png");
             background-position: center;
             background-repeat: no-repeat;
             background-size: contain;
-            opacity: 0.18;
+            filter: saturate(1.45) contrast(1.18) drop-shadow(0 22px 34px rgba(8, 47, 99, 0.2));
+            opacity: 0.68;
             pointer-events: none;
           }
 
@@ -45,8 +46,8 @@ export default function FeedPage() {
             inset: 0;
             z-index: 0;
             background:
-              radial-gradient(circle at 78% 42%, rgba(11, 99, 206, 0.18), transparent 42%),
-              linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(239, 248, 255, 0.58));
+              radial-gradient(circle at 76% 42%, rgba(11, 99, 206, 0.34), transparent 40%),
+              linear-gradient(90deg, rgba(255, 255, 255, 0.92) 0%, rgba(239, 248, 255, 0.78) 48%, rgba(37, 99, 235, 0.12) 100%);
             pointer-events: none;
           }
 
@@ -70,8 +71,8 @@ export default function FeedPage() {
 
           @media (max-width: 640px) {
             .feed-brand-shell > section > div > div:first-child::before {
-              inset: -10% -26% -18% 18%;
-              opacity: 0.14;
+              inset: -10% -28% -16% 16%;
+              opacity: 0.56;
             }
           }
         `}</style>
