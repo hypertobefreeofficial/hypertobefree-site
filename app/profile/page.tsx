@@ -280,7 +280,7 @@ export default function ProfilePage() {
       icon: UserCog,
     },
     {
-      label: "Notifications",
+      label: "Notification Settings",
       href: "/profile/notifications",
       icon: Bell,
     },
@@ -546,19 +546,13 @@ export default function ProfilePage() {
             HTBF
           </Link>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setAccountMenuOpen((current) => !current)}
-              aria-label="Open Account Center menu"
-              aria-expanded={accountMenuOpen}
+          <div className="flex items-center gap-2">
+            <Link
+              href="/notifications"
+              aria-label="Open notifications"
               className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-100"
             >
-              {accountMenuOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
+              <Bell className="h-5 w-5" />
               {unreadNotificationCount > 0 && (
                 <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
                   {unreadNotificationCount > 99
@@ -566,62 +560,70 @@ export default function ProfilePage() {
                     : unreadNotificationCount}
                 </span>
               )}
-            </button>
+            </Link>
 
-            {accountMenuOpen && (
-              <div className="absolute right-0 top-14 z-[70] w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-slate-200">
-                <div className="px-3 pb-2 pt-3 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  Account Center
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setAccountMenuOpen((current) => !current)}
+                aria-label="Open Account Center menu"
+                aria-expanded={accountMenuOpen}
+                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-100"
+              >
+                {accountMenuOpen ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <Menu className="h-5 w-5" />
+                )}
+              </button>
+
+              {accountMenuOpen && (
+                <div className="absolute right-0 top-14 z-[70] w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-[1.5rem] bg-white p-2 shadow-2xl ring-1 ring-slate-200">
+                  <div className="px-3 pb-2 pt-3 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                    Account Center
+                  </div>
+
+                  {accountMenuLinks.map((item) => {
+                    const Icon = item.icon;
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setAccountMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-black text-slate-700 transition hover:bg-blue-50 hover:text-[#0b63ce]"
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 flex-1">{item.label}</span>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                      </Link>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    disabled={signingOut}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {signingOut ? "Signing Out..." : "Sign Out"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      setDeleteAccountOpen(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black text-red-700 transition hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Account
+                  </button>
                 </div>
-
-                {accountMenuLinks.map((item) => {
-                  const Icon = item.icon;
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setAccountMenuOpen(false)}
-                      className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-black text-slate-700 transition hover:bg-blue-50 hover:text-[#0b63ce]"
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="min-w-0 flex-1">{item.label}</span>
-                      {item.href === "/profile/notifications" &&
-                        unreadNotificationCount > 0 && (
-                          <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] text-white">
-                            {unreadNotificationCount > 99
-                              ? "99+"
-                              : unreadNotificationCount}
-                          </span>
-                        )}
-                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                    </Link>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={signOut}
-                  disabled={signingOut}
-                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
-                >
-                  <LogOut className="h-4 w-4" />
-                  {signingOut ? "Signing Out..." : "Sign Out"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAccountMenuOpen(false);
-                    setDeleteAccountOpen(true);
-                  }}
-                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-black text-red-700 transition hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Account
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </header>
