@@ -249,7 +249,6 @@ export default function PrayerPage() {
   const [publicResponseDuration, setPublicResponseDuration] = useState<
     number | null
   >(null);
-  const [publicResponseBody, setPublicResponseBody] = useState("");
   const [publicResponseError, setPublicResponseError] = useState("");
   const [submittingPublicResponse, setSubmittingPublicResponse] =
     useState(false);
@@ -1191,7 +1190,6 @@ export default function PrayerPage() {
     setPublicResponseStory(story);
     setPublicResponseFile(null);
     setPublicResponseDuration(null);
-    setPublicResponseBody("");
 
     if (publicResponsePreviewUrl) {
       URL.revokeObjectURL(publicResponsePreviewUrl);
@@ -1209,7 +1207,6 @@ export default function PrayerPage() {
     setPublicResponseStory(null);
     setPublicResponseFile(null);
     setPublicResponseDuration(null);
-    setPublicResponseBody("");
     setPublicResponseError("");
 
     if (publicResponsePreviewUrl) {
@@ -1306,13 +1303,12 @@ export default function PrayerPage() {
       return;
     }
 
-    const cleanBody = publicResponseBody.trim();
     const { error: insertError } = await supabase.rpc(
       "submit_prayer_video_response",
       {
         prayer_story_id: publicResponseStory.id,
         response_video_url: storagePath,
-        response_body: cleanBody || null,
+        response_body: null,
       }
     );
 
@@ -1877,23 +1873,6 @@ export default function PrayerPage() {
                   Video length: {Math.round(publicResponseDuration)} seconds
                 </div>
               )}
-
-              <label className="mt-4 block">
-                <span className="text-sm font-black text-[#062a57]">
-                  Optional response text
-                </span>
-                <textarea
-                  value={publicResponseBody}
-                  onChange={(event) =>
-                    setPublicResponseBody(event.target.value)
-                  }
-                  maxLength={500}
-                  rows={4}
-                  placeholder="Add a short prayer or encouragement..."
-                  className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                  style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                />
-              </label>
 
               {publicResponseError && (
                 <div className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 ring-1 ring-red-100">
