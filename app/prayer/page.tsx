@@ -13,6 +13,7 @@ import {
   Share2,
   Sparkles,
   UploadCloud,
+  UserX,
   Users,
   Video,
   X,
@@ -277,6 +278,7 @@ export default function PrayerPage() {
     useState("");
   const [sendingPublicResponseReport, setSendingPublicResponseReport] =
     useState(false);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [unreadPrayerCount, setUnreadPrayerCount] = useState(0);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
@@ -531,6 +533,45 @@ export default function PrayerPage() {
       realtimeChannelRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBlockedUsers() {
+      if (!userId) {
+        setBlockedUserIds([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("blocked_users")
+        .select("blocked_user_id")
+        .eq("blocker_user_id", userId);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Could not load blocked users for Prayer:", error);
+        return;
+      }
+
+      const nextBlockedUserIds = (Array.isArray(data) ? data : [])
+        .map((row) =>
+          isRecord(row) ? readString(row.blocked_user_id) : null
+        )
+        .filter((blockedUserId): blockedUserId is string =>
+          Boolean(blockedUserId)
+        );
+
+      setBlockedUserIds(nextBlockedUserIds);
+    }
+
+    void loadBlockedUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     return () => {
@@ -1490,6 +1531,43 @@ export default function PrayerPage() {
     );
   }
 
+  async function blockPublicResponseAuthor(
+    response: PublicPrayerVideoResponse
+  ) {
+    if (!userId) {
+      setMessage("Please sign in to block this user.");
+      return;
+    }
+
+    if (response.user_id === userId) return;
+
+    const confirmed = window.confirm(
+      "Block this user? Their public prayer responses will be hidden from you."
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("blocked_users").upsert(
+      {
+        blocker_user_id: userId,
+        blocked_user_id: response.user_id,
+      },
+      { onConflict: "blocker_user_id,blocked_user_id" }
+    );
+
+    if (error) {
+      setMessage(`Could not block user: ${error.message}`);
+      return;
+    }
+
+    setBlockedUserIds((currentUserIds) =>
+      currentUserIds.includes(response.user_id)
+        ? currentUserIds
+        : [...currentUserIds, response.user_id]
+    );
+    setMessage("User blocked. Their public prayer responses are now hidden.");
+  }
+
   function removePublicResponseFromView(responseId: string) {
     setStories((currentStories) =>
       currentStories.map((story) => ({
@@ -1779,6 +1857,8 @@ export default function PrayerPage() {
                     onRemovePublicResponse={removePublicResponse}
                     onHidePublicResponse={hidePublicResponse}
                     onReportPublicResponse={openPublicResponseReport}
+                    onBlockPublicResponseAuthor={blockPublicResponseAuthor}
+                    blockedUserIds={blockedUserIds}
                   />
                 ) : (
                   <PrayerRequestCard
@@ -1797,6 +1877,8 @@ export default function PrayerPage() {
                     onRemovePublicResponse={removePublicResponse}
                     onHidePublicResponse={hidePublicResponse}
                     onReportPublicResponse={openPublicResponseReport}
+                    onBlockPublicResponseAuthor={blockPublicResponseAuthor}
+                    blockedUserIds={blockedUserIds}
                     onGodDidIt={() => {
                       setAnsweringStory(story);
                       setAnsweredPrayerText("");
@@ -2255,6 +2337,8 @@ function PrayerRequestCard({
   onRemovePublicResponse,
   onHidePublicResponse,
   onReportPublicResponse,
+  onBlockPublicResponseAuthor,
+  blockedUserIds,
 }: {
   story: PrayerStory;
   owner: boolean;
@@ -2269,6 +2353,8 @@ function PrayerRequestCard({
   onRemovePublicResponse: (responseId: string) => void;
   onHidePublicResponse: (responseId: string) => void;
   onReportPublicResponse: (response: PublicPrayerVideoResponse) => void;
+  onBlockPublicResponseAuthor: (response: PublicPrayerVideoResponse) => void;
+  blockedUserIds: string[];
 }) {
   const praying = story.user_reactions.includes("praying");
   const encouraged = story.user_reactions.includes("encouraged");
@@ -2332,6 +2418,8 @@ function PrayerRequestCard({
           onRemove={onRemovePublicResponse}
           onHide={onHidePublicResponse}
           onReport={onReportPublicResponse}
+          onBlock={onBlockPublicResponseAuthor}
+          blockedUserIds={blockedUserIds}
         />
       </div>
 
@@ -2402,6 +2490,8 @@ function AnsweredPrayerCard({
   onRemovePublicResponse,
   onHidePublicResponse,
   onReportPublicResponse,
+  onBlockPublicResponseAuthor,
+  blockedUserIds,
 }: {
   story: PrayerStory;
   owner: boolean;
@@ -2412,6 +2502,8 @@ function AnsweredPrayerCard({
   onRemovePublicResponse: (responseId: string) => void;
   onHidePublicResponse: (responseId: string) => void;
   onReportPublicResponse: (response: PublicPrayerVideoResponse) => void;
+  onBlockPublicResponseAuthor: (response: PublicPrayerVideoResponse) => void;
+  blockedUserIds: string[];
 }) {
   const praying = story.user_reactions.includes("praying");
 
@@ -2486,6 +2578,8 @@ function AnsweredPrayerCard({
           onRemove={onRemovePublicResponse}
           onHide={onHidePublicResponse}
           onReport={onReportPublicResponse}
+          onBlock={onBlockPublicResponseAuthor}
+          blockedUserIds={blockedUserIds}
         />
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -2547,6 +2641,8 @@ function PublicPrayerResponses({
   onRemove,
   onHide,
   onReport,
+  onBlock,
+  blockedUserIds,
 }: {
   responses: PublicPrayerVideoResponse[];
   currentUserId: string | null;
@@ -2554,8 +2650,14 @@ function PublicPrayerResponses({
   onRemove: (responseId: string) => void;
   onHide: (responseId: string) => void;
   onReport: (response: PublicPrayerVideoResponse) => void;
+  onBlock: (response: PublicPrayerVideoResponse) => void;
+  blockedUserIds: string[];
 }) {
-  if (responses.length === 0) return null;
+  const visibleResponses = responses.filter(
+    (response) => !blockedUserIds.includes(response.user_id)
+  );
+
+  if (visibleResponses.length === 0) return null;
 
   return (
     <section className="mt-4 rounded-2xl bg-blue-50/70 p-4 ring-1 ring-blue-100">
@@ -2564,12 +2666,12 @@ function PublicPrayerResponses({
           Public Prayer Responses
         </div>
         <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-500 ring-1 ring-blue-100">
-          {responses.length}
+          {visibleResponses.length}
         </span>
       </div>
 
       <div className="mt-3 space-y-4">
-        {responses.map((response) => {
+        {visibleResponses.map((response) => {
           const videoSource =
             response.signed_video_url ||
             (response.video_url.startsWith("http")
@@ -2645,14 +2747,24 @@ function PublicPrayerResponses({
                       </button>
                     )}
                     {canReport && (
-                      <button
-                        type="button"
-                        onClick={() => onReport(response)}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-2 text-xs font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
-                      >
-                        <Flag className="h-3.5 w-3.5" />
-                        Report Response
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onReport(response)}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-2 text-xs font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
+                        >
+                          <Flag className="h-3.5 w-3.5" />
+                          Report Response
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onBlock(response)}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-800"
+                        >
+                          <UserX className="h-3.5 w-3.5" />
+                          Block User
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
