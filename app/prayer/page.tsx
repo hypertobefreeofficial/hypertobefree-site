@@ -1303,22 +1303,23 @@ export default function PrayerPage() {
       return;
     }
 
-    const { error: insertError } = await supabase.rpc(
+    const videoUrl = storagePath;
+    const { error: rpcError } = await supabase.rpc(
       "submit_prayer_video_response",
       {
         prayer_story_id: publicResponseStory.id,
-        response_video_url: storagePath,
+        response_video_url: videoUrl,
         response_body: null,
       }
     );
 
-    if (insertError) {
+    if (rpcError) {
       await supabase.storage
         .from(PRAYER_VIDEO_BUCKET)
         .remove([storagePath]);
       setSubmittingPublicResponse(false);
       setPublicResponseError(
-        `Could not submit public response: ${insertError.message}`
+        `Could not submit public response: ${rpcError.message}`
       );
       return;
     }
