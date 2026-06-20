@@ -1301,29 +1301,66 @@ export default function PrayerPage() {
       return;
     }
 
-    const { error: rpcError } = await supabase.rpc(
-      "submit_prayer_video_response",
-      {
-        prayer_story_id: publicResponseStory.id,
-        response_video_url: storagePath,
-        response_body: null,
-      }
-    );
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (rpcError) {
+    if (!session?.access_token) {
+      await supabase.storage
+        .from(PRAYER_VIDEO_BUCKET)
+        .remove([storagePath]);
+      setSubmittingPublicResponse(false);
+      setPublicResponseError("Please sign in to share a public response.");
+      return;
+    }
+
+    let submitResponse: Response;
+    let submitResult: unknown;
+
+    try {
+      submitResponse = await fetch("/api/submit-prayer-video-response", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prayer_story_id: publicResponseStory.id,
+          response_video_url: storagePath,
+        }),
+      });
+      submitResult = await submitResponse.json();
+    } catch (error) {
+      console.error("Public prayer response submission failed:", error);
+      await supabase.storage
+        .from(PRAYER_VIDEO_BUCKET)
+        .remove([storagePath]);
+      setSubmittingPublicResponse(false);
+      setPublicResponseError("Could not submit public response.");
+      return;
+    }
+
+    if (!submitResponse.ok) {
       await supabase.storage
         .from(PRAYER_VIDEO_BUCKET)
         .remove([storagePath]);
       setSubmittingPublicResponse(false);
       setPublicResponseError(
-        `Could not submit public response: ${rpcError.message}`
+        isRecord(submitResult) && typeof submitResult.error === "string"
+          ? `Could not submit public response: ${submitResult.error}`
+          : "Could not submit public response."
       );
       return;
     }
 
+    const successMessage =
+      isRecord(submitResult) && submitResult.status === "approved"
+        ? "Public prayer response approved and posted."
+        : "Public prayer response submitted for review.";
+
     setSubmittingPublicResponse(false);
     resetPublicResponseModal();
-    setMessage("Public prayer response submitted for review.");
+    setMessage(successMessage);
   }
 
   async function removePublicResponse(responseId: string) {
