@@ -1,498 +1,396 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Bell,
-  CheckCircle2,
-  Clock,
-  HeartHandshake,
-  MessageCircleHeart,
-  Send,
-  Share2,
-  Sparkles,
-  UploadCloud,
-  Users,
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle,
+  EyeOff,
+  FileText,
+  Flag,
+  Lock,
+  ShieldAlert,
+  ShieldCheck,
+  UserCircle,
   Video,
-  X,
+  XCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
-type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
-type PrayerFilter = "all" | "active" | "answered" | "most-prayed" | "recent";
+const ADMIN_EMAIL = "hypertobefree@gmail.com";
 
-type PrayerStoryRow = {
+const storyFilters: { label: string; value: StoryFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
+  { label: "Approved", value: "approved" },
+  { label: "Removed", value: "removed" },
+  { label: "Videos", value: "videos" },
+  { label: "Photos", value: "photos" },
+  { label: "Prayer", value: "prayer" },
+  { label: "Testimonies", value: "testimonies" },
+  { label: "Praise", value: "praise" },
+];
+
+type Story = {
   id: string;
   user_id: string | null;
   name: string | null;
+  email: string | null;
   location: string | null;
   story_type: string | null;
   story_text: string | null;
+  image_url: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
   status: string | null;
   created_at: string | null;
-  prayer_status: string | null;
-  answered_at: string | null;
-  answered_text: string | null;
 };
 
-type ReactionRow = {
-  story_id: string | null;
-  user_id: string | null;
-  reaction_type: string | null;
-};
+type StoryFilter =
+  | "all"
+  | "pending"
+  | "approved"
+  | "removed"
+  | "videos"
+  | "photos"
+  | "prayer"
+  | "testimonies"
+  | "praise";
 
-type PrayerUpdate = {
+type ContentReport = {
   id: string;
+  story_id: string | null;
+  reporter_user_id: string | null;
+  reported_user_id: string | null;
+  reason: string | null;
+  details: string | null;
+  status: string | null;
+  admin_notes: string | null;
+  created_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  story?: Story | null;
+};
+
+type AccountDeletionRequest = {
+  id: string;
+  user_id: string;
+  email: string | null;
+  reason: string | null;
+  status: string | null;
+  admin_notes: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string | null;
+};
+
+type PrayerVideoResponseStatus = "approved" | "rejected" | "removed";
+
+type PrayerVideoResponse = {
+  response_id: string;
   story_id: string;
-  author_user_id: string;
-  body: string;
-  update_type: "update" | "answered" | "praise";
-  created_at: string;
-  edited_at: string | null;
+  response_user_id: string;
+  video_url: string;
+  body: string | null;
+  status: string;
+  created_at: string | null;
+  moderated_at: string | null;
+  moderated_by: string | null;
   hidden_at: string | null;
+  removed_at: string | null;
+  prayer_text: string | null;
+  prayer_owner_user_id: string | null;
+  prayer_owner_name: string | null;
+  prayer_owner_display_name: string | null;
+  prayer_owner_username: string | null;
+  prayer_owner_avatar_url: string | null;
+  response_author_display_name: string | null;
+  response_author_username: string | null;
+  response_author_avatar_url: string | null;
 };
 
-type PrayerStory = PrayerStoryRow & {
-  reaction_counts: {
-    amen: number;
-    praise_god: number;
-    encouraged: number;
-    praying: number;
-  };
-  user_reactions: ReactionType[];
-  updates: PrayerUpdate[];
-};
-
-const PRAYER_VIDEO_BUCKET = "story-videos";
-const MAX_PRAYER_VIDEO_SECONDS = 30;
-const PRAYER_NOTIFICATION_FILTER =
-  "category.eq.prayer,message_type.in.(prayer_update,answered_prayer,prayer_circle,prayer_video_response)";
-
-const filters: { label: string; value: PrayerFilter }[] = [
-  { label: "All", value: "all" },
-  { label: "Active", value: "active" },
-  { label: "Answered", value: "answered" },
-  { label: "Most Prayed For", value: "most-prayed" },
-  { label: "Recently Shared", value: "recent" },
-];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function readString(value: unknown) {
-  return typeof value === "string" ? value : null;
-}
-
-function isPrayerStoryRow(value: unknown): value is PrayerStoryRow {
-  return isRecord(value) && typeof value.id === "string";
-}
-
-function isReactionRow(value: unknown): value is ReactionRow {
-  return (
-    isRecord(value) &&
-    "story_id" in value &&
-    "user_id" in value &&
-    "reaction_type" in value
+export default function AdminPage() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [reports, setReports] = useState<ContentReport[]>([]);
+  const [deletionRequests, setDeletionRequests] = useState<
+    AccountDeletionRequest[]
+  >([]);
+  const [prayerVideoResponses, setPrayerVideoResponses] = useState<
+    PrayerVideoResponse[]
+  >([]);
+  const [prayerResponseVideoUrls, setPrayerResponseVideoUrls] = useState<
+    Record<string, string>
+  >({});
+  const [storyImageUrls, setStoryImageUrls] = useState<Record<string, string>>(
+    {}
   );
-}
-
-function isPrayerUpdate(value: unknown): value is PrayerUpdate {
-  if (!isRecord(value)) return false;
-
-  return (
-    typeof value.id === "string" &&
-    typeof value.story_id === "string" &&
-    typeof value.author_user_id === "string" &&
-    typeof value.body === "string" &&
-    (value.update_type === "update" ||
-      value.update_type === "answered" ||
-      value.update_type === "praise") &&
-    typeof value.created_at === "string" &&
-    (typeof value.edited_at === "string" || value.edited_at === null) &&
-    (typeof value.hidden_at === "string" || value.hidden_at === null)
-  );
-}
-
-function storyIncludesPrayer(story: PrayerStoryRow) {
-  const storyType = story.story_type?.toLowerCase() ?? "";
-  return storyType.includes("prayer");
-}
-
-function isAnswered(story: PrayerStory) {
-  return story.prayer_status === "answered";
-}
-
-function formatPrayerCircleCount(count: number) {
-  if (count === 1) return "🙏 1 person is praying for this request";
-  return `🙏 ${count} people are praying for this request`;
-}
-
-function getVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    const url = URL.createObjectURL(file);
-
-    video.preload = "metadata";
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(video.duration);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read video duration."));
-    };
-    video.src = url;
-  });
-}
-
-export default function PrayerPage() {
-  const [stories, setStories] = useState<PrayerStory[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<PrayerFilter>("active");
+  const [notAllowed, setNotAllowed] = useState(false);
   const [message, setMessage] = useState("");
-  const [answeringStory, setAnsweringStory] = useState<PrayerStory | null>(
-    null
-  );
-  const [updatingStory, setUpdatingStory] = useState<PrayerStory | null>(null);
-  const [prayerMomentStory, setPrayerMomentStory] =
-    useState<PrayerStory | null>(null);
-  const [answeredPrayerText, setAnsweredPrayerText] = useState("");
-  const [prayerUpdateText, setPrayerUpdateText] = useState("");
-  const [savingPrayerUpdate, setSavingPrayerUpdate] = useState(false);
-  const [prayerVideoStory, setPrayerVideoStory] = useState<PrayerStory | null>(
-    null
-  );
-  const [prayerVideoFile, setPrayerVideoFile] = useState<File | null>(null);
-  const [prayerVideoPreviewUrl, setPrayerVideoPreviewUrl] = useState("");
-  const [prayerVideoDuration, setPrayerVideoDuration] = useState<number | null>(
-    null
-  );
-  const [prayerVideoError, setPrayerVideoError] = useState("");
-  const [sendingPrayerVideo, setSendingPrayerVideo] = useState(false);
-  const [unreadPrayerCount, setUnreadPrayerCount] = useState(0);
-  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
-    null
-  );
-  const prayerCircleInboxKeysRef = useRef<Set<string>>(new Set());
+  const [activeFilter, setActiveFilter] = useState<StoryFilter>("pending");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [expandedStoryId, setExpandedStoryId] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadPrayerStories(showLoading = false) {
-      if (showLoading) setLoading(true);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (cancelled) return;
-
-      setUserId(user?.id ?? null);
-
-      const { data, error } = await supabase
-        .from("stories")
-        .select(
-          "id, user_id, name, location, story_type, story_text, status, created_at, prayer_status, answered_at, answered_text"
-        )
-        .eq("status", "approved")
-        .order("created_at", { ascending: false })
-        .limit(80);
-
-      if (cancelled) return;
-
-      if (error || !data) {
-        console.error("Could not load prayer requests:", error);
-        setMessage("Could not load prayer requests right now.");
-        setLoading(false);
-        return;
-      }
-
-      const prayerRows = (Array.isArray(data) ? data : [])
-        .filter(isPrayerStoryRow)
-        .map((story) => ({
-          id: story.id,
-          user_id: readString(story.user_id),
-          name: readString(story.name),
-          location: readString(story.location),
-          story_type: readString(story.story_type),
-          story_text: readString(story.story_text),
-          status: readString(story.status),
-          created_at: readString(story.created_at),
-          prayer_status: readString(story.prayer_status) ?? "active",
-          answered_at: readString(story.answered_at),
-          answered_text: readString(story.answered_text),
-        }))
-        .filter(storyIncludesPrayer);
-
-      const storyIds = prayerRows.map((story) => story.id);
-      let reactions: ReactionRow[] = [];
-      let prayerUpdates: PrayerUpdate[] = [];
-
-      if (storyIds.length > 0) {
-        const [reactionResult, updateResult] = await Promise.all([
-          supabase
-            .from("story_reactions")
-            .select("story_id, user_id, reaction_type")
-            .in("story_id", storyIds),
-          supabase
-            .from("prayer_updates")
-            .select(
-              "id, story_id, author_user_id, body, update_type, created_at, edited_at, hidden_at"
-            )
-            .in("story_id", storyIds)
-            .is("hidden_at", null)
-            .order("created_at", { ascending: true }),
-        ]);
-
-        reactions = (
-          Array.isArray(reactionResult.data) ? reactionResult.data : []
-        ).filter(isReactionRow);
-
-        if (updateResult.error) {
-          console.error("Could not load prayer updates:", updateResult.error);
-        } else {
-          prayerUpdates = (
-            Array.isArray(updateResult.data) ? updateResult.data : []
-          ).filter(isPrayerUpdate);
-        }
-      }
-
-      if (cancelled) return;
-
-      const nextStories: PrayerStory[] = prayerRows.map((story) => {
-        const storyReactions = reactions.filter(
-          (reaction) => reaction.story_id === story.id
-        );
-
-        const userReactions = storyReactions
-          .filter((reaction) => reaction.user_id === user?.id)
-          .map((reaction) => reaction.reaction_type)
-          .filter(
-            (reaction): reaction is ReactionType =>
-              reaction === "amen" ||
-              reaction === "praise_god" ||
-              reaction === "encouraged" ||
-              reaction === "praying"
-          );
-
-        return {
-          ...story,
-          reaction_counts: {
-            amen: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "amen"
-            ).length,
-            praise_god: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "praise_god"
-            ).length,
-            encouraged: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "encouraged"
-            ).length,
-            praying: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "praying"
-            ).length,
-          },
-          user_reactions: userReactions,
-          updates: prayerUpdates.filter(
-            (update) => update.story_id === story.id
-          ),
-        };
-      });
-
-      setStories(nextStories);
-      setLoading(false);
-    }
-
-    void loadPrayerStories(true);
-
-    if (realtimeChannelRef.current) {
-      supabase.removeChannel(realtimeChannelRef.current);
-    }
-
-    const channel = supabase
-      .channel("prayer-room-live-updates")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "stories" },
-        () => {
-          void loadPrayerStories();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "story_reactions" },
-        () => {
-          void loadPrayerStories();
-        }
-      )
-      .subscribe();
-
-    realtimeChannelRef.current = channel;
-
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
-      realtimeChannelRef.current = null;
-    };
+    loadAdminPage();
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (prayerVideoPreviewUrl) {
-        URL.revokeObjectURL(prayerVideoPreviewUrl);
-      }
-    };
-  }, [prayerVideoPreviewUrl]);
+  async function loadAdminPage() {
+    setLoading(true);
+    setMessage("");
 
-  useEffect(() => {
-    if (!userId) {
-      setUnreadPrayerCount(0);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
       return;
     }
 
-    let cancelled = false;
+    setEmail(user.email ?? null);
 
-    async function loadUnreadPrayerCount() {
-      const { count, error } = await supabase
-        .from("inbox_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("read", false)
-        .is("hidden_at", null)
-        .or(PRAYER_NOTIFICATION_FILTER);
-
-      if (cancelled) return;
-
-      if (error) {
-        console.error("Could not load unread prayer updates:", error);
-        return;
-      }
-
-      setUnreadPrayerCount(count ?? 0);
+    if (user.email !== ADMIN_EMAIL) {
+      setNotAllowed(true);
+      setLoading(false);
+      return;
     }
 
-    void loadUnreadPrayerCount();
-    const pollId = window.setInterval(() => {
-      void loadUnreadPrayerCount();
-    }, 30_000);
+    await Promise.all([
+      loadStories(),
+      loadReports(),
+      loadDeletionRequests(),
+      loadPrayerVideoResponses(),
+    ]);
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(pollId);
-    };
-  }, [userId]);
-
-  const stats = useMemo(() => {
-    return {
-      activeRequests: stories.filter((story) => !isAnswered(story)).length,
-      peoplePraying: stories.reduce(
-        (total, story) => total + story.reaction_counts.praying,
-        0
-      ),
-      answeredPrayers: stories.filter(isAnswered).length,
-    };
-  }, [stories]);
-
-  const filteredStories = useMemo(() => {
-    const sortedByRecent = [...stories].sort((first, second) => {
-      const firstTime = first.created_at
-        ? new Date(first.created_at).getTime()
-        : 0;
-      const secondTime = second.created_at
-        ? new Date(second.created_at).getTime()
-        : 0;
-
-      return secondTime - firstTime;
-    });
-
-    if (activeFilter === "active") {
-      return sortedByRecent.filter((story) => !isAnswered(story));
-    }
-
-    if (activeFilter === "answered") {
-      return sortedByRecent.filter(isAnswered);
-    }
-
-    if (activeFilter === "most-prayed") {
-      return [...stories].sort((first, second) => {
-        const prayerDifference =
-          second.reaction_counts.praying - first.reaction_counts.praying;
-
-        if (prayerDifference !== 0) return prayerDifference;
-
-        const firstTime = first.created_at
-          ? new Date(first.created_at).getTime()
-          : 0;
-        const secondTime = second.created_at
-          ? new Date(second.created_at).getTime()
-          : 0;
-
-        return secondTime - firstTime;
-      });
-    }
-
-    return sortedByRecent;
-  }, [activeFilter, stories]);
-
-  function isOriginalPoster(story: PrayerStory) {
-    return Boolean(userId && story.user_id && story.user_id === userId);
+    setLoading(false);
   }
 
-  function updateLocalReaction(
-    storyId: string,
-    reactionType: ReactionType,
-    action: "add" | "remove"
-  ) {
-    setStories((currentStories) =>
-      currentStories.map((story) => {
-        if (story.id !== storyId) return story;
+  async function loadStories() {
+    const { data, error } = await supabase
+      .from("stories")
+      .select(
+        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, created_at"
+      )
+      .order("created_at", { ascending: false });
 
-        const nextCount =
-          action === "add"
-            ? story.reaction_counts[reactionType] + 1
-            : Math.max(story.reaction_counts[reactionType] - 1, 0);
+    if (error) {
+      setMessage(`Could not load stories: ${error.message}`);
+      return;
+    }
 
-        const nextUserReactions =
-          action === "add"
-            ? [...story.user_reactions, reactionType]
-            : story.user_reactions.filter(
-                (reaction) => reaction !== reactionType
-              );
+    const loadedStories = (data as Story[]) ?? [];
 
-        return {
-          ...story,
-          reaction_counts: {
-            ...story.reaction_counts,
-            [reactionType]: nextCount,
-          },
-          user_reactions: nextUserReactions,
-        };
-      })
+    setStories(loadedStories);
+    void loadStoryImageUrls(loadedStories);
+  }
+
+  async function loadPrayerVideoResponses() {
+    const { data, error } = await supabase.rpc(
+      "list_prayer_video_responses_for_admin"
+    );
+
+    if (error) {
+      setMessage(`Could not load prayer video responses: ${error.message}`);
+      return;
+    }
+
+    const rawResponses: unknown[] = Array.isArray(data) ? data : [];
+    const loadedResponses = rawResponses
+      .map(toPrayerVideoResponse)
+      .filter(
+        (response): response is PrayerVideoResponse => response !== null
+      );
+
+    setPrayerVideoResponses(loadedResponses);
+    await loadPrayerResponseVideoUrls(loadedResponses);
+  }
+
+  async function loadReports() {
+    const { data, error } = await supabase
+      .from("content_reports")
+      .select(
+        "id, story_id, reporter_user_id, reported_user_id, reason, details, status, admin_notes, created_at, reviewed_at, reviewed_by"
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(`Could not load reports: ${error.message}`);
+      return;
+    }
+
+    const baseReports = (data as ContentReport[]) ?? [];
+
+    const storyIds = baseReports
+      .map((report) => report.story_id)
+      .filter((id): id is string => Boolean(id));
+
+    if (storyIds.length === 0) {
+      setReports(baseReports);
+      return;
+    }
+
+    const { data: storyData, error: storyError } = await supabase
+      .from("stories")
+      .select(
+        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, created_at"
+      )
+      .in("id", storyIds);
+
+    if (storyError) {
+      setMessage(`Could not load reported stories: ${storyError.message}`);
+      setReports(baseReports);
+      return;
+    }
+
+    const storyMap = new Map(
+      ((storyData as Story[]) ?? []).map((story) => [story.id, story])
+    );
+
+    const reportsWithStories = baseReports.map((report) => ({
+      ...report,
+      story: report.story_id ? storyMap.get(report.story_id) ?? null : null,
+    }));
+
+    setReports(reportsWithStories);
+  }
+
+  async function loadDeletionRequests() {
+    const { data, error } = await supabase
+      .from("account_deletion_requests")
+      .select(
+        "id, user_id, email, reason, status, admin_notes, reviewed_at, reviewed_by, created_at"
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage(`Could not load account deletion requests: ${error.message}`);
+      return;
+    }
+
+    setDeletionRequests((data as AccountDeletionRequest[]) ?? []);
+  }
+
+  function openVideoReviewPage(storyId: string | null | undefined) {
+    if (!storyId) {
+      setMessage("No story ID found for this video.");
+      return;
+    }
+
+    window.open(
+      `/admin/video-review?story=${storyId}`,
+      "_blank",
+      "noopener,noreferrer"
     );
   }
 
-  async function notifyPrayerCircleOwner(story: PrayerStory) {
-    if (!userId || !story.user_id || story.user_id === userId) return;
+  function getStoryImageStoragePath(imageUrl: string | null) {
+    if (!imageUrl) return null;
 
-    const notificationKey = `${story.user_id}:${userId}:${story.id}:prayer_circle`;
+    if (imageUrl.includes("story-images/")) {
+      const afterBucket = imageUrl.split("story-images/")[1];
+      const pathOnly = afterBucket.split("?")[0];
 
-    if (prayerCircleInboxKeysRef.current.has(notificationKey)) return;
+      return decodeURIComponent(pathOnly);
+    }
 
-    prayerCircleInboxKeysRef.current.add(notificationKey);
+    if (imageUrl.startsWith("http")) return null;
+
+    return imageUrl;
+  }
+
+  function getPrayerResponseVideoStoragePath(videoUrl: string) {
+    if (videoUrl.includes("story-videos/")) {
+      const afterBucket = videoUrl.split("story-videos/")[1];
+      const pathOnly = afterBucket.split("?")[0];
+
+      try {
+        return decodeURIComponent(pathOnly);
+      } catch {
+        return pathOnly;
+      }
+    }
+
+    if (videoUrl.startsWith("http")) return null;
+
+    return videoUrl.replace(/^\/+/, "");
+  }
+
+  async function loadPrayerResponseVideoUrls(
+    responses: PrayerVideoResponse[]
+  ) {
+    const nextVideoUrls: Record<string, string> = {};
+
+    await Promise.all(
+      responses.map(async (response) => {
+        if (response.video_url.startsWith("http")) {
+          nextVideoUrls[response.response_id] = response.video_url;
+          return;
+        }
+
+        const storagePath = getPrayerResponseVideoStoragePath(
+          response.video_url
+        );
+
+        if (!storagePath) return;
+
+        const { data, error } = await supabase.storage
+          .from("story-videos")
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          nextVideoUrls[response.response_id] = data.signedUrl;
+        }
+      })
+    );
+
+    setPrayerResponseVideoUrls(nextVideoUrls);
+  }
+
+  async function loadStoryImageUrls(loadedStories: Story[]) {
+    const nextImageUrls: Record<string, string> = {};
+
+    await Promise.all(
+      loadedStories.map(async (story) => {
+        if (!story.image_url) return;
+
+        if (story.image_url.startsWith("http")) {
+          nextImageUrls[story.id] = story.image_url;
+          return;
+        }
+
+        const storagePath = getStoryImageStoragePath(story.image_url);
+
+        if (!storagePath) return;
+
+        const { data, error } = await supabase.storage
+          .from("story-images")
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          nextImageUrls[story.id] = data.signedUrl;
+        }
+      })
+    );
+
+    setStoryImageUrls(nextImageUrls);
+  }
+
+  async function createApprovalInboxMessage(story: Story | null | undefined) {
+    if (!story?.user_id) return;
 
     const { data: existingMessages, error: existingError } = await supabase
       .from("inbox_messages")
       .select("id")
       .eq("user_id", story.user_id)
-      .eq("sender_user_id", userId)
       .eq("story_id", story.id)
-      .eq("message_type", "prayer_circle")
+      .eq("message_type", "story_approved")
       .limit(1);
 
     if (existingError) {
-      console.error("Could not check Prayer Circle inbox message:", existingError);
-      prayerCircleInboxKeysRef.current.delete(notificationKey);
+      console.error("Could not check approval inbox message:", existingError);
       return;
     }
 
@@ -500,722 +398,708 @@ export default function PrayerPage() {
 
     const { error } = await supabase.from("inbox_messages").insert({
       user_id: story.user_id,
-      sender_user_id: userId,
-      title: "Someone joined your Prayer Circle",
-      body: "A believer prayed with your request.",
-      category: "prayer",
-      message_type: "prayer_circle",
+      title: "Your post was approved",
+      body: "Your post has been approved and is now live on HTBF.",
+      category: "approval",
+      message_type: "story_approved",
       story_id: story.id,
-      action_url: "/prayer",
+      action_url: "/feed",
       read: false,
     });
 
     if (error) {
-      console.error("Could not create Prayer Circle inbox message:", error);
-      prayerCircleInboxKeysRef.current.delete(notificationKey);
+      console.error("Could not create approval inbox message:", error);
     }
   }
 
-  async function notifyPrayerCircleAnswered(story: PrayerStory) {
-    if (!userId || !story.user_id) return;
-
-    const { data: reactionData, error: reactionError } = await supabase
-      .from("story_reactions")
-      .select("user_id")
-      .eq("story_id", story.id)
-      .eq("reaction_type", "praying");
-
-    if (reactionError) {
-      console.error("Could not load Prayer Circle users:", reactionError);
-      return;
-    }
-
-    const prayerUserIds = Array.from(
-      new Set(
-        (Array.isArray(reactionData) ? reactionData : [])
-          .map((reaction) =>
-            isRecord(reaction) ? readString(reaction.user_id) : null
-          )
-          .filter(
-            (reactionUserId): reactionUserId is string =>
-              typeof reactionUserId === "string" &&
-              reactionUserId !== story.user_id
-          )
-      )
-    );
-
-    if (prayerUserIds.length === 0) return;
-
-    const { data: existingMessages, error: existingError } = await supabase
-      .from("inbox_messages")
-      .select("user_id")
-      .eq("story_id", story.id)
-      .eq("message_type", "answered_prayer")
-      .in("user_id", prayerUserIds);
-
-    if (existingError) {
-      console.error("Could not check answered prayer inbox messages:", existingError);
-      return;
-    }
-
-    const existingUserIds = new Set(
-      (Array.isArray(existingMessages) ? existingMessages : [])
-        .map((message) =>
-          isRecord(message) ? readString(message.user_id) : null
-        )
-        .filter(
-          (messageUserId): messageUserId is string =>
-            typeof messageUserId === "string"
-        )
-    );
-
-    const nextMessages = prayerUserIds
-      .filter((prayerUserId) => !existingUserIds.has(prayerUserId))
-      .map((prayerUserId) => ({
-        user_id: prayerUserId,
-        sender_user_id: userId,
-        title: "A prayer you joined was answered",
-        body: "God moved. Open the prayer request to see how He answered.",
-        category: "prayer",
-        message_type: "answered_prayer",
-        story_id: story.id,
-        action_url: "/prayer",
-        read: false,
-      }));
-
-    if (nextMessages.length === 0) return;
-
-    const { error } = await supabase.from("inbox_messages").insert(nextMessages);
-
-    if (error) {
-      console.error("Could not create answered prayer inbox messages:", error);
-    }
-  }
-
-  function openPrayerUpdateModal(story: PrayerStory) {
-    if (!userId || story.user_id !== userId) {
-      setMessage("Only the person who shared this prayer can post an update.");
-      return;
-    }
-
-    setUpdatingStory(story);
-    setPrayerUpdateText("");
-    setMessage("");
-  }
-
-  function closePrayerUpdateModal() {
-    if (savingPrayerUpdate) return;
-
-    setUpdatingStory(null);
-    setPrayerUpdateText("");
-  }
-
-  async function notifyPrayerCircleOfUpdate(
-    story: PrayerStory,
-    prayerUpdateId: string
-  ) {
-    if (!userId || story.user_id !== userId) return true;
-
-    const { data: reactionData, error: reactionError } = await supabase
-      .from("story_reactions")
-      .select("user_id")
-      .eq("story_id", story.id)
-      .eq("reaction_type", "praying");
-
-    if (reactionError) {
-      console.error("Could not load Prayer Circle members:", reactionError);
-      return false;
-    }
-
-    const prayerCircleUserIds = Array.from(
-      new Set(
-        (Array.isArray(reactionData) ? reactionData : [])
-          .map((reaction) =>
-            isRecord(reaction) ? readString(reaction.user_id) : null
-          )
-          .filter(
-            (reactionUserId): reactionUserId is string =>
-              typeof reactionUserId === "string" && reactionUserId !== userId
-          )
-      )
-    );
-
-    if (prayerCircleUserIds.length === 0) return true;
-
-    const notificationRows = prayerCircleUserIds.map((recipientUserId) => ({
-      user_id: recipientUserId,
-      sender_user_id: userId,
-      title: "A prayer you joined has an update",
-      body: "The person who shared this prayer posted a new update.",
-      category: "prayer",
-      message_type: "prayer_update",
-      story_id: story.id,
-      prayer_update_id: prayerUpdateId,
-      action_url: "/prayer",
-      read: false,
-    }));
-
-    const { error: notificationError } = await supabase
-      .from("inbox_messages")
-      .insert(notificationRows);
-
-    if (!notificationError || notificationError.code === "23505") return true;
-
-    console.error(
-      "Could not notify Prayer Circle members:",
-      notificationError
-    );
-    return false;
-  }
-
-  async function savePrayerUpdate() {
-    if (!userId || !updatingStory) return;
-
-    if (updatingStory.user_id !== userId) {
-      setMessage("Only the person who shared this prayer can post an update.");
-      closePrayerUpdateModal();
-      return;
-    }
-
-    const cleanUpdateText = prayerUpdateText.trim();
-
-    if (!cleanUpdateText) {
-      setMessage("Please write a prayer update before sharing.");
-      return;
-    }
-
-    setSavingPrayerUpdate(true);
+  async function updateStoryStatus(storyId: string, newStatus: string) {
     setMessage("");
 
-    const { data, error } = await supabase
-      .from("prayer_updates")
-      .insert({
-        story_id: updatingStory.id,
-        author_user_id: userId,
-        body: cleanUpdateText,
-        update_type: "update",
-      })
-      .select(
-        "id, story_id, author_user_id, body, update_type, created_at, edited_at, hidden_at"
-      )
-      .single();
-
-    if (error || !isPrayerUpdate(data)) {
-      setSavingPrayerUpdate(false);
-      setMessage(
-        error
-          ? `Could not share prayer update: ${error.message}`
-          : "The prayer update was saved, but it could not be displayed yet."
-      );
-      return;
-    }
-
-    const savedUpdate = data;
-    const story = updatingStory;
-
-    setStories((currentStories) =>
-      currentStories.map((currentStory) =>
-        currentStory.id === story.id
-          ? {
-              ...currentStory,
-              updates: [...currentStory.updates, savedUpdate],
-            }
-          : currentStory
-      )
-    );
-
-    const notificationsSent = await notifyPrayerCircleOfUpdate(
-      story,
-      savedUpdate.id
-    );
-
-    setSavingPrayerUpdate(false);
-    setUpdatingStory(null);
-    setPrayerUpdateText("");
-    setMessage(
-      notificationsSent
-        ? "Prayer Circle update shared."
-        : "Prayer update shared, but some notifications could not be sent."
-    );
-  }
-
-  async function toggleReaction(
-    storyId: string,
-    reactionType: ReactionType,
-    options: { showPrayingMessage?: boolean } = {}
-  ): Promise<"added" | "removed" | "blocked" | "error"> {
-    const { showPrayingMessage = true } = options;
-    setMessage("");
-
-    if (!userId) {
-      setMessage("Please sign in to respond to prayer requests.");
-      return "blocked";
-    }
-
-    const story = stories.find((item) => item.id === storyId);
-    const alreadyReacted = story?.user_reactions.includes(reactionType);
-
-    if (alreadyReacted) {
-      const { error } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("user_id", userId)
-        .eq("reaction_type", reactionType);
-
-      if (error) {
-        setMessage(`Could not update response: ${error.message}`);
-        return "error";
-      }
-
-      updateLocalReaction(storyId, reactionType, "remove");
-      return "removed";
-    }
-
-    const { error } = await supabase.from("story_reactions").insert({
-      story_id: storyId,
-      user_id: userId,
-      reaction_type: reactionType,
-    });
-
-    if (error) {
-      setMessage(`Could not update response: ${error.message}`);
-      return "error";
-    }
-
-    updateLocalReaction(storyId, reactionType, "add");
-
-    if (reactionType === "praying" && story) {
-      void notifyPrayerCircleOwner(story);
-    }
-
-    if (reactionType === "praying" && showPrayingMessage) {
-      setMessage("You joined the Prayer Circle.");
-    }
-
-    return "added";
-  }
-
-  async function handlePrayNow(story: PrayerStory) {
-    const alreadyPraying = story.user_reactions.includes("praying");
-    const result = await toggleReaction(story.id, "praying", {
-      showPrayingMessage: alreadyPraying,
-    });
-
-    if (!alreadyPraying && result === "added") {
-      setPrayerMomentStory(story);
-    }
-  }
-
-  function closeAnsweredPrayerModal() {
-    setAnsweringStory(null);
-    setAnsweredPrayerText("");
-    setMessage("");
-  }
-
-  function openPrayerVideoModal(story: PrayerStory) {
-    setMessage("");
-    setPrayerVideoError("");
-
-    if (!userId) {
-      setMessage("Please sign in to send a prayer video.");
-      return;
-    }
-
-    if (!story.user_id) {
-      setMessage("This prayer request cannot receive video responses yet.");
-      return;
-    }
-
-    if (story.user_id === userId) {
-      setMessage("You cannot send a prayer video to your own request.");
-      return;
-    }
-
-    setPrayerVideoStory(story);
-    setPrayerVideoFile(null);
-    setPrayerVideoDuration(null);
-
-    if (prayerVideoPreviewUrl) {
-      URL.revokeObjectURL(prayerVideoPreviewUrl);
-      setPrayerVideoPreviewUrl("");
-    }
-  }
-
-  function closePrayerVideoModal() {
-    setPrayerVideoStory(null);
-    setPrayerVideoFile(null);
-    setPrayerVideoDuration(null);
-    setPrayerVideoError("");
-    setSendingPrayerVideo(false);
-
-    if (prayerVideoPreviewUrl) {
-      URL.revokeObjectURL(prayerVideoPreviewUrl);
-      setPrayerVideoPreviewUrl("");
-    }
-  }
-
-  async function handlePrayerVideoFile(file: File | null) {
-    setPrayerVideoError("");
-    setPrayerVideoFile(null);
-    setPrayerVideoDuration(null);
-
-    if (prayerVideoPreviewUrl) {
-      URL.revokeObjectURL(prayerVideoPreviewUrl);
-      setPrayerVideoPreviewUrl("");
-    }
-
-    if (!file) return;
-
-    if (!file.type.startsWith("video/")) {
-      setPrayerVideoError("Please choose a video file.");
-      return;
-    }
-
-    try {
-      const duration = await getVideoDuration(file);
-
-      if (duration > MAX_PRAYER_VIDEO_SECONDS + 0.5) {
-        setPrayerVideoError(
-          prayerVideoStory && isAnswered(prayerVideoStory)
-            ? "Praise videos must be 30 seconds or less."
-            : "Prayer videos must be 30 seconds or less."
-        );
-        return;
-      }
-
-      setPrayerVideoDuration(duration);
-      setPrayerVideoFile(file);
-      setPrayerVideoPreviewUrl(URL.createObjectURL(file));
-    } catch (error) {
-      console.error("Could not validate prayer video:", error);
-      setPrayerVideoError(
-        "Could not read this video. Please choose another one."
-      );
-    }
-  }
-
-  async function sendPrayerVideo() {
-    setPrayerVideoError("");
-    setMessage("");
-
-    if (!userId) {
-      setPrayerVideoError("Please sign in to send a prayer video.");
-      return;
-    }
-
-    if (!prayerVideoStory || !prayerVideoStory.user_id) {
-      setPrayerVideoError("Could not find the prayer request owner.");
-      return;
-    }
-
-    if (prayerVideoStory.user_id === userId) {
-      setPrayerVideoError("You cannot send a prayer video to your own request.");
-      return;
-    }
-
-    if (!prayerVideoFile) {
-      setPrayerVideoError("Choose or record a video first.");
-      return;
-    }
-
-    const sendingPraiseVideo = isAnswered(prayerVideoStory);
-    setSendingPrayerVideo(true);
-
-    const extension =
-      prayerVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
-    const path = `prayer-videos/${prayerVideoStory.id}/${userId}-${Date.now()}.${extension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(PRAYER_VIDEO_BUCKET)
-      .upload(path, prayerVideoFile, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: prayerVideoFile.type,
-      });
-
-    if (uploadError) {
-      setSendingPrayerVideo(false);
-      setPrayerVideoError(
-        `Could not upload prayer video: ${uploadError.message}`
-      );
-      return;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from(PRAYER_VIDEO_BUCKET)
-      .getPublicUrl(path);
-
-    const videoUrl = publicUrlData.publicUrl;
-
-    const { error: inboxError } = await supabase.from("inbox_messages").insert({
-      user_id: prayerVideoStory.user_id,
-      sender_user_id: userId,
-      title: sendingPraiseVideo
-        ? "Someone sent you a praise video"
-        : "Someone sent you a prayer video",
-      body: sendingPraiseVideo
-        ? "A believer celebrated your answered prayer with you."
-        : "A believer prayed for your request.",
-      category: "prayer",
-      message_type: "prayer_video_response",
-      story_id: prayerVideoStory.id,
-      action_url: "/journey/inbox",
-      video_url: videoUrl,
-      read: false,
-    });
-
-    if (inboxError) {
-      setSendingPrayerVideo(false);
-      setPrayerVideoError(
-        `Video uploaded, but inbox message failed: ${inboxError.message}`
-      );
-      return;
-    }
-
-    if (
-      !sendingPraiseVideo &&
-      !prayerVideoStory.user_reactions.includes("praying")
-    ) {
-      await toggleReaction(prayerVideoStory.id, "praying", {
-        showPrayingMessage: false,
-      });
-    }
-
-    closePrayerVideoModal();
-    setMessage(
-      sendingPraiseVideo
-        ? "Praise video sent privately to their Journey Inbox."
-        : "Prayer video sent privately to their Journey Inbox."
-    );
-  }
-
-  async function markPrayerAnswered(storyId: string, answeredText: string) {
-    setMessage("");
-
-    if (!userId) {
-      setMessage("Please sign in to mark a prayer request answered.");
-      return;
-    }
-
-    const story = stories.find((item) => item.id === storyId);
-
-    if (!story) {
-      setMessage("Could not find this prayer request.");
-      return;
-    }
-
-    if (story.user_id !== userId) {
-      setMessage(
-        "Only the person who shared this prayer request can mark it answered."
-      );
-      return;
-    }
-
-    const cleanAnsweredText = answeredText.trim();
-
-    if (!cleanAnsweredText) {
-      setMessage(
-        "Please add a short answered prayer update before sharing praise."
-      );
-      return;
-    }
-
-    const answeredAt = new Date().toISOString();
+    const storyToUpdate =
+      stories.find((story) => story.id === storyId) ??
+      reports.find((report) => report.story?.id === storyId)?.story ??
+      null;
 
     const { error } = await supabase
       .from("stories")
-      .update({
-        prayer_status: "answered",
-        answered_at: answeredAt,
-        answered_text: cleanAnsweredText,
-      })
-      .eq("id", storyId)
-      .eq("user_id", userId);
+      .update({ status: newStatus })
+      .eq("id", storyId);
 
     if (error) {
-      setMessage(`Could not mark prayer answered: ${error.message}`);
+      setMessage(`Could not update story: ${error.message}`);
       return;
     }
 
+    if (newStatus === "approved") {
+      await createApprovalInboxMessage(storyToUpdate);
+    }
+
     setStories((currentStories) =>
-      currentStories.map((currentStory) =>
-        currentStory.id === storyId
-          ? {
-              ...currentStory,
-              prayer_status: "answered",
-              answered_at: answeredAt,
-              answered_text: cleanAnsweredText,
-            }
-          : currentStory
+      currentStories.map((story) =>
+        story.id === storyId ? { ...story, status: newStatus } : story
       )
     );
 
-    await notifyPrayerCircleAnswered(story);
+    setReports((currentReports) =>
+      currentReports.map((report) =>
+        report.story?.id === storyId
+          ? {
+              ...report,
+              story: {
+                ...report.story,
+                status: newStatus,
+              },
+            }
+          : report
+      )
+    );
 
-    closeAnsweredPrayerModal();
-    setMessage("Praise shared with the community.");
-    setActiveFilter("answered");
+    setMessage(`Story marked as ${newStatus.replace("_", " ")}.`);
   }
 
-  async function shareStory(story: PrayerStory) {
+  async function moderatePrayerVideoResponse(
+    responseId: string,
+    nextStatus: PrayerVideoResponseStatus
+  ) {
+    if (
+      nextStatus === "removed" &&
+      !window.confirm("Remove this public prayer video response?")
+    ) {
+      return;
+    }
+
     setMessage("");
 
-    const shareText =
-      isAnswered(story) && story.answered_text
-        ? `God answered this prayer: ${story.answered_text.slice(0, 140)}`
-        : story.story_text
-          ? `Stand in prayer with this request: ${story.story_text.slice(0, 140)}`
-          : "Stand in prayer with this request on Hyper to Be Free.";
+    const { error } = await supabase.rpc(
+      "moderate_prayer_video_response",
+      {
+        response_id: responseId,
+        next_status: nextStatus,
+      }
+    );
 
-    const shareData = {
-      title: "Hyper to Be Free - Prayer Room",
-      text: shareText,
-      url: `${window.location.origin}/prayer`,
+    if (error) {
+      setMessage(
+        `Could not moderate prayer video response: ${error.message}`
+      );
+      return;
+    }
+
+    const moderatedAt = new Date().toISOString();
+
+    setPrayerVideoResponses((currentResponses) =>
+      currentResponses.map((response) =>
+        response.response_id === responseId
+          ? {
+              ...response,
+              status: nextStatus,
+              moderated_at: moderatedAt,
+              removed_at:
+                nextStatus === "removed" ? moderatedAt : null,
+            }
+          : response
+      )
+    );
+    setMessage(
+      `Prayer video response marked as ${nextStatus.replace("_", " ")}.`
+    );
+  }
+
+  async function markReportReviewing(reportId: string) {
+    setMessage("");
+
+    const { error } = await supabase.rpc("admin_mark_report_reviewing", {
+      report_id: reportId,
+    });
+
+    if (error) {
+      setMessage(`Could not mark report as reviewing: ${error.message}`);
+      return;
+    }
+
+    setReports((currentReports) =>
+      currentReports.map((report) =>
+        report.id === reportId
+          ? {
+              ...report,
+              status: "reviewing",
+              admin_notes:
+                report.admin_notes || "Report marked as reviewing by admin.",
+            }
+          : report
+      )
+    );
+
+    setMessage("Report marked as reviewing.");
+  }
+
+  async function dismissReport(reportId: string) {
+    setMessage("");
+
+    const { error } = await supabase.rpc("admin_dismiss_content_report", {
+      report_id: reportId,
+    });
+
+    if (error) {
+      setMessage(`Could not dismiss report: ${error.message}`);
+      return;
+    }
+
+    setReports((currentReports) =>
+      currentReports.map((report) =>
+        report.id === reportId
+          ? {
+              ...report,
+              status: "dismissed",
+              reviewed_at: new Date().toISOString(),
+              admin_notes: report.admin_notes || "Report dismissed by admin.",
+            }
+          : report
+      )
+    );
+
+    setMessage("Report dismissed. The content remains public.");
+  }
+
+  async function removeReportedContent(report: ContentReport) {
+    setMessage("");
+
+    const confirmed = window.confirm(
+      "Remove this reported content from public view? This will mark the story as removed and close the report as action taken."
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase.rpc("admin_remove_reported_story", {
+      report_id: report.id,
+    });
+
+    if (error) {
+      setMessage(`Could not remove reported content: ${error.message}`);
+      return;
+    }
+
+    setReports((currentReports) =>
+      currentReports.map((item) =>
+        item.id === report.id
+          ? {
+              ...item,
+              status: "action_taken",
+              reviewed_at: new Date().toISOString(),
+              admin_notes:
+                item.admin_notes || "Reported content removed by admin.",
+              story: item.story
+                ? {
+                    ...item.story,
+                    status: "removed",
+                  }
+                : item.story,
+            }
+          : item
+      )
+    );
+
+    if (report.story_id) {
+      setStories((currentStories) =>
+        currentStories.map((story) =>
+          story.id === report.story_id ? { ...story, status: "removed" } : story
+        )
+      );
+    }
+
+    setMessage("Reported content removed and report marked as action taken.");
+  }
+
+  async function markDeletionReviewing(requestId: string) {
+    setMessage("");
+
+    const { error } = await supabase
+      .from("account_deletion_requests")
+      .update({
+        status: "reviewing",
+        reviewed_by: null,
+        admin_notes: "Account deletion request marked as reviewing by admin.",
+      })
+      .eq("id", requestId);
+
+    if (error) {
+      setMessage(`Could not mark deletion request as reviewing: ${error.message}`);
+      return;
+    }
+
+    setDeletionRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status: "reviewing",
+              admin_notes:
+                request.admin_notes ||
+                "Account deletion request marked as reviewing by admin.",
+            }
+          : request
+      )
+    );
+
+    setMessage("Account deletion request marked as reviewing.");
+  }
+
+  async function completeDeletionRequest(requestId: string) {
+    setMessage("");
+
+    const confirmed = window.confirm(
+      "Mark this account deletion request as completed? This only closes the request. It does not delete the user yet."
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("account_deletion_requests")
+      .update({
+        status: "completed",
+        reviewed_at: new Date().toISOString(),
+        admin_notes:
+          "Account deletion request marked completed by admin. Actual account deletion must be handled separately.",
+      })
+      .eq("id", requestId);
+
+    if (error) {
+      setMessage(`Could not complete deletion request: ${error.message}`);
+      return;
+    }
+
+    setDeletionRequests((currentRequests) =>
+      currentRequests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              status: "completed",
+              reviewed_at: new Date().toISOString(),
+              admin_notes:
+                "Account deletion request marked completed by admin. Actual account deletion must be handled separately.",
+            }
+          : request
+      )
+    );
+
+    setMessage(
+      "Account deletion request marked completed. Account deletion itself has not been automated yet."
+    );
+  }
+
+  function formatDate(value: string | null) {
+    if (!value) return "Date unavailable";
+
+    return new Date(value).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  function statusLabel(status: string | null) {
+    if (!status) return "pending";
+    return status.replace("_", " ");
+  }
+
+  function reasonLabel(reason: string | null) {
+    if (!reason) return "Not provided";
+
+    const labels: Record<string, string> = {
+      inappropriate: "Inappropriate content",
+      harassment_hate: "Harassment or hate",
+      violence_harm: "Violence or harmful content",
+      sexual_content: "Sexual content",
+      spam_scam: "Spam or scam",
+      copyright: "Copyright issue",
+      privacy: "Privacy concern",
+      not_aligned: "Not aligned with HTBF community",
+      bug: "Bug / technical issue",
+      other: "Other",
     };
 
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        return;
-      }
+    return labels[reason] || reason.replace("_", " ");
+  }
 
-      await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
-      setMessage("Prayer link copied.");
-    } catch (error) {
-      console.error("Share failed:", error);
+  function statusStyle(status: string | null) {
+    if (status === "approved") return "bg-green-50 text-green-700";
+    if (status === "rejected") return "bg-red-50 text-red-700";
+    if (status === "needs_review") return "bg-blue-50 text-blue-700";
+    if (status === "removed") return "bg-slate-100 text-slate-700";
+    if (status === "submitted") return "bg-amber-50 text-amber-700";
+    if (status === "reviewing") return "bg-blue-50 text-blue-700";
+    if (status === "completed") return "bg-green-50 text-green-700";
+
+    return "bg-amber-50 text-amber-700";
+  }
+
+  function reportStatusStyle(status: string | null) {
+    if (status === "open") return "bg-red-50 text-red-700";
+    if (status === "reviewing") return "bg-blue-50 text-blue-700";
+    if (status === "dismissed") return "bg-slate-100 text-slate-700";
+    if (status === "action_taken") return "bg-green-50 text-green-700";
+
+    return "bg-amber-50 text-amber-700";
+  }
+
+  function isPendingStatus(status: string | null) {
+    return !status || status === "pending" || status === "submitted" || status === "needs_review";
+  }
+
+  function storyHasVideo(story: Story) {
+    return Boolean(story.video_url);
+  }
+
+  function storyHasPhoto(story: Story) {
+    return Boolean(story.image_url || story.thumbnail_url);
+  }
+
+  function storyMatchesFilter(story: Story, filter: StoryFilter) {
+    const storyType = story.story_type?.toLowerCase() ?? "";
+
+    if (filter === "all") return true;
+    if (filter === "pending") return isPendingStatus(story.status);
+    if (filter === "approved") return story.status === "approved";
+    if (filter === "removed") return story.status === "removed";
+    if (filter === "videos") return storyHasVideo(story);
+    if (filter === "photos") return storyHasPhoto(story);
+    if (filter === "prayer") return storyType.includes("prayer");
+    if (filter === "testimonies") return storyType.includes("testimony");
+    if (filter === "praise") return storyType.includes("praise");
+
+    return true;
+  }
+
+  function storyMatchesSearch(story: Story, search: string) {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    if (!normalizedSearch) return true;
+
+    return [
+      story.name,
+      story.email,
+      story.location,
+      story.story_type,
+      story.story_text,
+      story.id,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearch);
+  }
+
+  const openReports = useMemo(
+    () =>
+      reports.filter(
+        (report) => report.status === "open" || report.status === "reviewing"
+      ),
+    [reports]
+  );
+
+  const activeDeletionRequests = useMemo(
+    () =>
+      deletionRequests.filter(
+        (request) =>
+          request.status === "submitted" || request.status === "reviewing"
+      ),
+    [deletionRequests]
+  );
+
+  const pendingPrayerVideoResponses = useMemo(
+    () =>
+      prayerVideoResponses.filter((response) =>
+        isPendingStatus(response.status)
+      ),
+    [prayerVideoResponses]
+  );
+
+  const reportCountsByStory = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    reports.forEach((report) => {
+      if (!report.story_id) return;
+
+      counts.set(report.story_id, (counts.get(report.story_id) ?? 0) + 1);
+    });
+
+    return counts;
+  }, [reports]);
+
+  const adminStats = useMemo(
+    () => ({
+      pendingReview: stories.filter((story) => isPendingStatus(story.status)).length,
+      approved: stories.filter((story) => story.status === "approved").length,
+      removed: stories.filter((story) => story.status === "removed").length,
+      videos: stories.filter(storyHasVideo).length,
+      prayerRequests: stories.filter((story) =>
+        story.story_type?.toLowerCase().includes("prayer")
+      ).length,
+      reportsAndRequests: openReports.length + activeDeletionRequests.length,
+    }),
+    [activeDeletionRequests.length, openReports.length, stories]
+  );
+
+  const filteredStories = useMemo(
+    () =>
+      stories.filter(
+        (story) =>
+          storyMatchesFilter(story, activeFilter) &&
+          storyMatchesSearch(story, searchTerm)
+      ),
+    [activeFilter, searchTerm, stories]
+  );
+
+  const visiblePendingStories = useMemo(
+    () => filteredStories.filter((story) => isPendingStatus(story.status)),
+    [filteredStories]
+  );
+
+  function getStoryReportCount(storyId: string) {
+    return reportCountsByStory.get(storyId) ?? 0;
+  }
+
+  async function copyStoryId(storyId: string) {
+    try {
+      await navigator.clipboard.writeText(storyId);
+      setMessage("Story ID copied.");
+    } catch {
+      setMessage("Could not copy story ID.");
     }
   }
 
-  return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+  async function approveAllVisiblePending() {
+    if (visiblePendingStories.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Approve ${visiblePendingStories.length} visible pending item${
+        visiblePendingStories.length === 1 ? "" : "s"
+      }? This will make them live on HTBF.`
+    );
+
+    if (!confirmed) return;
+
+    for (const story of visiblePendingStories) {
+      await updateStoryStatus(story.id, "approved");
+    }
+
+    setMessage(
+      `${visiblePendingStories.length} visible pending item${
+        visiblePendingStories.length === 1 ? "" : "s"
+      } approved.`
+    );
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#f8fbff] px-6 py-12 text-slate-900">
+        <div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-8 shadow-sm">
+          Loading admin review page...
+        </div>
+      </main>
+    );
+  }
+
+  if (notAllowed) {
+    return (
+      <main className="min-h-screen bg-[#f8fbff] text-slate-900">
+        <section className="mx-auto max-w-3xl px-6 py-12">
           <Link
-            href="/journey"
-            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
+            href="/"
+            className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-[#0b63ce] hover:text-[#084f9f]"
           >
-            HTBF
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
           </Link>
 
-          <div className="flex items-center gap-2">
-            <div className="hidden text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce] sm:block">
-              Prayer
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+              <Lock className="h-6 w-6" />
             </div>
-            <Link
-              href="/notifications?category=prayer"
-              className="relative inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-100"
-            >
-              <Bell className="h-4 w-4" />
-              <span>Prayer Updates</span>
-              {unreadPrayerCount > 0 && (
-                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">
-                  {unreadPrayerCount > 99 ? "99+" : unreadPrayerCount}
-                </span>
-              )}
-            </Link>
-          </div>
-        </div>
-      </header>
 
-      <div className="mx-auto max-w-4xl px-4 py-6">
-        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
+            <h1 className="text-3xl font-black text-[#062a57]">
+              Admin access only
+            </h1>
+
+            <p className="mt-4 leading-7 text-slate-600">
+              You are signed in as{" "}
+              <span className="font-bold text-[#0b63ce]">{email}</span>, but
+              this page is only available to the Hyper to Be Free admin account.
+            </p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f8fbff] text-slate-900">
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+        <Link
+          href="/dashboard"
+          className="mb-6 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] shadow-sm ring-1 ring-blue-100 hover:bg-blue-50"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </Link>
+
+        <header className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10 sm:p-8 md:p-10">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100 ring-1 ring-white/15">
-            <Sparkles className="h-4 w-4" />
-            PRAYER ROOM
+            <ShieldCheck className="h-4 w-4" />
+            ADMIN CONTROL CENTER
           </div>
 
-          <h1 className="mt-4 max-w-2xl text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-            Stand with someone in prayer
+          <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-tight md:text-5xl">
+            Review and manage HTBF content
           </h1>
 
-          <p className="mt-3 max-w-2xl text-base font-semibold leading-7 text-blue-100">
-            Pray with the HTBF community, encourage others, and celebrate when
-            God answers.
+          <p className="mt-3 max-w-3xl text-base font-semibold leading-7 text-blue-100">
+            Approve stories, videos, prayer requests, reports, and account
+            requests from one place.
           </p>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/share-your-story?type=prayer"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-[#082f63] shadow-sm transition hover:bg-blue-50"
-            >
-              <Send className="h-4 w-4" />
-              Share a Prayer Request
-            </Link>
+          <p className="mt-5 text-sm font-bold text-blue-100">
+            Signed in as <span className="text-white">{email}</span>
+          </p>
+        </header>
 
-            <button
-              type="button"
-              onClick={() => setActiveFilter("answered")}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white/10 px-5 py-3 text-sm font-black text-white ring-1 ring-white/20 transition hover:bg-white/15"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              View Answered Prayers
-            </button>
+        {message && (
+          <div className="mt-5 rounded-[1.5rem] bg-white p-4 text-sm font-bold leading-6 text-[#082f63] shadow-sm ring-1 ring-blue-100">
+            {message}
           </div>
+        )}
+
+        <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <AdminStatCard
+            icon={<AlertCircle className="h-5 w-5" />}
+            label="Pending Review"
+            value={adminStats.pendingReview}
+          />
+          <AdminStatCard
+            icon={<CheckCircle className="h-5 w-5" />}
+            label="Approved"
+            value={adminStats.approved}
+          />
+          <AdminStatCard
+            icon={<EyeOff className="h-5 w-5" />}
+            label="Removed"
+            value={adminStats.removed}
+          />
+          <AdminStatCard
+            icon={<Video className="h-5 w-5" />}
+            label="Videos"
+            value={adminStats.videos}
+          />
+          <AdminStatCard
+            icon={<FileText className="h-5 w-5" />}
+            label="Prayer Requests"
+            value={adminStats.prayerRequests}
+          />
+          <AdminStatCard
+            icon={<Flag className="h-5 w-5" />}
+            label="Reports / Requests"
+            value={adminStats.reportsAndRequests}
+          />
         </section>
 
-        <section className="mt-5 grid gap-3 sm:grid-cols-3">
-          <StatCard
-            icon={<MessageCircleHeart className="h-5 w-5" />}
-            label="Active Requests"
-            value={stats.activeRequests}
+        <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <AdminNavCard
+            title="Content Review"
+            description={`${adminStats.pendingReview} item${
+              adminStats.pendingReview === 1 ? "" : "s"
+            } waiting`}
+            onClick={() => setActiveFilter("pending")}
           />
-          <StatCard
-            icon={<Users className="h-5 w-5" />}
-            label="People Praying"
-            value={stats.peoplePraying}
+          <AdminNavCard
+            title="Video Review"
+            description={`${adminStats.videos} video item${
+              adminStats.videos === 1 ? "" : "s"
+            }`}
+            onClick={() => setActiveFilter("videos")}
           />
-          <StatCard
-            icon={<CheckCircle2 className="h-5 w-5" />}
-            label="Answered Prayers"
-            value={stats.answeredPrayers}
+          <AdminNavCard
+            title="Prayer Video Responses"
+            description={`${pendingPrayerVideoResponses.length} waiting`}
+            href="#prayer-video-responses"
+          />
+          <AdminNavCard
+            title="Reports"
+            description={`${openReports.length} open`}
+            href="#reports"
+          />
+          <AdminNavCard
+            title="Account Requests"
+            description={`${activeDeletionRequests.length} active`}
+            href="#account-requests"
+          />
+          <AdminNavCard
+            title="Removed Content"
+            description={`${adminStats.removed} removed`}
+            onClick={() => setActiveFilter("removed")}
+          />
+          <AdminNavCard
+            title="Approved Content"
+            description={`${adminStats.approved} live`}
+            onClick={() => setActiveFilter("approved")}
           />
         </section>
 
-        <section className="mt-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <HeartHandshake className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Today&apos;s Prayer Focus
-              </div>
-              <p className="mt-1 text-lg font-black leading-7 text-[#062a57]">
-                Ask God to strengthen someone who feels alone today.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section id="prayer-requests" className="mt-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <section
+          id="content-review"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                Live Prayer Room
+                Content Review
               </div>
               <h2 className="mt-1 text-3xl font-black text-[#062a57]">
-                Prayer requests
+                Review queue
               </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Search, filter, approve, reject, remove, or open media from one
+                focused queue.
+              </p>
             </div>
 
-            <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-600 ring-1 ring-slate-200">
-              <Clock className="h-4 w-4 text-[#0b63ce]" />
-              Live updates
+            {visiblePendingStories.length > 0 && (
+              <button
+                type="button"
+                onClick={approveAllVisiblePending}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-green-700"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Approve All Visible Pending
+              </button>
+            )}
+          </div>
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+            <label className="block">
+              <span className="sr-only">Search content</span>
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by name, story text, type, or location..."
+                className="w-full rounded-full border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+            </label>
+
+            <div className="text-sm font-bold text-slate-500">
+              Showing {filteredStories.length} of {stories.length}
             </div>
           </div>
 
-          <div className="mb-5 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {filters.map((filter) => (
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {storyFilters.map((filter) => (
               <button
                 key={filter.value}
                 type="button"
                 onClick={() => setActiveFilter(filter.value)}
-                className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-black transition ${
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-black transition ${
                   activeFilter === filter.value
                     ? "bg-[#0b63ce] text-white shadow-sm"
-                    : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+                    : "bg-slate-50 text-slate-700 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
                 }`}
               >
                 {filter.label}
@@ -1223,309 +1107,682 @@ export default function PrayerPage() {
             ))}
           </div>
 
-          {message && (
-            <div className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
-              {message}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="rounded-[2rem] bg-white p-6 text-slate-600 shadow-sm ring-1 ring-slate-200">
-              Loading prayer requests...
-            </div>
-          ) : stories.length === 0 ? (
-            <div className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-              <div className="text-lg font-black text-[#062a57]">
-                No prayer requests yet.
+          <div className="mt-6 grid gap-4">
+            {filteredStories.length === 0 ? (
+              <div className="rounded-[1.5rem] bg-slate-50 p-6 text-center text-sm font-bold text-slate-600">
+                No content matches this view.
               </div>
-              <p className="mt-2 leading-7 text-slate-600">
-                No prayer requests yet. Be the first to ask the HTBF community
-                to pray with you.
+            ) : (
+              filteredStories.map((story) => {
+                const reportCount = getStoryReportCount(story.id);
+                const isExpanded = expandedStoryId === story.id;
+                const mediaPreview =
+                  story.thumbnail_url || storyImageUrls[story.id] || null;
+                const previewText =
+                  story.story_text || "No story text available.";
+
+                return (
+                  <article
+                    id={`story-${story.id}`}
+                    key={story.id}
+                    className="rounded-[2rem] bg-slate-50 p-4 ring-1 ring-slate-200 sm:p-5"
+                  >
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                            {story.story_type || "Story"}
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                              story.status
+                            )}`}
+                          >
+                            {statusLabel(story.status)}
+                          </span>
+                          {storyHasVideo(story) && (
+                            <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">
+                              Video
+                            </span>
+                          )}
+                          {storyHasPhoto(story) && (
+                            <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-sky-700">
+                              Photo
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="mt-4 text-2xl font-black text-[#062a57]">
+                          {story.name || "Name not provided"}
+                        </h3>
+
+                        <div className="mt-2 grid gap-1 text-sm font-semibold text-slate-500 sm:grid-cols-2">
+                          <div>Email: {story.email || "Not provided"}</div>
+                          <div>Location: {story.location || "Not provided"}</div>
+                          <div>Submitted {formatDate(story.created_at)}</div>
+                          <div>
+                            Reports:{" "}
+                            <span className="font-black text-slate-700">
+                              {reportCount}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p
+                          className={`mt-4 whitespace-pre-wrap rounded-[1.25rem] bg-white p-4 text-sm leading-7 text-slate-700 ring-1 ring-slate-100 ${
+                            isExpanded ? "" : "line-clamp-4"
+                          }`}
+                          style={{
+                            overflowWrap: "anywhere",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {previewText}
+                        </p>
+
+                        {isExpanded && (
+                          <div className="mt-3 rounded-2xl bg-white p-4 text-xs font-bold text-slate-500 ring-1 ring-slate-100">
+                            Story ID: {story.id}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-slate-200">
+                        {mediaPreview ? (
+                          <img
+                            src={mediaPreview}
+                            alt={story.story_type || "Story preview"}
+                            className="h-48 w-full object-cover"
+                          />
+                        ) : story.video_url ? (
+                          <div className="flex h-48 items-center justify-center bg-slate-950 text-white/80">
+                            <div className="text-center text-sm font-bold">
+                              <Video className="mx-auto mb-2 h-8 w-8" />
+                              Video testimony
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex h-48 items-center justify-center bg-blue-50 text-[#0b63ce]">
+                            <div className="text-center text-sm font-black">
+                              <FileText className="mx-auto mb-2 h-8 w-8" />
+                              Text post
+                            </div>
+                          </div>
+                        )}
+
+                        {story.video_url && (
+                          <button
+                            type="button"
+                            onClick={() => openVideoReviewPage(story.id)}
+                            className="flex w-full items-center justify-center gap-2 bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800"
+                          >
+                            <Video className="h-4 w-4" />
+                            Open Video Review
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => updateStoryStatus(story.id, "approved")}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Approve
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => updateStoryStatus(story.id, "rejected")}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Reject
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => updateStoryStatus(story.id, "removed")}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-black text-white hover:bg-slate-800"
+                      >
+                        <EyeOff className="h-4 w-4" />
+                        Remove
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedStoryId(isExpanded ? null : story.id)
+                        }
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-50 px-5 py-3 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+                      >
+                        <UserCircle className="h-4 w-4" />
+                        {isExpanded ? "Hide Details" : "View"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => copyStoryId(story.id)}
+                        className="inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
+                      >
+                        Copy ID
+                      </button>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section
+          id="prayer-video-responses"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                Prayer Video Responses
+              </div>
+              <h2 className="mt-1 text-3xl font-black text-[#062a57]">
+                Public response review
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Review public video responses separately from stories and
+                private Journey Inbox prayer videos.
               </p>
-              <Link
-                href="/share-your-story?type=prayer"
-                className="mt-5 inline-flex rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
-              >
-                Share a Prayer Request
-              </Link>
             </div>
-          ) : filteredStories.length === 0 ? (
-            <div className="rounded-[2rem] bg-white p-6 text-slate-600 shadow-sm ring-1 ring-slate-200">
-              No prayer requests match this filter yet.
+
+            <div className="rounded-full bg-amber-50 px-4 py-2 text-sm font-black text-amber-700 ring-1 ring-amber-100">
+              {pendingPrayerVideoResponses.length} waiting
+            </div>
+          </div>
+
+          {prayerVideoResponses.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
+              No public prayer video responses yet.
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredStories.map((story) =>
-                isAnswered(story) ? (
-                  <AnsweredPrayerCard
-                    key={story.id}
-                    story={story}
-                    owner={isOriginalPoster(story)}
-                    onSendPraiseVideo={() => openPrayerVideoModal(story)}
-                    onShare={() => shareStory(story)}
-                    onAddUpdate={() => openPrayerUpdateModal(story)}
-                  />
-                ) : (
-                  <PrayerRequestCard
-                    key={story.id}
-                    story={story}
-                    owner={isOriginalPoster(story)}
-                    onPray={() => handlePrayNow(story)}
-                    onEncourage={() => toggleReaction(story.id, "encouraged")}
-                    onSendPrayerVideo={() => openPrayerVideoModal(story)}
-                    onShare={() => shareStory(story)}
-                    onAddUpdate={() => openPrayerUpdateModal(story)}
-                    onGodDidIt={() => {
-                      setAnsweringStory(story);
-                      setAnsweredPrayerText("");
-                      setMessage("");
-                    }}
-                  />
-                )
-              )}
+            <div className="grid gap-4">
+              {prayerVideoResponses.map((response) => {
+                const videoPreviewUrl =
+                  prayerResponseVideoUrls[response.response_id] ?? null;
+                const responseAuthor =
+                  response.response_author_display_name ||
+                  response.response_author_username ||
+                  "HTBF community member";
+                const prayerOwner =
+                  response.prayer_owner_display_name ||
+                  response.prayer_owner_name ||
+                  response.prayer_owner_username ||
+                  "Prayer owner";
+
+                return (
+                  <article
+                    key={response.response_id}
+                    className="rounded-[1.75rem] bg-slate-50 p-4 ring-1 ring-slate-200 sm:p-5"
+                  >
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                            Public Prayer Response
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                              response.status
+                            )}`}
+                          >
+                            {statusLabel(response.status)}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                            <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                              Response Author
+                            </div>
+                            <div className="mt-1 break-words font-black text-[#062a57]">
+                              {responseAuthor}
+                            </div>
+                            {response.response_author_username && (
+                              <div className="mt-1 break-words text-sm font-bold text-slate-500">
+                                @{response.response_author_username}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                            <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                              Prayer Owner
+                            </div>
+                            <div className="mt-1 break-words font-black text-[#062a57]">
+                              {prayerOwner}
+                            </div>
+                            <div className="mt-1 text-sm font-bold text-slate-500">
+                              Submitted {formatDate(response.created_at)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                          <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                            Parent Prayer
+                          </div>
+                          <p
+                            className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700"
+                            style={{
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {response.prayer_text ||
+                              "Prayer request text unavailable."}
+                          </p>
+                        </div>
+
+                        {response.body && (
+                          <div className="mt-4 rounded-2xl bg-blue-50 p-4 ring-1 ring-blue-100">
+                            <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                              Response Text
+                            </div>
+                            <p
+                              className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[#082f63]"
+                              style={{
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {response.body}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="mt-4 text-xs font-bold text-slate-400">
+                          Response ID: {response.response_id}
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-[1.5rem] bg-slate-950 ring-1 ring-slate-800">
+                        {videoPreviewUrl ? (
+                          <video
+                            src={videoPreviewUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="max-h-[520px] w-full bg-black object-contain"
+                          />
+                        ) : (
+                          <div className="flex min-h-64 items-center justify-center p-6 text-center text-sm font-bold text-white/70">
+                            <div>
+                              <Video className="mx-auto mb-2 h-8 w-8" />
+                              Video preview unavailable
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void moderatePrayerVideoResponse(
+                            response.response_id,
+                            "approved"
+                          )
+                        }
+                        disabled={response.status === "approved"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Approve
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void moderatePrayerVideoResponse(
+                            response.response_id,
+                            "rejected"
+                          )
+                        }
+                        disabled={response.status === "rejected"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Reject
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void moderatePrayerVideoResponse(
+                            response.response_id,
+                            "removed"
+                          )
+                        }
+                        disabled={response.status === "removed"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <EyeOff className="h-4 w-4" />
+                        Remove
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
-      </div>
 
-      {prayerMomentStory && (
-        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-md rounded-[2rem] bg-white p-5 shadow-2xl">
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-              PRAYER MOMENT
+        <section
+          id="reports"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                Reports
+              </div>
+              <h2 className="mt-1 text-3xl font-black text-[#062a57]">
+                Reported content
+              </h2>
             </div>
 
-            <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
-              Take 15 seconds to pray
-            </h3>
-
-            <p className="mt-3 rounded-2xl bg-blue-50 p-4 text-base font-bold leading-7 text-[#082f63] ring-1 ring-blue-100">
-              Lord, strengthen this person and remind them they are not alone.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                setPrayerMomentStory(null);
-                setMessage("You joined the Prayer Circle.");
-              }}
-              className="mt-5 flex w-full items-center justify-center rounded-2xl bg-[#0b63ce] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084f9f]"
-            >
-              I Prayed
-            </button>
+            <div className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100">
+              {openReports.length} open
+            </div>
           </div>
-        </div>
-      )}
 
-      {prayerVideoStory && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
-            <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                    {isAnswered(prayerVideoStory)
-                      ? "PRAISE VIDEO"
-                      : "PRAYER VIDEO"}
+          {reports.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
+              No reports yet.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {reports.map((report) => (
+                <article
+                  key={report.id}
+                  className="rounded-[1.75rem] bg-red-50/60 p-5 ring-1 ring-red-100"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-red-700">
+                          {reasonLabel(report.reason)}
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${reportStatusStyle(
+                            report.status
+                          )}`}
+                        >
+                          {statusLabel(report.status)}
+                        </span>
+                        {report.story?.status && (
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                              report.story.status
+                            )}`}
+                          >
+                            Story: {statusLabel(report.story.status)}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="mt-4 text-2xl font-black text-[#062a57]">
+                        {report.story?.name || "Reported content"}
+                      </h3>
+
+                      <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                        <div>Reported {formatDate(report.created_at)}</div>
+                        <div>Reporter ID: {report.reporter_user_id || "Unavailable"}</div>
+                        <div>Posted by: {report.reported_user_id || "Unavailable"}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm font-black text-red-700">
+                      <Flag className="h-4 w-4" />
+                      User report
+                    </div>
                   </div>
-                  <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
-                    {isAnswered(prayerVideoStory)
-                      ? "Send a private praise video"
-                      : "Send a private prayer video"}
-                  </h3>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={closePrayerVideoModal}
-                  disabled={sendingPrayerVideo}
-                  className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 disabled:opacity-60"
-                  aria-label="Close prayer video"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                  <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-2xl bg-white p-5">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                        Report details
+                      </div>
+                      <p className="mt-2 leading-7 text-slate-700">
+                        {report.details || "No additional details provided."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white p-5">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                        Reported story
+                      </div>
+                      <p className="mt-2 line-clamp-4 whitespace-pre-line leading-7 text-slate-700">
+                        {report.story?.story_text || "No story text available."}
+                      </p>
+                      {report.story?.video_url && (
+                        <button
+                          type="button"
+                          onClick={() => openVideoReviewPage(report.story?.id)}
+                          className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
+                        >
+                          <Video className="h-4 w-4" />
+                          Open Video
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {report.admin_notes && (
+                    <div className="mt-4 rounded-2xl bg-white/80 p-4 text-sm font-semibold leading-6 text-slate-700">
+                      Admin notes: {report.admin_notes}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => markReportReviewing(report.id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      Mark Reviewing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dismissReport(report.id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-black text-white hover:bg-slate-800"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Dismiss Report
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeReportedContent(report)}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+                    >
+                      <EyeOff className="h-4 w-4" />
+                      Remove Content
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          id="account-requests"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                Account Requests
               </div>
+              <h2 className="mt-1 text-3xl font-black text-[#062a57]">
+                Account deletion requests
+              </h2>
+            </div>
 
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {isAnswered(prayerVideoStory)
-                  ? "Record or upload a short praise video up to 30 seconds. It will go privately to their Journey Inbox."
-                  : "Record or upload a short prayer video up to 30 seconds. It will go privately to their Journey Inbox."}
-              </p>
-
-              <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/60 p-6 text-center transition hover:bg-blue-50">
-                <UploadCloud className="h-8 w-8 text-[#0b63ce]" />
-                <span className="mt-3 text-sm font-black text-[#082f63]">
-                  {isAnswered(prayerVideoStory)
-                    ? "Choose or record praise video"
-                    : "Choose or record prayer video"}
-                </span>
-                <span className="mt-1 text-xs font-semibold text-slate-500">
-                  30 seconds max
-                </span>
-                <input
-                  type="file"
-                  accept="video/*"
-                  capture="user"
-                  className="hidden"
-                  onChange={(event) =>
-                    void handlePrayerVideoFile(event.target.files?.[0] ?? null)
-                  }
-                />
-              </label>
-
-              {prayerVideoPreviewUrl && (
-                <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-black">
-                  <video
-                    src={prayerVideoPreviewUrl}
-                    controls
-                    playsInline
-                    className="max-h-[420px] w-full bg-black object-contain"
-                  />
-                </div>
-              )}
-
-              {prayerVideoDuration !== null && (
-                <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-600">
-                  Video length: {Math.round(prayerVideoDuration)} seconds
-                </div>
-              )}
-
-              {prayerVideoError && (
-                <div className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 ring-1 ring-red-100">
-                  {prayerVideoError}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={sendPrayerVideo}
-                disabled={!prayerVideoFile || sendingPrayerVideo}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0b63ce] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                <Video className="h-4 w-4" />
-                {sendingPrayerVideo
-                  ? "Sending Video..."
-                  : isAnswered(prayerVideoStory)
-                    ? "Send Praise Video"
-                    : "Send Prayer Video"}
-              </button>
+            <div className="rounded-full bg-orange-50 px-4 py-2 text-sm font-black text-orange-700 ring-1 ring-orange-100">
+              {activeDeletionRequests.length} active
             </div>
           </div>
-        </div>
-      )}
 
-      {updatingStory && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
-            <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                PRAYER CIRCLE UPDATE
-              </div>
-
-              <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
-                Share an update with your Prayer Circle
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Everyone currently praying with this request will receive a
-                Journey Inbox notification.
-              </p>
-
-              <textarea
-                value={prayerUpdateText}
-                onChange={(event) => setPrayerUpdateText(event.target.value)}
-                rows={7}
-                placeholder="Share what has changed or how the Prayer Circle can keep praying..."
-                className="mt-4 min-h-[11rem] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none transition focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-              />
-
-              {message && (
-                <div className="mt-3 rounded-2xl bg-blue-50 p-3 text-sm font-semibold text-[#082f63]">
-                  {message}
-                </div>
-              )}
-
-              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closePrayerUpdateModal}
-                  disabled={savingPrayerUpdate}
-                  className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
+          {deletionRequests.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
+              No account deletion requests yet.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {deletionRequests.map((request) => (
+                <article
+                  key={request.id}
+                  className="rounded-[1.75rem] bg-orange-50/70 p-5 ring-1 ring-orange-100"
                 >
-                  Not Yet
-                </button>
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-orange-700">
+                          Account Deletion
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                            request.status
+                          )}`}
+                        >
+                          {statusLabel(request.status)}
+                        </span>
+                      </div>
 
-                <button
-                  type="button"
-                  onClick={savePrayerUpdate}
-                  disabled={savingPrayerUpdate}
-                  className="rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f] disabled:opacity-60"
-                >
-                  {savingPrayerUpdate ? "Sharing..." : "Share Update"}
-                </button>
-              </div>
+                      <h3 className="mt-4 text-2xl font-black text-[#062a57]">
+                        {request.email || "Email unavailable"}
+                      </h3>
+
+                      <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                        <div>Requested {formatDate(request.created_at)}</div>
+                        <div>User ID: {request.user_id}</div>
+                        {request.reviewed_at && (
+                          <div>Reviewed {formatDate(request.reviewed_at)}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm font-black text-orange-700">
+                      <ShieldAlert className="h-4 w-4" />
+                      User request
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl bg-white p-5">
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                      User reason
+                    </div>
+                    <p className="mt-2 leading-7 text-slate-700">
+                      {request.reason || "No reason provided."}
+                    </p>
+                  </div>
+
+                  {request.admin_notes && (
+                    <div className="mt-4 rounded-2xl bg-white/80 p-4 text-sm font-semibold leading-6 text-slate-700">
+                      Admin notes: {request.admin_notes}
+                    </div>
+                  )}
+
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => markDeletionReviewing(request.id)}
+                      disabled={request.status === "completed"}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <AlertCircle className="h-4 w-4" />
+                      Mark Reviewing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => completeDeletionRequest(request.id)}
+                      disabled={request.status === "completed"}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Mark Completed
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {answeringStory && (
-        <div className="fixed inset-0 z-50 flex items-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-              HYPER TO BE FREE
-            </div>
-
-            <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
-              Praise God! How did He answer your prayer?
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Share a short update so others can be encouraged.
-            </p>
-
-            <textarea
-              value={answeredPrayerText}
-              onChange={(event) => setAnsweredPrayerText(event.target.value)}
-              rows={7}
-              placeholder="Share what God did..."
-              className="mt-4 min-h-[11rem] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-50"
-            />
-
-            {message && (
-              <div className="mt-3 rounded-2xl bg-blue-50 p-3 text-sm font-semibold text-[#082f63]">
-                {message}
-              </div>
-            )}
-
-            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeAnsweredPrayerModal}
-                className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200"
-              >
-                Not Yet
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  markPrayerAnswered(answeringStory.id, answeredPrayerText)
-                }
-                className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
-              >
-                Share Praise
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+        </section>
+      </section>
     </main>
   );
 }
 
-function StatCard({
+function toPrayerVideoResponse(value: unknown): PrayerVideoResponse | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const response = value as Record<string, unknown>;
+  const responseId = readRequiredString(response.response_id);
+  const storyId = readRequiredString(response.story_id);
+  const responseUserId = readRequiredString(response.response_user_id);
+  const videoUrl = readRequiredString(response.video_url);
+  const status = readRequiredString(response.status);
+
+  if (!responseId || !storyId || !responseUserId || !videoUrl || !status) {
+    return null;
+  }
+
+  return {
+    response_id: responseId,
+    story_id: storyId,
+    response_user_id: responseUserId,
+    video_url: videoUrl,
+    body: readNullableString(response.body),
+    status,
+    created_at: readNullableString(response.created_at),
+    moderated_at: readNullableString(response.moderated_at),
+    moderated_by: readNullableString(response.moderated_by),
+    hidden_at: readNullableString(response.hidden_at),
+    removed_at: readNullableString(response.removed_at),
+    prayer_text: readNullableString(response.prayer_text),
+    prayer_owner_user_id: readNullableString(response.prayer_owner_user_id),
+    prayer_owner_name: readNullableString(response.prayer_owner_name),
+    prayer_owner_display_name: readNullableString(
+      response.prayer_owner_display_name
+    ),
+    prayer_owner_username: readNullableString(response.prayer_owner_username),
+    prayer_owner_avatar_url: readNullableString(
+      response.prayer_owner_avatar_url
+    ),
+    response_author_display_name: readNullableString(
+      response.response_author_display_name
+    ),
+    response_author_username: readNullableString(
+      response.response_author_username
+    ),
+    response_author_avatar_url: readNullableString(
+      response.response_author_avatar_url
+    ),
+  };
+}
+
+function readRequiredString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readNullableString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function AdminStatCard({
   icon,
   label,
   value,
@@ -1542,344 +1799,46 @@ function StatCard({
         </div>
         <div className="text-3xl font-black text-[#062a57]">{value}</div>
       </div>
-      <div className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+      <div className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
         {label}
       </div>
     </div>
   );
 }
 
-function PrayerRequestCard({
-  story,
-  owner,
-  onPray,
-  onEncourage,
-  onSendPrayerVideo,
-  onShare,
-  onAddUpdate,
-  onGodDidIt,
-}: {
-  story: PrayerStory;
-  owner: boolean;
-  onPray: () => void;
-  onEncourage: () => void;
-  onSendPrayerVideo: () => void;
-  onShare: () => void;
-  onAddUpdate: () => void;
-  onGodDidIt: () => void;
-}) {
-  const praying = story.user_reactions.includes("praying");
-  const encouraged = story.user_reactions.includes("encouraged");
-
-  return (
-    <article className="overflow-hidden rounded-[2rem] bg-white shadow-sm ring-1 ring-slate-200">
-      <div className="p-5">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-black text-[#0b63ce]">
-            {(story.name || "H").charAt(0).toUpperCase()}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <div className="min-w-0 max-w-full break-words font-black text-slate-900">
-                {story.name || "HTBF Community"}
-              </div>
-              <span className="text-sm text-slate-400">•</span>
-              <span className="max-w-full break-words rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
-                Prayer Request
-              </span>
-            </div>
-
-            <div className="mt-1 text-sm font-semibold text-slate-500">
-              {story.location || "Location not shared"}
-            </div>
-          </div>
-        </div>
-
-        {story.story_text && (
-          <p
-            className="mt-4 max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
-            style={{
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-            }}
-          >
-            {story.story_text}
-          </p>
-        )}
-
-        <div className="mt-4 rounded-2xl bg-blue-50 p-4 ring-1 ring-blue-100">
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-            Prayer Circle
-          </div>
-          <div className="mt-1 text-base font-black text-[#062a57]">
-            {formatPrayerCircleCount(story.reaction_counts.praying)}
-          </div>
-          {praying && (
-            <div className="mt-2 text-sm font-bold text-[#0b63ce]">
-              You are in this Prayer Circle
-            </div>
-          )}
-        </div>
-
-        <PrayerUpdateHistory updates={story.updates} />
-      </div>
-
-      <div className="border-t border-slate-100 p-4">
-        <div className="grid gap-2 sm:grid-cols-4">
-          <PrayerButton active={praying} onClick={onPray}>
-            {praying ? "Praying" : "Pray Now"}
-          </PrayerButton>
-          <PrayerButton active={encouraged} onClick={onEncourage}>
-            {encouraged ? "Encouraged" : "Encourage"}
-          </PrayerButton>
-          <div className="flex min-w-0 flex-col gap-1">
-            <PrayerButton
-              onClick={onSendPrayerVideo}
-              disabled={owner || !story.user_id}
-            >
-              <span className="inline-flex items-center justify-center gap-1">
-                <Video className="h-4 w-4" />
-                Send Video Prayer
-              </span>
-            </PrayerButton>
-            {!story.user_id && (
-              <span className="px-1 text-center text-[11px] font-bold leading-4 text-slate-400">
-                Video prayer unavailable for this request.
-              </span>
-            )}
-          </div>
-          <PrayerButton onClick={onShare}>
-            <span className="inline-flex items-center gap-1">
-              <Share2 className="h-4 w-4" />
-              Share
-            </span>
-          </PrayerButton>
-          {owner && (
-            <PrayerButton onClick={onAddUpdate}>Circle Update</PrayerButton>
-          )}
-          {owner && (
-            <button
-              type="button"
-              onClick={onGodDidIt}
-              className="rounded-2xl bg-emerald-600 px-3 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
-            >
-              God Did It
-            </button>
-          )}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function AnsweredPrayerCard({
-  story,
-  owner,
-  onSendPraiseVideo,
-  onShare,
-  onAddUpdate,
-}: {
-  story: PrayerStory;
-  owner: boolean;
-  onSendPraiseVideo: () => void;
-  onShare: () => void;
-  onAddUpdate: () => void;
-}) {
-  const praying = story.user_reactions.includes("praying");
-
-  return (
-    <article className="overflow-hidden rounded-[2rem] bg-white shadow-sm ring-1 ring-emerald-200">
-      <div className="bg-emerald-600 px-5 py-4 text-white">
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] ring-1 ring-white/20">
-          <CheckCircle2 className="h-4 w-4" />
-          Answered Prayer
-        </div>
-        <div className="mt-2 text-xl font-black">God Did It</div>
-      </div>
-
-      <div className="bg-emerald-50 p-5">
-
-        {story.story_text && (
-          <div className="mt-4">
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-              Original Prayer Request
-            </div>
-
-            <div
-              className="mt-2 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
-              style={{
-                overflowWrap: "anywhere",
-                wordBreak: "break-word",
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {story.story_text}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-emerald-100">
-          <div className="text-sm font-black text-emerald-800">
-            {formatPrayerCircleCount(story.reaction_counts.praying)}
-          </div>
-          {praying && (
-            <div className="mt-2 text-sm font-bold text-emerald-700">
-              You are in this Prayer Circle
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-          How God Answered
-        </div>
-
-        {story.answered_text ? (
-          <div
-            className="mt-2 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
-            style={{
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {story.answered_text}
-          </div>
-        ) : (
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            This prayer request was marked answered by the person who shared it.
-          </p>
-        )}
-
-        <PrayerUpdateHistory updates={story.updates} />
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {!story.user_id ? (
-            <button
-              type="button"
-              disabled
-              className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-400 ring-1 ring-slate-200"
-            >
-              Video prayer unavailable for this request.
-            </button>
-          ) : owner ? (
-            <button
-              type="button"
-              disabled
-              className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-400 ring-1 ring-slate-200"
-            >
-              Your Answered Prayer
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onSendPraiseVideo}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f]"
-            >
-              <Video className="h-4 w-4" />
-              Send Praise Video
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={onShare}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 ring-1 ring-emerald-100 transition hover:bg-emerald-100"
-          >
-            <Share2 className="h-4 w-4" />
-            Share Testimony
-          </button>
-
-          {owner && (
-            <button
-              type="button"
-              onClick={onAddUpdate}
-              className="rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f]"
-            >
-              Circle Update
-            </button>
-          )}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function PrayerUpdateHistory({ updates }: { updates: PrayerUpdate[] }) {
-  if (updates.length === 0) return null;
-
-  return (
-    <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-          Circle Updates
-        </div>
-        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-500 ring-1 ring-slate-200">
-          {updates.length}
-        </span>
-      </div>
-
-      <div className="mt-3 space-y-3">
-        {updates.map((update) => (
-          <div
-            key={update.id}
-            className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-                Circle Update
-              </span>
-              <span className="text-xs font-bold text-slate-400">
-                {formatPrayerUpdateDate(update.created_at)}
-              </span>
-            </div>
-            <p
-              className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700"
-              style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-            >
-              {update.body}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function formatPrayerUpdateDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Recently";
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function PrayerButton({
-  active = false,
-  disabled = false,
+function AdminNavCard({
+  title,
+  description,
+  href,
   onClick,
-  children,
 }: {
-  active?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: ReactNode;
+  title: string;
+  description: string;
+  href?: string;
+  onClick?: () => void;
 }) {
+  const className =
+    "block rounded-[1.5rem] bg-white p-4 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50 hover:ring-blue-100";
+  const content = (
+    <>
+      <div className="text-sm font-black text-[#062a57]">{title}</div>
+      <div className="mt-1 text-xs font-bold leading-5 text-slate-500">
+        {description}
+      </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-2xl px-3 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
-        active && !disabled
-          ? "bg-[#0b63ce] text-white"
-          : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
-      }`}
-    >
-      {children}
+    <button type="button" onClick={onClick} className={className}>
+      {content}
     </button>
   );
 }
