@@ -1307,15 +1307,14 @@ export default function PrayerPage() {
     }
 
     const cleanBody = publicResponseBody.trim();
-    const { error: insertError } = await supabase
-      .from("prayer_video_responses")
-      .insert({
-        story_id: publicResponseStory.id,
-        user_id: userId,
-        video_url: storagePath,
-        body: cleanBody || null,
-        status: "submitted",
-      });
+    const { error: insertError } = await supabase.rpc(
+      "submit_prayer_video_response",
+      {
+        prayer_story_id: publicResponseStory.id,
+        response_video_url: storagePath,
+        response_body: cleanBody || null,
+      }
+    );
 
     if (insertError) {
       await supabase.storage
