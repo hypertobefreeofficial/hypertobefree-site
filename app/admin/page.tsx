@@ -61,6 +61,7 @@ type StoryFilter =
 type ContentReport = {
   id: string;
   story_id: string | null;
+  prayer_video_response_id: string | null;
   reporter_user_id: string | null;
   reported_user_id: string | null;
   reason: string | null;
@@ -212,7 +213,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("content_reports")
       .select(
-        "id, story_id, reporter_user_id, reported_user_id, reason, details, status, admin_notes, created_at, reviewed_at, reviewed_by"
+        "id, story_id, prayer_video_response_id, reporter_user_id, reported_user_id, reason, details, status, admin_notes, created_at, reviewed_at, reviewed_by"
       )
       .order("created_at", { ascending: false });
 
@@ -563,6 +564,72 @@ export default function AdminPage() {
 
   async function removeReportedContent(report: ContentReport) {
     setMessage("");
+
+    if (report.prayer_video_response_id) {
+      const confirmed = window.confirm(
+        "Remove this reported public prayer video response? The parent prayer and private Journey Inbox videos will not be affected."
+      );
+
+      if (!confirmed) return;
+
+      const { error: removeResponseError } = await supabase.rpc(
+        "moderate_prayer_video_response",
+        {
+          response_id: report.prayer_video_response_id,
+          next_status: "removed",
+        }
+      );
+
+      if (removeResponseError) {
+        setMessage(
+          `Could not remove reported prayer response: ${removeResponseError.message}`
+        );
+        return;
+      }
+
+      const { error: closeReportError } = await supabase.rpc(
+        "admin_dismiss_content_report",
+        { report_id: report.id }
+      );
+
+      if (closeReportError) {
+        setMessage(
+          `Prayer response was removed, but the report could not be closed: ${closeReportError.message}`
+        );
+        return;
+      }
+
+      const reviewedAt = new Date().toISOString();
+
+      setPrayerVideoResponses((currentResponses) =>
+        currentResponses.map((response) =>
+          response.response_id === report.prayer_video_response_id
+            ? {
+                ...response,
+                status: "removed",
+                moderated_at: reviewedAt,
+                removed_at: reviewedAt,
+              }
+            : response
+        )
+      );
+      setReports((currentReports) =>
+        currentReports.map((item) =>
+          item.id === report.id
+            ? {
+                ...item,
+                status: "dismissed",
+                reviewed_at: reviewedAt,
+                admin_notes:
+                  item.admin_notes ||
+                  "Reported public prayer response removed by admin.",
+              }
+            : item
+        )
+      );
+      setMessage("Reported public prayer response removed.");
+      return;
+    }
 
     const confirmed = window.confirm(
       "Remove this reported content from public view? This will mark the story as removed and close the report as action taken."
@@ -1497,17 +1564,31 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {reports.length === 0 ? (
+          {openReports.length === 0 ? (
             <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
-              No reports yet.
+              No open reports.
             </div>
           ) : (
             <div className="grid gap-4">
-              {reports.map((report) => (
-                <article
-                  key={report.id}
-                  className="rounded-[1.75rem] bg-red-50/60 p-5 ring-1 ring-red-100"
-                >
+              {openReports.map((report) => {
+                const linkedPrayerResponse = report.prayer_video_response_id
+                  ? prayerVideoResponses.find(
+                      (response) =>
+                        response.response_id ===
+                        report.prayer_video_response_id
+                    ) ?? null
+                  : null;
+                const linkedPrayerVideoUrl = report.prayer_video_response_id
+                  ? prayerResponseVideoUrls[
+                      report.prayer_video_response_id
+                    ] ?? null
+                  : null;
+
+                return (
+                  <article
+                    key={report.id}
+                    className="rounded-[1.75rem] bg-red-50/60 p-5 ring-1 ring-red-100"
+                  >
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1521,6 +1602,11 @@ export default function AdminPage() {
                         >
                           {statusLabel(report.status)}
                         </span>
+                        {report.prayer_video_response_id && (
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce] ring-1 ring-blue-100">
+                            Prayer Video Response
+                          </span>
+                        )}
                         {report.story?.status && (
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
@@ -1533,13 +1619,20 @@ export default function AdminPage() {
                       </div>
 
                       <h3 className="mt-4 text-2xl font-black text-[#062a57]">
-                        {report.story?.name || "Reported content"}
+                        {report.prayer_video_response_id
+                          ? "Reported public prayer response"
+                          : report.story?.name || "Reported content"}
                       </h3>
 
                       <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
                         <div>Reported {formatDate(report.created_at)}</div>
                         <div>Reporter ID: {report.reporter_user_id || "Unavailable"}</div>
                         <div>Posted by: {report.reported_user_id || "Unavailable"}</div>
+                        {report.prayer_video_response_id && (
+                          <div>
+                            Prayer Response ID: {report.prayer_video_response_id}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1561,7 +1654,9 @@ export default function AdminPage() {
 
                     <div className="rounded-2xl bg-white p-5">
                       <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-                        Reported story
+                        {report.prayer_video_response_id
+                          ? "Parent prayer"
+                          : "Reported story"}
                       </div>
                       <p className="mt-2 line-clamp-4 whitespace-pre-line leading-7 text-slate-700">
                         {report.story?.story_text || "No story text available."}
@@ -1578,6 +1673,45 @@ export default function AdminPage() {
                       )}
                     </div>
                   </div>
+
+                  {report.prayer_video_response_id && (
+                    <div className="mt-4 grid gap-4 rounded-2xl bg-white p-4 ring-1 ring-blue-100 lg:grid-cols-[minmax(0,1fr)_300px]">
+                      <div className="min-w-0">
+                        <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                          Reported Public Response
+                        </div>
+                        <div className="mt-2 font-black text-[#062a57]">
+                          {linkedPrayerResponse?.response_author_display_name ||
+                            linkedPrayerResponse?.response_author_username ||
+                            "HTBF community member"}
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-500">
+                          Status: {statusLabel(linkedPrayerResponse?.status ?? null)}
+                        </div>
+                        {linkedPrayerResponse?.body && (
+                          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                            {linkedPrayerResponse.body}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="overflow-hidden rounded-[1.25rem] bg-slate-950">
+                        {linkedPrayerVideoUrl ? (
+                          <video
+                            src={linkedPrayerVideoUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="max-h-[420px] w-full bg-black object-contain"
+                          />
+                        ) : (
+                          <div className="flex min-h-48 items-center justify-center p-5 text-center text-sm font-bold text-white/70">
+                            Video preview unavailable
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {report.admin_notes && (
                     <div className="mt-4 rounded-2xl bg-white/80 p-4 text-sm font-semibold leading-6 text-slate-700">
@@ -1608,11 +1742,14 @@ export default function AdminPage() {
                       className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
                     >
                       <EyeOff className="h-4 w-4" />
-                      Remove Content
+                      {report.prayer_video_response_id
+                        ? "Remove Prayer Response"
+                        : "Remove Content"}
                     </button>
                   </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
