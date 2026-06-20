@@ -6,6 +6,7 @@ import {
   Bell,
   CheckCircle2,
   Clock,
+  Flag,
   HeartHandshake,
   MessageCircleHeart,
   Send,
@@ -20,6 +21,12 @@ import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 type PrayerFilter = "all" | "active" | "answered" | "most-prayed" | "recent";
+type ReportReason =
+  | "inappropriate"
+  | "harassment_hate"
+  | "violence_harmful"
+  | "spam"
+  | "other";
 
 type PrayerStoryRow = {
   id: string;
@@ -98,6 +105,14 @@ const filters: { label: string; value: PrayerFilter }[] = [
   { label: "Answered", value: "answered" },
   { label: "Most Prayed For", value: "most-prayed" },
   { label: "Recently Shared", value: "recent" },
+];
+
+const reportReasons: { label: string; value: ReportReason }[] = [
+  { label: "Inappropriate content", value: "inappropriate" },
+  { label: "Harassment or hate", value: "harassment_hate" },
+  { label: "Violence or harmful content", value: "violence_harmful" },
+  { label: "Spam or misleading", value: "spam" },
+  { label: "Other", value: "other" },
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -251,6 +266,16 @@ export default function PrayerPage() {
   >(null);
   const [publicResponseError, setPublicResponseError] = useState("");
   const [submittingPublicResponse, setSubmittingPublicResponse] =
+    useState(false);
+  const [reportingPublicResponse, setReportingPublicResponse] =
+    useState<PublicPrayerVideoResponse | null>(null);
+  const [publicResponseReportReason, setPublicResponseReportReason] =
+    useState<ReportReason>("inappropriate");
+  const [publicResponseReportDetails, setPublicResponseReportDetails] =
+    useState("");
+  const [publicResponseReportError, setPublicResponseReportError] =
+    useState("");
+  const [sendingPublicResponseReport, setSendingPublicResponseReport] =
     useState(false);
   const [unreadPrayerCount, setUnreadPrayerCount] = useState(0);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
@@ -1396,6 +1421,75 @@ export default function PrayerPage() {
     setMessage("Public prayer response hidden.");
   }
 
+  function openPublicResponseReport(response: PublicPrayerVideoResponse) {
+    setMessage("");
+
+    if (!userId) {
+      setMessage("Please sign in to report a public prayer response.");
+      return;
+    }
+
+    if (response.user_id === userId) {
+      setMessage("You cannot report your own public prayer response.");
+      return;
+    }
+
+    setReportingPublicResponse(response);
+    setPublicResponseReportReason("inappropriate");
+    setPublicResponseReportDetails("");
+    setPublicResponseReportError("");
+  }
+
+  function closePublicResponseReport() {
+    setReportingPublicResponse(null);
+    setPublicResponseReportReason("inappropriate");
+    setPublicResponseReportDetails("");
+    setPublicResponseReportError("");
+  }
+
+  async function submitPublicResponseReport() {
+    if (!userId || !reportingPublicResponse) {
+      setPublicResponseReportError(
+        "Please sign in to report a public prayer response."
+      );
+      return;
+    }
+
+    if (reportingPublicResponse.user_id === userId) {
+      setPublicResponseReportError(
+        "You cannot report your own public prayer response."
+      );
+      return;
+    }
+
+    setSendingPublicResponseReport(true);
+    setPublicResponseReportError("");
+
+    const { error } = await supabase.from("content_reports").insert({
+      reporter_user_id: userId,
+      reported_user_id: reportingPublicResponse.user_id,
+      story_id: reportingPublicResponse.story_id,
+      prayer_video_response_id: reportingPublicResponse.id,
+      reason: publicResponseReportReason,
+      details: publicResponseReportDetails.trim() || null,
+      status: "open",
+    });
+
+    setSendingPublicResponseReport(false);
+
+    if (error) {
+      setPublicResponseReportError(
+        `Could not report public response: ${error.message}`
+      );
+      return;
+    }
+
+    closePublicResponseReport();
+    setMessage(
+      "Report submitted. Thank you for helping keep the Prayer Room safe."
+    );
+  }
+
   function removePublicResponseFromView(responseId: string) {
     setStories((currentStories) =>
       currentStories.map((story) => ({
@@ -1684,6 +1778,7 @@ export default function PrayerPage() {
                     onAddUpdate={() => openPrayerUpdateModal(story)}
                     onRemovePublicResponse={removePublicResponse}
                     onHidePublicResponse={hidePublicResponse}
+                    onReportPublicResponse={openPublicResponseReport}
                   />
                 ) : (
                   <PrayerRequestCard
@@ -1701,6 +1796,7 @@ export default function PrayerPage() {
                     currentUserId={userId}
                     onRemovePublicResponse={removePublicResponse}
                     onHidePublicResponse={hidePublicResponse}
+                    onReportPublicResponse={openPublicResponseReport}
                     onGodDidIt={() => {
                       setAnsweringStory(story);
                       setAnsweredPrayerText("");
@@ -1931,6 +2027,85 @@ export default function PrayerPage() {
         </div>
       )}
 
+      {reportingPublicResponse && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
+            <div className="w-full max-w-md rounded-[2rem] bg-white p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.22em] text-red-600">
+                    Report Response
+                  </div>
+                  <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
+                    Help keep the Prayer Room safe
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closePublicResponseReport}
+                  disabled={sendingPublicResponseReport}
+                  className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 disabled:opacity-60"
+                  aria-label="Close report response"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <label className="mt-5 block text-sm font-black text-[#062a57]">
+                Why are you reporting this response?
+              </label>
+              <select
+                value={publicResponseReportReason}
+                onChange={(event) =>
+                  setPublicResponseReportReason(
+                    event.target.value as ReportReason
+                  )
+                }
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              >
+                {reportReasons.map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+
+              <label className="mt-4 block text-sm font-black text-[#062a57]">
+                Details (optional)
+              </label>
+              <textarea
+                value={publicResponseReportDetails}
+                onChange={(event) =>
+                  setPublicResponseReportDetails(event.target.value)
+                }
+                rows={4}
+                placeholder="Tell us what concerned you..."
+                className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+
+              {publicResponseReportError && (
+                <div className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 ring-1 ring-red-100">
+                  {publicResponseReportError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void submitPublicResponseReport()}
+                disabled={sendingPublicResponseReport}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Flag className="h-4 w-4" />
+                {sendingPublicResponseReport
+                  ? "Submitting Report..."
+                  : "Submit Report"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {updatingStory && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
           <div className="flex min-h-full items-end sm:items-center sm:justify-center">
@@ -2079,6 +2254,7 @@ function PrayerRequestCard({
   currentUserId,
   onRemovePublicResponse,
   onHidePublicResponse,
+  onReportPublicResponse,
 }: {
   story: PrayerStory;
   owner: boolean;
@@ -2092,6 +2268,7 @@ function PrayerRequestCard({
   currentUserId: string | null;
   onRemovePublicResponse: (responseId: string) => void;
   onHidePublicResponse: (responseId: string) => void;
+  onReportPublicResponse: (response: PublicPrayerVideoResponse) => void;
 }) {
   const praying = story.user_reactions.includes("praying");
   const encouraged = story.user_reactions.includes("encouraged");
@@ -2154,6 +2331,7 @@ function PrayerRequestCard({
           prayerOwnerUserId={story.user_id}
           onRemove={onRemovePublicResponse}
           onHide={onHidePublicResponse}
+          onReport={onReportPublicResponse}
         />
       </div>
 
@@ -2223,6 +2401,7 @@ function AnsweredPrayerCard({
   onAddUpdate,
   onRemovePublicResponse,
   onHidePublicResponse,
+  onReportPublicResponse,
 }: {
   story: PrayerStory;
   owner: boolean;
@@ -2232,6 +2411,7 @@ function AnsweredPrayerCard({
   onAddUpdate: () => void;
   onRemovePublicResponse: (responseId: string) => void;
   onHidePublicResponse: (responseId: string) => void;
+  onReportPublicResponse: (response: PublicPrayerVideoResponse) => void;
 }) {
   const praying = story.user_reactions.includes("praying");
 
@@ -2305,6 +2485,7 @@ function AnsweredPrayerCard({
           prayerOwnerUserId={story.user_id}
           onRemove={onRemovePublicResponse}
           onHide={onHidePublicResponse}
+          onReport={onReportPublicResponse}
         />
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -2365,12 +2546,14 @@ function PublicPrayerResponses({
   prayerOwnerUserId,
   onRemove,
   onHide,
+  onReport,
 }: {
   responses: PublicPrayerVideoResponse[];
   currentUserId: string | null;
   prayerOwnerUserId: string | null;
   onRemove: (responseId: string) => void;
   onHide: (responseId: string) => void;
+  onReport: (response: PublicPrayerVideoResponse) => void;
 }) {
   if (responses.length === 0) return null;
 
@@ -2395,6 +2578,8 @@ function PublicPrayerResponses({
           const canRemove = currentUserId === response.user_id;
           const canHide =
             Boolean(currentUserId) && currentUserId === prayerOwnerUserId;
+          const canReport =
+            Boolean(currentUserId) && currentUserId !== response.user_id;
 
           return (
             <article
@@ -2439,7 +2624,7 @@ function PublicPrayerResponses({
                   </p>
                 )}
 
-                {(canRemove || canHide) && (
+                {(canRemove || canHide || canReport) && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {canRemove && (
                       <button
@@ -2457,6 +2642,16 @@ function PublicPrayerResponses({
                         className="rounded-full bg-white px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                       >
                         Hide From This Prayer
+                      </button>
+                    )}
+                    {canReport && (
+                      <button
+                        type="button"
+                        onClick={() => onReport(response)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-2 text-xs font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
+                      >
+                        <Flag className="h-3.5 w-3.5" />
+                        Report Response
                       </button>
                     )}
                   </div>
