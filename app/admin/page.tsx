@@ -85,6 +85,31 @@ type AccountDeletionRequest = {
   created_at: string | null;
 };
 
+type PrayerVideoResponseStatus = "approved" | "rejected" | "removed";
+
+type PrayerVideoResponse = {
+  response_id: string;
+  story_id: string;
+  response_user_id: string;
+  video_url: string;
+  body: string | null;
+  status: string;
+  created_at: string | null;
+  moderated_at: string | null;
+  moderated_by: string | null;
+  hidden_at: string | null;
+  removed_at: string | null;
+  prayer_text: string | null;
+  prayer_owner_user_id: string | null;
+  prayer_owner_name: string | null;
+  prayer_owner_display_name: string | null;
+  prayer_owner_username: string | null;
+  prayer_owner_avatar_url: string | null;
+  response_author_display_name: string | null;
+  response_author_username: string | null;
+  response_author_avatar_url: string | null;
+};
+
 export default function AdminPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
@@ -92,6 +117,12 @@ export default function AdminPage() {
   const [deletionRequests, setDeletionRequests] = useState<
     AccountDeletionRequest[]
   >([]);
+  const [prayerVideoResponses, setPrayerVideoResponses] = useState<
+    PrayerVideoResponse[]
+  >([]);
+  const [prayerResponseVideoUrls, setPrayerResponseVideoUrls] = useState<
+    Record<string, string>
+  >({});
   const [storyImageUrls, setStoryImageUrls] = useState<Record<string, string>>(
     {}
   );
@@ -127,7 +158,12 @@ export default function AdminPage() {
       return;
     }
 
-    await Promise.all([loadStories(), loadReports(), loadDeletionRequests()]);
+    await Promise.all([
+      loadStories(),
+      loadReports(),
+      loadDeletionRequests(),
+      loadPrayerVideoResponses(),
+    ]);
 
     setLoading(false);
   }
@@ -149,6 +185,27 @@ export default function AdminPage() {
 
     setStories(loadedStories);
     void loadStoryImageUrls(loadedStories);
+  }
+
+  async function loadPrayerVideoResponses() {
+    const { data, error } = await supabase.rpc(
+      "list_prayer_video_responses_for_admin"
+    );
+
+    if (error) {
+      setMessage(`Could not load prayer video responses: ${error.message}`);
+      return;
+    }
+
+    const rawResponses: unknown[] = Array.isArray(data) ? data : [];
+    const loadedResponses = rawResponses
+      .map(toPrayerVideoResponse)
+      .filter(
+        (response): response is PrayerVideoResponse => response !== null
+      );
+
+    setPrayerVideoResponses(loadedResponses);
+    await loadPrayerResponseVideoUrls(loadedResponses);
   }
 
   async function loadReports() {
@@ -242,6 +299,54 @@ export default function AdminPage() {
     if (imageUrl.startsWith("http")) return null;
 
     return imageUrl;
+  }
+
+  function getPrayerResponseVideoStoragePath(videoUrl: string) {
+    if (videoUrl.includes("story-videos/")) {
+      const afterBucket = videoUrl.split("story-videos/")[1];
+      const pathOnly = afterBucket.split("?")[0];
+
+      try {
+        return decodeURIComponent(pathOnly);
+      } catch {
+        return pathOnly;
+      }
+    }
+
+    if (videoUrl.startsWith("http")) return null;
+
+    return videoUrl.replace(/^\/+/, "");
+  }
+
+  async function loadPrayerResponseVideoUrls(
+    responses: PrayerVideoResponse[]
+  ) {
+    const nextVideoUrls: Record<string, string> = {};
+
+    await Promise.all(
+      responses.map(async (response) => {
+        if (response.video_url.startsWith("http")) {
+          nextVideoUrls[response.response_id] = response.video_url;
+          return;
+        }
+
+        const storagePath = getPrayerResponseVideoStoragePath(
+          response.video_url
+        );
+
+        if (!storagePath) return;
+
+        const { data, error } = await supabase.storage
+          .from("story-videos")
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          nextVideoUrls[response.response_id] = data.signedUrl;
+        }
+      })
+    );
+
+    setPrayerResponseVideoUrls(nextVideoUrls);
   }
 
   async function loadStoryImageUrls(loadedStories: Story[]) {
@@ -350,6 +455,54 @@ export default function AdminPage() {
     );
 
     setMessage(`Story marked as ${newStatus.replace("_", " ")}.`);
+  }
+
+  async function moderatePrayerVideoResponse(
+    responseId: string,
+    nextStatus: PrayerVideoResponseStatus
+  ) {
+    if (
+      nextStatus === "removed" &&
+      !window.confirm("Remove this public prayer video response?")
+    ) {
+      return;
+    }
+
+    setMessage("");
+
+    const { error } = await supabase.rpc(
+      "moderate_prayer_video_response",
+      {
+        response_id: responseId,
+        next_status: nextStatus,
+      }
+    );
+
+    if (error) {
+      setMessage(
+        `Could not moderate prayer video response: ${error.message}`
+      );
+      return;
+    }
+
+    const moderatedAt = new Date().toISOString();
+
+    setPrayerVideoResponses((currentResponses) =>
+      currentResponses.map((response) =>
+        response.response_id === responseId
+          ? {
+              ...response,
+              status: nextStatus,
+              moderated_at: moderatedAt,
+              removed_at:
+                nextStatus === "removed" ? moderatedAt : null,
+            }
+          : response
+      )
+    );
+    setMessage(
+      `Prayer video response marked as ${nextStatus.replace("_", " ")}.`
+    );
   }
 
   async function markReportReviewing(reportId: string) {
@@ -653,6 +806,14 @@ export default function AdminPage() {
     [deletionRequests]
   );
 
+  const pendingPrayerVideoResponses = useMemo(
+    () =>
+      prayerVideoResponses.filter((response) =>
+        isPendingStatus(response.status)
+      ),
+    [prayerVideoResponses]
+  );
+
   const reportCountsByStory = useMemo(() => {
     const counts = new Map<string, number>();
 
@@ -855,6 +1016,11 @@ export default function AdminPage() {
               adminStats.videos === 1 ? "" : "s"
             }`}
             onClick={() => setActiveFilter("videos")}
+          />
+          <AdminNavCard
+            title="Prayer Video Responses"
+            description={`${pendingPrayerVideoResponses.length} waiting`}
+            href="#prayer-video-responses"
           />
           <AdminNavCard
             title="Reports"
@@ -1112,6 +1278,207 @@ export default function AdminPage() {
         </section>
 
         <section
+          id="prayer-video-responses"
+          className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
+        >
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                Prayer Video Responses
+              </div>
+              <h2 className="mt-1 text-3xl font-black text-[#062a57]">
+                Public response review
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Review public video responses separately from stories and
+                private Journey Inbox prayer videos.
+              </p>
+            </div>
+
+            <div className="rounded-full bg-amber-50 px-4 py-2 text-sm font-black text-amber-700 ring-1 ring-amber-100">
+              {pendingPrayerVideoResponses.length} waiting
+            </div>
+          </div>
+
+          {prayerVideoResponses.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
+              No public prayer video responses yet.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {prayerVideoResponses.map((response) => {
+                const videoPreviewUrl =
+                  prayerResponseVideoUrls[response.response_id] ?? null;
+                const responseAuthor =
+                  response.response_author_display_name ||
+                  response.response_author_username ||
+                  "HTBF community member";
+                const prayerOwner =
+                  response.prayer_owner_display_name ||
+                  response.prayer_owner_name ||
+                  response.prayer_owner_username ||
+                  "Prayer owner";
+
+                return (
+                  <article
+                    key={response.response_id}
+                    className="rounded-[1.75rem] bg-slate-50 p-4 ring-1 ring-slate-200 sm:p-5"
+                  >
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                            Public Prayer Response
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                              response.status
+                            )}`}
+                          >
+                            {statusLabel(response.status)}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                            <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                              Response Author
+                            </div>
+                            <div className="mt-1 break-words font-black text-[#062a57]">
+                              {responseAuthor}
+                            </div>
+                            {response.response_author_username && (
+                              <div className="mt-1 break-words text-sm font-bold text-slate-500">
+                                @{response.response_author_username}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                            <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                              Prayer Owner
+                            </div>
+                            <div className="mt-1 break-words font-black text-[#062a57]">
+                              {prayerOwner}
+                            </div>
+                            <div className="mt-1 text-sm font-bold text-slate-500">
+                              Submitted {formatDate(response.created_at)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                          <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                            Parent Prayer
+                          </div>
+                          <p
+                            className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700"
+                            style={{
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {response.prayer_text ||
+                              "Prayer request text unavailable."}
+                          </p>
+                        </div>
+
+                        {response.body && (
+                          <div className="mt-4 rounded-2xl bg-blue-50 p-4 ring-1 ring-blue-100">
+                            <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                              Response Text
+                            </div>
+                            <p
+                              className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[#082f63]"
+                              style={{
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {response.body}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="mt-4 text-xs font-bold text-slate-400">
+                          Response ID: {response.response_id}
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-[1.5rem] bg-slate-950 ring-1 ring-slate-800">
+                        {videoPreviewUrl ? (
+                          <video
+                            src={videoPreviewUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className="max-h-[520px] w-full bg-black object-contain"
+                          />
+                        ) : (
+                          <div className="flex min-h-64 items-center justify-center p-6 text-center text-sm font-bold text-white/70">
+                            <div>
+                              <Video className="mx-auto mb-2 h-8 w-8" />
+                              Video preview unavailable
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void moderatePrayerVideoResponse(
+                            response.response_id,
+                            "approved"
+                          )
+                        }
+                        disabled={response.status === "approved"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Approve
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void moderatePrayerVideoResponse(
+                            response.response_id,
+                            "rejected"
+                          )
+                        }
+                        disabled={response.status === "rejected"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Reject
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void moderatePrayerVideoResponse(
+                            response.response_id,
+                            "removed"
+                          )
+                        }
+                        disabled={response.status === "removed"}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <EyeOff className="h-4 w-4" />
+                        Remove
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section
           id="reports"
           className="mt-6 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6"
         >
@@ -1357,6 +1724,62 @@ export default function AdminPage() {
       </section>
     </main>
   );
+}
+
+function toPrayerVideoResponse(value: unknown): PrayerVideoResponse | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const response = value as Record<string, unknown>;
+  const responseId = readRequiredString(response.response_id);
+  const storyId = readRequiredString(response.story_id);
+  const responseUserId = readRequiredString(response.response_user_id);
+  const videoUrl = readRequiredString(response.video_url);
+  const status = readRequiredString(response.status);
+
+  if (!responseId || !storyId || !responseUserId || !videoUrl || !status) {
+    return null;
+  }
+
+  return {
+    response_id: responseId,
+    story_id: storyId,
+    response_user_id: responseUserId,
+    video_url: videoUrl,
+    body: readNullableString(response.body),
+    status,
+    created_at: readNullableString(response.created_at),
+    moderated_at: readNullableString(response.moderated_at),
+    moderated_by: readNullableString(response.moderated_by),
+    hidden_at: readNullableString(response.hidden_at),
+    removed_at: readNullableString(response.removed_at),
+    prayer_text: readNullableString(response.prayer_text),
+    prayer_owner_user_id: readNullableString(response.prayer_owner_user_id),
+    prayer_owner_name: readNullableString(response.prayer_owner_name),
+    prayer_owner_display_name: readNullableString(
+      response.prayer_owner_display_name
+    ),
+    prayer_owner_username: readNullableString(response.prayer_owner_username),
+    prayer_owner_avatar_url: readNullableString(
+      response.prayer_owner_avatar_url
+    ),
+    response_author_display_name: readNullableString(
+      response.response_author_display_name
+    ),
+    response_author_username: readNullableString(
+      response.response_author_username
+    ),
+    response_author_avatar_url: readNullableString(
+      response.response_author_avatar_url
+    ),
+  };
+}
+
+function readRequiredString(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readNullableString(value: unknown) {
+  return typeof value === "string" ? value : null;
 }
 
 function AdminStatCard({
