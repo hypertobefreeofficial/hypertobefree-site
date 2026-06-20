@@ -75,22 +75,6 @@ type ProfileSummary = {
   username: string | null;
 };
 
-type PublicResponseDebug = {
-  submitPath: "rpc";
-  rpcName: "submit_prayer_video_response";
-  payload: {
-    prayer_story_id: string;
-    response_video_url: string;
-    response_body: null;
-  };
-  error: {
-    message: string | null;
-    code: string | null;
-    details: string | null;
-    hint: string | null;
-  } | null;
-};
-
 type PrayerStory = PrayerStoryRow & {
   reaction_counts: {
     amen: number;
@@ -118,28 +102,6 @@ const filters: { label: string; value: PrayerFilter }[] = [
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function readString(value: unknown) {
-  return typeof value === "string" ? value : null;
-}
-
-function readPublicResponseDebugError(error: unknown) {
-  if (!isRecord(error)) {
-    return {
-      message: error instanceof Error ? error.message : String(error),
-      code: null,
-      details: null,
-      hint: null,
-    };
-  }
-
-  return {
-    message: readString(error.message),
-    code: readString(error.code),
-    details: readString(error.details),
-    hint: readString(error.hint),
-  };
 }
 
 function isPrayerStoryRow(value: unknown): value is PrayerStoryRow {
@@ -284,8 +246,6 @@ export default function PrayerPage() {
     number | null
   >(null);
   const [publicResponseError, setPublicResponseError] = useState("");
-  const [publicResponseDebug, setPublicResponseDebug] =
-    useState<PublicResponseDebug | null>(null);
   const [submittingPublicResponse, setSubmittingPublicResponse] =
     useState(false);
   const [unreadPrayerCount, setUnreadPrayerCount] = useState(0);
@@ -1226,8 +1186,6 @@ export default function PrayerPage() {
     setPublicResponseStory(story);
     setPublicResponseFile(null);
     setPublicResponseDuration(null);
-    setPublicResponseDebug(null);
-
     if (publicResponsePreviewUrl) {
       URL.revokeObjectURL(publicResponsePreviewUrl);
       setPublicResponsePreviewUrl("");
@@ -1323,20 +1281,6 @@ export default function PrayerPage() {
       publicResponseFile.name.split(".").pop()?.toLowerCase() || "mp4";
     const extension = rawExtension.replace(/[^a-z0-9]/g, "") || "mp4";
     const storagePath = `prayer-public-responses/${publicResponseStory.id}/${userId}-${Date.now()}.${extension}`;
-    const initialDebug: PublicResponseDebug = {
-      submitPath: "rpc",
-      rpcName: "submit_prayer_video_response",
-      payload: {
-        prayer_story_id: publicResponseStory.id,
-        response_video_url: storagePath,
-        response_body: null,
-      },
-      error: null,
-    };
-
-    setPublicResponseDebug(initialDebug);
-    console.info("[Public Prayer Response RPC]", initialDebug);
-
     const { error: uploadError } = await supabase.storage
       .from(PRAYER_VIDEO_BUCKET)
       .upload(storagePath, publicResponseFile, {
@@ -1346,10 +1290,6 @@ export default function PrayerPage() {
       });
 
     if (uploadError) {
-      const debugError = readPublicResponseDebugError(uploadError);
-
-      setPublicResponseDebug({ ...initialDebug, error: debugError });
-      console.error("[Public Prayer Response Upload Error]", debugError);
       setSubmittingPublicResponse(false);
       setPublicResponseError(
         `Could not upload public response: ${uploadError.message}`
@@ -1367,10 +1307,6 @@ export default function PrayerPage() {
     );
 
     if (rpcError) {
-      const debugError = readPublicResponseDebugError(rpcError);
-
-      setPublicResponseDebug({ ...initialDebug, error: debugError });
-      console.error("[Public Prayer Response RPC Error]", debugError);
       await supabase.storage
         .from(PRAYER_VIDEO_BUCKET)
         .remove([storagePath]);
@@ -1935,17 +1871,6 @@ export default function PrayerPage() {
               {publicResponseError && (
                 <div className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 ring-1 ring-red-100">
                   {publicResponseError}
-                </div>
-              )}
-
-              {publicResponseDebug && (
-                <div className="mt-3 rounded-2xl bg-slate-950 p-3 text-white ring-1 ring-slate-800">
-                  <div className="text-xs font-black uppercase tracking-[0.14em] text-blue-200">
-                    Temporary Public Response Debug
-                  </div>
-                  <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-slate-200">
-                    {JSON.stringify(publicResponseDebug, null, 2)}
-                  </pre>
                 </div>
               )}
 
