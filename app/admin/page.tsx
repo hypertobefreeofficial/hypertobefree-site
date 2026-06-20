@@ -44,6 +44,10 @@ type Story = {
   video_url: string | null;
   thumbnail_url: string | null;
   status: string | null;
+  ai_review_status: string | null;
+  ai_risk_level: string | null;
+  ai_suggested_action: string | null;
+  ai_flags: string[] | null;
   created_at: string | null;
 };
 
@@ -127,6 +131,7 @@ export default function AdminPage() {
   const [storyImageUrls, setStoryImageUrls] = useState<Record<string, string>>(
     {}
   );
+  const [blockedUsersCount, setBlockedUsersCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notAllowed, setNotAllowed] = useState(false);
   const [message, setMessage] = useState("");
@@ -164,6 +169,7 @@ export default function AdminPage() {
       loadReports(),
       loadDeletionRequests(),
       loadPrayerVideoResponses(),
+      loadBlockedUsersCount(),
     ]);
 
     setLoading(false);
@@ -173,7 +179,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, created_at"
+        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at"
       )
       .order("created_at", { ascending: false });
 
@@ -186,6 +192,19 @@ export default function AdminPage() {
 
     setStories(loadedStories);
     void loadStoryImageUrls(loadedStories);
+  }
+
+  async function loadBlockedUsersCount() {
+    const { count, error } = await supabase
+      .from("blocked_users")
+      .select("blocker_user_id", { count: "exact", head: true });
+
+    if (error) {
+      console.error("Could not load blocked users count:", error);
+      return;
+    }
+
+    setBlockedUsersCount(count ?? 0);
   }
 
   async function loadPrayerVideoResponses() {
@@ -236,7 +255,7 @@ export default function AdminPage() {
     const { data: storyData, error: storyError } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, created_at"
+        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at"
       )
       .in("id", storyIds);
 
@@ -881,6 +900,23 @@ export default function AdminPage() {
     [prayerVideoResponses]
   );
 
+  const aiReviewNeededCount = useMemo(
+    () =>
+      stories.filter((story) => {
+        const hasFlags = Array.isArray(story.ai_flags) && story.ai_flags.length > 0;
+
+        return (
+          story.ai_suggested_action === "review" ||
+          story.ai_suggested_action === "reject" ||
+          story.ai_risk_level === "medium" ||
+          story.ai_risk_level === "high" ||
+          story.ai_review_status === "failed" ||
+          hasFlags
+        );
+      }).length,
+    [stories]
+  );
+
   const reportCountsByStory = useMemo(() => {
     const counts = new Map<string, number>();
 
@@ -902,9 +938,9 @@ export default function AdminPage() {
       prayerRequests: stories.filter((story) =>
         story.story_type?.toLowerCase().includes("prayer")
       ).length,
-      reportsAndRequests: openReports.length + activeDeletionRequests.length,
+      aiReviewNeeded: aiReviewNeededCount,
     }),
-    [activeDeletionRequests.length, openReports.length, stories]
+    [aiReviewNeededCount, stories]
   );
 
   const filteredStories = useMemo(
@@ -924,6 +960,19 @@ export default function AdminPage() {
 
   function getStoryReportCount(storyId: string) {
     return reportCountsByStory.get(storyId) ?? 0;
+  }
+
+  function scrollToAdminSection(sectionId: string) {
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(sectionId)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function reviewVideos() {
+    setActiveFilter("videos");
+    scrollToAdminSection("content-review");
   }
 
   async function copyStoryId(storyId: string) {
@@ -1036,7 +1085,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           <AdminStatCard
             icon={<AlertCircle className="h-5 w-5" />}
             label="Pending Review"
@@ -1064,50 +1113,96 @@ export default function AdminPage() {
           />
           <AdminStatCard
             icon={<Flag className="h-5 w-5" />}
-            label="Reports / Requests"
-            value={adminStats.reportsAndRequests}
+            label="Open Reports"
+            value={openReports.length}
+            href="#reports"
+            tone={openReports.length > 0 ? "danger" : "default"}
+          />
+          <AdminStatCard
+            icon={<Lock className="h-5 w-5" />}
+            label="Blocked Users"
+            value={blockedUsersCount}
+          />
+          <AdminStatCard
+            icon={<ShieldAlert className="h-5 w-5" />}
+            label="AI Review Needed"
+            value={adminStats.aiReviewNeeded}
+            href="#content-review"
+            tone={adminStats.aiReviewNeeded > 0 ? "warning" : "default"}
           />
         </section>
 
-        <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <section className="mt-5 rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                Quick Actions
+              </div>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Jump directly to the next moderation task.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <AdminQuickAction
+                label="Review Reports"
+                count={openReports.length}
+                href="#reports"
+                urgent={openReports.length > 0}
+              />
+              <AdminQuickAction
+                label="Review Videos"
+                count={adminStats.videos}
+                onClick={reviewVideos}
+              />
+              <AdminQuickAction
+                label="Review Prayer Responses"
+                count={pendingPrayerVideoResponses.length}
+                href="#prayer-video-responses"
+              />
+              <AdminQuickAction
+                label="Account Requests"
+                count={activeDeletionRequests.length}
+                href="#account-requests"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <AdminNavCard
             title="Content Review"
             description={`${adminStats.pendingReview} item${
               adminStats.pendingReview === 1 ? "" : "s"
             } waiting`}
-            onClick={() => setActiveFilter("pending")}
-          />
-          <AdminNavCard
-            title="Video Review"
-            description={`${adminStats.videos} video item${
-              adminStats.videos === 1 ? "" : "s"
-            }`}
-            onClick={() => setActiveFilter("videos")}
-          />
-          <AdminNavCard
-            title="Prayer Video Responses"
-            description={`${pendingPrayerVideoResponses.length} waiting`}
-            href="#prayer-video-responses"
-          />
-          <AdminNavCard
-            title="Reports"
-            description={`${openReports.length} open`}
-            href="#reports"
-          />
-          <AdminNavCard
-            title="Account Requests"
-            description={`${activeDeletionRequests.length} active`}
-            href="#account-requests"
+            onClick={() => {
+              setActiveFilter("pending");
+              scrollToAdminSection("content-review");
+            }}
           />
           <AdminNavCard
             title="Removed Content"
             description={`${adminStats.removed} removed`}
-            onClick={() => setActiveFilter("removed")}
+            onClick={() => {
+              setActiveFilter("removed");
+              scrollToAdminSection("content-review");
+            }}
           />
           <AdminNavCard
             title="Approved Content"
             description={`${adminStats.approved} live`}
-            onClick={() => setActiveFilter("approved")}
+            onClick={() => {
+              setActiveFilter("approved");
+              scrollToAdminSection("content-review");
+            }}
+          />
+          <AdminNavCard
+            title="All Content"
+            description={`${stories.length} total submissions`}
+            onClick={() => {
+              setActiveFilter("all");
+              scrollToAdminSection("content-review");
+            }}
           />
         </section>
 
@@ -1493,35 +1588,58 @@ export default function AdminPage() {
                     </div>
 
                     <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void moderatePrayerVideoResponse(
-                            response.response_id,
-                            "approved"
-                          )
-                        }
-                        disabled={response.status === "approved"}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Approve
-                      </button>
+                      {response.status === "approved" ? (
+                        <>
+                          <div className="inline-flex items-center justify-center gap-2 rounded-full bg-green-50 px-5 py-3 text-sm font-black text-green-700 ring-1 ring-green-200">
+                            <CheckCircle className="h-4 w-4" />
+                            Approved ✓
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void moderatePrayerVideoResponse(
+                                response.response_id,
+                                "rejected"
+                              )
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Revoke / Reject
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void moderatePrayerVideoResponse(
+                                response.response_id,
+                                "approved"
+                              )
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            Approve
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void moderatePrayerVideoResponse(
-                            response.response_id,
-                            "rejected"
-                          )
-                        }
-                        disabled={response.status === "rejected"}
-                        className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Reject
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void moderatePrayerVideoResponse(
+                                response.response_id,
+                                "rejected"
+                              )
+                            }
+                            disabled={response.status === "rejected"}
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Reject
+                          </button>
+                        </>
+                      )}
 
                       <button
                         type="button"
@@ -1927,23 +2045,110 @@ function AdminStatCard({
   icon,
   label,
   value,
+  href,
+  tone = "default",
 }: {
   icon: ReactNode;
   label: string;
   value: number;
+  href?: string;
+  tone?: "default" | "danger" | "warning";
 }) {
-  return (
-    <div className="rounded-[1.5rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
+  const toneClasses = {
+    default: {
+      card: "bg-white ring-slate-200",
+      icon: "bg-blue-50 text-[#0b63ce]",
+      value: "text-[#062a57]",
+      label: "text-slate-500",
+    },
+    danger: {
+      card: "bg-red-50 ring-red-200",
+      icon: "bg-red-100 text-red-700",
+      value: "text-red-700",
+      label: "text-red-700",
+    },
+    warning: {
+      card: "bg-amber-50 ring-amber-200",
+      icon: "bg-amber-100 text-amber-700",
+      value: "text-amber-800",
+      label: "text-amber-700",
+    },
+  }[tone];
+  const className = `block rounded-[1.5rem] p-4 text-left shadow-sm ring-1 transition ${toneClasses.card} ${
+    href ? "hover:-translate-y-0.5 hover:shadow-md" : ""
+  }`;
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
+        <div
+          className={`flex h-11 w-11 items-center justify-center rounded-2xl ${toneClasses.icon}`}
+        >
           {icon}
         </div>
-        <div className="text-3xl font-black text-[#062a57]">{value}</div>
+        <div className={`text-3xl font-black ${toneClasses.value}`}>{value}</div>
       </div>
-      <div className="mt-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+      <div
+        className={`mt-3 text-xs font-black uppercase tracking-[0.14em] ${toneClasses.label}`}
+      >
         {label}
       </div>
-    </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return <div className={className}>{content}</div>;
+}
+
+function AdminQuickAction({
+  label,
+  count,
+  href,
+  onClick,
+  urgent = false,
+}: {
+  label: string;
+  count: number;
+  href?: string;
+  onClick?: () => void;
+  urgent?: boolean;
+}) {
+  const className = `inline-flex min-h-11 items-center justify-between gap-3 rounded-full px-4 py-2 text-sm font-black transition ${
+    urgent
+      ? "bg-red-600 text-white hover:bg-red-700"
+      : "bg-blue-50 text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+  }`;
+  const content = (
+    <>
+      <span>{label}</span>
+      <span
+        className={`rounded-full px-2 py-0.5 text-xs ${
+          urgent ? "bg-white/20 text-white" : "bg-white text-[#062a57]"
+        }`}
+      >
+        {count}
+      </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
   );
 }
 
