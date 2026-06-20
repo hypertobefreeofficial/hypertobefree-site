@@ -1633,12 +1633,22 @@ function PrayerRequestCard({
           <PrayerButton active={encouraged} onClick={onEncourage}>
             {encouraged ? "Encouraged" : "Encourage"}
           </PrayerButton>
-          <PrayerButton onClick={onSendPrayerVideo}>
-            <span className="inline-flex items-center justify-center gap-1">
-              <Video className="h-4 w-4" />
-              Send Video Prayer
-            </span>
-          </PrayerButton>
+          <div className="flex min-w-0 flex-col gap-1">
+            <PrayerButton
+              onClick={onSendPrayerVideo}
+              disabled={owner || !story.user_id}
+            >
+              <span className="inline-flex items-center justify-center gap-1">
+                <Video className="h-4 w-4" />
+                Send Video Prayer
+              </span>
+            </PrayerButton>
+            {!story.user_id && (
+              <span className="px-1 text-center text-[11px] font-bold leading-4 text-slate-400">
+                Video prayer unavailable for this request.
+              </span>
+            )}
+          </div>
           <PrayerButton onClick={onShare}>
             <span className="inline-flex items-center gap-1">
               <Share2 className="h-4 w-4" />
@@ -1744,14 +1754,32 @@ function AnsweredPrayerCard({
         <PrayerUpdateHistory updates={story.updates} />
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onSendPraiseVideo}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f]"
-          >
-            <Video className="h-4 w-4" />
-            Send Praise Video
-          </button>
+          {!story.user_id ? (
+            <button
+              type="button"
+              disabled
+              className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-400 ring-1 ring-slate-200"
+            >
+              Video prayer unavailable for this request.
+            </button>
+          ) : owner ? (
+            <button
+              type="button"
+              disabled
+              className="rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-400 ring-1 ring-slate-200"
+            >
+              Your Answered Prayer
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSendPraiseVideo}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0b63ce] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084f9f]"
+            >
+              <Video className="h-4 w-4" />
+              Send Praise Video
+            </button>
+          )}
 
           <button
             type="button"
@@ -1831,10 +1859,12 @@ function formatPrayerUpdateDate(value: string) {
 
 function PrayerButton({
   active = false,
+  disabled = false,
   onClick,
   children,
 }: {
   active?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -1842,8 +1872,9 @@ function PrayerButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-2xl px-3 py-2.5 text-sm font-black transition ${
-        active
+      disabled={disabled}
+      className={`rounded-2xl px-3 py-2.5 text-sm font-black transition disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 ${
+        active && !disabled
           ? "bg-[#0b63ce] text-white"
           : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
       }`}
