@@ -1730,9 +1730,13 @@ function toPrayerVideoResponse(value: unknown): PrayerVideoResponse | null {
   if (typeof value !== "object" || value === null) return null;
 
   const response = value as Record<string, unknown>;
-  const responseId = readRequiredString(response.response_id);
+  const responseId =
+    readRequiredString(response.response_id) ??
+    readRequiredString(response.id);
   const storyId = readRequiredString(response.story_id);
-  const responseUserId = readRequiredString(response.response_user_id);
+  const responseUserId =
+    readRequiredString(response.response_user_id) ??
+    readRequiredString(response.user_id);
   const videoUrl = readRequiredString(response.video_url);
   const status = readRequiredString(response.status);
 
