@@ -1323,16 +1323,14 @@ export default function PrayerPage() {
       publicResponseFile.name.split(".").pop()?.toLowerCase() || "mp4";
     const extension = rawExtension.replace(/[^a-z0-9]/g, "") || "mp4";
     const storagePath = `prayer-public-responses/${publicResponseStory.id}/${userId}-${Date.now()}.${extension}`;
-    const videoUrl = storagePath;
-    const rpcPayload = {
-      prayer_story_id: publicResponseStory.id,
-      response_video_url: videoUrl,
-      response_body: null,
-    };
     const initialDebug: PublicResponseDebug = {
       submitPath: "rpc",
       rpcName: "submit_prayer_video_response",
-      payload: rpcPayload,
+      payload: {
+        prayer_story_id: publicResponseStory.id,
+        response_video_url: storagePath,
+        response_body: null,
+      },
       error: null,
     };
 
@@ -1361,7 +1359,11 @@ export default function PrayerPage() {
 
     const { error: rpcError } = await supabase.rpc(
       "submit_prayer_video_response",
-      rpcPayload
+      {
+        prayer_story_id: publicResponseStory.id,
+        response_video_url: storagePath,
+        response_body: null,
+      }
     );
 
     if (rpcError) {
