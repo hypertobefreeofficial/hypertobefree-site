@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { moderatePublicContent } from "../../../lib/server/moderatePublicContent";
+import { moderatePublicContent } from "../../../../lib/server/moderatePublicContent";
 
 type PrayerStoryRow = {
   id: string;
