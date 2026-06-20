@@ -81,6 +81,11 @@ export async function POST(request: Request) {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const serviceRoleDebug = {
+    serviceRoleKeyExists: Boolean(serviceRoleKey),
+    serviceRoleKeyMatchesAnonKey: serviceRoleKey === supabaseAnonKey,
+    adminClientCredentialSource: "SUPABASE_SERVICE_ROLE_KEY",
+  };
   const { data: prayerData, error: prayerError } = await adminClient
     .from("stories")
     .select("id, user_id, story_type, story_text, status")
@@ -126,8 +131,21 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError || !insertedData?.id) {
+    const insertDebug = {
+      ...serviceRoleDebug,
+      message: insertError?.message ?? null,
+      code: insertError?.code ?? null,
+      details: insertError?.details ?? null,
+      hint: insertError?.hint ?? null,
+    };
+
+    console.error("Prayer video response server insert failed:", insertDebug);
+
     return Response.json(
-      { error: insertError?.message ?? "Could not create the response." },
+      {
+        error: insertError?.message ?? "Could not create the response.",
+        debug: insertDebug,
+      },
       { status: 500 }
     );
   }
