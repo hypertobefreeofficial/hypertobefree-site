@@ -52,6 +52,29 @@ type PrayerUpdate = {
   hidden_at: string | null;
 };
 
+type PublicPrayerVideoResponseRow = {
+  id: string;
+  story_id: string;
+  user_id: string;
+  video_url: string;
+  body: string | null;
+  status: string;
+  created_at: string;
+  hidden_at: string | null;
+  removed_at: string | null;
+};
+
+type PublicPrayerVideoResponse = PublicPrayerVideoResponseRow & {
+  signed_video_url: string | null;
+  author_name: string | null;
+};
+
+type ProfileSummary = {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+};
+
 type PrayerStory = PrayerStoryRow & {
   reaction_counts: {
     amen: number;
@@ -61,6 +84,7 @@ type PrayerStory = PrayerStoryRow & {
   };
   user_reactions: ReactionType[];
   updates: PrayerUpdate[];
+  public_video_responses: PublicPrayerVideoResponse[];
 };
 
 const PRAYER_VIDEO_BUCKET = "story-videos";
@@ -114,6 +138,34 @@ function isPrayerUpdate(value: unknown): value is PrayerUpdate {
   );
 }
 
+function isPublicPrayerVideoResponseRow(
+  value: unknown
+): value is PublicPrayerVideoResponseRow {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.story_id === "string" &&
+    typeof value.user_id === "string" &&
+    typeof value.video_url === "string" &&
+    (typeof value.body === "string" || value.body === null) &&
+    typeof value.status === "string" &&
+    typeof value.created_at === "string" &&
+    (typeof value.hidden_at === "string" || value.hidden_at === null) &&
+    (typeof value.removed_at === "string" || value.removed_at === null)
+  );
+}
+
+function isProfileSummary(value: unknown): value is ProfileSummary {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === "string" &&
+    (typeof value.display_name === "string" || value.display_name === null) &&
+    (typeof value.username === "string" || value.username === null)
+  );
+}
+
 function storyIncludesPrayer(story: PrayerStoryRow) {
   const storyType = story.story_type?.toLowerCase() ?? "";
   return storyType.includes("prayer");
@@ -146,6 +198,23 @@ function getVideoDuration(file: File): Promise<number> {
   });
 }
 
+function getPrayerVideoStoragePath(videoUrl: string) {
+  if (videoUrl.includes("story-videos/")) {
+    const afterBucket = videoUrl.split("story-videos/")[1];
+    const pathOnly = afterBucket.split("?")[0];
+
+    try {
+      return decodeURIComponent(pathOnly);
+    } catch {
+      return pathOnly;
+    }
+  }
+
+  if (videoUrl.startsWith("http")) return null;
+
+  return videoUrl.replace(/^\/+/, "");
+}
+
 export default function PrayerPage() {
   const [stories, setStories] = useState<PrayerStory[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
@@ -171,6 +240,19 @@ export default function PrayerPage() {
   );
   const [prayerVideoError, setPrayerVideoError] = useState("");
   const [sendingPrayerVideo, setSendingPrayerVideo] = useState(false);
+  const [publicResponseStory, setPublicResponseStory] =
+    useState<PrayerStory | null>(null);
+  const [publicResponseFile, setPublicResponseFile] = useState<File | null>(
+    null
+  );
+  const [publicResponsePreviewUrl, setPublicResponsePreviewUrl] = useState("");
+  const [publicResponseDuration, setPublicResponseDuration] = useState<
+    number | null
+  >(null);
+  const [publicResponseBody, setPublicResponseBody] = useState("");
+  const [publicResponseError, setPublicResponseError] = useState("");
+  const [submittingPublicResponse, setSubmittingPublicResponse] =
+    useState(false);
   const [unreadPrayerCount, setUnreadPrayerCount] = useState(0);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
@@ -229,22 +311,34 @@ export default function PrayerPage() {
       const storyIds = prayerRows.map((story) => story.id);
       let reactions: ReactionRow[] = [];
       let prayerUpdates: PrayerUpdate[] = [];
+      let publicVideoResponses: PublicPrayerVideoResponse[] = [];
 
       if (storyIds.length > 0) {
-        const [reactionResult, updateResult] = await Promise.all([
-          supabase
-            .from("story_reactions")
-            .select("story_id, user_id, reaction_type")
-            .in("story_id", storyIds),
-          supabase
-            .from("prayer_updates")
-            .select(
-              "id, story_id, author_user_id, body, update_type, created_at, edited_at, hidden_at"
-            )
-            .in("story_id", storyIds)
-            .is("hidden_at", null)
-            .order("created_at", { ascending: true }),
-        ]);
+        const [reactionResult, updateResult, publicResponseResult] =
+          await Promise.all([
+            supabase
+              .from("story_reactions")
+              .select("story_id, user_id, reaction_type")
+              .in("story_id", storyIds),
+            supabase
+              .from("prayer_updates")
+              .select(
+                "id, story_id, author_user_id, body, update_type, created_at, edited_at, hidden_at"
+              )
+              .in("story_id", storyIds)
+              .is("hidden_at", null)
+              .order("created_at", { ascending: true }),
+            supabase
+              .from("prayer_video_responses")
+              .select(
+                "id, story_id, user_id, video_url, body, status, created_at, hidden_at, removed_at"
+              )
+              .in("story_id", storyIds)
+              .eq("status", "approved")
+              .is("hidden_at", null)
+              .is("removed_at", null)
+              .order("created_at", { ascending: true }),
+          ]);
 
         reactions = (
           Array.isArray(reactionResult.data) ? reactionResult.data : []
@@ -256,6 +350,80 @@ export default function PrayerPage() {
           prayerUpdates = (
             Array.isArray(updateResult.data) ? updateResult.data : []
           ).filter(isPrayerUpdate);
+        }
+
+        if (publicResponseResult.error) {
+          console.error(
+            "Could not load public prayer video responses:",
+            publicResponseResult.error
+          );
+        } else {
+          const responseRows = (
+            Array.isArray(publicResponseResult.data)
+              ? publicResponseResult.data
+              : []
+          ).filter(isPublicPrayerVideoResponseRow);
+          const responseAuthorIds = Array.from(
+            new Set(responseRows.map((response) => response.user_id))
+          );
+          const profileMap = new Map<string, ProfileSummary>();
+
+          if (responseAuthorIds.length > 0) {
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("id, display_name, username")
+              .in("id", responseAuthorIds);
+
+            if (profileError) {
+              console.error(
+                "Could not load public response authors:",
+                profileError
+              );
+            } else {
+              (Array.isArray(profileData) ? profileData : [])
+                .filter(isProfileSummary)
+                .forEach((profile) => profileMap.set(profile.id, profile));
+            }
+          }
+
+          publicVideoResponses = await Promise.all(
+            responseRows.map(async (response) => {
+              let signedVideoUrl: string | null = null;
+
+              if (response.video_url.startsWith("http")) {
+                signedVideoUrl = response.video_url;
+              } else {
+                const storagePath = getPrayerVideoStoragePath(
+                  response.video_url
+                );
+
+                if (storagePath) {
+                  const { data: signedData, error: signedError } =
+                    await supabase.storage
+                      .from(PRAYER_VIDEO_BUCKET)
+                      .createSignedUrl(storagePath, 60 * 60);
+
+                  if (signedError) {
+                    console.error(
+                      "Could not load public prayer response video:",
+                      signedError
+                    );
+                  } else {
+                    signedVideoUrl = signedData?.signedUrl ?? null;
+                  }
+                }
+              }
+
+              const profile = profileMap.get(response.user_id);
+
+              return {
+                ...response,
+                signed_video_url: signedVideoUrl,
+                author_name:
+                  profile?.display_name || profile?.username || null,
+              };
+            })
+          );
         }
       }
 
@@ -296,6 +464,9 @@ export default function PrayerPage() {
           user_reactions: userReactions,
           updates: prayerUpdates.filter(
             (update) => update.story_id === story.id
+          ),
+          public_video_responses: publicVideoResponses.filter(
+            (response) => response.story_id === story.id
           ),
         };
       });
@@ -344,6 +515,14 @@ export default function PrayerPage() {
       }
     };
   }, [prayerVideoPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (publicResponsePreviewUrl) {
+        URL.revokeObjectURL(publicResponsePreviewUrl);
+      }
+    };
+  }, [publicResponsePreviewUrl]);
 
   useEffect(() => {
     if (!userId) {
@@ -990,6 +1169,214 @@ export default function PrayerPage() {
     );
   }
 
+  function openPublicResponseModal(story: PrayerStory) {
+    setMessage("");
+    setPublicResponseError("");
+
+    if (!userId) {
+      setMessage("Please sign in to share a public prayer response.");
+      return;
+    }
+
+    if (!story.user_id) {
+      setMessage("Public responses are unavailable for this request.");
+      return;
+    }
+
+    if (story.user_id === userId) {
+      setMessage("You cannot add a public response to your own prayer request.");
+      return;
+    }
+
+    setPublicResponseStory(story);
+    setPublicResponseFile(null);
+    setPublicResponseDuration(null);
+    setPublicResponseBody("");
+
+    if (publicResponsePreviewUrl) {
+      URL.revokeObjectURL(publicResponsePreviewUrl);
+      setPublicResponsePreviewUrl("");
+    }
+  }
+
+  function closePublicResponseModal() {
+    if (submittingPublicResponse) return;
+
+    resetPublicResponseModal();
+  }
+
+  function resetPublicResponseModal() {
+    setPublicResponseStory(null);
+    setPublicResponseFile(null);
+    setPublicResponseDuration(null);
+    setPublicResponseBody("");
+    setPublicResponseError("");
+
+    if (publicResponsePreviewUrl) {
+      URL.revokeObjectURL(publicResponsePreviewUrl);
+      setPublicResponsePreviewUrl("");
+    }
+  }
+
+  async function handlePublicResponseFile(file: File | null) {
+    setPublicResponseError("");
+    setPublicResponseFile(null);
+    setPublicResponseDuration(null);
+
+    if (publicResponsePreviewUrl) {
+      URL.revokeObjectURL(publicResponsePreviewUrl);
+      setPublicResponsePreviewUrl("");
+    }
+
+    if (!file) return;
+
+    if (!file.type.startsWith("video/")) {
+      setPublicResponseError("Please choose a video file.");
+      return;
+    }
+
+    try {
+      const duration = await getVideoDuration(file);
+
+      if (duration > MAX_PRAYER_VIDEO_SECONDS + 0.5) {
+        setPublicResponseError(
+          "Public prayer response videos must be 30 seconds or less."
+        );
+        return;
+      }
+
+      setPublicResponseDuration(duration);
+      setPublicResponseFile(file);
+      setPublicResponsePreviewUrl(URL.createObjectURL(file));
+    } catch (error) {
+      console.error("Could not validate public prayer response:", error);
+      setPublicResponseError(
+        "Could not read this video. Please choose another one."
+      );
+    }
+  }
+
+  async function submitPublicResponse() {
+    setPublicResponseError("");
+
+    if (!userId || !publicResponseStory) {
+      setPublicResponseError("Please sign in to share a public response.");
+      return;
+    }
+
+    if (!publicResponseStory.user_id) {
+      setPublicResponseError(
+        "Public responses are unavailable for this request."
+      );
+      return;
+    }
+
+    if (publicResponseStory.user_id === userId) {
+      setPublicResponseError(
+        "You cannot add a public response to your own prayer request."
+      );
+      return;
+    }
+
+    if (!publicResponseFile) {
+      setPublicResponseError("Choose or record a video first.");
+      return;
+    }
+
+    setSubmittingPublicResponse(true);
+
+    const rawExtension =
+      publicResponseFile.name.split(".").pop()?.toLowerCase() || "mp4";
+    const extension = rawExtension.replace(/[^a-z0-9]/g, "") || "mp4";
+    const storagePath = `prayer-public-responses/${publicResponseStory.id}/${userId}-${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(PRAYER_VIDEO_BUCKET)
+      .upload(storagePath, publicResponseFile, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: publicResponseFile.type,
+      });
+
+    if (uploadError) {
+      setSubmittingPublicResponse(false);
+      setPublicResponseError(
+        `Could not upload public response: ${uploadError.message}`
+      );
+      return;
+    }
+
+    const cleanBody = publicResponseBody.trim();
+    const { error: insertError } = await supabase
+      .from("prayer_video_responses")
+      .insert({
+        story_id: publicResponseStory.id,
+        user_id: userId,
+        video_url: storagePath,
+        body: cleanBody || null,
+        status: "submitted",
+      });
+
+    if (insertError) {
+      await supabase.storage
+        .from(PRAYER_VIDEO_BUCKET)
+        .remove([storagePath]);
+      setSubmittingPublicResponse(false);
+      setPublicResponseError(
+        `Could not submit public response: ${insertError.message}`
+      );
+      return;
+    }
+
+    setSubmittingPublicResponse(false);
+    resetPublicResponseModal();
+    setMessage("Public prayer response submitted for review.");
+  }
+
+  async function removePublicResponse(responseId: string) {
+    if (!window.confirm("Remove your public prayer response?")) return;
+
+    const { error } = await supabase.rpc(
+      "remove_my_prayer_video_response",
+      { response_id: responseId }
+    );
+
+    if (error) {
+      setMessage(`Could not remove public response: ${error.message}`);
+      return;
+    }
+
+    removePublicResponseFromView(responseId);
+    setMessage("Public prayer response removed.");
+  }
+
+  async function hidePublicResponse(responseId: string) {
+    if (!window.confirm("Hide this public response from your prayer?")) return;
+
+    const { error } = await supabase.rpc("hide_prayer_video_response", {
+      response_id: responseId,
+    });
+
+    if (error) {
+      setMessage(`Could not hide public response: ${error.message}`);
+      return;
+    }
+
+    removePublicResponseFromView(responseId);
+    setMessage("Public prayer response hidden.");
+  }
+
+  function removePublicResponseFromView(responseId: string) {
+    setStories((currentStories) =>
+      currentStories.map((story) => ({
+        ...story,
+        public_video_responses: story.public_video_responses.filter(
+          (response) => response.id !== responseId
+        ),
+      }))
+    );
+  }
+
   async function markPrayerAnswered(storyId: string, answeredText: string) {
     setMessage("");
 
@@ -1261,9 +1648,12 @@ export default function PrayerPage() {
                     key={story.id}
                     story={story}
                     owner={isOriginalPoster(story)}
+                    currentUserId={userId}
                     onSendPraiseVideo={() => openPrayerVideoModal(story)}
                     onShare={() => shareStory(story)}
                     onAddUpdate={() => openPrayerUpdateModal(story)}
+                    onRemovePublicResponse={removePublicResponse}
+                    onHidePublicResponse={hidePublicResponse}
                   />
                 ) : (
                   <PrayerRequestCard
@@ -1273,8 +1663,14 @@ export default function PrayerPage() {
                     onPray={() => handlePrayNow(story)}
                     onEncourage={() => toggleReaction(story.id, "encouraged")}
                     onSendPrayerVideo={() => openPrayerVideoModal(story)}
+                    onSharePublicResponse={() =>
+                      openPublicResponseModal(story)
+                    }
                     onShare={() => shareStory(story)}
                     onAddUpdate={() => openPrayerUpdateModal(story)}
+                    currentUserId={userId}
+                    onRemovePublicResponse={removePublicResponse}
+                    onHidePublicResponse={hidePublicResponse}
                     onGodDidIt={() => {
                       setAnsweringStory(story);
                       setAnsweredPrayerText("");
@@ -1408,6 +1804,114 @@ export default function PrayerPage() {
                   : isAnswered(prayerVideoStory)
                     ? "Send Praise Video"
                     : "Send Prayer Video"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {publicResponseStory && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
+            <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
+                    Public Prayer Response
+                  </div>
+                  <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57]">
+                    Share a public video response
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closePublicResponseModal}
+                  disabled={submittingPublicResponse}
+                  className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 disabled:opacity-60"
+                  aria-label="Close public prayer response"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                This video may appear under this prayer after admin approval.
+                Public responses are separate from private Journey Inbox prayer
+                videos.
+              </p>
+
+              <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/60 p-6 text-center transition hover:bg-blue-50">
+                <UploadCloud className="h-8 w-8 text-[#0b63ce]" />
+                <span className="mt-3 text-sm font-black text-[#082f63]">
+                  Choose or record public response
+                </span>
+                <span className="mt-1 text-xs font-semibold text-slate-500">
+                  Video only · 30 seconds max
+                </span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  capture="user"
+                  className="hidden"
+                  onChange={(event) =>
+                    void handlePublicResponseFile(
+                      event.target.files?.[0] ?? null
+                    )
+                  }
+                />
+              </label>
+
+              {publicResponsePreviewUrl && (
+                <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-black">
+                  <video
+                    src={publicResponsePreviewUrl}
+                    controls
+                    playsInline
+                    className="max-h-[420px] w-full bg-black object-contain"
+                  />
+                </div>
+              )}
+
+              {publicResponseDuration !== null && (
+                <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-600">
+                  Video length: {Math.round(publicResponseDuration)} seconds
+                </div>
+              )}
+
+              <label className="mt-4 block">
+                <span className="text-sm font-black text-[#062a57]">
+                  Optional response text
+                </span>
+                <textarea
+                  value={publicResponseBody}
+                  onChange={(event) =>
+                    setPublicResponseBody(event.target.value)
+                  }
+                  maxLength={500}
+                  rows={4}
+                  placeholder="Add a short prayer or encouragement..."
+                  className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                />
+              </label>
+
+              {publicResponseError && (
+                <div className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-bold text-red-700 ring-1 ring-red-100">
+                  {publicResponseError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={submitPublicResponse}
+                disabled={!publicResponseFile || submittingPublicResponse}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0b63ce] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                <Video className="h-4 w-4" />
+                {submittingPublicResponse
+                  ? "Submitting for Review..."
+                  : "Submit Public Response"}
               </button>
             </div>
           </div>
@@ -1555,18 +2059,26 @@ function PrayerRequestCard({
   onPray,
   onEncourage,
   onSendPrayerVideo,
+  onSharePublicResponse,
   onShare,
   onAddUpdate,
   onGodDidIt,
+  currentUserId,
+  onRemovePublicResponse,
+  onHidePublicResponse,
 }: {
   story: PrayerStory;
   owner: boolean;
   onPray: () => void;
   onEncourage: () => void;
   onSendPrayerVideo: () => void;
+  onSharePublicResponse: () => void;
   onShare: () => void;
   onAddUpdate: () => void;
   onGodDidIt: () => void;
+  currentUserId: string | null;
+  onRemovePublicResponse: (responseId: string) => void;
+  onHidePublicResponse: (responseId: string) => void;
 }) {
   const praying = story.user_reactions.includes("praying");
   const encouraged = story.user_reactions.includes("encouraged");
@@ -1623,6 +2135,13 @@ function PrayerRequestCard({
         </div>
 
         <PrayerUpdateHistory updates={story.updates} />
+        <PublicPrayerResponses
+          responses={story.public_video_responses}
+          currentUserId={currentUserId}
+          prayerOwnerUserId={story.user_id}
+          onRemove={onRemovePublicResponse}
+          onHide={onHidePublicResponse}
+        />
       </div>
 
       <div className="border-t border-slate-100 p-4">
@@ -1649,6 +2168,15 @@ function PrayerRequestCard({
               </span>
             )}
           </div>
+          <PrayerButton
+            onClick={onSharePublicResponse}
+            disabled={owner || !story.user_id}
+          >
+            <span className="inline-flex items-center justify-center gap-1">
+              <Video className="h-4 w-4" />
+              Share Public Response
+            </span>
+          </PrayerButton>
           <PrayerButton onClick={onShare}>
             <span className="inline-flex items-center gap-1">
               <Share2 className="h-4 w-4" />
@@ -1676,15 +2204,21 @@ function PrayerRequestCard({
 function AnsweredPrayerCard({
   story,
   owner,
+  currentUserId,
   onSendPraiseVideo,
   onShare,
   onAddUpdate,
+  onRemovePublicResponse,
+  onHidePublicResponse,
 }: {
   story: PrayerStory;
   owner: boolean;
+  currentUserId: string | null;
   onSendPraiseVideo: () => void;
   onShare: () => void;
   onAddUpdate: () => void;
+  onRemovePublicResponse: (responseId: string) => void;
+  onHidePublicResponse: (responseId: string) => void;
 }) {
   const praying = story.user_reactions.includes("praying");
 
@@ -1752,6 +2286,13 @@ function AnsweredPrayerCard({
         )}
 
         <PrayerUpdateHistory updates={story.updates} />
+        <PublicPrayerResponses
+          responses={story.public_video_responses}
+          currentUserId={currentUserId}
+          prayerOwnerUserId={story.user_id}
+          onRemove={onRemovePublicResponse}
+          onHide={onHidePublicResponse}
+        />
 
         <div className="mt-4 flex flex-wrap gap-2">
           {!story.user_id ? (
@@ -1802,6 +2343,117 @@ function AnsweredPrayerCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function PublicPrayerResponses({
+  responses,
+  currentUserId,
+  prayerOwnerUserId,
+  onRemove,
+  onHide,
+}: {
+  responses: PublicPrayerVideoResponse[];
+  currentUserId: string | null;
+  prayerOwnerUserId: string | null;
+  onRemove: (responseId: string) => void;
+  onHide: (responseId: string) => void;
+}) {
+  if (responses.length === 0) return null;
+
+  return (
+    <section className="mt-4 rounded-2xl bg-blue-50/70 p-4 ring-1 ring-blue-100">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+          Public Prayer Responses
+        </div>
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-500 ring-1 ring-blue-100">
+          {responses.length}
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-4">
+        {responses.map((response) => {
+          const videoSource =
+            response.signed_video_url ||
+            (response.video_url.startsWith("http")
+              ? response.video_url
+              : null);
+          const canRemove = currentUserId === response.user_id;
+          const canHide =
+            Boolean(currentUserId) && currentUserId === prayerOwnerUserId;
+
+          return (
+            <article
+              key={response.id}
+              className="overflow-hidden rounded-[1.5rem] bg-white ring-1 ring-blue-100"
+            >
+              {videoSource ? (
+                <div className="overflow-hidden bg-black">
+                  <video
+                    src={videoSource}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="max-h-[520px] w-full bg-black object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex min-h-48 items-center justify-center bg-slate-950 p-5 text-center text-sm font-bold text-white/70">
+                  Video preview unavailable
+                </div>
+              )}
+
+              <div className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-black text-[#062a57]">
+                    {response.author_name || "HTBF Community Member"}
+                  </div>
+                  <div className="text-xs font-bold text-slate-400">
+                    {formatPrayerUpdateDate(response.created_at)}
+                  </div>
+                </div>
+
+                {response.body && (
+                  <p
+                    className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700"
+                    style={{
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {response.body}
+                  </p>
+                )}
+
+                {(canRemove || canHide) && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {canRemove && (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(response.id)}
+                        className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200"
+                      >
+                        Remove My Response
+                      </button>
+                    )}
+                    {canHide && (
+                      <button
+                        type="button"
+                        onClick={() => onHide(response.id)}
+                        className="rounded-full bg-white px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                      >
+                        Hide From This Prayer
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
