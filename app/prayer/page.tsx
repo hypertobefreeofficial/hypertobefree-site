@@ -104,6 +104,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function readString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
 function isPrayerStoryRow(value: unknown): value is PrayerStoryRow {
   return isRecord(value) && typeof value.id === "string";
 }
