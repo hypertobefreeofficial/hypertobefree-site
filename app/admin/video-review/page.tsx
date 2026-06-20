@@ -5,13 +5,10 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   EyeOff,
-  Lock,
   ShieldCheck,
   Video,
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
-
-const ADMIN_EMAIL = "hypertobefree@gmail.com";
 
 type Story = {
   id: string;
@@ -28,7 +25,6 @@ type Story = {
 
 export default function AdminVideoReviewPage() {
   const [loading, setLoading] = useState(true);
-  const [notAllowed, setNotAllowed] = useState(false);
   const [message, setMessage] = useState("");
   const [story, setStory] = useState<Story | null>(null);
   const [signedVideoUrl, setSignedVideoUrl] = useState<string | null>(null);
@@ -67,9 +63,16 @@ export default function AdminVideoReviewPage() {
       return;
     }
 
-    if (user.email !== ADMIN_EMAIL) {
-      setNotAllowed(true);
-      setLoading(false);
+    const { data: isAdmin, error: adminAccessError } = await supabase.rpc(
+      "current_user_is_admin"
+    );
+
+    if (adminAccessError || isAdmin !== true) {
+      if (adminAccessError) {
+        console.error("Could not verify admin access:", adminAccessError);
+      }
+
+      window.location.replace("/feed");
       return;
     }
 
@@ -223,36 +226,6 @@ export default function AdminVideoReviewPage() {
         <div className="mx-auto max-w-5xl rounded-[2rem] bg-white p-8 shadow-sm">
           Loading video review...
         </div>
-      </main>
-    );
-  }
-
-  if (notAllowed) {
-    return (
-      <main className="min-h-screen bg-[#f8fbff] text-slate-900">
-        <section className="mx-auto max-w-3xl px-6 py-12">
-          <Link
-            href="/"
-            className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-[#0b63ce] hover:text-[#084f9f]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Home
-          </Link>
-
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-              <Lock className="h-6 w-6" />
-            </div>
-
-            <h1 className="text-3xl font-black text-[#062a57]">
-              Admin access only
-            </h1>
-
-            <p className="mt-4 leading-7 text-slate-600">
-              This video review page is only available to the HTBF admin account.
-            </p>
-          </div>
-        </section>
       </main>
     );
   }
