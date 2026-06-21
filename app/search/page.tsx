@@ -67,10 +67,14 @@ type StoryRow = {
   user_id?: string | null;
   name: string | null;
   location: string | null;
+  content_type?: string | null;
   story_type: string | null;
   story_text: string | null;
+  image_url?: string | null;
   video_url: string | null;
   thumbnail_url: string | null;
+  topics?: string[] | null;
+  creation_mode?: string | null;
   overlay_text: string | null;
   overlay_x: number | null;
   overlay_y: number | null;
@@ -147,8 +151,10 @@ function titleCase(value: string) {
 
 function getSearchableText(story: StoryRow) {
   return [
+    story.content_type,
     story.story_type,
     story.story_text,
+    ...(story.topics ?? []),
     story.name,
     story.location,
     story.status,
@@ -186,6 +192,15 @@ function getStoryTypeChip(storyType: string | null) {
 function storyMatchesFilter(story: StoryRow, filter: string) {
   if (filter === "All") return true;
 
+  const normalizedFilter = normalizeText(filter);
+  const hasMatchingTopic = (story.topics ?? []).some(
+    (topic) =>
+      normalizeText(topic) === normalizedFilter ||
+      normalizeText(topic).includes(normalizedFilter)
+  );
+
+  if (hasMatchingTopic) return true;
+
   const coreKeywords = filterKeywordMap[filter];
 
   if (coreKeywords) {
@@ -219,14 +234,32 @@ export default function SearchPage() {
         return;
       }
 
-      const { data, error } = await supabase
+      const metadataSelect =
+        "id, user_id, name, location, content_type, story_type, story_text, image_url, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, topics, creation_mode, status, created_at";
+      const legacySelect =
+        "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, status, created_at";
+
+      let { data, error } = await supabase
         .from("stories")
-        .select(
-          "id, user_id, name, location, story_type, story_text, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, status, created_at"
-        )
+        .select(metadataSelect)
         .eq("status", "approved")
-        .not("video_url", "is", null)
         .order("created_at", { ascending: false });
+
+      if (
+        error &&
+        ["content_type", "topics", "creation_mode"].some(
+          (column) => error?.message.includes(column)
+        )
+      ) {
+        const legacyResult = await supabase
+          .from("stories")
+          .select(legacySelect)
+          .eq("status", "approved")
+          .order("created_at", { ascending: false });
+
+        data = legacyResult.data;
+        error = legacyResult.error;
+      }
 
       if (error) {
         setMessage(`Could not load discovery feed: ${error.message}`);
@@ -235,9 +268,13 @@ export default function SearchPage() {
       }
 
       const cleanStories = ((data as StoryRow[]) ?? []).filter((story) => {
-        const hasVideo = Boolean(story.video_url?.trim());
+        const hasContent = Boolean(
+          story.video_url?.trim() ||
+            story.image_url?.trim() ||
+            story.story_text?.trim()
+        );
 
-        return hasVideo;
+        return hasContent;
       });
 
       setStories(cleanStories);
@@ -272,6 +309,14 @@ export default function SearchPage() {
       if (chipLabel) {
         addFilter(chipLabel);
       }
+
+      (story.topics ?? []).forEach((topic) => {
+        const cleanTopic = titleCase(topic.replace(/[_-]+/g, " "));
+
+        if (cleanTopic) {
+          addFilter(cleanTopic);
+        }
+      });
     });
 
     return nextFilters;
@@ -314,6 +359,20 @@ export default function SearchPage() {
     const { data } = supabase.storage
       .from("story-videos")
       .getPublicUrl(storagePath);
+
+    return data.publicUrl;
+  }
+
+  function getImageSource(imageUrl: string | null | undefined) {
+    if (!imageUrl) return null;
+
+    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+      return imageUrl;
+    }
+
+    const { data } = supabase.storage
+      .from("story-images")
+      .getPublicUrl(imageUrl);
 
     return data.publicUrl;
   }
@@ -449,17 +508,15 @@ export default function SearchPage() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {filteredStories.map((story, index) => {
                 const videoSource = getVideoSource(story.video_url);
+                const imageSource = getImageSource(story.image_url);
                 const isLarge = index % 7 === 0;
-
-                if (!videoSource) {
-                  return null;
-                }
 
                 return (
                   <VideoDiscoveryTile
                     key={story.id}
                     storyId={story.id}
                     videoSource={videoSource}
+                    imageSource={imageSource}
                     thumbnailUrl={story.thumbnail_url}
                     title={getCardTitle(story)}
                     storyType={getStoryType(story)}
@@ -492,6 +549,7 @@ export default function SearchPage() {
 function VideoDiscoveryTile({
   storyId,
   videoSource,
+  imageSource,
   thumbnailUrl,
   title,
   storyType,
@@ -510,7 +568,8 @@ function VideoDiscoveryTile({
   onBrokenVideo,
 }: {
   storyId: string;
-  videoSource: string;
+  videoSource: string | null;
+  imageSource: string | null;
   thumbnailUrl: string | null;
   title: string;
   storyType: string;
@@ -531,11 +590,21 @@ function VideoDiscoveryTile({
   const cleanOverlayText = overlayText?.trim() ?? "";
   const visibleOverlayText =
     cleanOverlayText.toLowerCase() === "none" ? "" : cleanOverlayText;
+  const hasVideo = Boolean(videoSource);
+  const hasImage = Boolean(imageSource);
 
   return (
     <Link
-      href={`/video-feed?story=${storyId}&from=search`}
-      className={`relative block overflow-hidden rounded-[1.5rem] bg-black shadow-sm ring-1 ring-slate-200 ${
+      href={
+        hasVideo
+          ? `/video-feed?story=${storyId}&from=search`
+          : `/feed?story=${storyId}&from=search`
+      }
+      className={`relative block overflow-hidden rounded-[1.5rem] shadow-sm ring-1 ring-slate-200 ${
+        hasVideo || hasImage
+          ? "bg-black"
+          : "bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff]"
+      } ${
         isLarge ? "col-span-2 min-h-72 sm:row-span-2" : "min-h-52"
       }`}
     >
@@ -546,7 +615,7 @@ function VideoDiscoveryTile({
           onError={() => onBrokenVideo(storyId)}
           className="absolute inset-0 h-full w-full object-cover"
         />
-      ) : (
+      ) : videoSource ? (
         <video
           src={videoSource}
           muted
@@ -557,11 +626,23 @@ function VideoDiscoveryTile({
           onError={() => onBrokenVideo(storyId)}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
+      ) : imageSource ? (
+        <img
+          src={imageSource}
+          alt={title}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center p-6">
+          <Sparkles className="h-12 w-12 text-white/25" />
+        </div>
       )}
 
-      <StoryMediaStamp stamp={videoTemplate ?? "none"} />
+      {(hasVideo || hasImage) && (
+        <StoryMediaStamp stamp={videoTemplate ?? "none"} />
+      )}
 
-      {visibleOverlayText && (
+      {visibleOverlayText && (hasVideo || hasImage) && (
         <StoryOverlayText
           alignment={captionAlign ?? "center"}
           background={captionBackground ?? "soft-pill"}
@@ -580,8 +661,8 @@ function VideoDiscoveryTile({
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
       <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white backdrop-blur">
-        <Video className="h-3.5 w-3.5" />
-        Video
+        {hasVideo && <Video className="h-3.5 w-3.5" />}
+        {hasVideo ? "Video" : hasImage ? "Photo" : "Story"}
       </div>
 
       <div className="absolute bottom-0 left-0 right-9 p-4 text-white">
@@ -599,9 +680,11 @@ function VideoDiscoveryTile({
         </div>
       </div>
 
-      <div className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-950 shadow-md">
-        <Play className="h-4 w-4 fill-slate-950" />
-      </div>
+      {hasVideo && (
+        <div className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-950 shadow-md">
+          <Play className="h-4 w-4 fill-slate-950" />
+        </div>
+      )}
     </Link>
   );
 }
