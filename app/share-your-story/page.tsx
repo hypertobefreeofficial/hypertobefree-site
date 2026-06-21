@@ -39,6 +39,24 @@ type ProfileRow = {
 };
 
 type MediaMode = "text" | "photo" | "video";
+type SharePath = "quick" | "guided";
+type CreationFormat =
+  | "video"
+  | "photo"
+  | "written-story"
+  | "voice-message"
+  | "testimony-card"
+  | "prayer-card"
+  | "encouragement-card";
+type GuidedStoryType =
+  | "testimony"
+  | "prayer"
+  | "prophecy"
+  | "teaching"
+  | "worship"
+  | "encouragement"
+  | "praise-report"
+  | "deliverance-story";
 type PhotoDisplayStyle = "original" | "soft-rounded" | "full-width" | "framed";
 type CaptionStyle =
   | "classic-caption"
@@ -140,6 +158,18 @@ type MusicTrack = {
   license_status: "approved" | "pending" | "disabled";
   usage_scope?: "htbf_posts" | "testimony_only" | "praise_only";
 };
+type StoryShapeSuggestion = {
+  storyType: GuidedStoryType | string;
+  topics: string[];
+  titles: string[];
+  caption: string;
+  scriptureReferences: string[];
+  template: string;
+};
+type GuidedPrompt = {
+  id: string;
+  label: string;
+};
 
 type AiModerationDecision = {
   statusToUse: "approved" | "submitted";
@@ -151,6 +181,193 @@ type AiModerationDecision = {
 };
 
 const STORY_IMAGE_BUCKET = "story-images";
+const creationFormatOptions: {
+  label: string;
+  value: CreationFormat;
+  mediaMode: MediaMode;
+  description: string;
+}[] = [
+  {
+    label: "Video",
+    value: "video",
+    mediaMode: "video",
+    description: "Use the current HTBF video upload flow.",
+  },
+  {
+    label: "Photo",
+    value: "photo",
+    mediaMode: "photo",
+    description: "Add a photo and shape the story around it.",
+  },
+  {
+    label: "Written Story",
+    value: "written-story",
+    mediaMode: "text",
+    description: "Write a testimony, teaching, prayer, or encouragement.",
+  },
+  {
+    label: "Voice Message",
+    value: "voice-message",
+    mediaMode: "text",
+    description: "Prepare the message now. Voice capture can be added later.",
+  },
+  {
+    label: "Testimony Card",
+    value: "testimony-card",
+    mediaMode: "text",
+    description: "Create a short polished testimony-style post.",
+  },
+  {
+    label: "Prayer Card",
+    value: "prayer-card",
+    mediaMode: "text",
+    description: "Shape a prayer request or prayer encouragement.",
+  },
+  {
+    label: "Encouragement Card",
+    value: "encouragement-card",
+    mediaMode: "text",
+    description: "Share a short word of hope with the community.",
+  },
+];
+
+const guidedStoryTypeOptions: {
+  label: string;
+  value: GuidedStoryType;
+  description: string;
+}[] = [
+  {
+    label: "Testimony",
+    value: "testimony",
+    description: "What God has done in your life.",
+  },
+  {
+    label: "Prayer",
+    value: "prayer",
+    description: "A request or prayer encouragement.",
+  },
+  {
+    label: "Prophecy",
+    value: "prophecy",
+    description: "A word of encouragement shared with care.",
+  },
+  {
+    label: "Teaching",
+    value: "teaching",
+    description: "A lesson, reflection, or biblical takeaway.",
+  },
+  {
+    label: "Worship",
+    value: "worship",
+    description: "A worship moment or reflection.",
+  },
+  {
+    label: "Encouragement",
+    value: "encouragement",
+    description: "Hope for someone who needs strength.",
+  },
+  {
+    label: "Praise Report",
+    value: "praise-report",
+    description: "Celebrate what God did.",
+  },
+  {
+    label: "Deliverance Story",
+    value: "deliverance-story",
+    description: "Share freedom, breakthrough, or restoration.",
+  },
+];
+
+const guidedTopicOptions = [
+  "Deliverance",
+  "Healing",
+  "Freedom",
+  "Addiction",
+  "Anxiety",
+  "Depression",
+  "Marriage",
+  "Family",
+  "Salvation",
+  "Spiritual Warfare",
+  "Revival",
+  "Forgiveness",
+  "Identity in Christ",
+  "Breakthrough",
+  "Restoration",
+  "Worship",
+  "Prayer",
+  "Prophecy",
+];
+
+const guidedPromptMap: Record<GuidedStoryType, GuidedPrompt[]> = {
+  testimony: [
+    { id: "before", label: "What was life like before?" },
+    { id: "god-did", label: "What did God do?" },
+    { id: "changed", label: "What changed?" },
+    {
+      id: "encouragement",
+      label: "What encouragement would you give someone else?",
+    },
+  ],
+  prayer: [
+    { id: "request", label: "What are you praying for?" },
+    { id: "who", label: "Who is this prayer for?" },
+    {
+      id: "breakthrough",
+      label: "What breakthrough are you believing for?",
+    },
+  ],
+  prophecy: [
+    {
+      id: "word",
+      label: "What word or encouragement are you sharing?",
+    },
+    {
+      id: "audience",
+      label: "Who is this meant to encourage?",
+    },
+    {
+      id: "context",
+      label: "Add a discernment or context note.",
+    },
+  ],
+  teaching: [
+    { id: "topic", label: "What topic are you teaching on?" },
+    { id: "takeaway", label: "What is the main takeaway?" },
+    {
+      id: "reference",
+      label: "What scripture or reference supports it?",
+    },
+  ],
+  worship: [
+    { id: "moment", label: "What worship moment are you sharing?" },
+    {
+      id: "heart",
+      label: "What did God place on your heart?",
+    },
+    {
+      id: "reflection",
+      label: "What should others reflect on?",
+    },
+  ],
+  encouragement: [
+    { id: "message", label: "What encouragement are you sharing?" },
+    { id: "for-who", label: "Who needs to hear this?" },
+    { id: "hope", label: "What hope should they hold onto?" },
+  ],
+  "praise-report": [
+    { id: "praise", label: "What are you praising God for?" },
+    { id: "moment", label: "What happened?" },
+    { id: "thanks", label: "What do you want to thank Him for?" },
+  ],
+  "deliverance-story": [
+    { id: "bondage", label: "What did God bring you out of?" },
+    { id: "freedom", label: "How did freedom come?" },
+    { id: "now", label: "What is different now?" },
+    { id: "hope", label: "What hope would you give someone else?" },
+  ],
+};
+
 const mediaOptions: {
   label: string;
   value: MediaMode;
@@ -429,6 +646,20 @@ export default function ShareYourStoryPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
 
+  const [sharePath, setSharePath] = useState<SharePath | null>(null);
+  const [creationFormat, setCreationFormat] =
+    useState<CreationFormat>("video");
+  const [guidedStoryType, setGuidedStoryType] =
+    useState<GuidedStoryType>("testimony");
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [guidedPromptAnswers, setGuidedPromptAnswers] = useState<
+    Record<string, string>
+  >({});
+  const [storyShapeSuggestion, setStoryShapeSuggestion] =
+    useState<StoryShapeSuggestion | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionMessage, setSuggestionMessage] = useState("");
+
   const [mediaMode, setMediaMode] = useState<MediaMode>("text");
   const [storyType, setStoryType] = useState("Testimony");
   const [storyText, setStoryText] = useState("");
@@ -480,6 +711,7 @@ export default function ShareYourStoryPage() {
   const selectedVideoTemplateLabel =
     videoTemplateOptions.find((option) => option.value === videoTemplate)
       ?.label ?? "No stamp";
+  const guidedPrompts = guidedPromptMap[guidedStoryType] ?? [];
 
   useEffect(() => {
     async function loadPage() {
@@ -527,14 +759,17 @@ export default function ShareYourStoryPage() {
       const typeParam = params.get("type");
 
       if (typeParam === "video") {
+        setSharePath("quick");
         setMediaMode("video");
       }
 
       if (typeParam === "photo") {
+        setSharePath("quick");
         setMediaMode("photo");
       }
 
       if (typeParam === "prayer") {
+        setSharePath("quick");
         setStoryType("Prayer Encouragement");
       }
 
@@ -583,6 +818,261 @@ export default function ShareYourStoryPage() {
 
   function getPostingLocation() {
     return profile?.location?.trim() || null;
+  }
+
+  function getGuidedStoryTypeLabel(value: GuidedStoryType) {
+    return (
+      guidedStoryTypeOptions.find((option) => option.value === value)?.label ??
+      "Testimony"
+    );
+  }
+
+  function normalizeTopic(value: string) {
+    return value.trim().toLowerCase().replace(/\s+/g, "-");
+  }
+
+  function selectSharePath(nextPath: SharePath) {
+    setSharePath(nextPath);
+    setMessage("");
+    setSuggestionMessage("");
+
+    if (nextPath === "guided") {
+      applyCreationFormat(creationFormat);
+      applyGuidedStoryType(guidedStoryType);
+    }
+  }
+
+  function applyCreationFormat(nextFormat: CreationFormat) {
+    const option = creationFormatOptions.find(
+      (item) => item.value === nextFormat
+    );
+
+    setCreationFormat(nextFormat);
+
+    if (option) {
+      selectMediaMode(option.mediaMode);
+    }
+  }
+
+  function applyGuidedStoryType(nextStoryType: GuidedStoryType) {
+    setGuidedStoryType(nextStoryType);
+    setStoryType(getGuidedStoryTypeLabel(nextStoryType));
+  }
+
+  function toggleGuidedTopic(topic: string) {
+    setSelectedTopics((current) => {
+      const exists = current.includes(topic);
+
+      if (exists) {
+        return current.filter((item) => item !== topic);
+      }
+
+      return [...current, topic];
+    });
+  }
+
+  function updateGuidedPromptAnswer(promptId: string, value: string) {
+    setGuidedPromptAnswers((current) => ({
+      ...current,
+      [promptId]: value,
+    }));
+  }
+
+  function buildGuidedDraftText() {
+    const answers = guidedPrompts
+      .map((prompt) => {
+        const answer = guidedPromptAnswers[prompt.id]?.trim();
+
+        if (!answer) return null;
+
+        return `${prompt.label}\n${answer}`;
+      })
+      .filter(Boolean);
+
+    return answers.join("\n\n");
+  }
+
+  function useGuidedPromptsAsCaption() {
+    const draft = buildGuidedDraftText();
+
+    if (!draft) {
+      setSuggestionMessage("Add a few details first, then I can shape it.");
+      return;
+    }
+
+    setStoryText(draft);
+    setSuggestionMessage("Your guided answers were added to the post text.");
+  }
+
+  function applySuggestedTopics(topics: string[]) {
+    const nextTopics = topics
+      .map((topic) => {
+        const normalizedTopic = normalizeTopic(topic);
+
+        return (
+          guidedTopicOptions.find(
+            (option) => normalizeTopic(option) === normalizedTopic
+          ) ?? topic
+        );
+      })
+      .filter(Boolean);
+
+    setSelectedTopics((current) =>
+      Array.from(new Set([...current, ...nextTopics]))
+    );
+  }
+
+  function applySuggestedStoryType() {
+    const suggestedType = storyShapeSuggestion?.storyType
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+    const matchedType = guidedStoryTypeOptions.find(
+      (option) =>
+        option.value === suggestedType ||
+        normalizeTopic(option.label) === suggestedType
+    );
+
+    if (!matchedType) return;
+
+    applyGuidedStoryType(matchedType.value);
+    setSuggestionMessage(`Story type changed to ${matchedType.label}.`);
+  }
+
+  async function requestStoryShapeSuggestion() {
+    const promptText = buildGuidedDraftText();
+    const currentText = storyText.trim();
+
+    if (!promptText && !currentText && selectedTopics.length === 0) {
+      setSuggestionMessage(
+        "Add a few story details first so HTBF can suggest a helpful shape."
+      );
+      return;
+    }
+
+    setSuggestionLoading(true);
+    setSuggestionMessage("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again before shaping this story.");
+      }
+
+      const response = await fetch("/api/shape-story", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contentFormat: creationFormat,
+          storyType: guidedStoryType,
+          topics: selectedTopics,
+          promptAnswers: guidedPromptAnswers,
+          currentText,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not shape this story right now.");
+      }
+
+      const data = await response.json();
+      const suggestion: StoryShapeSuggestion = {
+        storyType:
+          typeof data.storyType === "string" ? data.storyType : guidedStoryType,
+        topics: Array.isArray(data.topics)
+          ? data.topics.filter((topic: unknown) => typeof topic === "string")
+          : [],
+        titles: Array.isArray(data.titles)
+          ? data.titles.filter((title: unknown) => typeof title === "string")
+          : [],
+        caption: typeof data.caption === "string" ? data.caption : "",
+        scriptureReferences: Array.isArray(data.scriptureReferences)
+          ? data.scriptureReferences.filter(
+              (reference: unknown) => typeof reference === "string"
+            )
+          : [],
+        template: typeof data.template === "string" ? data.template : "",
+      };
+
+      setStoryShapeSuggestion(suggestion);
+      setSuggestionMessage("Suggestions are ready. You can use or edit them.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Could not shape this story.";
+
+      setSuggestionMessage(errorMessage);
+    } finally {
+      setSuggestionLoading(false);
+    }
+  }
+
+  function applySuggestedCaption() {
+    const caption = storyShapeSuggestion?.caption.trim();
+
+    if (!caption) return;
+
+    setStoryText(caption);
+    setSuggestionMessage("Suggested post text added. You can keep editing it.");
+  }
+
+  function applySuggestedTitle(title: string) {
+    const cleanTitle = title.trim();
+
+    if (!cleanTitle) return;
+
+    setStoryText((current) =>
+      current.trim() ? `${cleanTitle}\n\n${current.trim()}` : cleanTitle
+    );
+    setSuggestionMessage("Suggested title added to your post text.");
+  }
+
+  function applySuggestedScriptureReferences() {
+    const references =
+      storyShapeSuggestion?.scriptureReferences
+        .map((reference) => reference.trim())
+        .filter(Boolean) ?? [];
+
+    if (references.length === 0) return;
+
+    const referenceLine = `Scripture references: ${references.join(", ")}`;
+    setStoryText((current) =>
+      current.trim()
+        ? `${current.trim()}\n\n${referenceLine}`
+        : referenceLine
+    );
+    setSuggestionMessage("Scripture references added without verse text.");
+  }
+
+  function applySuggestedTemplate() {
+    const template = storyShapeSuggestion?.template.toLowerCase() ?? "";
+
+    if (template.includes("prayer")) {
+      applyCaptionTemplate("prayer-calm");
+      return;
+    }
+
+    if (template.includes("scripture") || template.includes("teaching")) {
+      applyCaptionTemplate("scripture-focus");
+      return;
+    }
+
+    if (template.includes("praise") || template.includes("worship")) {
+      applyCaptionTemplate("celebration-praise");
+      return;
+    }
+
+    if (template.includes("deliverance") || template.includes("freedom")) {
+      applyCaptionTemplate("freedom-glow");
+      return;
+    }
+
+    applyCaptionTemplate("testimony-light");
   }
 
   function selectMediaMode(nextMode: MediaMode) {
@@ -1011,6 +1501,25 @@ export default function ShareYourStoryPage() {
     };
   }
 
+  function getSubmitStoryText() {
+    const cleanStoryText = storyText.trim();
+
+    if (cleanStoryText || sharePath !== "guided") {
+      return cleanStoryText;
+    }
+
+    return buildGuidedDraftText().trim();
+  }
+
+  function isCreationMetadataColumnError(message: string) {
+    return [
+      "content_type",
+      "topics",
+      "creation_mode",
+      "ai_suggestions",
+    ].some((column) => message.includes(column));
+  }
+
   async function submitStory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1019,7 +1528,7 @@ export default function ShareYourStoryPage() {
       return;
     }
 
-    const cleanStoryText = storyText.trim();
+    const cleanStoryText = getSubmitStoryText();
     const cleanOverlayText = overlayText.trim();
     const moderationText = [cleanStoryText, cleanOverlayText]
       .filter(Boolean)
@@ -1049,11 +1558,27 @@ export default function ShareYourStoryPage() {
 
     try {
       const finalStoryType =
-        mediaMode === "video"
-          ? "Video Testimony"
-          : mediaMode === "photo"
-            ? "Photo Story"
-            : storyType;
+        sharePath === "guided"
+          ? getGuidedStoryTypeLabel(guidedStoryType)
+          : mediaMode === "video"
+            ? "Video Testimony"
+            : mediaMode === "photo"
+              ? "Photo Story"
+              : storyType;
+      const finalContentType =
+        sharePath === "guided" ? creationFormat : mediaMode;
+      const finalTopics =
+        sharePath === "guided"
+          ? selectedTopics.map((topic) => normalizeTopic(topic))
+          : [];
+      const creationMode = sharePath === "guided" ? "guided" : "quick";
+      const suggestionPayload =
+        sharePath === "guided"
+          ? {
+              prompts: guidedPromptAnswers,
+              suggestions: storyShapeSuggestion,
+            }
+          : {};
 
       setMessage("Checking your post...");
 
@@ -1071,7 +1596,7 @@ export default function ShareYourStoryPage() {
         ? await uploadVideoIfNeeded(userId)
         : { videoUrl: null, thumbnailUrl: null };
 
-      const { error } = await supabase.from("stories").insert({
+      const storyPayload = {
         user_id: userId,
         name: getPostingName(),
         location: getPostingLocation(),
@@ -1131,16 +1656,42 @@ export default function ShareYourStoryPage() {
         ai_suggested_action: moderationDecision.aiSuggestedAction,
         ai_flags: moderationDecision.aiFlags,
         ai_summary: moderationDecision.aiSummary,
-      });
+      };
+
+      const storyPayloadWithCreationMetadata = {
+        ...storyPayload,
+        content_type: finalContentType,
+        topics: finalTopics,
+        creation_mode: creationMode,
+        ai_suggestions: suggestionPayload,
+      };
+
+      const { error } = await supabase
+        .from("stories")
+        .insert(storyPayloadWithCreationMetadata);
 
       if (error) {
-        throw new Error(error.message);
+        if (isCreationMetadataColumnError(error.message)) {
+          const { error: fallbackError } = await supabase
+            .from("stories")
+            .insert(storyPayload);
+
+          if (fallbackError) {
+            throw new Error(fallbackError.message);
+          }
+        } else {
+          throw new Error(error.message);
+        }
       }
 
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
 
       setStoryText("");
       setOverlayText("");
+      setSelectedTopics([]);
+      setGuidedPromptAnswers({});
+      setStoryShapeSuggestion(null);
+      setSuggestionMessage("");
       removePhoto();
       removeVideo();
       setMediaMode("text");
@@ -1235,7 +1786,7 @@ export default function ShareYourStoryPage() {
   function renderSafetyNotice() {
     return (
       <div className="rounded-[1.5rem] bg-amber-50 p-4 text-sm leading-6 text-amber-900 ring-1 ring-amber-100">
-        <div className="font-black">AI-assisted safety review</div>
+        <div className="font-black">HTBF safety review</div>
         <p className="mt-1">
           Most low-risk posts can appear quickly. Posts that need a closer look
           may go to admin review before appearing publicly.
@@ -1250,6 +1801,376 @@ export default function ShareYourStoryPage() {
     return (
       <div className="rounded-[1.5rem] bg-blue-50 p-4 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
         {message}
+      </div>
+    );
+  }
+
+  function renderShareEntryScreen() {
+    return (
+      <div className="space-y-5">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+            Choose how you want to share
+          </div>
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-[#062a57]">
+            Fast upload or guided story?
+          </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+            Quick Share keeps the current working upload flow. Create a Story
+            helps shape a more searchable, meaningful HTBF post.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => selectSharePath("quick")}
+            className="group rounded-[1.75rem] bg-blue-50 p-5 text-left ring-1 ring-blue-100 transition hover:bg-blue-100"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0b63ce] text-white">
+              <Upload className="h-6 w-6" />
+            </div>
+            <div className="mt-4 text-xl font-black text-[#062a57]">
+              Quick Share
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+              Upload a video, photo, or written story with the current HTBF
+              flow.
+            </p>
+            <div className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100">
+              Start quick upload
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => selectSharePath("guided")}
+            className="group rounded-[1.75rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-5 text-left text-white shadow-lg shadow-blue-950/10 transition hover:scale-[1.01]"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/20">
+              <Sparkles className="h-6 w-6" />
+            </div>
+            <div className="mt-4 text-xl font-black">Create a Story</div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-blue-100">
+              Choose a format, name what God is doing, and get gentle help
+              shaping the post.
+            </p>
+            <div className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce]">
+              Open Creation Center
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderCreationCenter() {
+    if (sharePath !== "guided") return null;
+
+    return (
+      <div className="space-y-5 rounded-[2rem] bg-gradient-to-br from-blue-50 to-white p-4 ring-1 ring-blue-100">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+              Creation Center
+            </div>
+            <h2 className="mt-1 text-2xl font-black text-[#062a57]">
+              Help shape your story
+            </h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+              Choose the heart of the post, then keep editing anything before
+              you submit.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => selectSharePath("quick")}
+            className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50"
+          >
+            Switch to Quick Share
+          </button>
+        </div>
+
+        <div>
+          <div className="mb-2 text-sm font-black text-[#062a57]">
+            1. Choose content format
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {creationFormatOptions.map((option) => {
+              const selected = creationFormat === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => applyCreationFormat(option.value)}
+                  className={`rounded-[1.25rem] p-3 text-left ring-1 transition ${
+                    selected
+                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                      : "bg-white text-slate-700 ring-slate-200 hover:bg-blue-50"
+                  }`}
+                >
+                  <div className="text-sm font-black">{option.label}</div>
+                  <p
+                    className={`mt-1 text-xs font-semibold leading-5 ${
+                      selected ? "text-blue-50" : "text-slate-500"
+                    }`}
+                  >
+                    {option.description}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 text-sm font-black text-[#062a57]">
+            2. What are you sharing?
+          </div>
+          <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {guidedStoryTypeOptions.map((option) => {
+              const selected = guidedStoryType === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => applyGuidedStoryType(option.value)}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-black ring-1 transition ${
+                    selected
+                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                      : "bg-white text-slate-700 ring-slate-200 hover:bg-blue-50"
+                  }`}
+                  title={option.description}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 text-sm font-black text-[#062a57]">
+            3. What is God doing?
+          </div>
+          <div className="flex max-w-full flex-wrap gap-2">
+            {guidedTopicOptions.map((topic) => {
+              const selected = selectedTopics.includes(topic);
+
+              return (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => toggleGuidedTopic(topic)}
+                  className={`rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
+                    selected
+                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                      : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
+                  }`}
+                >
+                  {topic}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-2 text-sm font-black text-[#062a57]">
+            4. Guided creation
+          </div>
+          <div className="grid gap-3">
+            {guidedPrompts.map((prompt) => (
+              <label key={prompt.id} className="block">
+                <span className="mb-1.5 block text-xs font-black text-slate-600">
+                  {prompt.label}
+                </span>
+                <textarea
+                  value={guidedPromptAnswers[prompt.id] ?? ""}
+                  onChange={(event) =>
+                    updateGuidedPromptAnswer(prompt.id, event.target.value)
+                  }
+                  rows={2}
+                  className="w-full resize-none rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                  placeholder="Write a few honest details..."
+                />
+              </label>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={useGuidedPromptsAsCaption}
+            className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50"
+          >
+            Use these as my post text
+          </button>
+        </div>
+
+        <div className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-black text-[#062a57]">
+                5. Suggested shape
+              </div>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                Get title ideas, themes, a polished caption, and scripture
+                references you can accept, edit, or remove.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={requestStoryShapeSuggestion}
+              disabled={suggestionLoading}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Sparkles className="h-4 w-4" />
+              {suggestionLoading ? "Shaping..." : "Help me shape this"}
+            </button>
+          </div>
+
+          {suggestionMessage && (
+            <div className="mt-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-[#082f63]">
+              {suggestionMessage}
+            </div>
+          )}
+
+          {storyShapeSuggestion && (
+            <div className="mt-4 space-y-3">
+              {storyShapeSuggestion.storyType && (
+                <div>
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Suggested story type
+                  </div>
+                  <button
+                    type="button"
+                    onClick={applySuggestedStoryType}
+                    className="rounded-full bg-blue-50 px-3 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+                  >
+                    Use:{" "}
+                    {titleCaseStoryShapeValue(storyShapeSuggestion.storyType)}
+                  </button>
+                </div>
+              )}
+
+              {storyShapeSuggestion.titles.length > 0 && (
+                <div>
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Suggested title
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {storyShapeSuggestion.titles.map((title) => (
+                      <button
+                        key={title}
+                        type="button"
+                        onClick={() => applySuggestedTitle(title)}
+                        className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-[#062a57]"
+                      >
+                        Use: {title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {storyShapeSuggestion.topics.length > 0 && (
+                <div>
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Suggested themes
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {storyShapeSuggestion.topics.map((topic) => (
+                      <span
+                        key={topic}
+                        className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800 ring-1 ring-emerald-100"
+                      >
+                        {topic}
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        applySuggestedTopics(storyShapeSuggestion.topics)
+                      }
+                      className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+                    >
+                      Add themes
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {storyShapeSuggestion.caption && (
+                <div className="rounded-[1.25rem] bg-slate-50 p-3 ring-1 ring-slate-200">
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Polished post text
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-700">
+                    {storyShapeSuggestion.caption}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={applySuggestedCaption}
+                    className="mt-3 rounded-full bg-[#0b63ce] px-4 py-2 text-xs font-black text-white"
+                  >
+                    Use this text
+                  </button>
+                </div>
+              )}
+
+              {storyShapeSuggestion.scriptureReferences.length > 0 && (
+                <div>
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Scripture references
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {storyShapeSuggestion.scriptureReferences.map(
+                      (reference) => (
+                        <span
+                          key={reference}
+                          className="rounded-full bg-amber-50 px-3 py-2 text-xs font-black text-amber-900 ring-1 ring-amber-100"
+                        >
+                          {reference}
+                        </span>
+                      )
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={applySuggestedScriptureReferences}
+                    className="mt-2 rounded-full bg-white px-3 py-2 text-xs font-black text-amber-900 ring-1 ring-amber-100"
+                  >
+                    Add references
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={applySuggestedTemplate}
+                  className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+                >
+                  Try suggested post layout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStoryShapeSuggestion(null);
+                    setSuggestionMessage("");
+                  }}
+                  className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-600"
+                >
+                  Clear suggestions
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -1320,6 +2241,10 @@ export default function ShareYourStoryPage() {
         </section>
 
         <section className="mt-5 w-full max-w-full overflow-hidden rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          {!sharePath ? (
+            renderShareEntryScreen()
+          ) : (
+            <>
           <div className="mb-5 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
             <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
               Posting as
@@ -1340,6 +2265,29 @@ export default function ShareYourStoryPage() {
           </div>
 
           <form onSubmit={submitStory} className="space-y-5">
+            {sharePath === "quick" && (
+              <div className="flex flex-col gap-3 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
+                    Quick Share
+                  </div>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+                    This is the current HTBF upload flow.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSharePath(null)}
+                  className="inline-flex shrink-0 items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+                >
+                  Change path
+                </button>
+              </div>
+            )}
+
+            {renderCreationCenter()}
+
+            {sharePath === "quick" && (
             <div>
               <label className="mb-2 block text-sm font-black text-[#062a57]">
                 Choose your story format
@@ -1385,8 +2333,9 @@ export default function ShareYourStoryPage() {
                 })}
               </div>
             </div>
+            )}
 
-            {mediaMode === "text" && (
+            {sharePath === "quick" && mediaMode === "text" && (
               <div>
                 <label className="mb-2 block text-sm font-black text-[#062a57]">
                   What are you sharing?
@@ -2325,6 +3274,8 @@ export default function ShareYourStoryPage() {
               </>
             )}
           </form>
+            </>
+          )}
         </section>
       </div>
 
@@ -2970,6 +3921,14 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function titleCaseStoryShapeValue(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+}
 
 function SegmentedOptionGroup<T extends string>({
   options,
