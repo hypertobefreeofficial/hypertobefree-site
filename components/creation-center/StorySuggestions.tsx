@@ -12,6 +12,7 @@ type StorySuggestionsProps = {
   loading: boolean;
   message: string;
   selectedStreams: FaithStream[];
+  visualImage: string | null;
   onRequest: () => void;
   onUseStoryType: (storyType: string) => void;
   onUseTitle: (title: string) => void;
@@ -41,6 +42,7 @@ export default function StorySuggestions({
   loading,
   message,
   selectedStreams,
+  visualImage,
   onRequest,
   onUseStoryType,
   onUseTitle,
@@ -53,8 +55,18 @@ export default function StorySuggestions({
 }: StorySuggestionsProps) {
   return (
     <section className="overflow-hidden rounded-[1.5rem] bg-[#062a57] text-white">
-      <div className="p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative overflow-hidden p-4 sm:p-5">
+        {visualImage && (
+          <img
+            src={visualImage}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/95 via-[#062a57]/85 to-[#0b63ce]/55" />
+
+        <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-black">
               <Sparkles className="h-4 w-4 text-[#f4c95d]" />
@@ -82,7 +94,7 @@ export default function StorySuggestions({
         </div>
 
         {message && (
-          <div className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-xs font-bold leading-5 text-blue-50 ring-1 ring-white/10">
+          <div className="relative z-10 mt-3 rounded-2xl bg-black/20 px-4 py-3 text-xs font-bold leading-5 text-blue-50 ring-1 ring-white/10 backdrop-blur-sm">
             {message}
           </div>
         )}
