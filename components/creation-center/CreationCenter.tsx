@@ -13,6 +13,7 @@ import type { ComponentType } from "react";
 import {
   creationCenterFormats,
   creationCenterStoryTypes,
+  getCreationCenterImage,
   type CreationCenterFormat,
   type CreationCenterSuggestion,
   type CreationCenterStoryType,
@@ -27,6 +28,7 @@ type CreationCenterProps = {
   storyType: CreationCenterStoryType;
   selectedStreams: FaithStream[];
   promptAnswers: Record<string, string>;
+  draftText: string;
   suggestion: CreationCenterSuggestion | null;
   suggestionLoading: boolean;
   suggestionMessage: string;
@@ -62,6 +64,7 @@ export default function CreationCenter({
   storyType,
   selectedStreams,
   promptAnswers,
+  draftText,
   suggestion,
   suggestionLoading,
   suggestionMessage,
@@ -81,10 +84,29 @@ export default function CreationCenter({
   onUseSuggestedTemplate,
   onClearSuggestions,
 }: CreationCenterProps) {
+  const visualImage = getCreationCenterImage(storyType, selectedStreams);
+  const previewText =
+    draftText.trim() ||
+    Object.values(promptAnswers).find((answer) => answer.trim()) ||
+    "Your story will begin to take shape here.";
+  const storyTypeLabel =
+    creationCenterStoryTypes.find((option) => option.value === storyType)
+      ?.label ?? "Story";
+  const formatLabel =
+    creationCenterFormats.find((option) => option.value === format)?.label ??
+    "Story";
+
   return (
     <div className="w-full max-w-full overflow-hidden rounded-[2rem] bg-gradient-to-b from-blue-50 via-white to-white ring-1 ring-blue-100">
       <header className="relative overflow-hidden bg-[#062a57] px-5 py-6 text-white sm:px-7 sm:py-8">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#0b63ce]/45 blur-3xl" />
+        {visualImage && (
+          <img
+            src={visualImage}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/95 via-[#062a57]/85 to-[#0b63ce]/45" />
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-xl">
             <div className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
@@ -220,11 +242,47 @@ export default function CreationCenter({
           onUseAnswers={onUsePromptAnswers}
         />
 
+        <section>
+          <div className="text-sm font-black text-[#062a57]">
+            Story preview
+          </div>
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+            A visual direction for this Creation Center draft. Your existing
+            photo or video editor continues below.
+          </p>
+
+          <div className="relative mt-3 min-h-44 overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white ring-1 ring-blue-100 sm:p-6">
+            {visualImage && (
+              <img
+                src={visualImage}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/95 via-[#062a57]/75 to-[#0b63ce]/25" />
+            <div className="relative z-10 flex min-h-32 max-w-lg flex-col justify-between">
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/20 backdrop-blur-sm">
+                  {storyTypeLabel}
+                </span>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/15 backdrop-blur-sm">
+                  {formatLabel}
+                </span>
+              </div>
+              <p className="mt-6 line-clamp-4 whitespace-pre-wrap break-words text-lg font-black leading-7 text-white sm:text-xl">
+                {previewText}
+              </p>
+            </div>
+          </div>
+        </section>
+
         <StorySuggestions
           suggestion={suggestion}
           loading={suggestionLoading}
           message={suggestionMessage}
           selectedStreams={selectedStreams}
+          visualImage={visualImage}
           onRequest={onRequestSuggestions}
           onUseStoryType={onUseSuggestedStoryType}
           onUseTitle={onUseSuggestedTitle}
