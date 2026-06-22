@@ -14,6 +14,7 @@ import {
   creationCenterFormats,
   creationCenterStoryTypes,
   type CreationCenterFormat,
+  type CreationCenterSuggestion,
   type CreationCenterStoryType,
   type FaithStream,
 } from "../../lib/creationCenter";
@@ -26,12 +27,24 @@ type CreationCenterProps = {
   storyType: CreationCenterStoryType;
   selectedStreams: FaithStream[];
   promptAnswers: Record<string, string>;
+  suggestion: CreationCenterSuggestion | null;
+  suggestionLoading: boolean;
+  suggestionMessage: string;
   onFormatChange: (format: CreationCenterFormat) => void;
   onStoryTypeChange: (storyType: CreationCenterStoryType) => void;
   onToggleStream: (stream: FaithStream) => void;
   onPromptAnswerChange: (promptId: string, value: string) => void;
   onUsePromptAnswers: () => void;
   onSwitchToQuickShare: () => void;
+  onRequestSuggestions: () => void;
+  onUseSuggestedStoryType: (storyType: string) => void;
+  onUseSuggestedTitle: (title: string) => void;
+  onUseSuggestedStream: (stream: FaithStream) => void;
+  onUseSuggestedStreams: (streams: FaithStream[]) => void;
+  onUseSuggestedCaption: (caption: string) => void;
+  onUseSuggestedScriptureReferences: (references: string[]) => void;
+  onUseSuggestedTemplate: (template: string) => void;
+  onClearSuggestions: () => void;
 };
 
 const formatIcons: Record<CreationCenterFormat, ComponentType<{ className?: string }>> = {
@@ -49,12 +62,24 @@ export default function CreationCenter({
   storyType,
   selectedStreams,
   promptAnswers,
+  suggestion,
+  suggestionLoading,
+  suggestionMessage,
   onFormatChange,
   onStoryTypeChange,
   onToggleStream,
   onPromptAnswerChange,
   onUsePromptAnswers,
   onSwitchToQuickShare,
+  onRequestSuggestions,
+  onUseSuggestedStoryType,
+  onUseSuggestedTitle,
+  onUseSuggestedStream,
+  onUseSuggestedStreams,
+  onUseSuggestedCaption,
+  onUseSuggestedScriptureReferences,
+  onUseSuggestedTemplate,
+  onClearSuggestions,
 }: CreationCenterProps) {
   return (
     <div className="w-full max-w-full overflow-hidden rounded-[2rem] bg-gradient-to-b from-blue-50 via-white to-white ring-1 ring-blue-100">
@@ -195,9 +220,22 @@ export default function CreationCenter({
           onUseAnswers={onUsePromptAnswers}
         />
 
-        <StorySuggestions />
+        <StorySuggestions
+          suggestion={suggestion}
+          loading={suggestionLoading}
+          message={suggestionMessage}
+          selectedStreams={selectedStreams}
+          onRequest={onRequestSuggestions}
+          onUseStoryType={onUseSuggestedStoryType}
+          onUseTitle={onUseSuggestedTitle}
+          onUseFaithStream={onUseSuggestedStream}
+          onUseAllFaithStreams={onUseSuggestedStreams}
+          onUseCaption={onUseSuggestedCaption}
+          onUseScriptureReferences={onUseSuggestedScriptureReferences}
+          onUseTemplate={onUseSuggestedTemplate}
+          onClear={onClearSuggestions}
+        />
       </div>
     </div>
   );
 }
-
