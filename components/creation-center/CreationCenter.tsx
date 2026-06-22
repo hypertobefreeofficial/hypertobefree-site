@@ -209,7 +209,7 @@ export default function CreationCenter({
             existing photo or video editor continues below.
           </p>
 
-          <div className="relative mt-3 min-h-44 overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white ring-1 ring-blue-100 sm:p-6">
+          <div className="relative mt-3 min-h-[20rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white shadow-lg shadow-blue-950/10 ring-1 ring-blue-100 sm:min-h-[26rem] sm:p-7">
             {visualImage && (
               <img
                 src={visualImage}
@@ -218,8 +218,8 @@ export default function CreationCenter({
                 className="absolute inset-0 h-full w-full object-cover"
               />
             )}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/95 via-[#062a57]/75 to-[#0b63ce]/25" />
-            <div className="relative z-10 flex min-h-32 max-w-lg flex-col justify-between">
+            <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/90 via-[#062a57]/55 to-transparent" />
+            <div className="relative z-10 flex min-h-[17.5rem] max-w-lg flex-col justify-between sm:min-h-[22.5rem]">
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/20 backdrop-blur-sm">
                   {templateLabel}
