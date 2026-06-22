@@ -6,14 +6,14 @@ const CREATION_CENTER_IMAGE_BASE =
   "/images/backgrounds/public-pack-v1/";
 
 export const creationCenterImages = {
-  scriptureWoods: `${CREATION_CENTER_IMAGE_BASE}01-scripture-woods.png`,
-  psalmPraise: `${CREATION_CENTER_IMAGE_BASE}03-psalm-praise.png`,
-  lighthouseScripture: `${CREATION_CENTER_IMAGE_BASE}05-lighthouse-scripture.png`,
-  eagleSoar: `${CREATION_CENTER_IMAGE_BASE}09-eagle-soar.png`,
-  lakeWorship: `${CREATION_CENTER_IMAGE_BASE}14-lake-worship.png`,
-  breakingChainsFreedom: `${CREATION_CENTER_IMAGE_BASE}18-breaking-chains-freedom.png`,
-  valleyPraise: `${CREATION_CENTER_IMAGE_BASE}19-valley-praise.png`,
-  beStillPrayer: `${CREATION_CENTER_IMAGE_BASE}20-be-still-psalms-prayer.png`,
+  scriptureWoods: `${CREATION_CENTER_IMAGE_BASE}01-scripture-woods.PNG`,
+  psalmPraise: `${CREATION_CENTER_IMAGE_BASE}03-psalm-praise.PNG`,
+  lighthouseScripture: `${CREATION_CENTER_IMAGE_BASE}05-lighthouse-scripture.PNG`,
+  eagleSoar: `${CREATION_CENTER_IMAGE_BASE}09-eagle-soar.PNG`,
+  lakeWorship: `${CREATION_CENTER_IMAGE_BASE}14-lake-worship.PNG`,
+  breakingChainsFreedom: `${CREATION_CENTER_IMAGE_BASE}18-breaking-chains-freedom.PNG`,
+  valleyPraise: `${CREATION_CENTER_IMAGE_BASE}19-valley-praise.PNG`,
+  beStillPrayer: `${CREATION_CENTER_IMAGE_BASE}20-be-still-psalms-prayer.PNG`,
 } as const;
 
 export type CreationCenterFormat =
