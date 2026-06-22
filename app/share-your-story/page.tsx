@@ -2507,6 +2507,7 @@ export default function ShareYourStoryPage() {
                 storyType={guidedStoryType}
                 selectedStreams={selectedFaithStreams}
                 promptAnswers={guidedPromptAnswers}
+                draftText={storyText}
                 suggestion={creationCenterSuggestion}
                 suggestionLoading={creationCenterSuggestionLoading}
                 suggestionMessage={creationCenterSuggestionMessage}
