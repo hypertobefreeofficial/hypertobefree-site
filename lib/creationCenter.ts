@@ -1,5 +1,21 @@
 export const CREATION_CENTER_V2_ENABLED = true;
+export const CREATION_CENTER_IMAGES_ENABLED = true;
 export const MAX_FAITH_STREAMS = 5;
+
+const CREATION_CENTER_IMAGE_BASE =
+  "/images/backgrounds/public-pack-v1/";
+
+export const creationCenterImages = {
+  scriptureWoods: `${CREATION_CENTER_IMAGE_BASE}01-scripture-woods.png`,
+  valley: `${CREATION_CENTER_IMAGE_BASE}02-valley.png`,
+  psalmPraise: `${CREATION_CENTER_IMAGE_BASE}03-psalm-praise.png`,
+  lighthouseScripture: `${CREATION_CENTER_IMAGE_BASE}05-lighthouse-scripture.png`,
+  eagleSoar: `${CREATION_CENTER_IMAGE_BASE}09-eagle-soar.png`,
+  lakeWorship: `${CREATION_CENTER_IMAGE_BASE}14-lake-worship.png`,
+  breakingChainsFreedom: `${CREATION_CENTER_IMAGE_BASE}18-breaking-chains-freedom.png`,
+  valleyPraise: `${CREATION_CENTER_IMAGE_BASE}19-valley-praise.png`,
+  beStillPrayer: `${CREATION_CENTER_IMAGE_BASE}20-be-still-psalms-prayer.png`,
+} as const;
 
 export type CreationCenterFormat =
   | "video"
@@ -137,6 +153,27 @@ export const faithStreamOptions: { value: FaithStream; label: string }[] = [
 export const FAITH_STREAM_VALUES = faithStreamOptions.map(
   (option) => option.value
 ) as FaithStream[];
+
+const faithStreamImageMap: Partial<Record<FaithStream, string>> = {
+  scripture: creationCenterImages.scriptureWoods,
+  teachings: creationCenterImages.scriptureWoods,
+  worship: creationCenterImages.lakeWorship,
+  freedom: creationCenterImages.eagleSoar,
+  deliverance: creationCenterImages.breakingChainsFreedom,
+  "prayer-warriors": creationCenterImages.beStillPrayer,
+  encouragement: creationCenterImages.valleyPraise,
+};
+
+const storyTypeImageMap: Record<CreationCenterStoryType, string> = {
+  testimony: creationCenterImages.valley,
+  prayer: creationCenterImages.beStillPrayer,
+  prophecy: creationCenterImages.lighthouseScripture,
+  teaching: creationCenterImages.scriptureWoods,
+  worship: creationCenterImages.lakeWorship,
+  encouragement: creationCenterImages.valleyPraise,
+  "praise-report": creationCenterImages.psalmPraise,
+  "deliverance-story": creationCenterImages.breakingChainsFreedom,
+};
 
 export const creationCenterPrompts: Record<
   CreationCenterStoryType,
@@ -310,4 +347,23 @@ export function sanitizeFaithStreams(
   if (!Array.isArray(values)) return [];
 
   return Array.from(new Set(values.filter(isFaithStream))).slice(0, limit);
+}
+
+export function getFaithStreamImage(stream: FaithStream) {
+  if (!CREATION_CENTER_IMAGES_ENABLED) return null;
+
+  return faithStreamImageMap[stream] ?? null;
+}
+
+export function getCreationCenterImage(
+  storyType: CreationCenterStoryType,
+  selectedStreams: FaithStream[] = []
+) {
+  if (!CREATION_CENTER_IMAGES_ENABLED) return null;
+
+  const streamImage = selectedStreams
+    .map((stream) => faithStreamImageMap[stream])
+    .find(Boolean);
+
+  return streamImage ?? storyTypeImageMap[storyType];
 }
