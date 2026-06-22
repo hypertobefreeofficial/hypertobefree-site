@@ -4,7 +4,6 @@ import { Check, Waves } from "lucide-react";
 import {
   MAX_FAITH_STREAMS,
   faithStreamOptions,
-  getFaithStreamImage,
   type FaithStream,
 } from "../../lib/creationCenter";
 
@@ -41,7 +40,6 @@ export default function FaithStreamPicker({
         {faithStreamOptions.map((option) => {
           const active = selected.includes(option.value);
           const disabled = !active && limitReached;
-          const imagePath = getFaithStreamImage(option.value);
 
           return (
             <button
@@ -50,31 +48,14 @@ export default function FaithStreamPicker({
               onClick={() => onToggle(option.value)}
               disabled={disabled}
               aria-pressed={active}
-              className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-[1.1rem] text-left ring-2 transition sm:w-36 ${
+              className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-black ring-1 transition sm:shrink ${
                 active
-                  ? "ring-[#0b63ce] ring-offset-2"
-                  : "ring-transparent hover:ring-blue-200"
+                  ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                  : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
               } disabled:cursor-not-allowed disabled:opacity-40`}
             >
-              {imagePath ? (
-                <img
-                  src={imagePath}
-                  alt=""
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-              ) : (
-                <span className="absolute inset-0 bg-gradient-to-br from-[#0b63ce] via-[#2f8ee5] to-[#69b7ff]" />
-              )}
-              <span className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/30 to-transparent" />
-              <span className="absolute inset-x-3 bottom-2.5 z-10 whitespace-nowrap text-xs font-black text-white">
-                {option.label}
-              </span>
-              {active && (
-                <span className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-white text-[#0b63ce] shadow-sm">
-                  <Check className="h-3.5 w-3.5" />
-                </span>
-              )}
+              {active && <Check className="h-3.5 w-3.5" />}
+              {option.label}
             </button>
           );
         })}
