@@ -1,12 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  FAITH_STREAM_VALUES,
+  sanitizeFaithStreams,
+  type FaithStream,
+} from "../../../lib/creationCenter";
 
 type StoryShapeResponse = {
   storyType: string;
   topics: string[];
+  faithStreams: FaithStream[];
   titles: string[];
   caption: string;
   scriptureReferences: string[];
   template: string;
+  layoutSuggestion: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,8 +39,12 @@ function readBearerToken(request: Request) {
 }
 
 function fallbackShape(body: Record<string, unknown>): StoryShapeResponse {
-  const storyType = readString(body.storyType) || "testimony";
+  const storyType =
+    readString(body.storyType) || readString(body.story_type) || "testimony";
   const topics = readStringArray(body.topics).slice(0, 4);
+  const faithStreams = sanitizeFaithStreams(body.faithStreams);
+  const currentText =
+    readString(body.draftText) || readString(body.currentText);
   const titleBase =
     storyType === "prayer"
       ? "Praying for Breakthrough"
@@ -46,10 +57,12 @@ function fallbackShape(body: Record<string, unknown>): StoryShapeResponse {
   return {
     storyType,
     topics,
+    faithStreams,
     titles: [titleBase, "What God Placed on My Heart"],
-    caption: readString(body.currentText),
+    caption: currentText,
     scriptureReferences: [],
     template: `${storyType}_story`,
+    layoutSuggestion: "",
   };
 }
 
@@ -59,10 +72,16 @@ function cleanShape(value: unknown, fallback: StoryShapeResponse) {
   return {
     storyType: readString(value.storyType) || fallback.storyType,
     topics: readStringArray(value.topics).slice(0, 6),
+    faithStreams: sanitizeFaithStreams(
+      readStringArray(value.faithStreams).length > 0
+        ? value.faithStreams
+        : fallback.faithStreams
+    ),
     titles: readStringArray(value.titles).slice(0, 4),
     caption: readString(value.caption),
     scriptureReferences: readStringArray(value.scriptureReferences).slice(0, 4),
     template: readString(value.template) || fallback.template,
+    layoutSuggestion: readString(value.layoutSuggestion),
   };
 }
 
@@ -112,15 +131,25 @@ export async function POST(request: Request) {
         .join("\n")
     : "";
 
+  const storyType =
+    readString(body.storyType) || readString(body.story_type) || "testimony";
+  const contentFormat =
+    readString(body.format) || readString(body.contentFormat);
+  const draftText = readString(body.draftText) || readString(body.currentText);
+  const requestedFaithStreams = sanitizeFaithStreams(body.faithStreams);
+
   const input = [
     "You help shape faith-centered HTBF posts. Return JSON only.",
     "Do not include full Bible verse text. Suggest references only.",
-    `Content format: ${readString(body.contentFormat)}`,
-    `Story type: ${readString(body.storyType)}`,
+    "Suggestions must preserve the user's meaning and voice.",
+    `Content format: ${contentFormat}`,
+    `Story type: ${storyType}`,
     `Selected topics: ${readStringArray(body.topics).join(", ")}`,
-    `Current text: ${readString(body.currentText)}`,
+    `Selected Faith Streams: ${requestedFaithStreams.join(", ")}`,
+    `Allowed Faith Streams: ${FAITH_STREAM_VALUES.join(", ")}`,
+    `Current text: ${draftText}`,
     `Guided answers:\n${promptAnswers || "None"}`,
-    'JSON shape: {"storyType":"","topics":[],"titles":[],"caption":"","scriptureReferences":[],"template":""}',
+    'Return title ideas, related Faith Streams, improved caption wording, scripture references, a visual template suggestion, and a concise story-flow suggestion. JSON shape: {"storyType":"","topics":[],"faithStreams":[],"titles":[],"caption":"","scriptureReferences":[],"template":"","layoutSuggestion":""}',
   ].join("\n\n");
 
   try {
@@ -140,7 +169,56 @@ export async function POST(request: Request) {
           },
           { role: "user", content: input },
         ],
-        response_format: { type: "json_object" },
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "htbf_story_shape",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "storyType",
+                "topics",
+                "faithStreams",
+                "titles",
+                "caption",
+                "scriptureReferences",
+                "template",
+                "layoutSuggestion",
+              ],
+              properties: {
+                storyType: { type: "string" },
+                topics: {
+                  type: "array",
+                  maxItems: 6,
+                  items: { type: "string" },
+                },
+                faithStreams: {
+                  type: "array",
+                  maxItems: 5,
+                  items: {
+                    type: "string",
+                    enum: FAITH_STREAM_VALUES,
+                  },
+                },
+                titles: {
+                  type: "array",
+                  maxItems: 4,
+                  items: { type: "string" },
+                },
+                caption: { type: "string" },
+                scriptureReferences: {
+                  type: "array",
+                  maxItems: 4,
+                  items: { type: "string" },
+                },
+                template: { type: "string" },
+                layoutSuggestion: { type: "string" },
+              },
+            },
+          },
+        },
         temperature: 0.5,
       }),
       cache: "no-store",
