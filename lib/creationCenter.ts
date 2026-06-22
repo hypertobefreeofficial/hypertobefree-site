@@ -7,7 +7,6 @@ const CREATION_CENTER_IMAGE_BASE =
 
 export const creationCenterImages = {
   scriptureWoods: `${CREATION_CENTER_IMAGE_BASE}01-scripture-woods.png`,
-  valley: `${CREATION_CENTER_IMAGE_BASE}02-valley.png`,
   psalmPraise: `${CREATION_CENTER_IMAGE_BASE}03-psalm-praise.png`,
   lighthouseScripture: `${CREATION_CENTER_IMAGE_BASE}05-lighthouse-scripture.png`,
   eagleSoar: `${CREATION_CENTER_IMAGE_BASE}09-eagle-soar.png`,
@@ -51,6 +50,24 @@ export type FaithStream =
   | "freedom"
   | "scripture"
   | "revival";
+
+export type CreationCenterTemplateId =
+  | "none"
+  | "scripture-woods"
+  | "psalm-praise"
+  | "lighthouse-scripture"
+  | "eagle-freedom"
+  | "breaking-chains-deliverance"
+  | "be-still-prayer"
+  | "lake-worship"
+  | "valley-praise";
+
+export type CreationCenterStoryTemplate = {
+  id: CreationCenterTemplateId;
+  label: string;
+  description: string;
+  imagePath: string | null;
+};
 
 export type CreationCenterPrompt = {
   id: string;
@@ -133,6 +150,63 @@ export const creationCenterStoryTypes: {
   { value: "encouragement", label: "Encouragement" },
 ];
 
+export const creationCenterStoryTemplates: CreationCenterStoryTemplate[] = [
+  {
+    id: "none",
+    label: "No Template",
+    description: "Keep the clean HTBF blue style.",
+    imagePath: null,
+  },
+  {
+    id: "scripture-woods",
+    label: "Scripture Woods",
+    description: "A quiet, reflective scripture setting.",
+    imagePath: creationCenterImages.scriptureWoods,
+  },
+  {
+    id: "psalm-praise",
+    label: "Psalm Praise",
+    description: "A joyful background for praise and worship.",
+    imagePath: creationCenterImages.psalmPraise,
+  },
+  {
+    id: "lighthouse-scripture",
+    label: "Lighthouse Scripture",
+    description: "Guidance, hope, and steady direction.",
+    imagePath: creationCenterImages.lighthouseScripture,
+  },
+  {
+    id: "eagle-freedom",
+    label: "Eagle Freedom",
+    description: "A bold setting for freedom and breakthrough.",
+    imagePath: creationCenterImages.eagleSoar,
+  },
+  {
+    id: "breaking-chains-deliverance",
+    label: "Breaking Chains",
+    description: "A testimony background centered on deliverance.",
+    imagePath: creationCenterImages.breakingChainsFreedom,
+  },
+  {
+    id: "be-still-prayer",
+    label: "Be Still Prayer",
+    description: "A calm setting for prayer and reflection.",
+    imagePath: creationCenterImages.beStillPrayer,
+  },
+  {
+    id: "lake-worship",
+    label: "Lake Worship",
+    description: "A peaceful worship-centered background.",
+    imagePath: creationCenterImages.lakeWorship,
+  },
+  {
+    id: "valley-praise",
+    label: "Valley Praise",
+    description: "Hope and praise through every season.",
+    imagePath: creationCenterImages.valleyPraise,
+  },
+];
+
 export const faithStreamOptions: { value: FaithStream; label: string }[] = [
   { value: "healing", label: "Healing" },
   { value: "deliverance", label: "Deliverance" },
@@ -153,27 +227,6 @@ export const faithStreamOptions: { value: FaithStream; label: string }[] = [
 export const FAITH_STREAM_VALUES = faithStreamOptions.map(
   (option) => option.value
 ) as FaithStream[];
-
-const faithStreamImageMap: Partial<Record<FaithStream, string>> = {
-  scripture: creationCenterImages.scriptureWoods,
-  teachings: creationCenterImages.scriptureWoods,
-  worship: creationCenterImages.lakeWorship,
-  freedom: creationCenterImages.eagleSoar,
-  deliverance: creationCenterImages.breakingChainsFreedom,
-  "prayer-warriors": creationCenterImages.beStillPrayer,
-  encouragement: creationCenterImages.valleyPraise,
-};
-
-const storyTypeImageMap: Record<CreationCenterStoryType, string> = {
-  testimony: creationCenterImages.valley,
-  prayer: creationCenterImages.beStillPrayer,
-  prophecy: creationCenterImages.lighthouseScripture,
-  teaching: creationCenterImages.scriptureWoods,
-  worship: creationCenterImages.lakeWorship,
-  encouragement: creationCenterImages.valleyPraise,
-  "praise-report": creationCenterImages.psalmPraise,
-  "deliverance-story": creationCenterImages.breakingChainsFreedom,
-};
 
 export const creationCenterPrompts: Record<
   CreationCenterStoryType,
@@ -349,21 +402,10 @@ export function sanitizeFaithStreams(
   return Array.from(new Set(values.filter(isFaithStream))).slice(0, limit);
 }
 
-export function getFaithStreamImage(stream: FaithStream) {
-  if (!CREATION_CENTER_IMAGES_ENABLED) return null;
-
-  return faithStreamImageMap[stream] ?? null;
-}
-
-export function getCreationCenterImage(
-  storyType: CreationCenterStoryType,
-  selectedStreams: FaithStream[] = []
+export function getCreationCenterTemplate(
+  templateId: CreationCenterTemplateId
 ) {
-  if (!CREATION_CENTER_IMAGES_ENABLED) return null;
-
-  const streamImage = selectedStreams
-    .map((stream) => faithStreamImageMap[stream])
-    .find(Boolean);
-
-  return streamImage ?? storyTypeImageMap[storyType];
+  return creationCenterStoryTemplates.find(
+    (template) => template.id === templateId
+  );
 }
