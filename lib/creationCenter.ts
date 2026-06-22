@@ -42,6 +42,17 @@ export type CreationCenterPrompt = {
   placeholder: string;
 };
 
+export type CreationCenterSuggestion = {
+  storyType: string;
+  topics: string[];
+  faithStreams: FaithStream[];
+  titles: string[];
+  caption: string;
+  scriptureReferences: string[];
+  template: string;
+  layoutSuggestion: string;
+};
+
 export const creationCenterFormats: {
   value: CreationCenterFormat;
   label: string;
@@ -122,6 +133,10 @@ export const faithStreamOptions: { value: FaithStream; label: string }[] = [
   { value: "scripture", label: "Scripture" },
   { value: "revival", label: "Revival" },
 ];
+
+export const FAITH_STREAM_VALUES = faithStreamOptions.map(
+  (option) => option.value
+) as FaithStream[];
 
 export const creationCenterPrompts: Record<
   CreationCenterStoryType,
@@ -281,4 +296,18 @@ export function getCreationCenterFormat(
   return creationCenterFormats.find((option) => option.value === value);
 }
 
+export function isFaithStream(value: unknown): value is FaithStream {
+  return (
+    typeof value === "string" &&
+    FAITH_STREAM_VALUES.includes(value as FaithStream)
+  );
+}
 
+export function sanitizeFaithStreams(
+  values: unknown,
+  limit = MAX_FAITH_STREAMS
+): FaithStream[] {
+  if (!Array.isArray(values)) return [];
+
+  return Array.from(new Set(values.filter(isFaithStream))).slice(0, limit);
+}
