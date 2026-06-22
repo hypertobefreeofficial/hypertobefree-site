@@ -26,6 +26,12 @@ import {
 } from "lucide-react";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
+import CreationCenter from "../../components/creation-center/CreationCenter";
+import {
+  CREATION_CENTER_V2_ENABLED,
+  MAX_FAITH_STREAMS,
+  type FaithStream,
+} from "../../lib/creationCenter";
 import { supabase } from "../../lib/supabaseClient";
 
 type ProfileRow = {
@@ -652,6 +658,9 @@ export default function ShareYourStoryPage() {
   const [guidedStoryType, setGuidedStoryType] =
     useState<GuidedStoryType>("testimony");
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [selectedFaithStreams, setSelectedFaithStreams] = useState<
+    FaithStream[]
+  >([]);
   const [guidedPromptAnswers, setGuidedPromptAnswers] = useState<
     Record<string, string>
   >({});
@@ -868,6 +877,20 @@ export default function ShareYourStoryPage() {
       }
 
       return [...current, topic];
+    });
+  }
+
+  function toggleFaithStream(stream: FaithStream) {
+    setSelectedFaithStreams((current) => {
+      if (current.includes(stream)) {
+        return current.filter((item) => item !== stream);
+      }
+
+      if (current.length >= MAX_FAITH_STREAMS) {
+        return current;
+      }
+
+      return [...current, stream];
     });
   }
 
@@ -1689,6 +1712,7 @@ export default function ShareYourStoryPage() {
       setStoryText("");
       setOverlayText("");
       setSelectedTopics([]);
+      setSelectedFaithStreams([]);
       setGuidedPromptAnswers({});
       setStoryShapeSuggestion(null);
       setSuggestionMessage("");
@@ -2285,7 +2309,22 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            {renderCreationCenter()}
+            {sharePath === "guided" && CREATION_CENTER_V2_ENABLED ? (
+              <CreationCenter
+                format={creationFormat}
+                storyType={guidedStoryType}
+                selectedStreams={selectedFaithStreams}
+                promptAnswers={guidedPromptAnswers}
+                onFormatChange={applyCreationFormat}
+                onStoryTypeChange={applyGuidedStoryType}
+                onToggleStream={toggleFaithStream}
+                onPromptAnswerChange={updateGuidedPromptAnswer}
+                onUsePromptAnswers={useGuidedPromptsAsCaption}
+                onSwitchToQuickShare={() => selectSharePath("quick")}
+              />
+            ) : (
+              renderCreationCenter()
+            )}
 
             {sharePath === "quick" && (
             <div>
