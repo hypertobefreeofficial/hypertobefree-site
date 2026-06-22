@@ -30,6 +30,8 @@ import CreationCenter from "../../components/creation-center/CreationCenter";
 import {
   CREATION_CENTER_V2_ENABLED,
   MAX_FAITH_STREAMS,
+  sanitizeFaithStreams,
+  type CreationCenterSuggestion,
   type FaithStream,
 } from "../../lib/creationCenter";
 import { supabase } from "../../lib/supabaseClient";
@@ -668,6 +670,12 @@ export default function ShareYourStoryPage() {
     useState<StoryShapeSuggestion | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [suggestionMessage, setSuggestionMessage] = useState("");
+  const [creationCenterSuggestion, setCreationCenterSuggestion] =
+    useState<CreationCenterSuggestion | null>(null);
+  const [creationCenterSuggestionLoading, setCreationCenterSuggestionLoading] =
+    useState(false);
+  const [creationCenterSuggestionMessage, setCreationCenterSuggestionMessage] =
+    useState("");
 
   const [mediaMode, setMediaMode] = useState<MediaMode>("text");
   const [storyType, setStoryType] = useState("Testimony");
@@ -1035,6 +1043,177 @@ export default function ShareYourStoryPage() {
     }
   }
 
+  async function requestCreationCenterSuggestion() {
+    const guidedDraft = buildGuidedDraftText();
+    const currentText = storyText.trim();
+    const draftText = currentText || guidedDraft;
+
+    if (!draftText && selectedFaithStreams.length === 0) {
+      setCreationCenterSuggestionMessage(
+        "Add a few story details first so HTBF can offer helpful ideas."
+      );
+      return;
+    }
+
+    setCreationCenterSuggestionLoading(true);
+    setCreationCenterSuggestionMessage("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again before shaping this story.");
+      }
+
+      const response = await fetch("/api/shape-story", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          format: creationFormat,
+          contentFormat: creationFormat,
+          story_type: guidedStoryType,
+          storyType: guidedStoryType,
+          faithStreams: selectedFaithStreams,
+          promptAnswers: guidedPromptAnswers,
+          draftText,
+          currentText: draftText,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not shape this story right now.");
+      }
+
+      const data = await response.json();
+      const suggestion: CreationCenterSuggestion = {
+        storyType:
+          typeof data.storyType === "string" ? data.storyType : guidedStoryType,
+        topics: Array.isArray(data.topics)
+          ? data.topics.filter((topic: unknown) => typeof topic === "string")
+          : [],
+        faithStreams: sanitizeFaithStreams(data.faithStreams),
+        titles: Array.isArray(data.titles)
+          ? data.titles.filter((title: unknown) => typeof title === "string")
+          : [],
+        caption: typeof data.caption === "string" ? data.caption : "",
+        scriptureReferences: Array.isArray(data.scriptureReferences)
+          ? data.scriptureReferences.filter(
+              (reference: unknown) => typeof reference === "string"
+            )
+          : [],
+        template: typeof data.template === "string" ? data.template : "",
+        layoutSuggestion:
+          typeof data.layoutSuggestion === "string"
+            ? data.layoutSuggestion
+            : "",
+      };
+
+      setCreationCenterSuggestion(suggestion);
+      setCreationCenterSuggestionMessage(
+        "Suggestions are ready. Nothing changes until you choose it."
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Could not shape this story.";
+
+      setCreationCenterSuggestionMessage(errorMessage);
+    } finally {
+      setCreationCenterSuggestionLoading(false);
+    }
+  }
+
+  function useCreationCenterSuggestedStoryType(value: string) {
+    const normalizedValue = normalizeTopic(value);
+    const matchedType = guidedStoryTypeOptions.find(
+      (option) =>
+        option.value === normalizedValue ||
+        normalizeTopic(option.label) === normalizedValue
+    );
+
+    if (!matchedType) return;
+
+    applyGuidedStoryType(matchedType.value);
+    setCreationCenterSuggestionMessage(
+      `Story direction changed to ${matchedType.label}.`
+    );
+  }
+
+  function useCreationCenterSuggestedTitle(title: string) {
+    const cleanTitle = title.trim();
+
+    if (!cleanTitle) return;
+
+    setStoryText((current) =>
+      current.trim() ? `${cleanTitle}\n\n${current.trim()}` : cleanTitle
+    );
+    setCreationCenterSuggestionMessage(
+      "Title added. You can keep editing it."
+    );
+  }
+
+  function useCreationCenterSuggestedStream(stream: FaithStream) {
+    setSelectedFaithStreams((current) => {
+      if (current.includes(stream) || current.length >= MAX_FAITH_STREAMS) {
+        return current;
+      }
+
+      return [...current, stream];
+    });
+    setCreationCenterSuggestionMessage(
+      "Faith Stream added to this Creation Center draft."
+    );
+  }
+
+  function useCreationCenterSuggestedStreams(streams: FaithStream[]) {
+    const validStreams = sanitizeFaithStreams(streams);
+
+    setSelectedFaithStreams((current) =>
+      Array.from(new Set([...current, ...validStreams])).slice(
+        0,
+        MAX_FAITH_STREAMS
+      )
+    );
+    setCreationCenterSuggestionMessage(
+      "Available Faith Streams added to this Creation Center draft."
+    );
+  }
+
+  function useCreationCenterSuggestedCaption(caption: string) {
+    const cleanCaption = caption.trim();
+
+    if (!cleanCaption) return;
+
+    setStoryText(cleanCaption);
+    setCreationCenterSuggestionMessage(
+      "Suggested wording added. You can keep editing it."
+    );
+  }
+
+  function useCreationCenterSuggestedScriptureReferences(
+    references: string[]
+  ) {
+    const cleanReferences = references
+      .map((reference) => reference.trim())
+      .filter(Boolean);
+
+    if (cleanReferences.length === 0) return;
+
+    const referenceLine = `Scripture references: ${cleanReferences.join(", ")}`;
+    setStoryText((current) =>
+      current.trim()
+        ? `${current.trim()}\n\n${referenceLine}`
+        : referenceLine
+    );
+    setCreationCenterSuggestionMessage(
+      "Scripture references added without verse text."
+    );
+  }
+
   function applySuggestedCaption() {
     const caption = storyShapeSuggestion?.caption.trim();
 
@@ -1072,8 +1251,8 @@ export default function ShareYourStoryPage() {
     setSuggestionMessage("Scripture references added without verse text.");
   }
 
-  function applySuggestedTemplate() {
-    const template = storyShapeSuggestion?.template.toLowerCase() ?? "";
+  function applyTemplateSuggestion(templateValue: string) {
+    const template = templateValue.toLowerCase();
 
     if (template.includes("prayer")) {
       applyCaptionTemplate("prayer-calm");
@@ -1096,6 +1275,17 @@ export default function ShareYourStoryPage() {
     }
 
     applyCaptionTemplate("testimony-light");
+  }
+
+  function applySuggestedTemplate() {
+    applyTemplateSuggestion(storyShapeSuggestion?.template ?? "");
+  }
+
+  function useCreationCenterSuggestedTemplate(template: string) {
+    applyTemplateSuggestion(template);
+    setCreationCenterSuggestionMessage(
+      "Suggested layout applied. You can still change every text option."
+    );
   }
 
   function selectMediaMode(nextMode: MediaMode) {
@@ -1716,6 +1906,8 @@ export default function ShareYourStoryPage() {
       setGuidedPromptAnswers({});
       setStoryShapeSuggestion(null);
       setSuggestionMessage("");
+      setCreationCenterSuggestion(null);
+      setCreationCenterSuggestionMessage("");
       removePhoto();
       removeVideo();
       setMediaMode("text");
@@ -2315,12 +2507,31 @@ export default function ShareYourStoryPage() {
                 storyType={guidedStoryType}
                 selectedStreams={selectedFaithStreams}
                 promptAnswers={guidedPromptAnswers}
+                suggestion={creationCenterSuggestion}
+                suggestionLoading={creationCenterSuggestionLoading}
+                suggestionMessage={creationCenterSuggestionMessage}
                 onFormatChange={applyCreationFormat}
                 onStoryTypeChange={applyGuidedStoryType}
                 onToggleStream={toggleFaithStream}
                 onPromptAnswerChange={updateGuidedPromptAnswer}
                 onUsePromptAnswers={useGuidedPromptsAsCaption}
                 onSwitchToQuickShare={() => selectSharePath("quick")}
+                onRequestSuggestions={requestCreationCenterSuggestion}
+                onUseSuggestedStoryType={
+                  useCreationCenterSuggestedStoryType
+                }
+                onUseSuggestedTitle={useCreationCenterSuggestedTitle}
+                onUseSuggestedStream={useCreationCenterSuggestedStream}
+                onUseSuggestedStreams={useCreationCenterSuggestedStreams}
+                onUseSuggestedCaption={useCreationCenterSuggestedCaption}
+                onUseSuggestedScriptureReferences={
+                  useCreationCenterSuggestedScriptureReferences
+                }
+                onUseSuggestedTemplate={useCreationCenterSuggestedTemplate}
+                onClearSuggestions={() => {
+                  setCreationCenterSuggestion(null);
+                  setCreationCenterSuggestionMessage("");
+                }}
               />
             ) : (
               renderCreationCenter()
