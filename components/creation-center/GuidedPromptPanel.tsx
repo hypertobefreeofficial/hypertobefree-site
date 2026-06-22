@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   creationCenterPrompts,
+  getCreationCenterImage,
   type CreationCenterStoryType,
 } from "../../lib/creationCenter";
 
@@ -26,6 +27,7 @@ export default function GuidedPromptPanel({
   const completedCount = prompts.filter(
     (prompt) => Boolean(answers[prompt.id]?.trim())
   ).length;
+  const promptImage = getCreationCenterImage(storyType);
 
   useEffect(() => {
     setActivePromptIndex(0);
@@ -48,6 +50,23 @@ export default function GuidedPromptPanel({
           {activePromptIndex + 1} of {prompts.length}
         </span>
       </div>
+
+      {promptImage && !answers[activePrompt.id]?.trim() && (
+        <div className="relative mt-4 h-24 overflow-hidden rounded-[1.25rem] bg-[#062a57]">
+          <img
+            src={promptImage}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/90 via-[#062a57]/55 to-[#0b63ce]/20" />
+          <div className="absolute inset-0 flex items-end p-4">
+            <p className="max-w-sm text-xs font-black leading-5 text-white">
+              Take a breath. Share only what feels honest and helpful.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
         <label className="block">
@@ -123,4 +142,3 @@ export default function GuidedPromptPanel({
     </section>
   );
 }
-
