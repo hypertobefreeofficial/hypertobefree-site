@@ -1,241 +1,256 @@
 "use client";
 
+import { Check, Plus, Sparkles, X } from "lucide-react";
 import {
-  Camera,
-  FileText,
-  Layers3,
-  Mic2,
-  PenLine,
-  Sparkles,
-  Video,
-} from "lucide-react";
-import type { ComponentType } from "react";
-import {
-  creationCenterFormats,
-  creationCenterStoryTypes,
-  type CreationCenterFormat,
+  faithStreamOptions,
   type CreationCenterSuggestion,
-  type CreationCenterStoryType,
   type FaithStream,
 } from "../../lib/creationCenter";
-import FaithStreamPicker from "./FaithStreamPicker";
-import GuidedPromptPanel from "./GuidedPromptPanel";
-import StorySuggestions from "./StorySuggestions";
 
-type CreationCenterProps = {
-  format: CreationCenterFormat;
-  storyType: CreationCenterStoryType;
-  selectedStreams: FaithStream[];
-  promptAnswers: Record<string, string>;
+type StorySuggestionsProps = {
   suggestion: CreationCenterSuggestion | null;
-  suggestionLoading: boolean;
-  suggestionMessage: string;
-  onFormatChange: (format: CreationCenterFormat) => void;
-  onStoryTypeChange: (storyType: CreationCenterStoryType) => void;
-  onToggleStream: (stream: FaithStream) => void;
-  onPromptAnswerChange: (promptId: string, value: string) => void;
-  onUsePromptAnswers: () => void;
-  onSwitchToQuickShare: () => void;
-  onRequestSuggestions: () => void;
-  onUseSuggestedStoryType: (storyType: string) => void;
-  onUseSuggestedTitle: (title: string) => void;
-  onUseSuggestedStream: (stream: FaithStream) => void;
-  onUseSuggestedStreams: (streams: FaithStream[]) => void;
-  onUseSuggestedCaption: (caption: string) => void;
-  onUseSuggestedScriptureReferences: (references: string[]) => void;
-  onUseSuggestedTemplate: (template: string) => void;
-  onClearSuggestions: () => void;
+  loading: boolean;
+  message: string;
+  selectedStreams: FaithStream[];
+  onRequest: () => void;
+  onUseStoryType: (storyType: string) => void;
+  onUseTitle: (title: string) => void;
+  onUseFaithStream: (stream: FaithStream) => void;
+  onUseAllFaithStreams: (streams: FaithStream[]) => void;
+  onUseCaption: (caption: string) => void;
+  onUseScriptureReferences: (references: string[]) => void;
+  onUseTemplate: (template: string) => void;
+  onClear: () => void;
 };
 
-const formatIcons: Record<CreationCenterFormat, ComponentType<{ className?: string }>> = {
-  video: Video,
-  photo: Camera,
-  "written-story": PenLine,
-  "voice-message": Mic2,
-  "testimony-card": FileText,
-  "prayer-card": Layers3,
-  "encouragement-card": Sparkles,
-};
+function titleCase(value: string) {
+  return value
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
 
-export default function CreationCenter({
-  format,
-  storyType,
-  selectedStreams,
-  promptAnswers,
-  suggestion,
-  suggestionLoading,
-  suggestionMessage,
-  onFormatChange,
-  onStoryTypeChange,
-  onToggleStream,
-  onPromptAnswerChange,
-  onUsePromptAnswers,
-  onSwitchToQuickShare,
-  onRequestSuggestions,
-  onUseSuggestedStoryType,
-  onUseSuggestedTitle,
-  onUseSuggestedStream,
-  onUseSuggestedStreams,
-  onUseSuggestedCaption,
-  onUseSuggestedScriptureReferences,
-  onUseSuggestedTemplate,
-  onClearSuggestions,
-}: CreationCenterProps) {
+function getFaithStreamLabel(stream: FaithStream) {
   return (
-    <div className="w-full max-w-full overflow-hidden rounded-[2rem] bg-gradient-to-b from-blue-50 via-white to-white ring-1 ring-blue-100">
-      <header className="relative overflow-hidden bg-[#062a57] px-5 py-6 text-white sm:px-7 sm:py-8">
-        <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#0b63ce]/45 blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="max-w-xl">
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
-              HTBF Creation Center
+    faithStreamOptions.find((option) => option.value === stream)?.label ??
+    titleCase(stream)
+  );
+}
+
+export default function StorySuggestions({
+  suggestion,
+  loading,
+  message,
+  selectedStreams,
+  onRequest,
+  onUseStoryType,
+  onUseTitle,
+  onUseFaithStream,
+  onUseAllFaithStreams,
+  onUseCaption,
+  onUseScriptureReferences,
+  onUseTemplate,
+  onClear,
+}: StorySuggestionsProps) {
+  return (
+    <section className="overflow-hidden rounded-[1.5rem] bg-[#062a57] text-white">
+      <div className="p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-black">
+              <Sparkles className="h-4 w-4 text-[#f4c95d]" />
+              Help shape your story
             </div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
-              What has God done?
-            </h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-blue-100">
-              Start with the story. Add only the guidance that helps you share
-              it clearly and honestly.
+            <p className="mt-1 text-xs font-semibold leading-5 text-blue-100">
+              Get optional ideas while keeping every final choice in your
+              hands.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={onSwitchToQuickShare}
-            className="inline-flex shrink-0 items-center justify-center rounded-full bg-white/10 px-4 py-2 text-xs font-black text-white ring-1 ring-white/20 hover:bg-white/15"
+            onClick={onRequest}
+            disabled={loading}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-black text-[#0b63ce] disabled:cursor-wait disabled:opacity-60"
           >
-            Use Quick Share
+            <Sparkles className="h-3.5 w-3.5" />
+            {loading
+              ? "Shaping..."
+              : suggestion
+                ? "Refresh suggestions"
+                : "Help me shape this"}
           </button>
         </div>
-      </header>
 
-      <div className="space-y-6 p-4 sm:p-6">
-        <section>
-          <div className="text-sm font-black text-[#062a57]">
-            How would you like to share it?
+        {message && (
+          <div className="mt-3 rounded-2xl bg-white/10 px-4 py-3 text-xs font-bold leading-5 text-blue-50 ring-1 ring-white/10">
+            {message}
           </div>
-          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-            Your existing HTBF photo and video tools will open below.
-          </p>
-
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {creationCenterFormats.slice(0, 3).map((option) => {
-              const Icon = formatIcons[option.value];
-              const active = format === option.value;
-
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onFormatChange(option.value)}
-                  className={`min-w-0 rounded-[1.25rem] px-2 py-4 text-center ring-1 transition sm:px-4 ${
-                    active
-                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                      : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
-                  }`}
-                >
-                  <Icon className="mx-auto h-5 w-5" />
-                  <span className="mt-2 block truncate text-xs font-black sm:text-sm">
-                    {option.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 flex w-full max-w-full gap-2 overflow-x-auto pb-2">
-            {creationCenterFormats.slice(3).map((option) => {
-              const Icon = formatIcons[option.value];
-              const active = format === option.value;
-
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => option.available && onFormatChange(option.value)}
-                  disabled={!option.available}
-                  title={option.description}
-                  className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-black ring-1 transition ${
-                    active
-                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                      : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
-                  } disabled:cursor-not-allowed disabled:opacity-45`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {option.label}
-                  {!option.available && (
-                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] uppercase text-slate-500">
-                      Soon
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section>
-          <div className="text-sm font-black text-[#062a57]">
-            What kind of story is this?
-          </div>
-          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-            This simply changes the guidance. It does not put your story in a
-            box.
-          </p>
-          <div className="mt-3 flex w-full max-w-full gap-2 overflow-x-auto pb-2">
-            {creationCenterStoryTypes.map((option) => {
-              const active = storyType === option.value;
-
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onStoryTypeChange(option.value)}
-                  className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-black ring-1 transition ${
-                    active
-                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
-                      : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <div className="h-px bg-slate-200" />
-
-        <FaithStreamPicker
-          selected={selectedStreams}
-          onToggle={onToggleStream}
-        />
-
-        <div className="h-px bg-slate-200" />
-
-        <GuidedPromptPanel
-          storyType={storyType}
-          answers={promptAnswers}
-          onAnswerChange={onPromptAnswerChange}
-          onUseAnswers={onUsePromptAnswers}
-        />
-
-        <StorySuggestions
-          suggestion={suggestion}
-          loading={suggestionLoading}
-          message={suggestionMessage}
-          selectedStreams={selectedStreams}
-          onRequest={onRequestSuggestions}
-          onUseStoryType={onUseSuggestedStoryType}
-          onUseTitle={onUseSuggestedTitle}
-          onUseFaithStream={onUseSuggestedStream}
-          onUseAllFaithStreams={onUseSuggestedStreams}
-          onUseCaption={onUseSuggestedCaption}
-          onUseScriptureReferences={onUseSuggestedScriptureReferences}
-          onUseTemplate={onUseSuggestedTemplate}
-          onClear={onClearSuggestions}
-        />
+        )}
       </div>
-    </div>
+
+      {suggestion && (
+        <div className="space-y-5 bg-white p-4 text-slate-800 sm:p-5">
+          {suggestion.storyType && (
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Suggested story direction
+              </div>
+              <button
+                type="button"
+                onClick={() => onUseStoryType(suggestion.storyType)}
+                className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+              >
+                Use {titleCase(suggestion.storyType)}
+              </button>
+            </div>
+          )}
+
+          {suggestion.titles.length > 0 && (
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Title ideas
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {suggestion.titles.map((title) => (
+                  <button
+                    key={title}
+                    type="button"
+                    onClick={() => onUseTitle(title)}
+                    className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-[#062a57] hover:bg-blue-50"
+                  >
+                    Use: {title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {suggestion.faithStreams.length > 0 && (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  Related Faith Streams
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUseAllFaithStreams(suggestion.faithStreams)
+                  }
+                  className="text-xs font-black text-[#0b63ce]"
+                >
+                  Add available streams
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {suggestion.faithStreams.map((stream) => {
+                  const selected = selectedStreams.includes(stream);
+
+                  return (
+                    <button
+                      key={stream}
+                      type="button"
+                      onClick={() => !selected && onUseFaithStream(stream)}
+                      disabled={selected}
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-2 text-xs font-black ring-1 ${
+                        selected
+                          ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                          : "bg-white text-[#0b63ce] ring-blue-200 hover:bg-blue-50"
+                      }`}
+                    >
+                      {selected ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Plus className="h-3.5 w-3.5" />
+                      )}
+                      {getFaithStreamLabel(stream)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {suggestion.caption && (
+            <div className="rounded-[1.25rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Suggested wording
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-700">
+                {suggestion.caption}
+              </p>
+              <button
+                type="button"
+                onClick={() => onUseCaption(suggestion.caption)}
+                className="mt-3 rounded-full bg-[#0b63ce] px-4 py-2 text-xs font-black text-white"
+              >
+                Use this wording
+              </button>
+            </div>
+          )}
+
+          {suggestion.scriptureReferences.length > 0 && (
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Scripture references
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {suggestion.scriptureReferences.map((reference) => (
+                  <span
+                    key={reference}
+                    className="rounded-full bg-amber-50 px-3 py-2 text-xs font-black text-amber-900 ring-1 ring-amber-100"
+                  >
+                    {reference}
+                  </span>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onUseScriptureReferences(
+                    suggestion.scriptureReferences
+                  )
+                }
+                className="mt-2 rounded-full bg-white px-3 py-2 text-xs font-black text-amber-900 ring-1 ring-amber-200"
+              >
+                Add references
+              </button>
+            </div>
+          )}
+
+          {suggestion.layoutSuggestion && (
+            <div className="rounded-[1.25rem] bg-blue-50 p-4 ring-1 ring-blue-100">
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                Suggested story flow
+              </div>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#082f63]">
+                {suggestion.layoutSuggestion}
+              </p>
+              <p className="mt-2 text-xs font-bold text-blue-700">
+                Use this as a guide only. It will not change your words.
+              </p>
+            </div>
+          )}
+
+          {suggestion.template && (
+            <button
+              type="button"
+              onClick={() => onUseTemplate(suggestion.template)}
+              className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+            >
+              Try suggested post layout
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-600"
+          >
+            <X className="h-3.5 w-3.5" />
+            Clear suggestions
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
