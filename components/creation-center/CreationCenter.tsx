@@ -9,7 +9,7 @@ import {
   Sparkles,
   Video,
 } from "lucide-react";
-import { useState, type ComponentType } from "react";
+import type { ComponentType } from "react";
 import {
   CREATION_CENTER_IMAGES_ENABLED,
   creationCenterFormats,
@@ -32,10 +32,12 @@ type CreationCenterProps = {
   selectedStreams: FaithStream[];
   promptAnswers: Record<string, string>;
   draftText: string;
+  selectedTemplateId: CreationCenterTemplateId;
   suggestion: CreationCenterSuggestion | null;
   suggestionLoading: boolean;
   suggestionMessage: string;
   onFormatChange: (format: CreationCenterFormat) => void;
+  onTemplateChange: (templateId: CreationCenterTemplateId) => void;
   onStoryTypeChange: (storyType: CreationCenterStoryType) => void;
   onToggleStream: (stream: FaithStream) => void;
   onPromptAnswerChange: (promptId: string, value: string) => void;
@@ -68,10 +70,12 @@ export default function CreationCenter({
   selectedStreams,
   promptAnswers,
   draftText,
+  selectedTemplateId,
   suggestion,
   suggestionLoading,
   suggestionMessage,
   onFormatChange,
+  onTemplateChange,
   onStoryTypeChange,
   onToggleStream,
   onPromptAnswerChange,
@@ -87,8 +91,6 @@ export default function CreationCenter({
   onUseSuggestedTemplate,
   onClearSuggestions,
 }: CreationCenterProps) {
-  const [selectedTemplateId, setSelectedTemplateId] =
-    useState<CreationCenterTemplateId>("none");
   const selectedTemplate = getCreationCenterTemplate(selectedTemplateId);
   const visualImage = CREATION_CENTER_IMAGES_ENABLED
     ? selectedTemplate?.imagePath ?? null
@@ -197,7 +199,7 @@ export default function CreationCenter({
 
         <StoryTemplatePicker
           value={selectedTemplateId}
-          onChange={setSelectedTemplateId}
+          onChange={onTemplateChange}
         />
 
         <section>
