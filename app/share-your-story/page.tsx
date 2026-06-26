@@ -12,9 +12,7 @@ import {
 } from "react";
 import {
   ArrowLeft,
-  Camera,
   CheckCircle2,
-  FileText,
   Globe2,
   HeartHandshake,
   ImagePlus,
@@ -22,7 +20,6 @@ import {
   Send,
   Sparkles,
   Upload,
-  Video,
 } from "lucide-react";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
@@ -48,6 +45,19 @@ type ProfileRow = {
 
 type MediaMode = "text" | "photo" | "video";
 type SharePath = "quick" | "guided";
+type QuickShareCategoryValue =
+  | "testimony"
+  | "prayer-request"
+  | "praise-report"
+  | "deliverance"
+  | "healing"
+  | "worship"
+  | "teaching"
+  | "prophecy"
+  | "encouragement"
+  | "bible-study"
+  | "devotional"
+  | "other";
 type CreationFormat =
   | "video"
   | "photo"
@@ -376,31 +386,100 @@ const guidedPromptMap: Record<GuidedStoryType, GuidedPrompt[]> = {
   ],
 };
 
-const mediaOptions: {
+const quickShareCategoryOptions: {
   label: string;
-  value: MediaMode;
-  icon: typeof FileText;
+  value: QuickShareCategoryValue;
+  storyType: string;
+  topics: string[];
   description: string;
 }[] = [
   {
-    label: "Text Story",
-    value: "text",
-    icon: FileText,
-    description: "Share a written testimony, praise report, or prayer request.",
+    label: "Testimony",
+    value: "testimony",
+    storyType: "Testimony",
+    topics: ["testimony"],
+    description: "What God has done in your life.",
   },
   {
-    label: "Photo Story",
-    value: "photo",
-    icon: Camera,
-    description: "Upload a photo and add the story behind it.",
+    label: "Prayer Request",
+    value: "prayer-request",
+    storyType: "Prayer Request",
+    topics: ["prayer", "prayer-request"],
+    description: "Invite the HTBF community to pray with you.",
   },
   {
-    label: "Video Story",
-    value: "video",
-    icon: Video,
-    description: "Upload a video testimony or encouragement.",
+    label: "Praise Report",
+    value: "praise-report",
+    storyType: "Praise Report",
+    topics: ["praise", "praise-report"],
+    description: "Share a moment of gratitude or answered prayer.",
+  },
+  {
+    label: "Deliverance",
+    value: "deliverance",
+    storyType: "Deliverance Story",
+    topics: ["deliverance", "freedom"],
+    description: "Share how God brought freedom.",
+  },
+  {
+    label: "Healing",
+    value: "healing",
+    storyType: "Healing Testimony",
+    topics: ["healing"],
+    description: "Share a healing testimony or request.",
+  },
+  {
+    label: "Worship",
+    value: "worship",
+    storyType: "Worship",
+    topics: ["worship"],
+    description: "Share a worship moment.",
+  },
+  {
+    label: "Teaching",
+    value: "teaching",
+    storyType: "Teaching",
+    topics: ["teaching"],
+    description: "Share something God taught you.",
+  },
+  {
+    label: "Prophecy",
+    value: "prophecy",
+    storyType: "Prophecy",
+    topics: ["prophecy", "encouragement"],
+    description: "Share an encouraging word with care.",
+  },
+  {
+    label: "Encouragement",
+    value: "encouragement",
+    storyType: "Encouragement",
+    topics: ["encouragement"],
+    description: "Build someone up in faith.",
+  },
+  {
+    label: "Bible Study",
+    value: "bible-study",
+    storyType: "Bible Study",
+    topics: ["bible-study", "scripture"],
+    description: "Share a scripture reflection or study thought.",
+  },
+  {
+    label: "Devotional",
+    value: "devotional",
+    storyType: "Devotional",
+    topics: ["devotional", "scripture"],
+    description: "Share a short faith reflection.",
+  },
+  {
+    label: "Other",
+    value: "other",
+    storyType: "Story",
+    topics: ["other"],
+    description: "Share something meaningful that does not fit a label.",
   },
 ];
+const defaultQuickShareCategoryOption =
+  quickShareCategoryOptions.find((option) => option.value === "testimony")!;
 
 const storyTypes = [
   {
@@ -678,6 +757,8 @@ export default function ShareYourStoryPage() {
     useState("");
 
   const [mediaMode, setMediaMode] = useState<MediaMode>("text");
+  const [quickShareCategory, setQuickShareCategory] =
+    useState<QuickShareCategoryValue>("testimony");
   const [storyType, setStoryType] = useState("Testimony");
   const [storyText, setStoryText] = useState("");
   const [overlayText, setOverlayText] = useState("");
@@ -728,6 +809,10 @@ export default function ShareYourStoryPage() {
   const selectedVideoTemplateLabel =
     videoTemplateOptions.find((option) => option.value === videoTemplate)
       ?.label ?? "No stamp";
+  const selectedQuickShareCategory =
+    quickShareCategoryOptions.find(
+      (option) => option.value === quickShareCategory
+    ) ?? defaultQuickShareCategoryOption;
   const guidedPrompts = guidedPromptMap[guidedStoryType] ?? [];
 
   useEffect(() => {
@@ -778,6 +863,7 @@ export default function ShareYourStoryPage() {
       if (typeParam === "video") {
         setSharePath("quick");
         setMediaMode("video");
+        setCreationFormat("video");
       }
 
       if (typeParam === "photo") {
@@ -853,6 +939,13 @@ export default function ShareYourStoryPage() {
     setMessage("");
     setSuggestionMessage("");
 
+    if (nextPath === "quick") {
+      setCreationFormat("video");
+      selectMediaMode("video");
+      applyQuickShareCategory(quickShareCategory);
+      return;
+    }
+
     if (nextPath === "guided") {
       applyCreationFormat(creationFormat);
       applyGuidedStoryType(guidedStoryType);
@@ -874,6 +967,15 @@ export default function ShareYourStoryPage() {
   function applyGuidedStoryType(nextStoryType: GuidedStoryType) {
     setGuidedStoryType(nextStoryType);
     setStoryType(getGuidedStoryTypeLabel(nextStoryType));
+  }
+
+  function applyQuickShareCategory(nextCategory: QuickShareCategoryValue) {
+    const option =
+      quickShareCategoryOptions.find((item) => item.value === nextCategory) ??
+      defaultQuickShareCategoryOption;
+
+    setQuickShareCategory(option.value);
+    setStoryType(option.storyType);
   }
 
   function toggleGuidedTopic(topic: string) {
@@ -1773,17 +1875,19 @@ export default function ShareYourStoryPage() {
       const finalStoryType =
         sharePath === "guided"
           ? getGuidedStoryTypeLabel(guidedStoryType)
-          : mediaMode === "video"
-            ? "Video Testimony"
-            : mediaMode === "photo"
-              ? "Photo Story"
-              : storyType;
+          : mediaMode === "video" || mediaMode === "photo"
+            ? selectedQuickShareCategory.storyType
+            : storyType;
       const finalContentType =
         sharePath === "guided" ? creationFormat : mediaMode;
       const finalTopics =
         sharePath === "guided"
           ? selectedTopics.map((topic) => normalizeTopic(topic))
-          : [];
+          : mediaMode === "video" || mediaMode === "photo"
+            ? selectedQuickShareCategory.topics.map((topic) =>
+                normalizeTopic(topic)
+              )
+            : [];
       const creationMode = sharePath === "guided" ? "guided" : "quick";
       const suggestionPayload =
         sharePath === "guided"
@@ -1910,7 +2014,8 @@ export default function ShareYourStoryPage() {
       setCreationCenterSuggestionMessage("");
       removePhoto();
       removeVideo();
-      setMediaMode("text");
+      setMediaMode(sharePath === "quick" ? "video" : "text");
+      setQuickShareCategory("testimony");
       setStoryType("Testimony");
 
       setMessage(
@@ -2021,6 +2126,61 @@ export default function ShareYourStoryPage() {
     );
   }
 
+  function renderQuickShareCategoryPicker() {
+    if (sharePath !== "quick" || mediaMode !== "video") return null;
+
+    return (
+      <div className="w-full max-w-full overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-blue-50 to-white p-4 ring-1 ring-blue-100">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+              Quick Share
+            </div>
+            <h2 className="mt-1 text-xl font-black text-[#062a57]">
+              What are you sharing?
+            </h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+              Pick the heart of this video so HTBF can understand and surface it
+              better.
+            </p>
+          </div>
+
+          <div className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
+            {selectedQuickShareCategory.label}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          {quickShareCategoryOptions.map((option) => {
+            const selected = quickShareCategory === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => applyQuickShareCategory(option.value)}
+                className={`rounded-[1.25rem] p-3 text-left ring-1 transition ${
+                  selected
+                    ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                    : "bg-white text-slate-700 ring-slate-200 hover:bg-blue-50"
+                }`}
+              >
+                <div className="text-sm font-black">{option.label}</div>
+                <p
+                  className={`mt-1 text-xs font-semibold leading-5 ${
+                    selected ? "text-blue-50" : "text-slate-500"
+                  }`}
+                >
+                  {option.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   function renderShareEntryScreen() {
     return (
       <div className="space-y-5">
@@ -2050,11 +2210,11 @@ export default function ShareYourStoryPage() {
               Quick Share
             </div>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              Upload a video, photo, or written story with the current HTBF
+              Jump straight into the current HTBF video upload and editing
               flow.
             </p>
             <div className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100">
-              Start quick upload
+              Start video upload
             </div>
           </button>
 
@@ -2488,7 +2648,8 @@ export default function ShareYourStoryPage() {
                     Quick Share
                   </div>
                   <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
-                    This is the current HTBF upload flow.
+                    Start with a video, then add your message, style, and
+                    sharing category.
                   </p>
                 </div>
                 <button
@@ -2536,54 +2697,6 @@ export default function ShareYourStoryPage() {
               />
             ) : (
               renderCreationCenter()
-            )}
-
-            {sharePath === "quick" && (
-            <div>
-              <label className="mb-2 block text-sm font-black text-[#062a57]">
-                Choose your story format
-              </label>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                {mediaOptions.map((item) => {
-                  const Icon = item.icon;
-                  const selected = mediaMode === item.value;
-
-                  return (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => selectMediaMode(item.value)}
-                      className={`rounded-[1.5rem] p-4 text-left ring-1 transition ${
-                        selected
-                          ? "bg-blue-50 ring-blue-200"
-                          : "bg-white ring-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-2xl ${
-                            selected
-                              ? "bg-[#0b63ce] text-white"
-                              : "bg-slate-100 text-slate-600"
-                          }`}
-                        >
-                          <Icon className="h-5 w-5" />
-                        </div>
-
-                        <div className="font-black text-[#062a57]">
-                          {item.label}
-                        </div>
-                      </div>
-
-                      <p className="mt-3 text-sm leading-6 text-slate-500">
-                        {item.description}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
             )}
 
             {sharePath === "quick" && mediaMode === "text" && (
@@ -2885,6 +2998,8 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
+            {hasSelectedVideo && renderQuickShareCategoryPicker()}
+
             {videoPreviewUrl && (
               <div className="sm:hidden w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] bg-slate-950 p-3 text-white shadow-sm ring-1 ring-slate-800">
                 <div className="mb-3 flex items-start justify-between gap-3">
@@ -2892,7 +3007,9 @@ export default function ShareYourStoryPage() {
                     <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-200">
                       HTBF Mobile Creator Studio
                     </div>
-                    <div className="mt-1 text-base font-black">Video Story</div>
+                    <div className="mt-1 text-base font-black">
+                      Edit your video
+                    </div>
                   </div>
 
                   <button
@@ -3164,7 +3281,7 @@ export default function ShareYourStoryPage() {
                     <div className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
                       HTBF Creator Studio
                     </div>
-                    <div className="mt-1 text-2xl font-black">Video Story</div>
+                    <div className="mt-1 text-2xl font-black">Edit your video</div>
                     <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
                       Place a short message on the video, add context below it,
                       and preview everything while you edit.
