@@ -22,6 +22,10 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import {
+  creationCenterStoryTemplates,
+  type CreationCenterTemplateId,
+} from "../lib/creationCenter";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
 
@@ -132,6 +136,7 @@ type ApprovedStory = {
   prayer_status: string | null;
   answered_at: string | null;
   answered_text: string | null;
+  ai_suggestions: unknown | null;
   reaction_counts: {
     amen: number;
     praise_god: number;
@@ -139,6 +144,12 @@ type ApprovedStory = {
     praying: number;
   };
   user_reactions: ReactionType[];
+};
+
+type CreationTemplateMetadata = {
+  id: CreationCenterTemplateId;
+  label: string;
+  imagePath: string;
 };
 
 const STORY_IMAGE_BUCKET = "story-images";
@@ -481,6 +492,40 @@ export default function FreedomFeed({
     return null;
   }
 
+  function readString(value: unknown) {
+    return typeof value === "string" ? value : null;
+  }
+
+  function readRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  function getCreationTemplateMetadata(
+    value: unknown
+  ): CreationTemplateMetadata | null {
+    const metadata = readRecord(value);
+    const selectedTemplate = readRecord(metadata?.selectedTemplate);
+    const templateId = readString(selectedTemplate?.id);
+
+    if (!templateId || templateId === "none") return null;
+
+    const template = creationCenterStoryTemplates.find(
+      (item) => item.id === templateId
+    );
+
+    if (!template?.imagePath) return null;
+
+    return {
+      id: template.id,
+      label: readString(selectedTemplate?.label) ?? template.label,
+      imagePath: template.imagePath,
+    };
+  }
+
   async function loadAccountSafety(currentUserId: string) {
     const [savedResult, blockedResult] = await Promise.all([
       supabase
@@ -534,7 +579,7 @@ export default function FreedomFeed({
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text, ai_suggestions"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -653,6 +698,7 @@ export default function FreedomFeed({
           prayer_status: story.prayer_status ?? "active",
           answered_at: story.answered_at,
           answered_text: story.answered_text,
+          ai_suggestions: story.ai_suggestions ?? null,
           reaction_counts: {
             amen: storyReactions.filter(
               (reaction) => reaction.reaction_type === "amen"
@@ -1352,8 +1398,18 @@ export default function FreedomFeed({
               );
               const hasImageMedia = Boolean(story.signed_image_url);
               const overlayText = story.overlay_text?.trim() ?? "";
+              const creationTemplate = getCreationTemplateMetadata(
+                story.ai_suggestions
+              );
+              const showCreationTemplateCard = Boolean(
+                creationTemplate &&
+                  story.story_text &&
+                  !hasVideoMedia &&
+                  !hasImageMedia
+              );
               const showInlineStoryText =
                 Boolean(story.story_text) &&
+                !showCreationTemplateCard &&
                 !hasVideoMedia &&
                 (!hasImageMedia || captionStyle === "classic-caption");
               const showVideoCaptionText =
@@ -1428,6 +1484,14 @@ export default function FreedomFeed({
                             )}
                         </div>
                       </button>
+                    )}
+
+                    {showCreationTemplateCard && creationTemplate && (
+                      <CreationTemplateStoryCard
+                        storyType={story.story_type}
+                        template={creationTemplate}
+                        text={story.story_text}
+                      />
                     )}
 
                     {showInlineStoryText && (
@@ -2171,6 +2235,82 @@ function CollapsibleStoryText({
   );
 }
 
+function CreationTemplateStoryCard({
+  storyType,
+  template,
+  text,
+}: {
+  storyType: string | null;
+  template: CreationTemplateMetadata;
+  text: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const cleanText = text?.trim();
+
+  if (!cleanText) return null;
+
+  const isLong = cleanText.length > 260;
+  const visibleText =
+    !isLong || expanded ? cleanText : `${cleanText.slice(0, 260).trim()}...`;
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-[#062a57] shadow-sm ring-1 ring-blue-100">
+      <div className="relative min-h-[22rem] overflow-hidden p-5 text-white sm:min-h-[25rem] sm:p-6">
+        <img
+          src={template.imagePath}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/50 to-black/20" />
+        <div className="absolute inset-0 bg-[#0b63ce]/10" />
+
+        <div className="relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white ring-1 ring-white/20 backdrop-blur-sm">
+                {template.label}
+              </span>
+              <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-blue-50 ring-1 ring-white/15 backdrop-blur-sm">
+                {storyType || "Story"}
+              </span>
+            </div>
+
+            <img
+              src="/images/htbf-logo.png"
+              alt=""
+              loading="lazy"
+              className="h-9 w-9 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
+            />
+          </div>
+
+          <div className="mt-8">
+            <p
+              className="whitespace-pre-wrap break-words text-xl font-black leading-8 text-white drop-shadow-sm sm:text-2xl sm:leading-9"
+              style={{
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+              }}
+            >
+              {visibleText}
+            </p>
+
+            {isLong && (
+              <button
+                type="button"
+                onClick={() => setExpanded((current) => !current)}
+                className="mt-4 rounded-full bg-white/90 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-white/50 backdrop-blur-sm"
+              >
+                {expanded ? "See less" : "See more"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FeedCaptionOverlay({
   alignment,
   background,
@@ -2221,7 +2361,7 @@ function FreedomFeedVideoMediaFrame({
   stamp,
   videoUrl,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   stamp: VideoTemplate;
   videoUrl: string;
 }) {
