@@ -608,6 +608,8 @@ export function VideoFeedExperience({
 }: VideoFeedExperienceProps = {}) {
   const videoFeedScrollerRef = useRef<HTMLElement | null>(null);
   const activeStoryHapticRef = useRef<string | null>(null);
+  const exitGuardInstalledRef = useRef(false);
+  const exitingVideoRef = useRef(false);
 
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -646,6 +648,8 @@ export function VideoFeedExperience({
     useState<VideoLanguage>("english");
   const copy = videoFeedCopy[selectedLanguage];
   const audioTestimonyMode = viewingMode === "audio_testimony";
+  const resolvedReturnPath =
+    returnPath || (sourceContext === "freedom-feed" ? "/feed" : "/search");
 
   useEffect(() => {
     if (!message) return;
@@ -675,6 +679,49 @@ export function VideoFeedExperience({
     const savedHaptics = window.localStorage.getItem(videoHapticsStorageKey);
     setHapticsEnabled(savedHaptics === "true");
   }, []);
+
+  useEffect(() => {
+    if (exitGuardInstalledRef.current) return;
+
+    exitGuardInstalledRef.current = true;
+
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const currentState =
+      typeof window.history.state === "object" && window.history.state !== null
+        ? window.history.state
+        : {};
+
+    window.history.replaceState(
+      {
+        ...currentState,
+        htbfVideoExperience: true,
+        sourceContext,
+      },
+      "",
+      currentUrl
+    );
+    window.history.pushState(
+      {
+        htbfVideoExitGuard: true,
+        sourceContext,
+      },
+      "",
+      currentUrl
+    );
+
+    function handleVideoPopState() {
+      if (exitingVideoRef.current) return;
+
+      exitingVideoRef.current = true;
+      window.location.assign(resolvedReturnPath);
+    }
+
+    window.addEventListener("popstate", handleVideoPopState);
+
+    return () => {
+      window.removeEventListener("popstate", handleVideoPopState);
+    };
+  }, [resolvedReturnPath, sourceContext]);
 
   useEffect(() => {
     window.localStorage.setItem(videoViewingModeStorageKey, viewingMode);
@@ -1572,13 +1619,16 @@ export function VideoFeedExperience({
     );
   }
 
-  const resolvedReturnPath =
-    returnPath || (entrySource === "freedom-feed" ? "/feed" : "/search");
   const resolvedReturnLabel =
     returnLabel ??
-    (entrySource === "freedom-feed" ? "Back to Freedom Feed" : copy.backToSearch);
+    (entrySource === "freedom-feed"
+      ? "Back to Freedom Feed"
+      : copy.backToSearch);
 
   function exitVideoExperience() {
+    if (exitingVideoRef.current) return;
+
+    exitingVideoRef.current = true;
     window.location.assign(resolvedReturnPath);
   }
 
