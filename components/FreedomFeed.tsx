@@ -214,56 +214,40 @@ function readFreedomFeedReturnState() {
   }
 }
 
-function restoreFreedomFeedReturnPosition({
-  clearAfterRestore = true,
-  maxAttempts = 7,
-}: {
-  clearAfterRestore?: boolean;
-  maxAttempts?: number;
-} = {}) {
+function restoreFreedomFeedReturnPosition(
+  savedState?: FreedomFeedReturnState | null,
+  {
+    clearAfterRestore = true,
+  }: {
+    clearAfterRestore?: boolean;
+  } = {}
+) {
   if (typeof window === "undefined") return;
 
-  const state = readFreedomFeedReturnState();
+  const state = savedState ?? readFreedomFeedReturnState();
 
   if (!state) return;
 
-  let attempt = 0;
+  window.scrollTo(0, Math.max(0, state.scrollY));
 
-  function runRestoreAttempt() {
-    attempt += 1;
-
+  window.requestAnimationFrame(() => {
     const storyElement = state.anchorId
       ? document.getElementById(state.anchorId)
       : getFreedomFeedStoryElement(state.storyId);
 
     if (storyElement) {
-      const nextTop =
-        window.scrollY +
-        storyElement.getBoundingClientRect().top -
-        state.storyViewportTop;
+      const currentViewportTop = storyElement.getBoundingClientRect().top;
+      const topDifference = currentViewportTop - state.storyViewportTop;
 
-      window.scrollTo({
-        top: Math.max(0, nextTop),
-        behavior: "auto",
-      });
-    } else {
-      window.scrollTo({
-        top: Math.max(0, state.scrollY),
-        behavior: "auto",
-      });
-    }
-
-    if (attempt < maxAttempts) {
-      window.setTimeout(runRestoreAttempt, attempt === 1 ? 80 : 140);
-      return;
+      if (Math.abs(topDifference) > 12) {
+        window.scrollTo(0, Math.max(0, window.scrollY + topDifference));
+      }
     }
 
     if (clearAfterRestore) {
       window.sessionStorage.removeItem(FREEDOM_FEED_RETURN_STATE_KEY);
     }
-  }
-
-  window.requestAnimationFrame(runRestoreAttempt);
+  });
 }
 
 function pauseOtherFreedomFeedPreviewVideos(currentVideo: HTMLVideoElement) {
@@ -315,6 +299,9 @@ export default function FreedomFeed({
   const [sendingReport, setSendingReport] = useState(false);
   const [savedStoryIds, setSavedStoryIds] = useState<string[]>([]);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [isRestoringFeedPosition, setIsRestoringFeedPosition] = useState(
+    () => Boolean(readFreedomFeedReturnState())
+  );
   const currentUserIdRef = useRef<string | null>(null);
   const feedReloadInFlightRef = useRef(false);
   const feedReloadQueuedRef = useRef(false);
@@ -945,18 +932,22 @@ export default function FreedomFeed({
 
     const returnState = readFreedomFeedReturnState();
 
-    if (!returnState) return;
-
-    const savedStoryIsVisible =
-      Boolean(returnState.anchorId) ||
-      filteredStories.some((story) => story.id === returnState.storyId);
-
-    if (!savedStoryIsVisible) return;
+    if (!returnState) {
+      setIsRestoringFeedPosition(false);
+      return;
+    }
 
     restoredReturnPositionRef.current = true;
-    restoreFreedomFeedReturnPosition({
-      clearAfterRestore: true,
-      maxAttempts: 8,
+    setIsRestoringFeedPosition(true);
+
+    window.requestAnimationFrame(() => {
+      restoreFreedomFeedReturnPosition(returnState, {
+        clearAfterRestore: true,
+      });
+
+      window.requestAnimationFrame(() => {
+        setIsRestoringFeedPosition(false);
+      });
     });
   }, [filteredStories]);
 
@@ -1620,7 +1611,10 @@ export default function FreedomFeed({
   return (
     <section
       id="stories"
-      className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10"
+      aria-busy={isRestoringFeedPosition}
+      className={`mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10 ${
+        isRestoringFeedPosition ? "pointer-events-none opacity-0" : "opacity-100"
+      }`}
     >
       <div className="mx-auto max-w-3xl">
         {!lockedFilter && (
