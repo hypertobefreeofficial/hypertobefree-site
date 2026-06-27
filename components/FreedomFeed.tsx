@@ -1459,12 +1459,6 @@ export default function FreedomFeed({
                             {story.name || "HTBF Community"}
                           </div>
 
-                          <span className="text-sm text-slate-400">•</span>
-
-                          <span className="max-w-full break-words rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
-                            {story.story_type || "Story"}
-                          </span>
-
                           {prayerStory && prayerAnswered && (
                             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700">
                               Answered
@@ -1492,7 +1486,7 @@ export default function FreedomFeed({
                           <img
                             src={story.signed_image_url}
                             alt={story.story_type || "HTBF photo story"}
-                            className="block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
+                            className="pointer-events-none block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
                           />
 
                           <StoryMediaStamp stamp={story.video_template} />
@@ -1516,7 +1510,6 @@ export default function FreedomFeed({
                     {showCreationTemplateCard && creationTemplate && (
                       <CreationTemplateStoryCard
                         onOpen={() => openStoryDetail(story)}
-                        storyType={story.story_type}
                         template={creationTemplate}
                         text={story.story_text}
                       />
@@ -1557,7 +1550,7 @@ export default function FreedomFeed({
                         )}
                       </FreedomFeedVideoMediaFrame>
 
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                         <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
                           Watch in Video Feed
                         </span>
@@ -1816,7 +1809,7 @@ export default function FreedomFeed({
                 className="fixed inset-0 z-[90] overflow-y-auto bg-black/70 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm"
                 role="dialog"
                 aria-modal="true"
-                aria-label="Story detail"
+                aria-label="Post detail"
               >
                 <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-white text-slate-900 shadow-2xl">
                   <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
@@ -1825,7 +1818,7 @@ export default function FreedomFeed({
                         {storyDetailStory.name || "HTBF Community"}
                       </div>
                       <div className="mt-0.5 truncate text-xs font-bold text-slate-500">
-                        {storyDetailStory.story_type || "Story"}
+                        {storyDetailStory.location || "Location not shared"}
                       </div>
                     </div>
 
@@ -1854,15 +1847,7 @@ export default function FreedomFeed({
 
                           <div className="relative z-10 flex min-h-[29rem] flex-col justify-between sm:min-h-[34rem]">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="flex flex-wrap gap-2">
-                                <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white ring-1 ring-white/20 backdrop-blur-sm">
-                                  {detailTemplate.label}
-                                </span>
-                                <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-blue-50 ring-1 ring-white/15 backdrop-blur-sm">
-                                  {storyDetailStory.story_type || "Story"}
-                                </span>
-                              </div>
-
+                              <div />
                               <img
                                 src="/images/htbf-logo.png"
                                 alt=""
@@ -2045,17 +2030,13 @@ export default function FreedomFeed({
                   </div>
 
                   <h3 className="mt-2 text-2xl font-black text-[#062a57]">
-                    Story Details
+                    Post Details
                   </h3>
 
                   <div className="mt-4 grid gap-3 text-sm">
                     <DetailRow
                       label="Author"
                       value={photoDetailsStory.name || "HTBF Community"}
-                    />
-                    <DetailRow
-                      label="Story Type"
-                      value={photoDetailsStory.story_type || "Photo Story"}
                     />
                     <DetailRow
                       label="Location"
@@ -2167,7 +2148,7 @@ export default function FreedomFeed({
 
                   <PhotoActionButton
                     icon={<Info className="h-5 w-5" />}
-                    label="View Story Details"
+                    label="View Post Details"
                     onClick={() => openPhotoDetails(photoViewerStory)}
                   />
                   {isPrayerStory(photoViewerStory) && (
@@ -2383,7 +2364,7 @@ function CollapsibleStoryText({
 
           {isLong && (
             <span className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-              Open full story
+              Open full post
             </span>
           )}
         </button>
@@ -2418,12 +2399,10 @@ function CollapsibleStoryText({
 
 function CreationTemplateStoryCard({
   onOpen,
-  storyType,
   template,
   text,
 }: {
   onOpen: () => void;
-  storyType: string | null;
   template: CreationTemplateMetadata;
   text: string | null;
 }) {
@@ -2439,7 +2418,7 @@ function CreationTemplateStoryCard({
       type="button"
       onClick={onOpen}
       className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#062a57] text-left shadow-sm ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
-      aria-label={`Open ${storyType || "story"}`}
+      aria-label="Open post"
     >
       <div className="relative min-h-[22rem] overflow-hidden p-5 text-white sm:min-h-[25rem] sm:p-6">
         <img
@@ -2453,15 +2432,7 @@ function CreationTemplateStoryCard({
 
         <div className="relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white ring-1 ring-white/20 backdrop-blur-sm">
-                {template.label}
-              </span>
-              <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-blue-50 ring-1 ring-white/15 backdrop-blur-sm">
-                {storyType || "Story"}
-              </span>
-            </div>
-
+            <div />
             <img
               src="/images/htbf-logo.png"
               alt=""
@@ -2483,7 +2454,7 @@ function CreationTemplateStoryCard({
 
             {isLong && (
               <span className="mt-4 inline-flex rounded-full bg-white/90 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-white/50 backdrop-blur-sm">
-                Open full story
+                Open full post
               </span>
             )}
           </div>
