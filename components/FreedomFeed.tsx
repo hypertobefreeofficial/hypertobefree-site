@@ -183,6 +183,8 @@ export default function FreedomFeed({
   const [photoCaptionHidden, setPhotoCaptionHidden] = useState(false);
   const [photoDetailsStory, setPhotoDetailsStory] =
     useState<ApprovedStory | null>(null);
+  const [storyDetailStory, setStoryDetailStory] =
+    useState<ApprovedStory | null>(null);
   const [reportStory, setReportStory] = useState<ApprovedStory | null>(null);
   const [reportReason, setReportReason] =
     useState<ReportReason>("inappropriate");
@@ -1023,6 +1025,7 @@ export default function FreedomFeed({
     if (!story.signed_image_url) return;
 
     setPhotoViewerStory(story);
+    setStoryDetailStory(null);
     setPhotoActionSheetOpen(false);
     setPhotoViewerMessage("");
     setPhotoCaptionExpanded(false);
@@ -1048,6 +1051,30 @@ export default function FreedomFeed({
 
   function openVideoStory(storyId: string) {
     window.location.href = `/video-feed?story=${encodeURIComponent(storyId)}`;
+  }
+
+  function openStoryDetail(story: ApprovedStory) {
+    if (story.signed_video_url || story.video_url) {
+      openVideoStory(story.id);
+      return;
+    }
+
+    if (story.signed_image_url) {
+      openPhotoViewer(story);
+      return;
+    }
+
+    setStoryDetailStory(story);
+    setPhotoViewerStory(null);
+    setPhotoActionSheetOpen(false);
+    setPhotoDetailsStory(null);
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
+  }
+
+  function closeStoryDetail() {
+    setStoryDetailStory(null);
   }
 
   async function copyPhotoLink(story: ApprovedStory) {
@@ -1457,9 +1484,9 @@ export default function FreedomFeed({
                     {story.signed_image_url && (
                       <button
                         type="button"
-                        onClick={() => openPhotoViewer(story)}
-                        className="mt-4 block w-full max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                        aria-label="Open photo"
+                        onClick={() => openStoryDetail(story)}
+                        className="mt-4 block w-full max-w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        aria-label="Open story photo"
                       >
                         <div className="relative overflow-hidden rounded-[1.5rem]">
                           <img
@@ -1488,6 +1515,7 @@ export default function FreedomFeed({
 
                     {showCreationTemplateCard && creationTemplate && (
                       <CreationTemplateStoryCard
+                        onOpen={() => openStoryDetail(story)}
                         storyType={story.story_type}
                         template={creationTemplate}
                         text={story.story_text}
@@ -1495,15 +1523,18 @@ export default function FreedomFeed({
                     )}
 
                     {showInlineStoryText && (
-                      <CollapsibleStoryText text={story.story_text} />
+                      <CollapsibleStoryText
+                        onOpen={() => openStoryDetail(story)}
+                        text={story.story_text}
+                      />
                     )}
                   </div>
 
                   {story.signed_video_url && (
                     <button
                       type="button"
-                      onClick={() => openVideoStory(story.id)}
-                      className="relative flex aspect-[4/5] max-h-[60vh] w-full items-center justify-center overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
+                      onClick={() => openStoryDetail(story)}
+                      className="relative flex aspect-[4/5] max-h-[60vh] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
                       aria-label="Open video in Video Feed"
                     >
                       <FreedomFeedVideoMediaFrame
@@ -1537,8 +1568,8 @@ export default function FreedomFeed({
                   {!story.signed_video_url && story.video_url && (
                     <button
                       type="button"
-                      onClick={() => openVideoStory(story.id)}
-                      className="mx-5 mb-5 flex h-48 w-[calc(100%-2.5rem)] items-center justify-center rounded-[1.5rem] border border-blue-100 bg-blue-50 p-4 text-center text-sm font-bold text-[#082f63] transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      onClick={() => openStoryDetail(story)}
+                      className="mx-5 mb-5 flex h-48 w-[calc(100%-2.5rem)] cursor-pointer items-center justify-center rounded-[1.5rem] border border-blue-100 bg-blue-50 p-4 text-center text-sm font-bold text-[#082f63] transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
                     >
                       Video found, but the secure video link could not be
                       created. Tap to open in Video Feed.
@@ -1772,6 +1803,125 @@ export default function FreedomFeed({
             })
           )}
         </div>
+
+        {storyDetailStory &&
+          (() => {
+            const detailTemplate = getCreationTemplateMetadata(
+              storyDetailStory.ai_suggestions
+            );
+            const detailText = storyDetailStory.story_text?.trim() ?? "";
+
+            return (
+              <div
+                className="fixed inset-0 z-[90] overflow-y-auto bg-black/70 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Story detail"
+              >
+                <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-white text-slate-900 shadow-2xl">
+                  <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-[#062a57]">
+                        {storyDetailStory.name || "HTBF Community"}
+                      </div>
+                      <div className="mt-0.5 truncate text-xs font-bold text-slate-500">
+                        {storyDetailStory.story_type || "Story"}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={closeStoryDetail}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
+                      aria-label="Close story detail"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="p-4 sm:p-5">
+                    {detailTemplate ? (
+                      <div className="overflow-hidden rounded-[1.5rem] bg-[#062a57] ring-1 ring-blue-100">
+                        <div className="relative min-h-[32rem] overflow-hidden p-5 text-white sm:min-h-[38rem] sm:p-7">
+                          <img
+                            src={detailTemplate.imagePath}
+                            alt=""
+                            loading="lazy"
+                            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                          />
+                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/45 to-black/20" />
+                          <div className="pointer-events-none absolute inset-0 bg-[#0b63ce]/10" />
+
+                          <div className="relative z-10 flex min-h-[29rem] flex-col justify-between sm:min-h-[34rem]">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex flex-wrap gap-2">
+                                <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white ring-1 ring-white/20 backdrop-blur-sm">
+                                  {detailTemplate.label}
+                                </span>
+                                <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-blue-50 ring-1 ring-white/15 backdrop-blur-sm">
+                                  {storyDetailStory.story_type || "Story"}
+                                </span>
+                              </div>
+
+                              <img
+                                src="/images/htbf-logo.png"
+                                alt=""
+                                loading="lazy"
+                                className="pointer-events-none h-10 w-10 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
+                              />
+                            </div>
+
+                            <p
+                              className="mt-10 whitespace-pre-wrap break-words text-2xl font-black leading-9 text-white drop-shadow-sm sm:text-3xl sm:leading-10"
+                              style={{
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {detailText}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="max-w-full whitespace-pre-wrap break-words rounded-[1.5rem] bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-1 ring-slate-200"
+                        style={{
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {detailText}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => shareStory(storyDetailStory)}
+                        className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-100"
+                      >
+                        <Share2 className="h-4 w-4" />
+                        Share
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReportStory(storyDetailStory);
+                          closeStoryDetail();
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
+                      >
+                        <Flag className="h-4 w-4" />
+                        Report
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
         {photoViewerStory?.signed_image_url && (
           <div className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white">
@@ -2196,9 +2346,11 @@ function ReactionButton({
 
 function CollapsibleStoryText({
   className = "mt-4",
+  onOpen,
   text,
 }: {
   className?: string;
+  onOpen?: () => void;
   text: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -2209,6 +2361,35 @@ function CollapsibleStoryText({
   const isLong = cleanText.length > 180;
   const visibleText =
     !isLong || expanded ? cleanText : `${cleanText.slice(0, 180).trim()}...`;
+
+  if (onOpen) {
+    return (
+      <div className={className}>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="block w-full cursor-pointer rounded-[1.25rem] bg-slate-50 p-4 text-left ring-1 ring-slate-200 transition hover:bg-blue-50 hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+          aria-label="Open story"
+        >
+          <p
+            className="max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
+            style={{
+              overflowWrap: "anywhere",
+              wordBreak: "break-word",
+            }}
+          >
+            {visibleText}
+          </p>
+
+          {isLong && (
+            <span className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
+              Open full story
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={className}>
@@ -2236,34 +2417,39 @@ function CollapsibleStoryText({
 }
 
 function CreationTemplateStoryCard({
+  onOpen,
   storyType,
   template,
   text,
 }: {
+  onOpen: () => void;
   storyType: string | null;
   template: CreationTemplateMetadata;
   text: string | null;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const cleanText = text?.trim();
 
   if (!cleanText) return null;
 
   const isLong = cleanText.length > 260;
-  const visibleText =
-    !isLong || expanded ? cleanText : `${cleanText.slice(0, 260).trim()}...`;
+  const visibleText = isLong ? `${cleanText.slice(0, 260).trim()}...` : cleanText;
 
   return (
-    <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-[#062a57] shadow-sm ring-1 ring-blue-100">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#062a57] text-left shadow-sm ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+      aria-label={`Open ${storyType || "story"}`}
+    >
       <div className="relative min-h-[22rem] overflow-hidden p-5 text-white sm:min-h-[25rem] sm:p-6">
         <img
           src={template.imagePath}
           alt=""
           loading="lazy"
-          className="absolute inset-0 h-full w-full object-cover"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/50 to-black/20" />
-        <div className="absolute inset-0 bg-[#0b63ce]/10" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/50 to-black/20" />
+        <div className="pointer-events-none absolute inset-0 bg-[#0b63ce]/10" />
 
         <div className="relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]">
           <div className="flex items-start justify-between gap-3">
@@ -2280,7 +2466,7 @@ function CreationTemplateStoryCard({
               src="/images/htbf-logo.png"
               alt=""
               loading="lazy"
-              className="h-9 w-9 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
+              className="pointer-events-none h-9 w-9 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
             />
           </div>
 
@@ -2296,18 +2482,14 @@ function CreationTemplateStoryCard({
             </p>
 
             {isLong && (
-              <button
-                type="button"
-                onClick={() => setExpanded((current) => !current)}
-                className="mt-4 rounded-full bg-white/90 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-white/50 backdrop-blur-sm"
-              >
-                {expanded ? "See less" : "See more"}
-              </button>
+              <span className="mt-4 inline-flex rounded-full bg-white/90 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-white/50 backdrop-blur-sm">
+                Open full story
+              </span>
             )}
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
