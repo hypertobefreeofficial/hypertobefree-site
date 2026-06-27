@@ -22,6 +22,10 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import {
+  creationCenterStoryTemplates,
+  type CreationCenterTemplateId,
+} from "../lib/creationCenter";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
 
@@ -132,6 +136,7 @@ type ApprovedStory = {
   prayer_status: string | null;
   answered_at: string | null;
   answered_text: string | null;
+  ai_suggestions: unknown | null;
   reaction_counts: {
     amen: number;
     praise_god: number;
@@ -139,6 +144,12 @@ type ApprovedStory = {
     praying: number;
   };
   user_reactions: ReactionType[];
+};
+
+type CreationTemplateMetadata = {
+  id: CreationCenterTemplateId;
+  label: string;
+  imagePath: string;
 };
 
 const STORY_IMAGE_BUCKET = "story-images";
@@ -171,6 +182,8 @@ export default function FreedomFeed({
   const [photoCaptionExpanded, setPhotoCaptionExpanded] = useState(false);
   const [photoCaptionHidden, setPhotoCaptionHidden] = useState(false);
   const [photoDetailsStory, setPhotoDetailsStory] =
+    useState<ApprovedStory | null>(null);
+  const [storyDetailStory, setStoryDetailStory] =
     useState<ApprovedStory | null>(null);
   const [reportStory, setReportStory] = useState<ApprovedStory | null>(null);
   const [reportReason, setReportReason] =
@@ -481,6 +494,40 @@ export default function FreedomFeed({
     return null;
   }
 
+  function readString(value: unknown) {
+    return typeof value === "string" ? value : null;
+  }
+
+  function readRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  function getCreationTemplateMetadata(
+    value: unknown
+  ): CreationTemplateMetadata | null {
+    const metadata = readRecord(value);
+    const selectedTemplate = readRecord(metadata?.selectedTemplate);
+    const templateId = readString(selectedTemplate?.id);
+
+    if (!templateId || templateId === "none") return null;
+
+    const template = creationCenterStoryTemplates.find(
+      (item) => item.id === templateId
+    );
+
+    if (!template?.imagePath) return null;
+
+    return {
+      id: template.id,
+      label: readString(selectedTemplate?.label) ?? template.label,
+      imagePath: template.imagePath,
+    };
+  }
+
   async function loadAccountSafety(currentUserId: string) {
     const [savedResult, blockedResult] = await Promise.all([
       supabase
@@ -534,7 +581,7 @@ export default function FreedomFeed({
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text, ai_suggestions"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -653,6 +700,7 @@ export default function FreedomFeed({
           prayer_status: story.prayer_status ?? "active",
           answered_at: story.answered_at,
           answered_text: story.answered_text,
+          ai_suggestions: story.ai_suggestions ?? null,
           reaction_counts: {
             amen: storyReactions.filter(
               (reaction) => reaction.reaction_type === "amen"
@@ -977,6 +1025,7 @@ export default function FreedomFeed({
     if (!story.signed_image_url) return;
 
     setPhotoViewerStory(story);
+    setStoryDetailStory(null);
     setPhotoActionSheetOpen(false);
     setPhotoViewerMessage("");
     setPhotoCaptionExpanded(false);
@@ -1002,6 +1051,30 @@ export default function FreedomFeed({
 
   function openVideoStory(storyId: string) {
     window.location.href = `/video-feed?story=${encodeURIComponent(storyId)}`;
+  }
+
+  function openStoryDetail(story: ApprovedStory) {
+    if (story.signed_video_url || story.video_url) {
+      openVideoStory(story.id);
+      return;
+    }
+
+    if (story.signed_image_url) {
+      openPhotoViewer(story);
+      return;
+    }
+
+    setStoryDetailStory(story);
+    setPhotoViewerStory(null);
+    setPhotoActionSheetOpen(false);
+    setPhotoDetailsStory(null);
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
+  }
+
+  function closeStoryDetail() {
+    setStoryDetailStory(null);
   }
 
   async function copyPhotoLink(story: ApprovedStory) {
@@ -1352,8 +1425,18 @@ export default function FreedomFeed({
               );
               const hasImageMedia = Boolean(story.signed_image_url);
               const overlayText = story.overlay_text?.trim() ?? "";
+              const creationTemplate = getCreationTemplateMetadata(
+                story.ai_suggestions
+              );
+              const showCreationTemplateCard = Boolean(
+                creationTemplate &&
+                  story.story_text &&
+                  !hasVideoMedia &&
+                  !hasImageMedia
+              );
               const showInlineStoryText =
                 Boolean(story.story_text) &&
+                !showCreationTemplateCard &&
                 !hasVideoMedia &&
                 (!hasImageMedia || captionStyle === "classic-caption");
               const showVideoCaptionText =
@@ -1376,12 +1459,6 @@ export default function FreedomFeed({
                             {story.name || "HTBF Community"}
                           </div>
 
-                          <span className="text-sm text-slate-400">•</span>
-
-                          <span className="max-w-full break-words rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-[#0b63ce]">
-                            {story.story_type || "Story"}
-                          </span>
-
                           {prayerStory && prayerAnswered && (
                             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700">
                               Answered
@@ -1401,15 +1478,15 @@ export default function FreedomFeed({
                     {story.signed_image_url && (
                       <button
                         type="button"
-                        onClick={() => openPhotoViewer(story)}
-                        className="mt-4 block w-full max-w-full overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                        aria-label="Open photo"
+                        onClick={() => openStoryDetail(story)}
+                        className="mt-4 block w-full max-w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        aria-label="Open story photo"
                       >
                         <div className="relative overflow-hidden rounded-[1.5rem]">
                           <img
                             src={story.signed_image_url}
                             alt={story.story_type || "HTBF photo story"}
-                            className="block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
+                            className="pointer-events-none block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
                           />
 
                           <StoryMediaStamp stamp={story.video_template} />
@@ -1430,16 +1507,27 @@ export default function FreedomFeed({
                       </button>
                     )}
 
+                    {showCreationTemplateCard && creationTemplate && (
+                      <CreationTemplateStoryCard
+                        onOpen={() => openStoryDetail(story)}
+                        template={creationTemplate}
+                        text={story.story_text}
+                      />
+                    )}
+
                     {showInlineStoryText && (
-                      <CollapsibleStoryText text={story.story_text} />
+                      <CollapsibleStoryText
+                        onOpen={() => openStoryDetail(story)}
+                        text={story.story_text}
+                      />
                     )}
                   </div>
 
                   {story.signed_video_url && (
                     <button
                       type="button"
-                      onClick={() => openVideoStory(story.id)}
-                      className="relative flex aspect-[4/5] max-h-[60vh] w-full items-center justify-center overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
+                      onClick={() => openStoryDetail(story)}
+                      className="relative flex aspect-[4/5] max-h-[60vh] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
                       aria-label="Open video in Video Feed"
                     >
                       <FreedomFeedVideoMediaFrame
@@ -1462,7 +1550,7 @@ export default function FreedomFeed({
                         )}
                       </FreedomFeedVideoMediaFrame>
 
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                         <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
                           Watch in Video Feed
                         </span>
@@ -1473,8 +1561,8 @@ export default function FreedomFeed({
                   {!story.signed_video_url && story.video_url && (
                     <button
                       type="button"
-                      onClick={() => openVideoStory(story.id)}
-                      className="mx-5 mb-5 flex h-48 w-[calc(100%-2.5rem)] items-center justify-center rounded-[1.5rem] border border-blue-100 bg-blue-50 p-4 text-center text-sm font-bold text-[#082f63] transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      onClick={() => openStoryDetail(story)}
+                      className="mx-5 mb-5 flex h-48 w-[calc(100%-2.5rem)] cursor-pointer items-center justify-center rounded-[1.5rem] border border-blue-100 bg-blue-50 p-4 text-center text-sm font-bold text-[#082f63] transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
                     >
                       Video found, but the secure video link could not be
                       created. Tap to open in Video Feed.
@@ -1709,6 +1797,117 @@ export default function FreedomFeed({
           )}
         </div>
 
+        {storyDetailStory &&
+          (() => {
+            const detailTemplate = getCreationTemplateMetadata(
+              storyDetailStory.ai_suggestions
+            );
+            const detailText = storyDetailStory.story_text?.trim() ?? "";
+
+            return (
+              <div
+                className="fixed inset-0 z-[90] overflow-y-auto bg-black/70 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Post detail"
+              >
+                <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-white text-slate-900 shadow-2xl">
+                  <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-[#062a57]">
+                        {storyDetailStory.name || "HTBF Community"}
+                      </div>
+                      <div className="mt-0.5 truncate text-xs font-bold text-slate-500">
+                        {storyDetailStory.location || "Location not shared"}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={closeStoryDetail}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
+                      aria-label="Close story detail"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="p-4 sm:p-5">
+                    {detailTemplate ? (
+                      <div className="overflow-hidden rounded-[1.5rem] bg-[#062a57] ring-1 ring-blue-100">
+                        <div className="relative min-h-[32rem] overflow-hidden p-5 text-white sm:min-h-[38rem] sm:p-7">
+                          <img
+                            src={detailTemplate.imagePath}
+                            alt=""
+                            loading="lazy"
+                            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                          />
+                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/45 to-black/20" />
+                          <div className="pointer-events-none absolute inset-0 bg-[#0b63ce]/10" />
+
+                          <div className="relative z-10 flex min-h-[29rem] flex-col justify-between sm:min-h-[34rem]">
+                            <div className="flex items-start justify-between gap-3">
+                              <div />
+                              <img
+                                src="/images/htbf-logo.png"
+                                alt=""
+                                loading="lazy"
+                                className="pointer-events-none h-10 w-10 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
+                              />
+                            </div>
+
+                            <p
+                              className="mt-10 whitespace-pre-wrap break-words text-2xl font-black leading-9 text-white drop-shadow-sm sm:text-3xl sm:leading-10"
+                              style={{
+                                overflowWrap: "anywhere",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {detailText}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="max-w-full whitespace-pre-wrap break-words rounded-[1.5rem] bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-1 ring-slate-200"
+                        style={{
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {detailText}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => shareStory(storyDetailStory)}
+                        className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-100"
+                      >
+                        <Share2 className="h-4 w-4" />
+                        Share
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReportStory(storyDetailStory);
+                          closeStoryDetail();
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
+                      >
+                        <Flag className="h-4 w-4" />
+                        Report
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
         {photoViewerStory?.signed_image_url && (
           <div className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white">
             <div className="fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex items-center justify-between">
@@ -1831,17 +2030,13 @@ export default function FreedomFeed({
                   </div>
 
                   <h3 className="mt-2 text-2xl font-black text-[#062a57]">
-                    Story Details
+                    Post Details
                   </h3>
 
                   <div className="mt-4 grid gap-3 text-sm">
                     <DetailRow
                       label="Author"
                       value={photoDetailsStory.name || "HTBF Community"}
-                    />
-                    <DetailRow
-                      label="Story Type"
-                      value={photoDetailsStory.story_type || "Photo Story"}
                     />
                     <DetailRow
                       label="Location"
@@ -1953,7 +2148,7 @@ export default function FreedomFeed({
 
                   <PhotoActionButton
                     icon={<Info className="h-5 w-5" />}
-                    label="View Story Details"
+                    label="View Post Details"
                     onClick={() => openPhotoDetails(photoViewerStory)}
                   />
                   {isPrayerStory(photoViewerStory) && (
@@ -2132,9 +2327,11 @@ function ReactionButton({
 
 function CollapsibleStoryText({
   className = "mt-4",
+  onOpen,
   text,
 }: {
   className?: string;
+  onOpen?: () => void;
   text: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -2145,6 +2342,35 @@ function CollapsibleStoryText({
   const isLong = cleanText.length > 180;
   const visibleText =
     !isLong || expanded ? cleanText : `${cleanText.slice(0, 180).trim()}...`;
+
+  if (onOpen) {
+    return (
+      <div className={className}>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="block w-full cursor-pointer rounded-[1.25rem] bg-slate-50 p-4 text-left ring-1 ring-slate-200 transition hover:bg-blue-50 hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+          aria-label="Open story"
+        >
+          <p
+            className="max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
+            style={{
+              overflowWrap: "anywhere",
+              wordBreak: "break-word",
+            }}
+          >
+            {visibleText}
+          </p>
+
+          {isLong && (
+            <span className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
+              Open full post
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={className}>
@@ -2168,6 +2394,73 @@ function CollapsibleStoryText({
         </button>
       )}
     </div>
+  );
+}
+
+function CreationTemplateStoryCard({
+  onOpen,
+  template,
+  text,
+}: {
+  onOpen: () => void;
+  template: CreationTemplateMetadata;
+  text: string | null;
+}) {
+  const cleanText = text?.trim();
+
+  if (!cleanText) return null;
+
+  const isLong = cleanText.length > 260;
+  const visibleText = isLong ? `${cleanText.slice(0, 260).trim()}...` : cleanText;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#062a57] text-left shadow-sm ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+      aria-label="Open post"
+    >
+      <div className="relative min-h-[22rem] overflow-hidden p-5 text-white sm:min-h-[25rem] sm:p-6">
+        <img
+          src={template.imagePath}
+          alt=""
+          loading="lazy"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/50 to-black/20" />
+        <div className="pointer-events-none absolute inset-0 bg-[#0b63ce]/10" />
+
+        <div className="relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]">
+          <div className="flex items-start justify-between gap-3">
+            <div />
+            <img
+              src="/images/htbf-logo.png"
+              alt=""
+              loading="lazy"
+              className="pointer-events-none h-9 w-9 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
+            />
+          </div>
+
+          <div className="mt-8">
+            <p
+              className="whitespace-pre-wrap break-words text-xl font-black leading-8 text-white drop-shadow-sm sm:text-2xl sm:leading-9"
+              style={{
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+              }}
+            >
+              {visibleText}
+            </p>
+
+            {isLong && (
+              <span className="mt-4 inline-flex rounded-full bg-white/90 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-white/50 backdrop-blur-sm">
+                Open full post
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -2221,7 +2514,7 @@ function FreedomFeedVideoMediaFrame({
   stamp,
   videoUrl,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   stamp: VideoTemplate;
   videoUrl: string;
 }) {
