@@ -1,5 +1,12 @@
-import VideoFeedPage from "../video-feed/page";
+import { VideoFeedExperience } from "../video-feed/page";
 
 export default function VideosPage() {
-  return <VideoFeedPage />;
+  return (
+    <VideoFeedExperience
+      returnLabel="Back to Freedom Feed"
+      returnPath="/feed"
+      sourceContext="freedom-feed"
+      videosPath="/videos"
+    />
+  );
 }
