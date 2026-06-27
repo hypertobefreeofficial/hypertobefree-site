@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type * as React from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type TouchEvent,
+} from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -1790,14 +1798,16 @@ export default function FreedomFeed({
 
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-20 sm:px-6">
               <div className="w-full max-w-2xl">
-                <ComposedFeedPostVisual
-                  captionStyle={photoViewerStory.caption_style}
-                  story={photoViewerStory}
-                  template={getCreationTemplateMetadata(
-                    photoViewerStory.ai_suggestions
-                  )}
-                  variant="detail"
-                />
+                <PinchZoomResetFrame>
+                  <ComposedFeedPostVisual
+                    captionStyle={photoViewerStory.caption_style}
+                    story={photoViewerStory}
+                    template={getCreationTemplateMetadata(
+                      photoViewerStory.ai_suggestions
+                    )}
+                    variant="detail"
+                  />
+                </PinchZoomResetFrame>
               </div>
             </div>
 
@@ -2386,6 +2396,135 @@ function ComposedFeedPostVisual({
       }}
     >
       {cleanText || "HTBF post"}
+    </div>
+  );
+}
+
+function PinchZoomResetFrame({ children }: { children?: ReactNode }) {
+  const [scale, setScale] = useState(1);
+  const [origin, setOrigin] = useState("50% 50%");
+  const [settling, setSettling] = useState(false);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const initialDistanceRef = useRef<number | null>(null);
+  const settlingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function getTouchDistance(touches: React.TouchList) {
+    if (touches.length < 2) return 0;
+
+    const firstTouch = touches[0];
+    const secondTouch = touches[1];
+    const dx = firstTouch.clientX - secondTouch.clientX;
+    const dy = firstTouch.clientY - secondTouch.clientY;
+
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function updateTransformOrigin(touches: React.TouchList) {
+    const frame = frameRef.current;
+
+    if (!frame || touches.length < 2) return;
+
+    const firstTouch = touches[0];
+    const secondTouch = touches[1];
+
+    const frameBounds = frame.getBoundingClientRect();
+    const centerX =
+      ((firstTouch.clientX + secondTouch.clientX) / 2 - frameBounds.left) /
+      frameBounds.width;
+    const centerY =
+      ((firstTouch.clientY + secondTouch.clientY) / 2 - frameBounds.top) /
+      frameBounds.height;
+
+    setOrigin(
+      `${Math.min(100, Math.max(0, centerX * 100))}% ${Math.min(
+        100,
+        Math.max(0, centerY * 100)
+      )}%`
+    );
+  }
+
+  function resetZoom() {
+    initialDistanceRef.current = null;
+    setSettling(true);
+    setScale(1);
+    setOrigin("50% 50%");
+
+    if (settlingTimeoutRef.current) {
+      clearTimeout(settlingTimeoutRef.current);
+    }
+
+    settlingTimeoutRef.current = setTimeout(() => {
+      setSettling(false);
+      settlingTimeoutRef.current = null;
+    }, 220);
+  }
+
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length < 2) return;
+
+    const distance = getTouchDistance(event.touches);
+
+    if (!distance) return;
+
+    if (settlingTimeoutRef.current) {
+      clearTimeout(settlingTimeoutRef.current);
+      settlingTimeoutRef.current = null;
+    }
+
+    initialDistanceRef.current = distance;
+    setSettling(false);
+    updateTransformOrigin(event.touches);
+  }
+
+  function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length < 2 || !initialDistanceRef.current) return;
+
+    const distance = getTouchDistance(event.touches);
+
+    if (!distance) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    updateTransformOrigin(event.touches);
+    setScale(Math.min(2.6, Math.max(1, distance / initialDistanceRef.current)));
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length < 2 && initialDistanceRef.current) {
+      resetZoom();
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (settlingTimeoutRef.current) {
+        clearTimeout(settlingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      ref={frameRef}
+      className="overflow-visible"
+      onTouchCancel={resetZoom}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
+      onTouchStart={handleTouchStart}
+      style={{
+        touchAction: scale > 1 ? "none" : "pan-y",
+      }}
+    >
+      <div
+        className="will-change-transform"
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: origin,
+          transition: settling ? "transform 220ms ease-out" : "none",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
