@@ -2317,8 +2317,6 @@ function ComposedFeedPostVisual({
           loading="lazy"
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/50 to-black/20" />
-        <div className="pointer-events-none absolute inset-0 bg-[#0b63ce]/10" />
 
         <div className="relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]">
           <div className="flex items-start justify-between gap-3">
