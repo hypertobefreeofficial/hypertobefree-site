@@ -675,10 +675,15 @@ export default function VideoFeedPage() {
       setMessage("");
 
       const params = new URLSearchParams(window.location.search);
+      const isCommunityVideosRoute =
+        window.location.pathname === "/videos" ||
+        window.location.pathname.startsWith("/videos/");
       const source = params.get("source");
       setSelectedStoryId(params.get("story"));
       setEntrySource(
-        source === "freedom-feed" || params.get("from") === "feed"
+        isCommunityVideosRoute ||
+          source === "freedom-feed" ||
+          params.get("from") === "feed"
           ? "feed"
           : "search"
       );
@@ -1796,6 +1801,7 @@ export default function VideoFeedPage() {
       {!beStillMode && (
         <VideoFeedBottomNav
           onNavTap={() => triggerHaptic(hapticsEnabled)}
+          videosHref={entrySource === "feed" ? "/videos" : "/video-feed"}
         />
       )}
 
@@ -3017,8 +3023,10 @@ function VideoCaptionStyleOverlay({
 
 function VideoFeedBottomNav({
   onNavTap,
+  videosHref,
 }: {
   onNavTap: () => void;
+  videosHref: string;
 }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-0 bg-transparent px-3 pb-2 pt-2 shadow-none">
@@ -3026,12 +3034,14 @@ function VideoFeedBottomNav({
         <div className="grid grid-cols-6 gap-1 rounded-[1.5rem] bg-transparent p-1 ring-1 ring-white/10 backdrop-blur-sm">
           {videoFeedBottomNavItems.map((item) => {
             const Icon = item.icon;
-            const active = item.href === "/video-feed";
+            const isVideosItem = item.label === "Videos";
+            const href = isVideosItem ? videosHref : item.href;
+            const active = isVideosItem;
 
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 onClick={onNavTap}
                 className={`flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black transition ${
                   active
