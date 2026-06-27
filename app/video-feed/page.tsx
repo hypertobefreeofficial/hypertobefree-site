@@ -1572,18 +1572,23 @@ export function VideoFeedExperience({
     );
   }
 
-  const returnHref =
-    entrySource === "freedom-feed" ? returnPath || "/feed" : "/search";
+  const resolvedReturnPath =
+    returnPath || (entrySource === "freedom-feed" ? "/feed" : "/search");
   const resolvedReturnLabel =
     returnLabel ??
     (entrySource === "freedom-feed" ? "Back to Freedom Feed" : copy.backToSearch);
+
+  function exitVideoExperience() {
+    window.location.assign(resolvedReturnPath);
+  }
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-black text-white">
       {!beStillMode && (
         <div className="fixed left-4 top-4 z-50">
-          <Link
-            href={returnHref}
+          <button
+            type="button"
+            onClick={exitVideoExperience}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
             aria-label={resolvedReturnLabel}
           >
@@ -1592,7 +1597,7 @@ export function VideoFeedExperience({
             ) : (
               <ArrowLeft className="h-5 w-5" />
             )}
-          </Link>
+          </button>
         </div>
       )}
 
