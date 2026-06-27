@@ -53,7 +53,14 @@ type VideoViewingMode =
   | "prayer_focus"
   | "god_is_moving";
 
-type VideoEntrySource = "search" | "feed";
+type VideoSourceContext = "search" | "freedom-feed";
+
+type VideoFeedExperienceProps = {
+  sourceContext?: VideoSourceContext;
+  returnPath?: string;
+  returnLabel?: string;
+  videosPath?: string;
+};
 type CaptionStyle =
   | "classic-caption"
   | "bold-center"
@@ -593,7 +600,12 @@ function triggerHaptic(enabled: boolean) {
   }
 }
 
-export default function VideoFeedPage() {
+export function VideoFeedExperience({
+  sourceContext = "search",
+  returnPath = "/search",
+  returnLabel,
+  videosPath = "/video-feed",
+}: VideoFeedExperienceProps = {}) {
   const videoFeedScrollerRef = useRef<HTMLElement | null>(null);
   const activeStoryHapticRef = useRef<string | null>(null);
 
@@ -602,7 +614,8 @@ export default function VideoFeedPage() {
   const [stories, setStories] = useState<VideoStory[]>([]);
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-  const [entrySource, setEntrySource] = useState<VideoEntrySource>("search");
+  const [entrySource, setEntrySource] =
+    useState<VideoSourceContext>(sourceContext);
 
   const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -675,18 +688,8 @@ export default function VideoFeedPage() {
       setMessage("");
 
       const params = new URLSearchParams(window.location.search);
-      const isCommunityVideosRoute =
-        window.location.pathname === "/videos" ||
-        window.location.pathname.startsWith("/videos/");
-      const source = params.get("source");
       setSelectedStoryId(params.get("story"));
-      setEntrySource(
-        isCommunityVideosRoute ||
-          source === "freedom-feed" ||
-          params.get("from") === "feed"
-          ? "feed"
-          : "search"
-      );
+      setEntrySource(sourceContext);
 
       const {
         data: { user },
@@ -1511,7 +1514,9 @@ export default function VideoFeedPage() {
   }
 
   async function copyStoryLink(story: VideoStory) {
-    const shareUrl = `${window.location.origin}/video-feed?story=${story.id}&from=share`;
+    const shareUrl = `${window.location.origin}${videosPath}?story=${
+      story.id
+    }&source=${entrySource === "freedom-feed" ? "freedom-feed" : "search"}`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -1536,7 +1541,9 @@ export default function VideoFeedPage() {
       ? `${copy.shareWithTextPrefix}: ${story.story_text.slice(0, 140)}`
       : copy.shareFallback;
 
-    const shareUrl = `${window.location.origin}/video-feed?story=${story.id}&from=share`;
+    const shareUrl = `${window.location.origin}${videosPath}?story=${
+      story.id
+    }&source=${entrySource === "freedom-feed" ? "freedom-feed" : "search"}`;
 
     try {
       if (navigator.share) {
@@ -1565,9 +1572,11 @@ export default function VideoFeedPage() {
     );
   }
 
-  const returnHref = entrySource === "feed" ? "/feed" : "/search";
-  const returnLabel =
-    entrySource === "feed" ? "Back to Freedom Feed" : copy.backToSearch;
+  const returnHref =
+    entrySource === "freedom-feed" ? returnPath || "/feed" : "/search";
+  const resolvedReturnLabel =
+    returnLabel ??
+    (entrySource === "freedom-feed" ? "Back to Freedom Feed" : copy.backToSearch);
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-black text-white">
@@ -1576,9 +1585,13 @@ export default function VideoFeedPage() {
           <Link
             href={returnHref}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
-            aria-label={returnLabel}
+            aria-label={resolvedReturnLabel}
           >
-            <ArrowLeft className="h-5 w-5" />
+            {entrySource === "freedom-feed" ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <ArrowLeft className="h-5 w-5" />
+            )}
           </Link>
         </div>
       )}
@@ -1801,7 +1814,7 @@ export default function VideoFeedPage() {
       {!beStillMode && (
         <VideoFeedBottomNav
           onNavTap={() => triggerHaptic(hapticsEnabled)}
-          videosHref={entrySource === "feed" ? "/videos" : "/video-feed"}
+          videosHref={videosPath}
         />
       )}
 
@@ -1984,6 +1997,16 @@ export default function VideoFeedPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function VideoFeedPage() {
+  return (
+    <VideoFeedExperience
+      returnPath="/search"
+      sourceContext="search"
+      videosPath="/video-feed"
+    />
   );
 }
 
