@@ -93,6 +93,10 @@ type FilterOption = {
   dynamic?: boolean;
 };
 
+type SearchLoadError = {
+  message: string;
+};
+
 const coreFilters = [
   "All",
   "Prayer",
@@ -211,6 +215,71 @@ function storyMatchesFilter(story: StoryRow, filter: string) {
   return searchableText.includes(filter.toLowerCase());
 }
 
+function readString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function readStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : null;
+}
+
+function readNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function readStoryRows(value: unknown): StoryRow[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+
+    const record = row as Record<string, unknown>;
+    const id = readString(record.id);
+
+    if (!id) return [];
+
+    return [
+      {
+        id,
+        user_id: readString(record.user_id),
+        name: readString(record.name),
+        location: readString(record.location),
+        content_type: readString(record.content_type),
+        story_type: readString(record.story_type),
+        story_text: readString(record.story_text),
+        image_url: readString(record.image_url),
+        video_url: readString(record.video_url),
+        thumbnail_url: readString(record.thumbnail_url),
+        topics: readStringArray(record.topics),
+        creation_mode: readString(record.creation_mode),
+        overlay_text: readString(record.overlay_text),
+        overlay_x: readNumber(record.overlay_x),
+        overlay_y: readNumber(record.overlay_y),
+        caption_style: readString(record.caption_style) as CaptionStyle | null,
+        caption_font: readString(record.caption_font) as CaptionFont | null,
+        caption_background: readString(
+          record.caption_background
+        ) as CaptionBackground | null,
+        caption_color: readString(record.caption_color) as CaptionColor | null,
+        caption_size: readString(record.caption_size) as CaptionSize | null,
+        caption_align: readString(record.caption_align) as CaptionAlign | null,
+        video_template: readString(record.video_template) as VideoTemplate | null,
+        status: readString(record.status),
+        created_at: readString(record.created_at),
+      },
+    ];
+  });
+}
+
 export default function SearchPage() {
   const [checkingUser, setCheckingUser] = useState(true);
   const [stories, setStories] = useState<StoryRow[]>([]);
@@ -238,16 +307,18 @@ export default function SearchPage() {
       const legacySelect =
         "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, status, created_at";
 
-      let { data, error } = await supabase
+      const metadataResult = await supabase
         .from("stories")
         .select(metadataSelect)
         .eq("status", "approved")
         .order("created_at", { ascending: false });
+      let rows = readStoryRows(metadataResult.data);
+      let loadError: SearchLoadError | null = metadataResult.error;
 
       if (
-        error &&
+        loadError &&
         ["content_type", "topics", "creation_mode"].some(
-          (column) => error?.message.includes(column)
+          (column) => loadError?.message.includes(column)
         )
       ) {
         const legacyResult = await supabase
@@ -256,17 +327,17 @@ export default function SearchPage() {
           .eq("status", "approved")
           .order("created_at", { ascending: false });
 
-        data = legacyResult.data;
-        error = legacyResult.error;
+        rows = readStoryRows(legacyResult.data);
+        loadError = legacyResult.error;
       }
 
-      if (error) {
-        setMessage(`Could not load discovery feed: ${error.message}`);
+      if (loadError) {
+        setMessage(`Could not load discovery feed: ${loadError.message}`);
         setCheckingUser(false);
         return;
       }
 
-      const cleanStories = ((data as StoryRow[]) ?? []).filter((story) => {
+      const cleanStories = rows.filter((story) => {
         return Boolean(story.video_url?.trim());
       });
 
