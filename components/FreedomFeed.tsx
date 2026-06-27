@@ -1,5 +1,6 @@
 "use client";
 
+import type * as React from "react";
 import {
   useEffect,
   useMemo,
@@ -2407,24 +2408,24 @@ function PinchZoomResetFrame({ children }: { children?: ReactNode }) {
   const initialDistanceRef = useRef<number | null>(null);
   const settlingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
- function updateTransformOrigin(touches: TouchList) {
-    const firstTouch = touches.item(0);
-    const secondTouch = touches.item(1);
+  function getTouchDistance(touches: React.TouchList) {
+    if (touches.length < 2) return 0;
 
-    if (!firstTouch || !secondTouch) return null;
+    const firstTouch = touches[0];
+    const secondTouch = touches[1];
+    const dx = firstTouch.clientX - secondTouch.clientX;
+    const dy = firstTouch.clientY - secondTouch.clientY;
 
-    return Math.hypot(
-      secondTouch.clientX - firstTouch.clientX,
-      secondTouch.clientY - firstTouch.clientY
-    );
+    return Math.sqrt(dx * dx + dy * dy);
   }
 
- function updateTransformOrigin(touches: React.TouchList) {
+  function updateTransformOrigin(touches: React.TouchList) {
     const frame = frameRef.current;
-    const firstTouch = touches.item(0);
-    const secondTouch = touches.item(1);
 
-    if (!frame || !firstTouch || !secondTouch) return;
+    if (!frame || touches.length < 2) return;
+
+    const firstTouch = touches[0];
+    const secondTouch = touches[1];
 
     const frameBounds = frame.getBoundingClientRect();
     const centerX =
