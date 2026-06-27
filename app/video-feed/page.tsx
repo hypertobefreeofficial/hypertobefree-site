@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import {
@@ -51,6 +52,8 @@ type VideoViewingMode =
   | "scripture_companion"
   | "prayer_focus"
   | "god_is_moving";
+
+type VideoEntrySource = "search" | "feed";
 type CaptionStyle =
   | "classic-caption"
   | "bold-center"
@@ -599,6 +602,7 @@ export default function VideoFeedPage() {
   const [stories, setStories] = useState<VideoStory[]>([]);
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+  const [entrySource, setEntrySource] = useState<VideoEntrySource>("search");
 
   const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -672,6 +676,7 @@ export default function VideoFeedPage() {
 
       const params = new URLSearchParams(window.location.search);
       setSelectedStoryId(params.get("story"));
+      setEntrySource(params.get("from") === "feed" ? "feed" : "search");
 
       const {
         data: { user },
@@ -1550,14 +1555,18 @@ export default function VideoFeedPage() {
     );
   }
 
+  const returnHref = entrySource === "feed" ? "/feed" : "/search";
+  const returnLabel =
+    entrySource === "feed" ? "Back to Freedom Feed" : copy.backToSearch;
+
   return (
     <main className="fixed inset-0 overflow-hidden bg-black text-white">
       {!beStillMode && (
         <div className="fixed left-4 top-4 z-50">
           <Link
-            href="/search"
+            href={returnHref}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
-            aria-label={copy.backToSearch}
+            aria-label={returnLabel}
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
@@ -2707,7 +2716,7 @@ function AutoPlayReelVideo({
     }
   }
 
-  function handleWrapperClick(event: React.MouseEvent<HTMLDivElement>) {
+  function handleWrapperClick(event: MouseEvent<HTMLDivElement>) {
     if (isControlClick(event.target)) return;
     if (holdPausedRef.current) return;
 
