@@ -214,14 +214,24 @@ function readFreedomFeedReturnState() {
   }
 }
 
-function restoreFreedomFeedReturnPosition(clearAfterRestore = true) {
+function restoreFreedomFeedReturnPosition({
+  clearAfterRestore = true,
+  maxAttempts = 7,
+}: {
+  clearAfterRestore?: boolean;
+  maxAttempts?: number;
+} = {}) {
   if (typeof window === "undefined") return;
 
   const state = readFreedomFeedReturnState();
 
   if (!state) return;
 
-  window.requestAnimationFrame(() => {
+  let attempt = 0;
+
+  function runRestoreAttempt() {
+    attempt += 1;
+
     const storyElement = state.anchorId
       ? document.getElementById(state.anchorId)
       : getFreedomFeedStoryElement(state.storyId);
@@ -243,10 +253,17 @@ function restoreFreedomFeedReturnPosition(clearAfterRestore = true) {
       });
     }
 
+    if (attempt < maxAttempts) {
+      window.setTimeout(runRestoreAttempt, attempt === 1 ? 80 : 140);
+      return;
+    }
+
     if (clearAfterRestore) {
       window.sessionStorage.removeItem(FREEDOM_FEED_RETURN_STATE_KEY);
     }
-  });
+  }
+
+  window.requestAnimationFrame(runRestoreAttempt);
 }
 
 const reportReasons: { label: string; value: ReportReason }[] = [
@@ -382,6 +399,22 @@ export default function FreedomFeed({
       feedReloadInFlightRef.current = false;
       supabase.removeChannel(channel);
       realtimeChannelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !("scrollRestoration" in window.history)
+    ) {
+      return;
+    }
+
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration;
     };
   }, []);
 
@@ -896,15 +929,24 @@ export default function FreedomFeed({
     !lockedFilter && activeFilter === "all" && miniReelStories.length > 0;
 
   useEffect(() => {
-    if (restoredReturnPositionRef.current || filteredStories.length === 0) {
-      return;
-    }
+    if (restoredReturnPositionRef.current || filteredStories.length === 0) return;
 
-    if (!readFreedomFeedReturnState()) return;
+    const returnState = readFreedomFeedReturnState();
+
+    if (!returnState) return;
+
+    const savedStoryIsVisible =
+      Boolean(returnState.anchorId) ||
+      filteredStories.some((story) => story.id === returnState.storyId);
+
+    if (!savedStoryIsVisible) return;
 
     restoredReturnPositionRef.current = true;
-    restoreFreedomFeedReturnPosition();
-  }, [filteredStories.length]);
+    restoreFreedomFeedReturnPosition({
+      clearAfterRestore: true,
+      maxAttempts: 8,
+    });
+  }, [filteredStories]);
 
   async function toggleSavedStory(story: ApprovedStory) {
     setReactionMessage("");
