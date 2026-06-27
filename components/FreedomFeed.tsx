@@ -201,6 +201,11 @@ export default function FreedomFeed({
   const currentUserIdRef = useRef<string | null>(null);
   const feedReloadInFlightRef = useRef(false);
   const feedReloadQueuedRef = useRef(false);
+  const photoViewerHistoryPushedRef = useRef(false);
+  const photoViewerReturnUrlRef = useRef<string | null>(null);
+  const photoViewerSwipeStartXRef = useRef<number | null>(null);
+  const photoViewerSwipeStartYRef = useRef<number | null>(null);
+  const photoViewerSwipeTrackingRef = useRef(false);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
   );
@@ -288,6 +293,20 @@ export default function FreedomFeed({
       feedReloadInFlightRef.current = false;
       supabase.removeChannel(channel);
       realtimeChannelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleBrowserBack() {
+      if (!photoViewerHistoryPushedRef.current) return;
+
+      closePhotoViewerFromBrowserBack();
+    }
+
+    window.addEventListener("popstate", handleBrowserBack);
+
+    return () => {
+      window.removeEventListener("popstate", handleBrowserBack);
     };
   }, []);
 
@@ -1027,7 +1046,32 @@ export default function FreedomFeed({
     }
   }
 
+  function resetPhotoViewerState() {
+    setPhotoViewerStory(null);
+    setPhotoActionSheetOpen(false);
+    setPhotoViewerMessage("");
+    setPhotoCaptionExpanded(false);
+    setPhotoCaptionHidden(false);
+    setPhotoDetailsStory(null);
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    photoViewerSwipeTrackingRef.current = false;
+    photoViewerSwipeStartXRef.current = null;
+    photoViewerSwipeStartYRef.current = null;
+  }
+
   function openPhotoViewer(story: ApprovedStory) {
+    if (typeof window !== "undefined" && !photoViewerHistoryPushedRef.current) {
+      photoViewerReturnUrlRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.history.pushState(
+        { htbfSource: "freedom-feed", storyId: story.id },
+        "",
+        `/feed?story=${encodeURIComponent(story.id)}&from=feed`
+      );
+      photoViewerHistoryPushedRef.current = true;
+    }
+
     setPhotoViewerStory(story);
     setPhotoActionSheetOpen(false);
     setPhotoViewerMessage("");
@@ -1040,7 +1084,74 @@ export default function FreedomFeed({
   }
 
   function closePhotoViewer() {
-    setPhotoViewerStory(null);
+    const returnUrl = photoViewerReturnUrlRef.current ?? "/feed";
+    const shouldRestoreFeedUrl =
+      typeof window !== "undefined" && photoViewerHistoryPushedRef.current;
+
+    resetPhotoViewerState();
+
+    if (shouldRestoreFeedUrl) {
+      window.history.replaceState(
+        { htbfSource: "freedom-feed" },
+        "",
+        returnUrl
+      );
+    }
+
+    photoViewerHistoryPushedRef.current = false;
+    photoViewerReturnUrlRef.current = null;
+  }
+
+  function closePhotoViewerFromBrowserBack() {
+    resetPhotoViewerState();
+    photoViewerHistoryPushedRef.current = false;
+    photoViewerReturnUrlRef.current = null;
+  }
+
+  function handlePhotoViewerTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (
+      event.touches.length !== 1 ||
+      photoActionSheetOpen ||
+      photoCaptionExpanded ||
+      Boolean(photoDetailsStory) ||
+      Boolean(reportStory)
+    ) {
+      photoViewerSwipeTrackingRef.current = false;
+      return;
+    }
+
+    const touch = event.touches[0];
+
+    photoViewerSwipeStartXRef.current = touch.clientX;
+    photoViewerSwipeStartYRef.current = touch.clientY;
+    photoViewerSwipeTrackingRef.current = true;
+  }
+
+  function handlePhotoViewerTouchMove(event: TouchEvent<HTMLDivElement>) {
+    if (
+      !photoViewerSwipeTrackingRef.current ||
+      event.touches.length !== 1 ||
+      photoViewerSwipeStartXRef.current === null ||
+      photoViewerSwipeStartYRef.current === null
+    ) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    const deltaX = Math.abs(touch.clientX - photoViewerSwipeStartXRef.current);
+    const deltaY = touch.clientY - photoViewerSwipeStartYRef.current;
+
+    if (deltaY > 110 && deltaY > deltaX * 1.4) {
+      event.preventDefault();
+      photoViewerSwipeTrackingRef.current = false;
+      closePhotoViewer();
+    }
+  }
+
+  function handlePhotoViewerTouchEnd() {
+    photoViewerSwipeTrackingRef.current = false;
+    photoViewerSwipeStartXRef.current = null;
+    photoViewerSwipeStartYRef.current = null;
   }
 
   function closePhotoActionSheet() {
@@ -1053,7 +1164,9 @@ export default function FreedomFeed({
   }
 
   function openVideoStory(storyId: string) {
-    window.location.href = `/video-feed?story=${encodeURIComponent(storyId)}`;
+    window.location.href = `/video-feed?story=${encodeURIComponent(
+      storyId
+    )}&from=feed`;
   }
 
   function openStoryDetail(story: ApprovedStory) {
@@ -1772,15 +1885,22 @@ export default function FreedomFeed({
         </div>
 
         {photoViewerStory && (
-          <div className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white">
+          <div
+            className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white"
+            onTouchStart={handlePhotoViewerTouchStart}
+            onTouchMove={handlePhotoViewerTouchMove}
+            onTouchEnd={handlePhotoViewerTouchEnd}
+            onTouchCancel={handlePhotoViewerTouchEnd}
+          >
             <div className="fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex items-center justify-between">
               <button
                 type="button"
                 onClick={closePhotoViewer}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-black/60"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-black/65 px-4 text-sm font-black text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/80 focus:outline-none focus:ring-4 focus:ring-white/25"
                 aria-label="Close photo viewer"
               >
                 <X className="h-6 w-6" />
+                <span>Close</span>
               </button>
 
               <button
