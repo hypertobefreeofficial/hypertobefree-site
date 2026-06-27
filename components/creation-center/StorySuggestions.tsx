@@ -20,6 +20,7 @@ type StorySuggestionsProps = {
   onUseCaption: (caption: string) => void;
   onUseScriptureReferences: (references: string[]) => void;
   onUseTemplate: (template: string) => void;
+  templateSuggestionsEnabled?: boolean;
   onClear: () => void;
 };
 
@@ -49,6 +50,7 @@ export default function StorySuggestions({
   onUseCaption,
   onUseScriptureReferences,
   onUseTemplate,
+  templateSuggestionsEnabled = true,
   onClear,
 }: StorySuggestionsProps) {
   return (
@@ -231,7 +233,7 @@ export default function StorySuggestions({
             </div>
           )}
 
-          {suggestion.template && (
+          {templateSuggestionsEnabled && suggestion.template && (
             <button
               type="button"
               onClick={() => onUseTemplate(suggestion.template)}

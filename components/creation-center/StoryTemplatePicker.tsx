@@ -30,8 +30,8 @@ export default function StoryTemplatePicker({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-amber-700">
-            Preview only - not saved yet
+          <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+            Saves with your story
           </span>
           <button
             type="button"

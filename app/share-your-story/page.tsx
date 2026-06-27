@@ -27,8 +27,11 @@ import CreationCenter from "../../components/creation-center/CreationCenter";
 import {
   CREATION_CENTER_V2_ENABLED,
   MAX_FAITH_STREAMS,
+  creationCenterStoryTemplates,
+  getCreationCenterTemplate,
   sanitizeFaithStreams,
   type CreationCenterSuggestion,
+  type CreationCenterTemplateId,
   type FaithStream,
 } from "../../lib/creationCenter";
 import { supabase } from "../../lib/supabaseClient";
@@ -742,6 +745,8 @@ export default function ShareYourStoryPage() {
   const [selectedFaithStreams, setSelectedFaithStreams] = useState<
     FaithStream[]
   >([]);
+  const [creationTemplateId, setCreationTemplateId] =
+    useState<CreationCenterTemplateId>("none");
   const [guidedPromptAnswers, setGuidedPromptAnswers] = useState<
     Record<string, string>
   >({});
@@ -791,6 +796,7 @@ export default function ShareYourStoryPage() {
   const [mobileCaptionPositionPercent, setMobileCaptionPositionPercent] =
     useState<CaptionPositionPercent>({ x: 50, y: 78 });
   const mobileCaptionDragPointerRef = useRef<number | null>(null);
+  const [captionInputExpanded, setCaptionInputExpanded] = useState(false);
   const [message, setMessage] = useState("");
 
   const previewText = useMemo(
@@ -1379,12 +1385,33 @@ export default function ShareYourStoryPage() {
     applyCaptionTemplate("testimony-light");
   }
 
+  function getCreationTemplateFromValue(templateValue: string) {
+    const normalizedTemplate = normalizeTopic(templateValue);
+
+    if (!normalizedTemplate) return undefined;
+
+    return creationCenterStoryTemplates.find(
+      (template) =>
+        template.id === normalizedTemplate ||
+        normalizeTopic(template.label) === normalizedTemplate ||
+        normalizeTopic(template.description).includes(normalizedTemplate) ||
+        normalizedTemplate.includes(template.id)
+    );
+  }
+
   function applySuggestedTemplate() {
     applyTemplateSuggestion(storyShapeSuggestion?.template ?? "");
   }
 
   function useCreationCenterSuggestedTemplate(template: string) {
-    applyTemplateSuggestion(template);
+    const matchedTemplate = getCreationTemplateFromValue(template);
+
+    if (matchedTemplate) {
+      setCreationTemplateId(matchedTemplate.id);
+    } else {
+      applyTemplateSuggestion(template);
+    }
+
     setCreationCenterSuggestionMessage(
       "Suggested layout applied. You can still change every text option."
     );
@@ -1889,11 +1916,29 @@ export default function ShareYourStoryPage() {
               )
             : [];
       const creationMode = sharePath === "guided" ? "guided" : "quick";
+      const shouldSaveCreationTemplate =
+        sharePath === "guided" &&
+        mediaMode === "text" &&
+        creationFormat !== "video" &&
+        creationFormat !== "photo";
+      const selectedCreationTemplate =
+        shouldSaveCreationTemplate
+          ? getCreationCenterTemplate(creationTemplateId)
+          : null;
+      const creationTemplatePayload =
+        selectedCreationTemplate && selectedCreationTemplate.id !== "none"
+          ? {
+              id: selectedCreationTemplate.id,
+              label: selectedCreationTemplate.label,
+              imagePath: selectedCreationTemplate.imagePath,
+            }
+          : null;
       const suggestionPayload =
         sharePath === "guided"
           ? {
               prompts: guidedPromptAnswers,
               suggestions: storyShapeSuggestion,
+              selectedTemplate: creationTemplatePayload,
             }
           : {};
 
@@ -2007,6 +2052,7 @@ export default function ShareYourStoryPage() {
       setOverlayText("");
       setSelectedTopics([]);
       setSelectedFaithStreams([]);
+      setCreationTemplateId("none");
       setGuidedPromptAnswers({});
       setStoryShapeSuggestion(null);
       setSuggestionMessage("");
@@ -2016,6 +2062,7 @@ export default function ShareYourStoryPage() {
       removeVideo();
       setMediaMode(sharePath === "quick" ? "video" : "text");
       setQuickShareCategory("testimony");
+      setCaptionInputExpanded(false);
       setStoryType("Testimony");
 
       setMessage(
@@ -2077,6 +2124,8 @@ export default function ShareYourStoryPage() {
   }
 
   function renderVideoCaptionContextInput() {
+    const captionIsLong = storyText.trim().length > 160;
+
     return (
       <div className="w-full max-w-full overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <label className="mb-2 block text-sm font-black text-[#062a57]">
@@ -2087,7 +2136,7 @@ export default function ShareYourStoryPage() {
           value={storyText}
           onChange={(event) => setStoryText(event.target.value)}
           onFocus={() => setDesktopEmojiTarget("caption")}
-          rows={4}
+          rows={captionInputExpanded ? 10 : 4}
           placeholder="Add context about what happened, what God did, or why this moment matters..."
           className="w-full max-w-full resize-none overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
           style={{
@@ -2100,6 +2149,16 @@ export default function ShareYourStoryPage() {
           This appears below the video as the post caption. The short video
           message above is the only text shown directly on the video.
         </p>
+
+        {(captionIsLong || captionInputExpanded) && (
+          <button
+            type="button"
+            onClick={() => setCaptionInputExpanded((current) => !current)}
+            className="mt-3 inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
+          >
+            {captionInputExpanded ? "See less" : "See more / edit more"}
+          </button>
+        )}
       </div>
     );
   }
@@ -2669,10 +2728,12 @@ export default function ShareYourStoryPage() {
                 selectedStreams={selectedFaithStreams}
                 promptAnswers={guidedPromptAnswers}
                 draftText={storyText}
+                selectedTemplateId={creationTemplateId}
                 suggestion={creationCenterSuggestion}
                 suggestionLoading={creationCenterSuggestionLoading}
                 suggestionMessage={creationCenterSuggestionMessage}
                 onFormatChange={applyCreationFormat}
+                onTemplateChange={setCreationTemplateId}
                 onStoryTypeChange={applyGuidedStoryType}
                 onToggleStream={toggleFaithStream}
                 onPromptAnswerChange={updateGuidedPromptAnswer}

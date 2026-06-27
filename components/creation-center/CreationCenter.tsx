@@ -9,7 +9,7 @@ import {
   Sparkles,
   Video,
 } from "lucide-react";
-import { useState, type ComponentType } from "react";
+import type { ComponentType } from "react";
 import {
   CREATION_CENTER_IMAGES_ENABLED,
   creationCenterFormats,
@@ -32,10 +32,12 @@ type CreationCenterProps = {
   selectedStreams: FaithStream[];
   promptAnswers: Record<string, string>;
   draftText: string;
+  selectedTemplateId: CreationCenterTemplateId;
   suggestion: CreationCenterSuggestion | null;
   suggestionLoading: boolean;
   suggestionMessage: string;
   onFormatChange: (format: CreationCenterFormat) => void;
+  onTemplateChange: (templateId: CreationCenterTemplateId) => void;
   onStoryTypeChange: (storyType: CreationCenterStoryType) => void;
   onToggleStream: (stream: FaithStream) => void;
   onPromptAnswerChange: (promptId: string, value: string) => void;
@@ -68,10 +70,12 @@ export default function CreationCenter({
   selectedStreams,
   promptAnswers,
   draftText,
+  selectedTemplateId,
   suggestion,
   suggestionLoading,
   suggestionMessage,
   onFormatChange,
+  onTemplateChange,
   onStoryTypeChange,
   onToggleStream,
   onPromptAnswerChange,
@@ -87,8 +91,7 @@ export default function CreationCenter({
   onUseSuggestedTemplate,
   onClearSuggestions,
 }: CreationCenterProps) {
-  const [selectedTemplateId, setSelectedTemplateId] =
-    useState<CreationCenterTemplateId>("none");
+  const supportsStoryTemplates = format !== "video" && format !== "photo";
   const selectedTemplate = getCreationCenterTemplate(selectedTemplateId);
   const visualImage = CREATION_CENTER_IMAGES_ENABLED
     ? selectedTemplate?.imagePath ?? null
@@ -195,45 +198,48 @@ export default function CreationCenter({
           </div>
         </section>
 
-        <StoryTemplatePicker
-          value={selectedTemplateId}
-          onChange={setSelectedTemplateId}
-        />
+        {supportsStoryTemplates && (
+          <>
+            <StoryTemplatePicker
+              value={selectedTemplateId}
+              onChange={onTemplateChange}
+            />
 
-        <section>
-          <div className="text-sm font-black text-[#062a57]">
-            Live preview
-          </div>
-          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-            See the creative direction before choosing story details. Your
-            existing photo or video editor continues below.
-          </p>
-
-          <div className="relative mt-3 min-h-[20rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white shadow-lg shadow-blue-950/10 ring-1 ring-blue-100 sm:min-h-[26rem] sm:p-7">
-            {visualImage && (
-              <img
-                src={visualImage}
-                alt=""
-                loading="lazy"
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/90 via-[#062a57]/55 to-transparent" />
-            <div className="relative z-10 flex min-h-[17.5rem] max-w-lg flex-col justify-between sm:min-h-[22.5rem]">
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/20 backdrop-blur-sm">
-                  {templateLabel}
-                </span>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/15 backdrop-blur-sm">
-                  {formatLabel}
-                </span>
+            <section>
+              <div className="text-sm font-black text-[#062a57]">
+                Live preview
               </div>
-              <p className="mt-6 line-clamp-4 whitespace-pre-wrap break-words text-lg font-black leading-7 text-white sm:text-xl">
-                {previewText}
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                See the creative direction before choosing story details.
               </p>
-            </div>
-          </div>
-        </section>
+
+              <div className="relative mt-3 min-h-[20rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white shadow-lg shadow-blue-950/10 ring-1 ring-blue-100 sm:min-h-[26rem] sm:p-7">
+                {visualImage && (
+                  <img
+                    src={visualImage}
+                    alt=""
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#031d3d]/90 via-[#062a57]/55 to-transparent" />
+                <div className="relative z-10 flex min-h-[17.5rem] max-w-lg flex-col justify-between sm:min-h-[22.5rem]">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/20 backdrop-blur-sm">
+                      {templateLabel}
+                    </span>
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/15 backdrop-blur-sm">
+                      {formatLabel}
+                    </span>
+                  </div>
+                  <p className="mt-6 line-clamp-4 whitespace-pre-wrap break-words text-lg font-black leading-7 text-white sm:text-xl">
+                    {previewText}
+                  </p>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
 
         <section>
           <div className="text-sm font-black text-[#062a57]">
@@ -294,6 +300,7 @@ export default function CreationCenter({
           onUseCaption={onUseSuggestedCaption}
           onUseScriptureReferences={onUseSuggestedScriptureReferences}
           onUseTemplate={onUseSuggestedTemplate}
+          templateSuggestionsEnabled={supportsStoryTemplates}
           onClear={onClearSuggestions}
         />
       </div>
