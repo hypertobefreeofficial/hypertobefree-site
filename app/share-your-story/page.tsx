@@ -1916,8 +1916,13 @@ export default function ShareYourStoryPage() {
               )
             : [];
       const creationMode = sharePath === "guided" ? "guided" : "quick";
+      const shouldSaveCreationTemplate =
+        sharePath === "guided" &&
+        mediaMode === "text" &&
+        creationFormat !== "video" &&
+        creationFormat !== "photo";
       const selectedCreationTemplate =
-        sharePath === "guided"
+        shouldSaveCreationTemplate
           ? getCreationCenterTemplate(creationTemplateId)
           : null;
       const creationTemplatePayload =
