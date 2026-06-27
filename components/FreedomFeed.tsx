@@ -266,6 +266,18 @@ function restoreFreedomFeedReturnPosition({
   window.requestAnimationFrame(runRestoreAttempt);
 }
 
+function pauseOtherFreedomFeedPreviewVideos(currentVideo: HTMLVideoElement) {
+  if (typeof document === "undefined") return;
+
+  document
+    .querySelectorAll<HTMLVideoElement>('[data-freedom-feed-preview-video="true"]')
+    .forEach((video) => {
+      if (video !== currentVideo) {
+        video.pause();
+      }
+    });
+}
+
 const reportReasons: { label: string; value: ReportReason }[] = [
   { label: "Inappropriate content", value: "inappropriate" },
   { label: "Harassment or hate", value: "harassment_hate" },
@@ -2552,7 +2564,7 @@ function MiniReelsCarousel({
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">
-            Community Reels
+            Faith in Motion
           </div>
           <h3 className="mt-1 text-lg font-black leading-tight">
             Watch what God is doing
@@ -2584,13 +2596,7 @@ function MiniReelsCarousel({
             >
               <div className="relative aspect-[9/14] overflow-hidden bg-black">
                 {story.signed_video_url ? (
-                  <video
-                    src={story.signed_video_url}
-                    muted
-                    playsInline
-                    preload="metadata"
-                    className="pointer-events-none h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                  />
+                  <MiniReelPreviewVideo videoUrl={story.signed_video_url} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-blue-950">
                     <Video className="h-8 w-8 text-white/70" />
@@ -2628,6 +2634,81 @@ function MiniReelsCarousel({
         })}
       </div>
     </section>
+  );
+}
+
+function MiniReelPreviewVideo({ videoUrl }: { videoUrl: string }) {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [shouldLoadPreview, setShouldLoadPreview] = useState(false);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+
+    if (!frame) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const video = videoRef.current;
+        const isNearViewport = entry.isIntersecting;
+        const isPlayable = entry.intersectionRatio >= 0.55;
+
+        if (isNearViewport) {
+          setShouldLoadPreview(true);
+        }
+
+        if (!video) return;
+
+        if (isPlayable) {
+          pauseOtherFreedomFeedPreviewVideos(video);
+          void video.play().catch(() => {
+            // Keep the static frame if mobile autoplay is delayed.
+          });
+        } else {
+          video.pause();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "160px 0px",
+        threshold: [0, 0.35, 0.55, 0.8],
+      }
+    );
+
+    observer.observe(frame);
+
+    return () => {
+      observer.disconnect();
+      videoRef.current?.pause();
+    };
+  }, [videoUrl]);
+
+  return (
+    <div ref={frameRef} className="h-full w-full">
+      {shouldLoadPreview ? (
+        <video
+          ref={videoRef}
+          src={videoUrl}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          data-freedom-feed-preview-video="true"
+          className="pointer-events-none h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          onLoadedMetadata={(event) => {
+            const video = event.currentTarget;
+
+            video.muted = true;
+            video.defaultMuted = true;
+            video.playsInline = true;
+          }}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-blue-950">
+          <Video className="h-8 w-8 text-white/70" />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -3034,6 +3115,9 @@ function FreedomFeedVideoMediaFrame({
   videoUrl: string;
 }) {
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const [shouldLoadPreview, setShouldLoadPreview] = useState(false);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameStyle = aspectRatio
     ? {
         aspectRatio: `${aspectRatio}`,
@@ -3042,29 +3126,82 @@ function FreedomFeedVideoMediaFrame({
       }
     : undefined;
 
+  useEffect(() => {
+    const frame = frameRef.current;
+
+    if (!frame) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const video = videoRef.current;
+        const isNearViewport = entry.isIntersecting;
+        const isPlayable = entry.intersectionRatio >= 0.45;
+
+        if (isNearViewport) {
+          setShouldLoadPreview(true);
+        }
+
+        if (!video) return;
+
+        if (isPlayable) {
+          pauseOtherFreedomFeedPreviewVideos(video);
+          void video.play().catch(() => {
+            // Mobile browsers may delay autoplay; keep the poster frame visible.
+          });
+        } else {
+          video.pause();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "180px 0px",
+        threshold: [0, 0.25, 0.45, 0.7],
+      }
+    );
+
+    observer.observe(frame);
+
+    return () => {
+      observer.disconnect();
+      videoRef.current?.pause();
+    };
+  }, [videoUrl]);
+
   return (
     <div
+      ref={frameRef}
       className="relative flex h-full max-h-full max-w-full items-center justify-center overflow-hidden bg-black"
       style={frameStyle}
     >
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="metadata"
-        className="pointer-events-none block h-full w-full bg-black object-contain object-center"
-        src={videoUrl}
-        onLoadedMetadata={(event) => {
-          const video = event.currentTarget;
+      {shouldLoadPreview ? (
+        <video
+          ref={videoRef}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          data-freedom-feed-preview-video="true"
+          className="pointer-events-none block h-full w-full bg-black object-contain object-center"
+          src={videoUrl}
+          onLoadedMetadata={(event) => {
+            const video = event.currentTarget;
 
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            setAspectRatio(video.videoWidth / video.videoHeight);
-          }
-        }}
-      >
-        Your browser does not support the video tag.
-      </video>
+            video.muted = true;
+            video.defaultMuted = true;
+            video.playsInline = true;
+
+            if (video.videoWidth > 0 && video.videoHeight > 0) {
+              setAspectRatio(video.videoWidth / video.videoHeight);
+            }
+          }}
+        >
+          Your browser does not support the video tag.
+        </video>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-black text-white/60">
+          <Video className="h-10 w-10" />
+        </div>
+      )}
 
       <StoryMediaStamp stamp={stamp} />
       {children}
