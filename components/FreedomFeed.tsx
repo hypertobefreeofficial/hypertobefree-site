@@ -2407,7 +2407,7 @@ function PinchZoomResetFrame({ children }: { children?: ReactNode }) {
   const initialDistanceRef = useRef<number | null>(null);
   const settlingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function getTouchDistance(touches: TouchList) {
+ function updateTransformOrigin(touches: TouchList) {
     const firstTouch = touches.item(0);
     const secondTouch = touches.item(1);
 
@@ -2419,7 +2419,7 @@ function PinchZoomResetFrame({ children }: { children?: ReactNode }) {
     );
   }
 
-  function updateTransformOrigin(touches: TouchList) {
+ function updateTransformOrigin(touches: React.TouchList) {
     const frame = frameRef.current;
     const firstTouch = touches.item(0);
     const secondTouch = touches.item(1);
