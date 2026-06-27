@@ -183,8 +183,6 @@ export default function FreedomFeed({
   const [photoCaptionHidden, setPhotoCaptionHidden] = useState(false);
   const [photoDetailsStory, setPhotoDetailsStory] =
     useState<ApprovedStory | null>(null);
-  const [storyDetailStory, setStoryDetailStory] =
-    useState<ApprovedStory | null>(null);
   const [reportStory, setReportStory] = useState<ApprovedStory | null>(null);
   const [reportReason, setReportReason] =
     useState<ReportReason>("inappropriate");
@@ -1022,10 +1020,7 @@ export default function FreedomFeed({
   }
 
   function openPhotoViewer(story: ApprovedStory) {
-    if (!story.signed_image_url) return;
-
     setPhotoViewerStory(story);
-    setStoryDetailStory(null);
     setPhotoActionSheetOpen(false);
     setPhotoViewerMessage("");
     setPhotoCaptionExpanded(false);
@@ -1059,31 +1054,16 @@ export default function FreedomFeed({
       return;
     }
 
-    if (story.signed_image_url) {
-      openPhotoViewer(story);
-      return;
-    }
-
-    setStoryDetailStory(story);
-    setPhotoViewerStory(null);
-    setPhotoActionSheetOpen(false);
-    setPhotoDetailsStory(null);
-    setReportStory(null);
-    setReportReason("inappropriate");
-    setReportDetails("");
-  }
-
-  function closeStoryDetail() {
-    setStoryDetailStory(null);
+    openPhotoViewer(story);
   }
 
   async function copyPhotoLink(story: ApprovedStory) {
     setPhotoViewerMessage("");
 
-    if (!story.signed_image_url) {
-      setPhotoViewerMessage("This photo link is not ready yet.");
-      return;
-    }
+    const postUrl = `${window.location.origin}/feed?story=${encodeURIComponent(
+      story.id
+    )}`;
+    const linkToCopy = story.signed_image_url || postUrl;
 
     try {
       if (!navigator.clipboard) {
@@ -1091,12 +1071,14 @@ export default function FreedomFeed({
         return;
       }
 
-      await navigator.clipboard.writeText(story.signed_image_url);
-      setPhotoViewerMessage("Photo link copied.");
+      await navigator.clipboard.writeText(linkToCopy);
+      setPhotoViewerMessage(
+        story.signed_image_url ? "Photo link copied." : "Post link copied."
+      );
       setPhotoActionSheetOpen(false);
     } catch (error) {
-      console.error("Could not copy photo link:", error);
-      setPhotoViewerMessage("Could not copy the photo link.");
+      console.error("Could not copy post link:", error);
+      setPhotoViewerMessage("Could not copy the post link.");
     }
   }
 
@@ -1131,15 +1113,16 @@ export default function FreedomFeed({
     setPhotoViewerMessage("");
 
     if (!story.signed_image_url) {
-      setPhotoViewerMessage("This photo is not ready to share yet.");
+      await shareStory(story);
+      setPhotoActionSheetOpen(false);
       return;
     }
 
     const shareData = {
-      title: `Hyper to Be Free - ${story.story_type || "Photo Story"}`,
+      title: "Hyper to Be Free - Post",
       text: story.story_text
         ? story.story_text.slice(0, 140)
-        : "See this photo story on Hyper to Be Free.",
+        : "See this HTBF post on Hyper to Be Free.",
       url: story.signed_image_url,
     };
 
@@ -1152,8 +1135,8 @@ export default function FreedomFeed({
 
       await copyPhotoLink(story);
     } catch (error) {
-      console.error("Could not share photo:", error);
-      setPhotoViewerMessage("Could not share this photo.");
+      console.error("Could not share post:", error);
+      setPhotoViewerMessage("Could not share this post.");
     }
   }
 
@@ -1232,7 +1215,7 @@ export default function FreedomFeed({
     setPhotoActionSheetOpen(false);
 
     if (!userId) {
-      setPhotoViewerMessage("Please sign in to report a photo.");
+      setPhotoViewerMessage("Please sign in to report a post.");
       return;
     }
 
@@ -1251,7 +1234,7 @@ export default function FreedomFeed({
 
   async function submitReport() {
     if (!userId || !reportStory) {
-      setPhotoViewerMessage("Please sign in to report a photo.");
+      setPhotoViewerMessage("Please sign in to report a post.");
       return;
     }
 
@@ -1272,7 +1255,7 @@ export default function FreedomFeed({
     setSendingReport(false);
 
     if (error) {
-      setPhotoViewerMessage(`Could not report photo: ${error.message}`);
+      setPhotoViewerMessage(`Could not report post: ${error.message}`);
       return;
     }
 
@@ -1480,38 +1463,21 @@ export default function FreedomFeed({
                         type="button"
                         onClick={() => openStoryDetail(story)}
                         className="mt-4 block w-full max-w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                        aria-label="Open story photo"
+                        aria-label="Open post"
                       >
-                        <div className="relative overflow-hidden rounded-[1.5rem]">
-                          <img
-                            src={story.signed_image_url}
-                            alt={story.story_type || "HTBF photo story"}
-                            className="pointer-events-none block w-full max-w-full max-h-[520px] rounded-[1.5rem] object-cover"
-                          />
-
-                          <StoryMediaStamp stamp={story.video_template} />
-
-                          {story.story_text &&
-                            captionStyle !== "classic-caption" && (
-                              <FeedCaptionOverlay
-                                alignment={story.caption_align}
-                                background={story.caption_background}
-                                color={story.caption_color}
-                                font={story.caption_font}
-                                size={story.caption_size}
-                                style={captionStyle}
-                                text={story.story_text}
-                              />
-                            )}
-                        </div>
+                        <ComposedFeedPostVisual
+                          captionStyle={captionStyle}
+                          story={story}
+                        />
                       </button>
                     )}
 
                     {showCreationTemplateCard && creationTemplate && (
-                      <CreationTemplateStoryCard
+                      <ComposedFeedPostButton
                         onOpen={() => openStoryDetail(story)}
+                        captionStyle={captionStyle}
+                        story={story}
                         template={creationTemplate}
-                        text={story.story_text}
                       />
                     )}
 
@@ -1797,118 +1763,7 @@ export default function FreedomFeed({
           )}
         </div>
 
-        {storyDetailStory &&
-          (() => {
-            const detailTemplate = getCreationTemplateMetadata(
-              storyDetailStory.ai_suggestions
-            );
-            const detailText = storyDetailStory.story_text?.trim() ?? "";
-
-            return (
-              <div
-                className="fixed inset-0 z-[90] overflow-y-auto bg-black/70 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Post detail"
-              >
-                <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-[1.75rem] bg-white text-slate-900 shadow-2xl">
-                  <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-[#062a57]">
-                        {storyDetailStory.name || "HTBF Community"}
-                      </div>
-                      <div className="mt-0.5 truncate text-xs font-bold text-slate-500">
-                        {storyDetailStory.location || "Location not shared"}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={closeStoryDetail}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
-                      aria-label="Close story detail"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-
-                  <div className="p-4 sm:p-5">
-                    {detailTemplate ? (
-                      <div className="overflow-hidden rounded-[1.5rem] bg-[#062a57] ring-1 ring-blue-100">
-                        <div className="relative min-h-[32rem] overflow-hidden p-5 text-white sm:min-h-[38rem] sm:p-7">
-                          <img
-                            src={detailTemplate.imagePath}
-                            alt=""
-                            loading="lazy"
-                            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-                          />
-                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/45 to-black/20" />
-                          <div className="pointer-events-none absolute inset-0 bg-[#0b63ce]/10" />
-
-                          <div className="relative z-10 flex min-h-[29rem] flex-col justify-between sm:min-h-[34rem]">
-                            <div className="flex items-start justify-between gap-3">
-                              <div />
-                              <img
-                                src="/images/htbf-logo.png"
-                                alt=""
-                                loading="lazy"
-                                className="pointer-events-none h-10 w-10 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
-                              />
-                            </div>
-
-                            <p
-                              className="mt-10 whitespace-pre-wrap break-words text-2xl font-black leading-9 text-white drop-shadow-sm sm:text-3xl sm:leading-10"
-                              style={{
-                                overflowWrap: "anywhere",
-                                wordBreak: "break-word",
-                              }}
-                            >
-                              {detailText}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="max-w-full whitespace-pre-wrap break-words rounded-[1.5rem] bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-1 ring-slate-200"
-                        style={{
-                          overflowWrap: "anywhere",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {detailText}
-                      </div>
-                    )}
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => shareStory(storyDetailStory)}
-                        className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-100"
-                      >
-                        <Share2 className="h-4 w-4" />
-                        Share
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReportStory(storyDetailStory);
-                          closeStoryDetail();
-                        }}
-                        className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
-                      >
-                        <Flag className="h-4 w-4" />
-                        Report
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-        {photoViewerStory?.signed_image_url && (
+        {photoViewerStory && (
           <div className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white">
             <div className="fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex items-center justify-between">
               <button
@@ -1927,18 +1782,23 @@ export default function FreedomFeed({
                   setPhotoViewerMessage("");
                 }}
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-black/60"
-                aria-label="Open photo actions"
+                aria-label="Open post actions"
               >
                 <MoreHorizontal className="h-6 w-6" />
               </button>
             </div>
 
-            <div className="flex min-h-0 flex-1 items-center justify-center px-0 py-20 sm:px-6">
-              <img
-                src={photoViewerStory.signed_image_url}
-                alt={photoViewerStory.story_type || "HTBF photo story"}
-                className="max-h-full max-w-full object-contain"
-              />
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-20 sm:px-6">
+              <div className="w-full max-w-2xl">
+                <ComposedFeedPostVisual
+                  captionStyle={photoViewerStory.caption_style}
+                  story={photoViewerStory}
+                  template={getCreationTemplateMetadata(
+                    photoViewerStory.ai_suggestions
+                  )}
+                  variant="detail"
+                />
+              </div>
             </div>
 
             {(!photoCaptionHidden || photoViewerMessage) && (
@@ -2075,7 +1935,7 @@ export default function FreedomFeed({
                   </div>
 
                   <h3 className="mt-2 text-2xl font-black text-[#062a57]">
-                    Report Photo
+                    Report Post
                   </h3>
 
                   <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -2143,7 +2003,7 @@ export default function FreedomFeed({
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="px-4 pb-2 pt-3 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                    Photo Options
+                    Post Options
                   </div>
 
                   <PhotoActionButton
@@ -2178,14 +2038,20 @@ export default function FreedomFeed({
                     label={photoCaptionHidden ? "Show Caption" : "Hide Caption"}
                     onClick={togglePhotoCaption}
                   />
-                  <PhotoActionButton
-                    icon={<Download className="h-5 w-5" />}
-                    label="Save Photo"
-                    onClick={() => savePhoto(photoViewerStory)}
-                  />
+                  {photoViewerStory.signed_image_url && (
+                    <PhotoActionButton
+                      icon={<Download className="h-5 w-5" />}
+                      label="Save Photo"
+                      onClick={() => savePhoto(photoViewerStory)}
+                    />
+                  )}
                   <PhotoActionButton
                     icon={<Copy className="h-5 w-5" />}
-                    label="Copy Photo Link"
+                    label={
+                      photoViewerStory.signed_image_url
+                        ? "Copy Photo Link"
+                        : "Copy Post Link"
+                    }
                     onClick={() => copyPhotoLink(photoViewerStory)}
                   />
                   <PhotoActionButton
@@ -2195,7 +2061,7 @@ export default function FreedomFeed({
                   />
                   <PhotoActionButton
                     icon={<Flag className="h-5 w-5" />}
-                    label="Report Photo"
+                    label="Report Post"
                     danger
                     onClick={() => reportPhoto(photoViewerStory)}
                   />
@@ -2397,22 +2263,17 @@ function CollapsibleStoryText({
   );
 }
 
-function CreationTemplateStoryCard({
+function ComposedFeedPostButton({
+  captionStyle,
   onOpen,
+  story,
   template,
-  text,
 }: {
+  captionStyle: CaptionStyle;
   onOpen: () => void;
+  story: ApprovedStory;
   template: CreationTemplateMetadata;
-  text: string | null;
 }) {
-  const cleanText = text?.trim();
-
-  if (!cleanText) return null;
-
-  const isLong = cleanText.length > 260;
-  const visibleText = isLong ? `${cleanText.slice(0, 260).trim()}...` : cleanText;
-
   return (
     <button
       type="button"
@@ -2420,15 +2281,42 @@ function CreationTemplateStoryCard({
       className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#062a57] text-left shadow-sm ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
       aria-label="Open post"
     >
-      <div className="relative min-h-[22rem] overflow-hidden p-5 text-white sm:min-h-[25rem] sm:p-6">
+      <ComposedFeedPostVisual
+        captionStyle={captionStyle}
+        story={story}
+        template={template}
+      />
+    </button>
+  );
+}
+
+function ComposedFeedPostVisual({
+  captionStyle,
+  story,
+  template,
+  variant = "feed",
+}: {
+  captionStyle: CaptionStyle;
+  story: ApprovedStory;
+  template?: CreationTemplateMetadata | null;
+  variant?: "feed" | "detail";
+}) {
+  const cleanText = story.story_text?.trim() ?? "";
+  const isTemplateLong = cleanText.length > 260;
+  const visibleTemplateText =
+    variant === "feed" && isTemplateLong
+      ? `${cleanText.slice(0, 260).trim()}...`
+      : cleanText;
+
+  if (template && cleanText) {
+    return (
+      <div className="relative min-h-[22rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white sm:min-h-[25rem] sm:p-6">
         <img
           src={template.imagePath}
           alt=""
           loading="lazy"
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#031d3d]/95 via-[#062a57]/50 to-black/20" />
-        <div className="pointer-events-none absolute inset-0 bg-[#0b63ce]/10" />
 
         <div className="relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]">
           <div className="flex items-start justify-between gap-3">
@@ -2449,10 +2337,10 @@ function CreationTemplateStoryCard({
                 wordBreak: "break-word",
               }}
             >
-              {visibleText}
+              {visibleTemplateText}
             </p>
 
-            {isLong && (
+            {variant === "feed" && isTemplateLong && (
               <span className="mt-4 inline-flex rounded-full bg-white/90 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-white/50 backdrop-blur-sm">
                 Open full post
               </span>
@@ -2460,7 +2348,45 @@ function CreationTemplateStoryCard({
           </div>
         </div>
       </div>
-    </button>
+    );
+  }
+
+  if (story.signed_image_url) {
+    return (
+      <div className="relative overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200">
+        <img
+          src={story.signed_image_url}
+          alt="HTBF post image"
+          className="pointer-events-none block max-h-[520px] w-full max-w-full rounded-[1.5rem] object-cover"
+        />
+
+        <StoryMediaStamp stamp={story.video_template} />
+
+        {cleanText && captionStyle !== "classic-caption" && (
+          <FeedCaptionOverlay
+            alignment={story.caption_align}
+            background={story.caption_background}
+            color={story.caption_color}
+            font={story.caption_font}
+            size={story.caption_size}
+            style={captionStyle}
+            text={cleanText}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="max-w-full whitespace-pre-wrap break-words rounded-[1.5rem] bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-1 ring-slate-200"
+      style={{
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
+      }}
+    >
+      {cleanText || "HTBF post"}
+    </div>
   );
 }
 
