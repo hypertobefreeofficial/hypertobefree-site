@@ -161,6 +161,89 @@ type CreationTemplateMetadata = {
 };
 
 const STORY_IMAGE_BUCKET = "story-images";
+const FREEDOM_FEED_RETURN_STATE_KEY = "htbf_freedom_feed_return_state";
+
+type FreedomFeedReturnState = {
+  source: "freedom-feed";
+  storyId: string;
+  scrollY: number;
+  storyViewportTop: number;
+  savedAt: number;
+};
+
+function getFreedomFeedStoryElement(storyId: string) {
+  if (typeof document === "undefined") return null;
+
+  return document.getElementById(`freedom-feed-story-${storyId}`);
+}
+
+function readFreedomFeedReturnState() {
+  if (typeof window === "undefined") return null;
+
+  const rawState = window.sessionStorage.getItem(
+    FREEDOM_FEED_RETURN_STATE_KEY
+  );
+
+  if (!rawState) return null;
+
+  try {
+    const state = JSON.parse(rawState) as Partial<FreedomFeedReturnState>;
+
+    if (
+      state.source !== "freedom-feed" ||
+      typeof state.storyId !== "string" ||
+      typeof state.scrollY !== "number" ||
+      typeof state.storyViewportTop !== "number" ||
+      typeof state.savedAt !== "number"
+    ) {
+      return null;
+    }
+
+    if (Date.now() - state.savedAt > 1000 * 60 * 30) {
+      window.sessionStorage.removeItem(FREEDOM_FEED_RETURN_STATE_KEY);
+      return null;
+    }
+
+    return state as FreedomFeedReturnState;
+  } catch {
+    window.sessionStorage.removeItem(FREEDOM_FEED_RETURN_STATE_KEY);
+    return null;
+  }
+}
+
+function restoreFreedomFeedReturnPosition(clearAfterRestore = true) {
+  if (typeof window === "undefined") return;
+
+  const state = readFreedomFeedReturnState();
+
+  if (!state) return;
+
+  window.requestAnimationFrame(() => {
+    const storyElement = getFreedomFeedStoryElement(state.storyId);
+
+    if (storyElement) {
+      const nextTop =
+        window.scrollY +
+        storyElement.getBoundingClientRect().top -
+        state.storyViewportTop;
+
+      window.scrollTo({
+        top: Math.max(0, nextTop),
+        behavior: "auto",
+      });
+    } else {
+      window.scrollTo({
+        top: Math.max(0, state.scrollY),
+        behavior: "auto",
+      });
+    }
+
+    if (clearAfterRestore) {
+      window.sessionStorage.removeItem(FREEDOM_FEED_RETURN_STATE_KEY);
+    }
+  });
+}
+
 const reportReasons: { label: string; value: ReportReason }[] = [
   { label: "Inappropriate content", value: "inappropriate" },
   { label: "Harassment or hate", value: "harassment_hate" },
@@ -201,6 +284,12 @@ export default function FreedomFeed({
   const currentUserIdRef = useRef<string | null>(null);
   const feedReloadInFlightRef = useRef(false);
   const feedReloadQueuedRef = useRef(false);
+  const restoredReturnPositionRef = useRef(false);
+  const photoViewerHistoryPushedRef = useRef(false);
+  const photoViewerReturnUrlRef = useRef<string | null>(null);
+  const photoViewerSwipeStartXRef = useRef<number | null>(null);
+  const photoViewerSwipeStartYRef = useRef<number | null>(null);
+  const photoViewerSwipeTrackingRef = useRef(false);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null
   );
@@ -288,6 +377,20 @@ export default function FreedomFeed({
       feedReloadInFlightRef.current = false;
       supabase.removeChannel(channel);
       realtimeChannelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleBrowserBack() {
+      if (!photoViewerHistoryPushedRef.current) return;
+
+      closePhotoViewerFromBrowserBack();
+    }
+
+    window.addEventListener("popstate", handleBrowserBack);
+
+    return () => {
+      window.removeEventListener("popstate", handleBrowserBack);
     };
   }, []);
 
@@ -772,6 +875,17 @@ export default function FreedomFeed({
     return visibleStories;
   }, [activeFilter, blockedUserIds, stories]);
 
+  useEffect(() => {
+    if (restoredReturnPositionRef.current || filteredStories.length === 0) {
+      return;
+    }
+
+    if (!readFreedomFeedReturnState()) return;
+
+    restoredReturnPositionRef.current = true;
+    restoreFreedomFeedReturnPosition();
+  }, [filteredStories.length]);
+
   async function toggleSavedStory(story: ApprovedStory) {
     setReactionMessage("");
 
@@ -1027,7 +1141,55 @@ export default function FreedomFeed({
     }
   }
 
+  function saveFreedomFeedReturnState(storyId: string) {
+    if (typeof window === "undefined") return;
+
+    const storyElement = getFreedomFeedStoryElement(storyId);
+    const storyViewportTop =
+      storyElement?.getBoundingClientRect().top ??
+      Math.min(window.innerHeight * 0.2, 160);
+    const returnState: FreedomFeedReturnState = {
+      source: "freedom-feed",
+      storyId,
+      scrollY: window.scrollY,
+      storyViewportTop,
+      savedAt: Date.now(),
+    };
+
+    window.sessionStorage.setItem(
+      FREEDOM_FEED_RETURN_STATE_KEY,
+      JSON.stringify(returnState)
+    );
+  }
+
+  function resetPhotoViewerState() {
+    setPhotoViewerStory(null);
+    setPhotoActionSheetOpen(false);
+    setPhotoViewerMessage("");
+    setPhotoCaptionExpanded(false);
+    setPhotoCaptionHidden(false);
+    setPhotoDetailsStory(null);
+    setReportStory(null);
+    setReportReason("inappropriate");
+    setReportDetails("");
+    photoViewerSwipeTrackingRef.current = false;
+    photoViewerSwipeStartXRef.current = null;
+    photoViewerSwipeStartYRef.current = null;
+  }
+
   function openPhotoViewer(story: ApprovedStory) {
+    saveFreedomFeedReturnState(story.id);
+
+    if (typeof window !== "undefined" && !photoViewerHistoryPushedRef.current) {
+      photoViewerReturnUrlRef.current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.history.pushState(
+        { htbfSource: "freedom-feed", storyId: story.id },
+        "",
+        `/feed?story=${encodeURIComponent(story.id)}&source=freedom-feed`
+      );
+      photoViewerHistoryPushedRef.current = true;
+    }
+
     setPhotoViewerStory(story);
     setPhotoActionSheetOpen(false);
     setPhotoViewerMessage("");
@@ -1040,7 +1202,76 @@ export default function FreedomFeed({
   }
 
   function closePhotoViewer() {
-    setPhotoViewerStory(null);
+    const returnUrl = photoViewerReturnUrlRef.current ?? "/feed";
+    const shouldRestoreFeedUrl =
+      typeof window !== "undefined" && photoViewerHistoryPushedRef.current;
+
+    resetPhotoViewerState();
+
+    if (shouldRestoreFeedUrl) {
+      window.history.replaceState(
+        { htbfSource: "freedom-feed" },
+        "",
+        returnUrl
+      );
+    }
+
+    photoViewerHistoryPushedRef.current = false;
+    photoViewerReturnUrlRef.current = null;
+    restoreFreedomFeedReturnPosition();
+  }
+
+  function closePhotoViewerFromBrowserBack() {
+    resetPhotoViewerState();
+    photoViewerHistoryPushedRef.current = false;
+    photoViewerReturnUrlRef.current = null;
+    restoreFreedomFeedReturnPosition();
+  }
+
+  function handlePhotoViewerTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (
+      event.touches.length !== 1 ||
+      photoActionSheetOpen ||
+      photoCaptionExpanded ||
+      Boolean(photoDetailsStory) ||
+      Boolean(reportStory)
+    ) {
+      photoViewerSwipeTrackingRef.current = false;
+      return;
+    }
+
+    const touch = event.touches[0];
+
+    photoViewerSwipeStartXRef.current = touch.clientX;
+    photoViewerSwipeStartYRef.current = touch.clientY;
+    photoViewerSwipeTrackingRef.current = true;
+  }
+
+  function handlePhotoViewerTouchMove(event: TouchEvent<HTMLDivElement>) {
+    if (
+      !photoViewerSwipeTrackingRef.current ||
+      event.touches.length !== 1 ||
+      photoViewerSwipeStartXRef.current === null ||
+      photoViewerSwipeStartYRef.current === null
+    ) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    const deltaX = Math.abs(touch.clientX - photoViewerSwipeStartXRef.current);
+    const deltaY = touch.clientY - photoViewerSwipeStartYRef.current;
+
+    if (deltaY > 110 && deltaY > deltaX * 1.4) {
+      event.preventDefault();
+      photoViewerSwipeTrackingRef.current = false;
+      closePhotoViewer();
+    }
+  }
+
+  function handlePhotoViewerTouchEnd() {
+    photoViewerSwipeTrackingRef.current = false;
+    photoViewerSwipeStartXRef.current = null;
+    photoViewerSwipeStartYRef.current = null;
   }
 
   function closePhotoActionSheet() {
@@ -1053,7 +1284,11 @@ export default function FreedomFeed({
   }
 
   function openVideoStory(storyId: string) {
-    window.location.href = `/video-feed?story=${encodeURIComponent(storyId)}`;
+    saveFreedomFeedReturnState(storyId);
+
+    window.location.href = `/videos?story=${encodeURIComponent(
+      storyId
+    )}&source=freedom-feed`;
   }
 
   function openStoryDetail(story: ApprovedStory) {
@@ -1435,6 +1670,7 @@ export default function FreedomFeed({
 
               return (
                 <article
+                  id={`freedom-feed-story-${story.id}`}
                   key={story.id}
                   className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
                 >
@@ -1772,15 +2008,22 @@ export default function FreedomFeed({
         </div>
 
         {photoViewerStory && (
-          <div className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white">
+          <div
+            className="fixed inset-0 z-[90] flex flex-col overflow-hidden bg-black text-white"
+            onTouchStart={handlePhotoViewerTouchStart}
+            onTouchMove={handlePhotoViewerTouchMove}
+            onTouchEnd={handlePhotoViewerTouchEnd}
+            onTouchCancel={handlePhotoViewerTouchEnd}
+          >
             <div className="fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[100] flex items-center justify-between">
               <button
                 type="button"
                 onClick={closePhotoViewer}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-black/60"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-black/65 px-4 text-sm font-black text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/80 focus:outline-none focus:ring-4 focus:ring-white/25"
                 aria-label="Close photo viewer"
               >
                 <X className="h-6 w-6" />
+                <span>Close</span>
               </button>
 
               <button
@@ -1796,8 +2039,8 @@ export default function FreedomFeed({
               </button>
             </div>
 
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-20 sm:px-6">
-              <div className="w-full max-w-2xl">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-1.5 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-[calc(4.25rem+env(safe-area-inset-top))] sm:px-6 sm:py-20">
+              <div className="w-full max-w-[calc(100vw-0.75rem)] sm:max-w-2xl">
                 <PinchZoomResetFrame>
                   <ComposedFeedPostVisual
                     captionStyle={photoViewerStory.caption_style}
@@ -2317,10 +2560,30 @@ function ComposedFeedPostVisual({
     variant === "feed" && isTemplateLong
       ? `${cleanText.slice(0, 260).trim()}...`
       : cleanText;
+  const templateFrameClass =
+    variant === "detail"
+      ? "relative min-h-[68dvh] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-4 text-white sm:min-h-[42rem] sm:p-6"
+      : "relative min-h-[22rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white sm:min-h-[25rem] sm:p-6";
+  const templateInnerClass =
+    variant === "detail"
+      ? "relative z-10 flex min-h-[calc(68dvh-2rem)] flex-col justify-between sm:min-h-[39rem]"
+      : "relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]";
+  const templateTextClass =
+    variant === "detail"
+      ? "whitespace-pre-wrap break-words text-[clamp(1.45rem,7vw,2.35rem)] font-black leading-tight text-white drop-shadow-sm sm:text-4xl sm:leading-tight"
+      : "whitespace-pre-wrap break-words text-xl font-black leading-8 text-white drop-shadow-sm sm:text-2xl sm:leading-9";
+  const imageFrameClass =
+    variant === "detail"
+      ? "relative overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10"
+      : "relative overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
+  const imageClass =
+    variant === "detail"
+      ? "pointer-events-none block max-h-[74dvh] w-full max-w-full rounded-[1.5rem] object-contain"
+      : "pointer-events-none block max-h-[520px] w-full max-w-full rounded-[1.5rem] object-cover";
 
   if (template && cleanText) {
     return (
-      <div className="relative min-h-[22rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white sm:min-h-[25rem] sm:p-6">
+      <div className={templateFrameClass}>
         <img
           src={template.imagePath}
           alt=""
@@ -2328,7 +2591,7 @@ function ComposedFeedPostVisual({
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
 
-        <div className="relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]">
+        <div className={templateInnerClass}>
           <div className="flex items-start justify-between gap-3">
             <div />
             <img
@@ -2341,7 +2604,7 @@ function ComposedFeedPostVisual({
 
           <div className="mt-8">
             <p
-              className="whitespace-pre-wrap break-words text-xl font-black leading-8 text-white drop-shadow-sm sm:text-2xl sm:leading-9"
+              className={templateTextClass}
               style={{
                 overflowWrap: "anywhere",
                 wordBreak: "break-word",
@@ -2363,11 +2626,11 @@ function ComposedFeedPostVisual({
 
   if (story.signed_image_url) {
     return (
-      <div className="relative overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200">
+      <div className={imageFrameClass}>
         <img
           src={story.signed_image_url}
           alt="HTBF post image"
-          className="pointer-events-none block max-h-[520px] w-full max-w-full rounded-[1.5rem] object-cover"
+          className={imageClass}
         />
 
         <StoryMediaStamp stamp={story.video_template} />
