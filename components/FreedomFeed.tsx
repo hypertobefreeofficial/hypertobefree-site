@@ -2,6 +2,7 @@
 
 import type * as React from "react";
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -166,6 +167,7 @@ const FREEDOM_FEED_RETURN_STATE_KEY = "htbf_freedom_feed_return_state";
 type FreedomFeedReturnState = {
   source: "freedom-feed";
   storyId: string;
+  anchorId?: string;
   scrollY: number;
   storyViewportTop: number;
   savedAt: number;
@@ -192,6 +194,7 @@ function readFreedomFeedReturnState() {
     if (
       state.source !== "freedom-feed" ||
       typeof state.storyId !== "string" ||
+      (state.anchorId !== undefined && typeof state.anchorId !== "string") ||
       typeof state.scrollY !== "number" ||
       typeof state.storyViewportTop !== "number" ||
       typeof state.savedAt !== "number"
@@ -219,7 +222,9 @@ function restoreFreedomFeedReturnPosition(clearAfterRestore = true) {
   if (!state) return;
 
   window.requestAnimationFrame(() => {
-    const storyElement = getFreedomFeedStoryElement(state.storyId);
+    const storyElement = state.anchorId
+      ? document.getElementById(state.anchorId)
+      : getFreedomFeedStoryElement(state.storyId);
 
     if (storyElement) {
       const nextTop =
@@ -875,6 +880,21 @@ export default function FreedomFeed({
     return visibleStories;
   }, [activeFilter, blockedUserIds, stories]);
 
+  const miniReelStories = useMemo(
+    () =>
+      stories
+        .filter(
+          (story) =>
+            Boolean(story.signed_video_url) &&
+            (!story.user_id || !blockedUserIds.includes(story.user_id))
+        )
+        .slice(0, 12),
+    [blockedUserIds, stories]
+  );
+
+  const showMiniReelsInFeed =
+    !lockedFilter && activeFilter === "all" && miniReelStories.length > 0;
+
   useEffect(() => {
     if (restoredReturnPositionRef.current || filteredStories.length === 0) {
       return;
@@ -1141,16 +1161,19 @@ export default function FreedomFeed({
     }
   }
 
-  function saveFreedomFeedReturnState(storyId: string) {
+  function saveFreedomFeedReturnState(storyId: string, anchorId?: string) {
     if (typeof window === "undefined") return;
 
-    const storyElement = getFreedomFeedStoryElement(storyId);
+    const storyElement = anchorId
+      ? document.getElementById(anchorId)
+      : getFreedomFeedStoryElement(storyId);
     const storyViewportTop =
       storyElement?.getBoundingClientRect().top ??
       Math.min(window.innerHeight * 0.2, 160);
     const returnState: FreedomFeedReturnState = {
       source: "freedom-feed",
       storyId,
+      ...(anchorId ? { anchorId } : {}),
       scrollY: window.scrollY,
       storyViewportTop,
       savedAt: Date.now(),
@@ -1283,10 +1306,10 @@ export default function FreedomFeed({
     setPhotoDetailsStory(story);
   }
 
-  function openVideoStory(storyId: string) {
-    saveFreedomFeedReturnState(storyId);
+  function openVideoStory(storyId: string, anchorId?: string) {
+    saveFreedomFeedReturnState(storyId, anchorId);
 
-    window.location.href = `/video-feed?story=${encodeURIComponent(
+    window.location.href = `/videos?story=${encodeURIComponent(
       storyId
     )}&source=freedom-feed`;
   }
@@ -1641,7 +1664,7 @@ export default function FreedomFeed({
               {emptyMessage}
             </div>
           ) : (
-            filteredStories.map((story) => {
+            filteredStories.map((story, index) => {
               const prayerStory = isPrayerStory(story);
               const originalPoster = isOriginalPoster(story);
               const prayerAnswered = story.prayer_status === "answered";
@@ -1667,11 +1690,16 @@ export default function FreedomFeed({
                 (!hasImageMedia || captionStyle === "classic-caption");
               const showVideoCaptionText =
                 Boolean(story.story_text) && hasVideoMedia;
+              const miniReelAnchorId = `freedom-feed-mini-reels-${index + 1}`;
+              const shouldShowMiniReels =
+                showMiniReelsInFeed &&
+                (index + 1) % 12 === 0 &&
+                index < filteredStories.length - 1;
 
               return (
+                <Fragment key={story.id}>
                 <article
                   id={`freedom-feed-story-${story.id}`}
-                  key={story.id}
                   className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
                 >
                   <div className="p-5">
@@ -2002,6 +2030,22 @@ export default function FreedomFeed({
                     </div>
                   </div>
                 </article>
+                {shouldShowMiniReels && (
+                  <MiniReelsCarousel
+                    anchorId={miniReelAnchorId}
+                    stories={miniReelStories}
+                    onOpen={(storyId) =>
+                      openVideoStory(storyId, miniReelAnchorId)
+                    }
+                    onViewAll={() =>
+                      saveFreedomFeedReturnState(
+                        miniReelStories[0].id,
+                        miniReelAnchorId
+                      )
+                    }
+                  />
+                )}
+                </Fragment>
               );
             })
           )}
@@ -2441,6 +2485,107 @@ function ReactionButton({
         {label}
       </span>
     </button>
+  );
+}
+
+function MiniReelsCarousel({
+  anchorId,
+  stories,
+  onOpen,
+  onViewAll,
+}: {
+  anchorId: string;
+  stories: ApprovedStory[];
+  onOpen: (storyId: string) => void;
+  onViewAll: () => void;
+}) {
+  if (stories.length === 0) return null;
+
+  return (
+    <section
+      id={anchorId}
+      className="overflow-hidden rounded-[1.75rem] border border-blue-100 bg-gradient-to-br from-[#062a57] via-[#0b63ce] to-[#0f8cff] p-4 text-white shadow-sm"
+      aria-label="Community mini reels"
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">
+            Community Reels
+          </div>
+          <h3 className="mt-1 text-lg font-black leading-tight">
+            Watch what God is doing
+          </h3>
+        </div>
+
+        <Link
+          href="/videos?source=freedom-feed"
+          onClick={onViewAll}
+          className="shrink-0 rounded-full bg-white/15 px-3 py-2 text-xs font-black text-white ring-1 ring-white/20 transition hover:bg-white/25"
+        >
+          View all
+        </Link>
+      </div>
+
+      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {stories.map((story) => {
+          const caption = story.story_text?.trim() || "Video testimony";
+
+          return (
+            <button
+              key={story.id}
+              type="button"
+              onClick={() => onOpen(story.id)}
+              className="group w-32 shrink-0 overflow-hidden rounded-[1.25rem] bg-black/35 text-left shadow-sm ring-1 ring-white/15 transition hover:-translate-y-0.5 hover:bg-black/45 focus:outline-none focus:ring-4 focus:ring-white/30 sm:w-36"
+              aria-label={`Open community reel from ${
+                story.name || "HTBF Community"
+              }`}
+            >
+              <div className="relative aspect-[9/14] overflow-hidden bg-black">
+                {story.signed_video_url ? (
+                  <video
+                    src={story.signed_video_url}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="pointer-events-none h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-blue-950">
+                    <Video className="h-8 w-8 text-white/70" />
+                  </div>
+                )}
+
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-2">
+                  <div className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[10px] font-black text-[#062a57] shadow-sm">
+                    <Video className="h-3 w-3" />
+                    Watch
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-2.5">
+                <div className="truncate text-[11px] font-black text-blue-100">
+                  {story.name || "HTBF Community"}
+                </div>
+                <p
+                  className="mt-1 text-xs font-bold leading-4 text-white"
+                  style={{
+                    display: "-webkit-box",
+                    WebkitBoxOrient: "vertical" as const,
+                    WebkitLineClamp: 2,
+                    overflow: "hidden",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {caption}
+                </p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

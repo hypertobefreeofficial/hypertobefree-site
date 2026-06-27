@@ -53,7 +53,14 @@ type VideoViewingMode =
   | "prayer_focus"
   | "god_is_moving";
 
-type VideoEntrySource = "search" | "feed";
+type VideoSourceContext = "search" | "freedom-feed";
+
+type VideoFeedExperienceProps = {
+  sourceContext?: VideoSourceContext;
+  returnPath?: string;
+  returnLabel?: string;
+  videosPath?: string;
+};
 type CaptionStyle =
   | "classic-caption"
   | "bold-center"
@@ -593,7 +600,12 @@ function triggerHaptic(enabled: boolean) {
   }
 }
 
-export default function VideoFeedPage() {
+export function VideoFeedExperience({
+  sourceContext = "search",
+  returnPath = "/search",
+  returnLabel,
+  videosPath = "/video-feed",
+}: VideoFeedExperienceProps = {}) {
   const videoFeedScrollerRef = useRef<HTMLElement | null>(null);
   const activeStoryHapticRef = useRef<string | null>(null);
 
@@ -602,7 +614,8 @@ export default function VideoFeedPage() {
   const [stories, setStories] = useState<VideoStory[]>([]);
   const [message, setMessage] = useState("");
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-  const [entrySource, setEntrySource] = useState<VideoEntrySource>("search");
+  const [entrySource, setEntrySource] =
+    useState<VideoSourceContext>(sourceContext);
 
   const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -676,7 +689,7 @@ export default function VideoFeedPage() {
 
       const params = new URLSearchParams(window.location.search);
       setSelectedStoryId(params.get("story"));
-      setEntrySource(params.get("from") === "feed" ? "feed" : "search");
+      setEntrySource(sourceContext);
 
       const {
         data: { user },
@@ -1501,7 +1514,9 @@ export default function VideoFeedPage() {
   }
 
   async function copyStoryLink(story: VideoStory) {
-    const shareUrl = `${window.location.origin}/video-feed?story=${story.id}&from=share`;
+    const shareUrl = `${window.location.origin}${videosPath}?story=${
+      story.id
+    }&source=${entrySource === "freedom-feed" ? "freedom-feed" : "search"}`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -1526,7 +1541,9 @@ export default function VideoFeedPage() {
       ? `${copy.shareWithTextPrefix}: ${story.story_text.slice(0, 140)}`
       : copy.shareFallback;
 
-    const shareUrl = `${window.location.origin}/video-feed?story=${story.id}&from=share`;
+    const shareUrl = `${window.location.origin}${videosPath}?story=${
+      story.id
+    }&source=${entrySource === "freedom-feed" ? "freedom-feed" : "search"}`;
 
     try {
       if (navigator.share) {
@@ -1555,21 +1572,32 @@ export default function VideoFeedPage() {
     );
   }
 
-  const returnHref = entrySource === "feed" ? "/feed" : "/search";
-  const returnLabel =
-    entrySource === "feed" ? "Back to Freedom Feed" : copy.backToSearch;
+  const resolvedReturnPath =
+    returnPath || (entrySource === "freedom-feed" ? "/feed" : "/search");
+  const resolvedReturnLabel =
+    returnLabel ??
+    (entrySource === "freedom-feed" ? "Back to Freedom Feed" : copy.backToSearch);
+
+  function exitVideoExperience() {
+    window.location.assign(resolvedReturnPath);
+  }
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-black text-white">
       {!beStillMode && (
         <div className="fixed left-4 top-4 z-50">
-          <Link
-            href={returnHref}
+          <button
+            type="button"
+            onClick={exitVideoExperience}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
-            aria-label={returnLabel}
+            aria-label={resolvedReturnLabel}
           >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
+            {entrySource === "freedom-feed" ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <ArrowLeft className="h-5 w-5" />
+            )}
+          </button>
         </div>
       )}
 
@@ -1791,6 +1819,7 @@ export default function VideoFeedPage() {
       {!beStillMode && (
         <VideoFeedBottomNav
           onNavTap={() => triggerHaptic(hapticsEnabled)}
+          videosHref={videosPath}
         />
       )}
 
@@ -1973,6 +2002,16 @@ export default function VideoFeedPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function VideoFeedPage() {
+  return (
+    <VideoFeedExperience
+      returnPath="/search"
+      sourceContext="search"
+      videosPath="/video-feed"
+    />
   );
 }
 
@@ -3012,8 +3051,10 @@ function VideoCaptionStyleOverlay({
 
 function VideoFeedBottomNav({
   onNavTap,
+  videosHref,
 }: {
   onNavTap: () => void;
+  videosHref: string;
 }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-0 bg-transparent px-3 pb-2 pt-2 shadow-none">
@@ -3021,12 +3062,14 @@ function VideoFeedBottomNav({
         <div className="grid grid-cols-6 gap-1 rounded-[1.5rem] bg-transparent p-1 ring-1 ring-white/10 backdrop-blur-sm">
           {videoFeedBottomNavItems.map((item) => {
             const Icon = item.icon;
-            const active = item.href === "/video-feed";
+            const isVideosItem = item.label === "Videos";
+            const href = isVideosItem ? videosHref : item.href;
+            const active = isVideosItem;
 
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 onClick={onNavTap}
                 className={`flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black transition ${
                   active
