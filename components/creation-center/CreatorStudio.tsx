@@ -645,49 +645,56 @@ export default function CreatorStudio({
         )}
 
         {currentScreen === "editor" && editableDesign && (
-          <div className="grid w-full max-w-full min-w-0 gap-5 xl:grid-cols-[minmax(0,0.66fr)_minmax(20rem,0.68fr)]">
-            <CreatorStudioLayoutEditor
-              design={editableDesign}
-              onChange={updateEditableDesign}
-            />
-
-            <aside className="min-w-0 space-y-4 xl:sticky xl:top-5 xl:self-start">
-              <section className="overflow-hidden rounded-[2rem] bg-[#031d3d] p-3 shadow-2xl shadow-blue-950/20 ring-1 ring-blue-100">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-2 pt-1 text-white">
-                  <div>
-                    <div className="text-sm font-black">Editor preview</div>
-                    <p className="mt-1 text-xs font-semibold text-blue-100">
-                      Your changes update live.
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-blue-100 ring-1 ring-white/15">
-                    {currentLayoutLabel}
-                  </span>
+          <div className="mx-auto grid w-full max-w-7xl min-w-0 gap-5">
+            <section className="overflow-hidden rounded-[2.25rem] bg-[#031d3d] p-3 shadow-2xl shadow-blue-950/20 ring-1 ring-blue-100 sm:p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-2 pt-1 text-white">
+                <div>
+                  <div className="text-sm font-black">Live canvas</div>
+                  <p className="mt-1 text-xs font-semibold text-blue-100">
+                    The artwork stays in view while you shape the design.
+                  </p>
                 </div>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-blue-100 ring-1 ring-white/15">
+                  {currentLayoutLabel}
+                </span>
+              </div>
+              <div className="mx-auto w-full max-w-[44rem]">
                 <CreatorStudioPreview
                   design={editableDesign}
                   videoPreviewUrl={videoPreviewUrl}
                   photoPreviewUrl={photoPreviewUrl}
+                  canvas
                 />
-              </section>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setScreen("choose")}
-                  className="inline-flex flex-1 items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:bg-blue-50"
-                >
-                  Back to Designs
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScreen("publish")}
-                  className="inline-flex flex-1 items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f]"
-                >
-                  Continue to Publish
-                </button>
               </div>
-            </aside>
+            </section>
+
+            <CreatorStudioLayoutEditor
+              design={editableDesign}
+              onChange={updateEditableDesign}
+              videoFileName={videoFileName}
+              photoFileName={photoFileName}
+              onVideoSelect={onVideoSelect}
+              onPhotoSelect={onPhotoSelect}
+              onRemoveVideo={onRemoveVideo}
+              onRemovePhoto={onRemovePhoto}
+            />
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setScreen("choose")}
+                className="inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:bg-blue-50 sm:min-w-44"
+              >
+                Back to Designs
+              </button>
+              <button
+                type="button"
+                onClick={() => setScreen("publish")}
+                className="inline-flex items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f] sm:min-w-52"
+              >
+                Continue to Publish
+              </button>
+            </div>
           </div>
         )}
 
