@@ -46,7 +46,7 @@ export default function CreatorStudioDesignCards({
         </span>
       </div>
 
-      <div className="flex w-full max-w-full gap-4 overflow-x-auto pb-3 pt-1 [-webkit-overflow-scrolling:touch] md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-3">
+      <div className="flex w-full max-w-full snap-x snap-mandatory gap-5 overflow-x-auto px-1 pb-4 pt-1 [-webkit-overflow-scrolling:touch]">
         {designs.map((design) => {
           const selected = selectedDesignId === design.id;
           const layoutLabel = getLayoutLabel(design.layoutType);
@@ -56,7 +56,7 @@ export default function CreatorStudioDesignCards({
               key={design.id}
               type="button"
               onClick={() => onSelect(design)}
-              className={`group relative w-[18rem] shrink-0 overflow-hidden rounded-[1.85rem] bg-white p-2 text-left ring-2 transition duration-200 md:w-auto ${
+              className={`group relative w-[min(82vw,22rem)] shrink-0 snap-start overflow-hidden rounded-[2rem] bg-white p-2 text-left ring-2 transition duration-200 sm:w-[20rem] lg:w-[21rem] xl:w-[22rem] ${
                 selected
                   ? "scale-[1.015] ring-[#0b63ce] ring-offset-2 shadow-2xl shadow-blue-900/20"
                   : "ring-transparent shadow-sm shadow-blue-950/5 hover:-translate-y-1 hover:ring-blue-200 hover:shadow-xl hover:shadow-blue-950/10"
@@ -75,10 +75,10 @@ export default function CreatorStudioDesignCards({
                 design={design}
                 videoPreviewUrl={videoPreviewUrl}
                 photoPreviewUrl={photoPreviewUrl}
-                compact
+                gallery
               />
 
-              <div className="space-y-1 px-2 pb-3 pt-3">
+              <div className="space-y-1 px-3 pb-3 pt-3">
                 <div className="line-clamp-1 text-sm font-black text-[#062a57]">
                   {design.title}
                 </div>
