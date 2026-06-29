@@ -60,6 +60,15 @@ function readStringArray(value: unknown) {
     : [];
 }
 
+function readFirstString(
+  value: unknown,
+  fallback: string
+) {
+  const cleanValue = readString(value).trim();
+
+  return cleanValue || fallback;
+}
+
 function readBearerToken(request: Request) {
   const authorization = request.headers.get("authorization") ?? "";
 
@@ -146,13 +155,19 @@ function fallbackCreatorStudioDesigns(
 ): CreatorStudioResponse {
   const prompt = readString(body.prompt).trim();
   const cleanPrompt = prompt || "God is moving in my story.";
-  const requestedChips = readStringArray(body.inspirationChips).slice(0, 3);
+  const requestedChips = readStringArray(body.inspirationChips)
+    .map((chip) => chip.trim())
+    .filter(Boolean)
+    .slice(0, 4);
   const sourceMode = readCreatorStudioSourceMode(body.sourceMode);
   const requestedTemplateId = readCreatorStudioTemplateId(
     body.selectedTemplateId,
     "scripture-woods"
   );
-  const topic = requestedChips[0] || "Testimony";
+  const category = readFirstString(body.category, requestedChips[0] || "Testimony");
+  const topic = readFirstString(body.topic, requestedChips[1] || category);
+  const mood = readFirstString(body.mood, "Hopeful and polished");
+  const requestedLayoutType = readCreatorStudioLayoutType(body.layoutType);
   const baseTemplates = creatorStudioTemplateIds.slice(0, 6);
   const templates =
     sourceMode === "upload-video" || sourceMode === "upload-photo"
@@ -162,46 +177,57 @@ function fallbackCreatorStudioDesigns(
         : baseTemplates.length > 0
           ? baseTemplates
           : (["scripture-woods"] as CreationCenterTemplateId[]);
-  const layoutTypes = Array.from(creatorStudioLayoutTypes);
+  const layoutTypes = [
+    requestedLayoutType,
+    ...Array.from(creatorStudioLayoutTypes).filter(
+      (layoutType) => layoutType !== requestedLayoutType
+    ),
+  ];
+  const titleIdeas = [
+    `${category}: ${topic}`,
+    `God Is Moving in ${topic}`,
+    `A ${mood} Story`,
+    `What God Is Doing`,
+    `${topic} and Hope`,
+    `A Moment of Grace`,
+  ];
+  const moods = [
+    mood,
+    `Warm ${mood.toLowerCase()}`,
+    `Bold ${category.toLowerCase()}`,
+    `Quiet ${topic.toLowerCase()}`,
+    "Clean HTBF editorial",
+    "Faith-filled and hopeful",
+  ];
 
   return {
     designs: templates.slice(0, 6).map((templateId, index) => ({
       id: `creator-design-${index + 1}`,
       sourceMode,
-      title:
-        index === 0
-          ? "God Is Moving"
-          : index === 1
-            ? "A Story of Hope"
-            : index === 2
-              ? "What God Has Done"
-              : index === 3
-                ? "Faith for Today"
-                : index === 4
-                  ? "Freedom in Progress"
-                  : "A Moment of Grace",
+      title: titleIdeas[index % titleIdeas.length],
       overlayText:
-        cleanPrompt.length > 150
-          ? `${cleanPrompt.slice(0, 150).trim()}...`
-          : cleanPrompt,
-      caption: cleanPrompt,
-      category: topic,
+        index % 2 === 0
+          ? cleanPrompt.length > 130
+            ? `${cleanPrompt.slice(0, 130).trim()}...`
+            : cleanPrompt
+          : titleIdeas[index % titleIdeas.length],
+      caption:
+        index % 3 === 0
+          ? cleanPrompt
+          : `${cleanPrompt}\n\n${topic} is part of what God is shaping here.`,
+      category,
       topic,
       templateId,
-      styleMood:
-        index % 3 === 0
-          ? "Hopeful and polished"
-          : index % 3 === 1
-            ? "Warm and reflective"
-            : "Bold and faith-filled",
+      styleMood: moods[index % moods.length],
       layoutType: layoutTypes[index % layoutTypes.length],
-      scriptureSuggestion: "",
+      scriptureSuggestion:
+        index % 2 === 0 ? "" : "Consider adding a short scripture reference.",
       suggestedPostFormat:
         sourceMode === "upload-video"
-          ? "Video post with overlay text"
+          ? `${layoutTypes[index % layoutTypes.length]} video post`
           : sourceMode === "upload-photo"
-            ? "Photo post with caption"
-            : "Template design post",
+            ? `${layoutTypes[index % layoutTypes.length]} photo post`
+            : `${layoutTypes[index % layoutTypes.length]} design post`,
     })),
   };
 }
@@ -333,23 +359,37 @@ export async function POST(request: Request) {
     const fallback = fallbackCreatorStudioDesigns(body);
 
     if (!apiKey) {
-      return Response.json(fallback);
+      return Response.json({
+        ...fallback,
+        fallbackReason: "Creator Studio is not connected to OpenAI yet.",
+      });
     }
 
     const prompt = readString(body.prompt);
     const inspirationChips = readStringArray(body.inspirationChips);
     const sourceMode = readCreatorStudioSourceMode(body.sourceMode);
     const selectedTemplateId = readString(body.selectedTemplateId);
+    const requestedCategory = readFirstString(body.category, "Testimony");
+    const requestedTopic = readFirstString(body.topic, requestedCategory);
+    const requestedMood = readFirstString(body.mood, "Hopeful and bright");
+    const requestedLayoutType = readCreatorStudioLayoutType(body.layoutType);
 
     const input = [
       "You create polished HTBF Creator Studio design options. Return JSON only.",
       "The user can upload a video, upload a photo, build with AI, or start from an HTBF template.",
       "Create 4 to 6 completed design options using only the allowed template ids and layout types.",
+      "The user's selected category, topic, mood, layout, chips, and source mode must visibly shape the concepts.",
+      "Make the concepts meaningfully different from each other: vary the title, overlay text, caption angle, layout type, mood, and recommended background.",
+      "Do not repeat the same template for every option unless the user explicitly started from a template.",
       "Do not quote full Bible verse text. References are okay only if naturally helpful.",
       "Each design must include sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, and suggestedPostFormat.",
       "For upload-video and upload-photo, templateId may be none because the user media is the primary visual.",
       `Source mode: ${sourceMode}`,
       `Selected template id, if any: ${selectedTemplateId || "none"}`,
+      `Requested category: ${requestedCategory}`,
+      `Requested topic: ${requestedTopic}`,
+      `Requested mood/style: ${requestedMood}`,
+      `Requested layout type: ${requestedLayoutType}`,
       `Allowed template ids: ${creatorStudioTemplateIdOptions.join(", ")}`,
       `Allowed layout types: ${creatorStudioLayoutTypes.join(", ")}`,
       `Inspiration chips: ${inspirationChips.join(", ") || "None"}`,
@@ -439,7 +479,10 @@ export async function POST(request: Request) {
       });
 
       if (!response.ok) {
-        return Response.json(fallback);
+        return Response.json({
+          ...fallback,
+          fallbackReason: "Creator Studio could not reach OpenAI.",
+        });
       }
 
       const payload: unknown = await response.json();
@@ -452,7 +495,10 @@ export async function POST(request: Request) {
           : null;
 
       if (typeof content !== "string") {
-        return Response.json(fallback);
+        return Response.json({
+          ...fallback,
+          fallbackReason: "Creator Studio received an empty OpenAI response.",
+        });
       }
 
       return Response.json(
@@ -460,7 +506,10 @@ export async function POST(request: Request) {
       );
     } catch (error) {
       console.error("Creator Studio shaping failed:", error);
-      return Response.json(fallback);
+      return Response.json({
+        ...fallback,
+        fallbackReason: "Creator Studio could not generate with OpenAI.",
+      });
     }
   }
 
