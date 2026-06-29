@@ -122,10 +122,12 @@ export default function CreatorStudioPreview({
   const activeCategory = cleanText(design?.category ?? category, "Testimony");
   const activeTopic = cleanText(design?.topic ?? topic, "Freedom");
   const activeMood = cleanText(design?.styleMood ?? mood, "Hopeful");
-  const frameHeight = compact ? "min-h-[15rem]" : "min-h-[28rem] sm:min-h-[34rem]";
+  const frameHeight = compact
+    ? "min-h-[13.5rem]"
+    : "min-h-[24rem] sm:min-h-[30rem] lg:min-h-[34rem]";
 
   const baseShell =
-    "relative isolate overflow-hidden rounded-[1.75rem] bg-[#062a57] text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100";
+    "relative isolate w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] bg-[#062a57] text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100";
   const innerPadding = compact ? "p-4" : "p-5 sm:p-8";
 
   if (activeLayout === "split-layout") {
@@ -143,14 +145,14 @@ export default function CreatorStudioPreview({
         </div>
         <div className="absolute inset-0 bg-black/10" />
         <Watermark />
-        <div className={`relative z-10 ml-auto flex ${frameHeight} w-1/2 flex-col justify-center ${innerPadding}`}>
+        <div className={`relative z-10 ml-auto flex ${frameHeight} w-1/2 min-w-0 flex-col justify-center ${innerPadding}`}>
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
             {activeCategory} / {activeTopic}
           </p>
-          <h4 className="mt-3 text-[clamp(1.7rem,7vw,4rem)] font-black leading-none">
+          <h4 className="mt-3 max-w-full break-words text-[clamp(1.35rem,6vw,4rem)] font-black leading-none">
             {activeTitle}
           </h4>
-          <p className="mt-4 text-sm font-semibold leading-6 text-blue-50">
+          <p className="mt-4 max-w-full break-words text-sm font-semibold leading-6 text-blue-50">
             {activeCaption}
           </p>
         </div>
@@ -173,7 +175,7 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Photo collage
             </p>
-            <h4 className="mt-2 text-3xl font-black leading-none">
+            <h4 className="mt-2 max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
               {activeTitle}
             </h4>
           </div>
@@ -202,7 +204,7 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Video + photo mixed post
             </p>
-            <h4 className="mt-2 text-3xl font-black leading-none">
+            <h4 className="mt-2 max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
               {activeTitle}
             </h4>
           </div>
@@ -250,7 +252,9 @@ export default function CreatorStudioPreview({
         <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/90 via-[#062a57]/45 to-[#0b63ce]/20" />
         <Watermark />
         <div className="relative z-10 flex h-full flex-col justify-between gap-4">
-          <h4 className="text-3xl font-black leading-none">{activeTitle}</h4>
+          <h4 className="max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
+            {activeTitle}
+          </h4>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-3xl bg-white/12 p-4 ring-1 ring-white/20">
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
@@ -292,7 +296,7 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Timeline story
             </p>
-            <h4 className="mt-3 text-3xl font-black leading-none">
+            <h4 className="mt-3 max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
               {activeTitle}
             </h4>
           </div>
@@ -341,7 +345,7 @@ export default function CreatorStudioPreview({
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-100">
               {activeCategory} / {activeTopic}
             </p>
-            <h4 className="mt-4 max-w-xl text-[clamp(2.2rem,10vw,5rem)] font-black leading-[0.9]">
+            <h4 className="mt-4 max-w-full break-words text-[clamp(1.9rem,9vw,5rem)] font-black leading-[0.9]">
               {activeTitle}
             </h4>
           </div>
@@ -367,7 +371,7 @@ export default function CreatorStudioPreview({
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
             Journal style / {activeTopic}
           </p>
-          <h4 className="mt-4 text-4xl font-black leading-none">
+          <h4 className="mt-4 max-w-full break-words text-3xl font-black leading-none sm:text-4xl">
             {activeTitle}
           </h4>
           <p className="mt-5 whitespace-pre-wrap text-base font-semibold leading-7">
