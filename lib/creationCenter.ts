@@ -115,6 +115,67 @@ export type CreatorStudioDesign = {
   suggestedPostFormat: string;
 };
 
+export type CreatorStudioRequestOptions = {
+  sourceMode: CreatorStudioDesign["sourceMode"];
+  selectedTemplateId: CreationCenterTemplateId;
+  category: string;
+  topic: string;
+  mood: string;
+  layoutType: CreatorStudioDesign["layoutType"];
+};
+
+export const creatorStudioCategoryOptions = [
+  "Testimony",
+  "Prayer Request",
+  "Praise Report",
+  "Deliverance",
+  "Healing",
+  "Worship",
+  "Teaching",
+  "Prophecy",
+  "Encouragement",
+  "Bible Study",
+  "Devotional",
+  "Other",
+];
+
+export const creatorStudioMoodOptions = [
+  "Hopeful and bright",
+  "Bold testimony",
+  "Calm and prayerful",
+  "Worshipful",
+  "Devotional",
+  "Breakthrough",
+  "Warm encouragement",
+  "Clean and minimal",
+  "Premium cinematic",
+];
+
+export const creatorStudioLayoutOptions: {
+  value: CreatorStudioDesign["layoutType"];
+  label: string;
+}[] = [
+  { value: "full-image-poster", label: "Full image poster" },
+  {
+    value: "text-over-image-testimony",
+    label: "Text-over-image testimony",
+  },
+  { value: "split-layout", label: "Split layout" },
+  { value: "quote-card", label: "Quote card" },
+  { value: "prayer-request-card", label: "Prayer request card" },
+  { value: "praise-report-card", label: "Praise report card" },
+  { value: "scripture-card", label: "Scripture card" },
+  { value: "photo-collage", label: "Photo collage placeholder" },
+  {
+    value: "video-photo-mixed",
+    label: "Video + photo mixed placeholder",
+  },
+  {
+    value: "before-after-testimony",
+    label: "Before/after testimony placeholder",
+  },
+];
+
 export const creationCenterFormats: {
   value: CreationCenterFormat;
   label: string;
