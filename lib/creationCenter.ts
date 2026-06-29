@@ -88,6 +88,11 @@ export type CreationCenterSuggestion = {
 
 export type CreatorStudioDesign = {
   id: string;
+  sourceMode:
+    | "upload-video"
+    | "upload-photo"
+    | "build-ai"
+    | "start-template";
   title: string;
   overlayText: string;
   caption: string;
@@ -95,6 +100,19 @@ export type CreatorStudioDesign = {
   topic: string;
   templateId: CreationCenterTemplateId;
   styleMood: string;
+  layoutType:
+    | "full-image-poster"
+    | "text-over-image-testimony"
+    | "split-layout"
+    | "quote-card"
+    | "prayer-request-card"
+    | "praise-report-card"
+    | "scripture-card"
+    | "photo-collage"
+    | "video-photo-mixed"
+    | "before-after-testimony";
+  scriptureSuggestion: string;
+  suggestedPostFormat: string;
 };
 
 export const creationCenterFormats: {
