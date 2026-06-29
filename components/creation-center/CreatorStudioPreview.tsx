@@ -20,6 +20,7 @@ type CreatorStudioPreviewProps = {
   videoPreviewUrl?: string | null;
   photoPreviewUrl?: string | null;
   compact?: boolean;
+  gallery?: boolean;
 };
 
 function cleanText(value: string | undefined, fallback: string) {
@@ -105,6 +106,7 @@ export default function CreatorStudioPreview({
   videoPreviewUrl,
   photoPreviewUrl,
   compact = false,
+  gallery = false,
 }: CreatorStudioPreviewProps) {
   const activeLayout =
     design?.layoutType ?? layoutType ?? "text-over-image-testimony";
@@ -122,13 +124,31 @@ export default function CreatorStudioPreview({
   const activeCategory = cleanText(design?.category ?? category, "Testimony");
   const activeTopic = cleanText(design?.topic ?? topic, "Freedom");
   const activeMood = cleanText(design?.styleMood ?? mood, "Hopeful");
-  const frameHeight = compact
-    ? "min-h-[13.5rem]"
-    : "min-h-[24rem] sm:min-h-[30rem] lg:min-h-[34rem]";
+  const frameHeight = gallery
+    ? "aspect-[9/16] min-h-0"
+    : compact
+      ? "min-h-[13.5rem]"
+      : "min-h-[24rem] sm:min-h-[30rem] lg:min-h-[34rem]";
 
   const baseShell =
     "relative isolate w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] bg-[#062a57] text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100";
-  const innerPadding = compact ? "p-4" : "p-5 sm:p-8";
+  const innerPadding = gallery ? "p-4" : compact ? "p-4" : "p-5 sm:p-8";
+  const contentFrame = gallery ? "h-full" : frameHeight;
+  const smallTitleClass = gallery
+    ? "text-xl"
+    : "text-2xl font-black leading-none sm:text-3xl";
+  const heroTitleClass = gallery
+    ? "text-[2.35rem]"
+    : "text-[clamp(2rem,9vw,4.5rem)]";
+  const magazineTitleClass = gallery
+    ? "text-[2.65rem]"
+    : "text-[clamp(1.9rem,9vw,5rem)]";
+  const splitTitleClass = gallery
+    ? "text-2xl"
+    : "text-[clamp(1.35rem,6vw,4rem)]";
+  const bodyTextClass = gallery
+    ? "text-xs leading-5"
+    : "text-sm leading-6 sm:text-base";
 
   if (activeLayout === "split-layout") {
     return (
@@ -145,14 +165,14 @@ export default function CreatorStudioPreview({
         </div>
         <div className="absolute inset-0 bg-black/10" />
         <Watermark />
-        <div className={`relative z-10 ml-auto flex ${frameHeight} w-1/2 min-w-0 flex-col justify-center ${innerPadding}`}>
+        <div className={`relative z-10 ml-auto flex ${contentFrame} w-1/2 min-w-0 flex-col justify-center ${innerPadding}`}>
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
             {activeCategory} / {activeTopic}
           </p>
-          <h4 className="mt-3 max-w-full break-words text-[clamp(1.35rem,6vw,4rem)] font-black leading-none">
+          <h4 className={`mt-3 max-w-full break-words font-black leading-none ${splitTitleClass}`}>
             {activeTitle}
           </h4>
-          <p className="mt-4 max-w-full break-words text-sm font-semibold leading-6 text-blue-50">
+          <p className={`mt-4 max-w-full break-words font-semibold text-blue-50 ${bodyTextClass}`}>
             {activeCaption}
           </p>
         </div>
@@ -175,7 +195,7 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Photo collage
             </p>
-            <h4 className="mt-2 max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
+            <h4 className={`mt-2 max-w-full break-words font-black leading-none ${smallTitleClass}`}>
               {activeTitle}
             </h4>
           </div>
@@ -185,7 +205,7 @@ export default function CreatorStudioPreview({
             <PlaceholderTile label="Photo 3" />
             <PlaceholderTile label="Photo 4" />
           </div>
-          <p className="text-sm font-semibold leading-6 text-blue-50">
+          <p className={`font-semibold text-blue-50 ${bodyTextClass}`}>
             {activeCaption}
           </p>
         </div>
@@ -204,7 +224,7 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Video + photo mixed post
             </p>
-            <h4 className="mt-2 max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
+            <h4 className={`mt-2 max-w-full break-words font-black leading-none ${smallTitleClass}`}>
               {activeTitle}
             </h4>
           </div>
@@ -233,7 +253,7 @@ export default function CreatorStudioPreview({
               )}
             </div>
           </div>
-          <p className="text-sm font-semibold leading-6 text-blue-50">
+          <p className={`font-semibold text-blue-50 ${bodyTextClass}`}>
             {activeCaption}
           </p>
         </div>
@@ -252,7 +272,7 @@ export default function CreatorStudioPreview({
         <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/90 via-[#062a57]/45 to-[#0b63ce]/20" />
         <Watermark />
         <div className="relative z-10 flex h-full flex-col justify-between gap-4">
-          <h4 className="max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
+          <h4 className={`max-w-full break-words font-black leading-none ${smallTitleClass}`}>
             {activeTitle}
           </h4>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -260,7 +280,7 @@ export default function CreatorStudioPreview({
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
                 Before
               </p>
-              <p className="mt-3 text-sm font-semibold leading-6 text-blue-50">
+              <p className={`mt-3 font-semibold text-blue-50 ${bodyTextClass}`}>
                 What life felt like before the breakthrough.
               </p>
             </div>
@@ -268,12 +288,12 @@ export default function CreatorStudioPreview({
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
                 After
               </p>
-              <p className="mt-3 text-sm font-semibold leading-6 text-blue-50">
+              <p className={`mt-3 font-semibold text-blue-50 ${bodyTextClass}`}>
                 {activeOverlay}
               </p>
             </div>
           </div>
-          <p className="text-sm font-semibold leading-6 text-blue-50">
+          <p className={`font-semibold text-blue-50 ${bodyTextClass}`}>
             {activeCaption}
           </p>
         </div>
@@ -296,7 +316,7 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Timeline story
             </p>
-            <h4 className="mt-3 max-w-full break-words text-2xl font-black leading-none sm:text-3xl">
+            <h4 className={`mt-3 max-w-full break-words font-black leading-none ${smallTitleClass}`}>
               {activeTitle}
             </h4>
           </div>
@@ -310,7 +330,7 @@ export default function CreatorStudioPreview({
                   <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-100">
                     {label}
                   </p>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-blue-50">
+                  <p className={`mt-1 font-semibold text-blue-50 ${bodyTextClass}`}>
                     {index === 1 ? activeOverlay : activeCaption}
                   </p>
                 </div>
@@ -332,7 +352,7 @@ export default function CreatorStudioPreview({
         />
         <div className="absolute inset-0 bg-gradient-to-br from-[#031d3d]/90 via-[#062a57]/35 to-transparent" />
         <Watermark />
-        <div className={`relative z-10 grid ${frameHeight} grid-rows-[auto_1fr_auto] ${innerPadding}`}>
+        <div className={`relative z-10 grid ${contentFrame} grid-rows-[auto_1fr_auto] ${innerPadding}`}>
           <div className="flex items-center justify-between gap-3 border-b border-white/20 pb-3">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">
               HTBF Journal
@@ -345,11 +365,11 @@ export default function CreatorStudioPreview({
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-100">
               {activeCategory} / {activeTopic}
             </p>
-            <h4 className="mt-4 max-w-full break-words text-[clamp(1.9rem,9vw,5rem)] font-black leading-[0.9]">
+            <h4 className={`mt-4 max-w-full break-words font-black leading-[0.9] ${magazineTitleClass}`}>
               {activeTitle}
             </h4>
           </div>
-          <p className="max-w-lg text-sm font-semibold leading-6 text-blue-50">
+          <p className={`max-w-lg font-semibold text-blue-50 ${bodyTextClass}`}>
             {activeCaption}
           </p>
         </div>
@@ -371,10 +391,10 @@ export default function CreatorStudioPreview({
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
             Journal style / {activeTopic}
           </p>
-          <h4 className="mt-4 max-w-full break-words text-3xl font-black leading-none sm:text-4xl">
+          <h4 className={`mt-4 max-w-full break-words font-black leading-none ${gallery ? "text-2xl" : "text-3xl sm:text-4xl"}`}>
             {activeTitle}
           </h4>
-          <p className="mt-5 whitespace-pre-wrap text-base font-semibold leading-7">
+          <p className={`mt-5 whitespace-pre-wrap font-semibold ${gallery ? "text-xs leading-5" : "text-base leading-7"}`}>
             {activeCaption}
           </p>
         </div>
@@ -407,10 +427,10 @@ export default function CreatorStudioPreview({
           </span>
         </div>
         <div className={isQuote ? "mx-auto max-w-xl text-center" : "max-w-xl"}>
-          <h4 className="whitespace-pre-wrap break-words text-[clamp(2rem,9vw,4.5rem)] font-black leading-none text-white drop-shadow-sm">
+          <h4 className={`whitespace-pre-wrap break-words font-black leading-none text-white drop-shadow-sm ${heroTitleClass}`}>
             {activeLayout === "full-image-poster" ? activeTitle : activeOverlay}
           </h4>
-          <p className="mt-5 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-blue-50 sm:text-base">
+          <p className={`mt-5 whitespace-pre-wrap break-words font-semibold text-blue-50 ${bodyTextClass}`}>
             {activeCaption}
           </p>
         </div>
