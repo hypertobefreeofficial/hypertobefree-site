@@ -176,6 +176,12 @@ export default function CreatorStudio({
     hasPhoto: Boolean(photoPreviewUrl),
     templateId,
   });
+  const statusTone = message.toLowerCase().includes("couldn")
+    ? "error"
+    : message.toLowerCase().includes("not connected") ||
+        message.toLowerCase().includes("safe draft")
+      ? "warning"
+      : "success";
 
   useEffect(() => {
     if (!hasRequested || designs.length === 0) return;
@@ -254,7 +260,7 @@ export default function CreatorStudio({
   }
 
   return (
-    <section className="overflow-hidden rounded-[2rem] bg-white ring-1 ring-blue-100">
+    <section className="w-full max-w-full min-w-0 overflow-hidden rounded-[2rem] bg-white ring-1 ring-blue-100">
       <div className="relative overflow-hidden bg-[#062a57] px-5 py-6 text-white sm:px-7">
         <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[#0b63ce]/60 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 left-8 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
@@ -284,13 +290,13 @@ export default function CreatorStudio({
         </div>
       </div>
 
-      <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-5">
+      <div className="grid w-full max-w-full min-w-0 grid-cols-1 gap-6 p-4 sm:p-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="min-w-0 space-y-5">
           <section>
             <div className="text-sm font-black text-[#062a57]">
               Choose a path
             </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="mt-3 flex w-full max-w-full gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible xl:grid-cols-1">
               {creatorStudioPathOptions.map((option) => {
                 const Icon = pathIcons[option.value];
                 const selected = studioPath === option.value;
@@ -300,7 +306,7 @@ export default function CreatorStudio({
                     key={option.value}
                     type="button"
                     onClick={() => choosePath(option.value)}
-                    className={`rounded-[1.5rem] p-4 text-left ring-1 transition ${
+                    className={`min-h-[9.5rem] w-[15.5rem] shrink-0 rounded-[1.5rem] p-4 text-left ring-1 transition sm:w-auto ${
                       selected
                         ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
                         : "bg-blue-50/70 text-slate-600 ring-blue-100 hover:bg-white"
@@ -323,11 +329,11 @@ export default function CreatorStudio({
             </div>
           </section>
 
-          <section className="rounded-[1.5rem] bg-blue-50/70 p-4 ring-1 ring-blue-100">
+          <section className="min-w-0 rounded-[1.5rem] bg-blue-50/70 p-4 ring-1 ring-blue-100">
             <div className="text-sm font-black text-[#062a57]">
               Add media if you want
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-2">
               <label className="flex cursor-pointer flex-col items-center rounded-[1.25rem] bg-white p-4 text-center text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50">
                 <Video className="h-5 w-5" />
                 <span className="mt-2">Video</span>
@@ -419,7 +425,7 @@ export default function CreatorStudio({
             />
           </section>
 
-          <section className="grid gap-3 sm:grid-cols-2">
+          <section className="grid min-w-0 gap-3 sm:grid-cols-2">
             <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
               Category
               <select
@@ -482,7 +488,7 @@ export default function CreatorStudio({
             <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
               Quick inspiration
             </div>
-            <div className="mt-3 flex w-full max-w-full gap-2 overflow-x-auto pb-2">
+            <div className="mt-3 flex w-full max-w-full gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
               {inspirationChips.map((chip) => {
                 const selected = selectedChips.includes(chip);
 
@@ -508,7 +514,7 @@ export default function CreatorStudio({
             <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
               Optional background
             </div>
-            <div className="mt-3 flex w-full max-w-full gap-3 overflow-x-auto pb-2">
+            <div className="mt-3 flex w-full max-w-full gap-3 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
               <button
                 type="button"
                 onClick={() => setTemplateId("none")}
@@ -564,51 +570,50 @@ export default function CreatorStudio({
               disabled={loading}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {loading ? "Generating..." : "Generate Designs"}
+              {loading ? "Creating your designs..." : "Generate Designs"}
               <Sparkles className="h-4 w-4" />
             </button>
             {message && (
-              <p className="text-sm font-semibold leading-6 text-slate-600">
+              <p
+                className={`rounded-2xl px-4 py-3 text-sm font-semibold leading-6 ring-1 ${
+                  statusTone === "error"
+                    ? "bg-red-50 text-red-700 ring-red-100"
+                    : statusTone === "warning"
+                      ? "bg-amber-50 text-amber-800 ring-amber-100"
+                      : "bg-blue-50 text-slate-600 ring-blue-100"
+                }`}
+              >
                 {message}
               </p>
             )}
           </div>
 
-          {hasRequested && !loading && designs.length === 0 && (
-            <div className="rounded-[1.25rem] bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800 ring-1 ring-amber-100">
-              No designs came back yet. Add a little more detail or choose a
-              different mood/layout, then generate again.
+          {loading && (
+            <div className="rounded-[1.5rem] bg-blue-50 px-4 py-4 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100">
+              Creating your designs...
             </div>
           )}
-        </div>
 
-        <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
-          <CreatorStudioPreview
-            layoutType={layoutType}
-            title={prompt || pathDefaults[studioPath].category}
-            overlayText={prompt || "Your design preview updates here."}
-            caption={prompt || "Tell us what God is doing, then generate polished options."}
-            category={category}
-            topic={topic}
-            mood={mood}
-            templateId={templateId}
-            videoPreviewUrl={videoPreviewUrl}
-            photoPreviewUrl={photoPreviewUrl}
-          />
+          {hasRequested && !loading && designs.length === 0 && (
+            <div className="rounded-[1.25rem] bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-700 ring-1 ring-red-100">
+              Couldn&apos;t generate designs. Try again with a little more
+              detail, or choose a different mood/layout.
+            </div>
+          )}
 
           {designs.length > 0 && (
-            <section className="space-y-4">
+            <section className="min-w-0 space-y-4 rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
               <div>
                 <div className="text-sm font-black text-[#062a57]">
-                  Choose a generated direction
+                  Generated designs
                 </div>
                 <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                  Each design is shaped by your path, prompt, media, mood,
-                  layout, and template choices.
+                  Swipe through the options, then tap one to edit and preview
+                  it.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex w-full max-w-full gap-3 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] sm:grid sm:grid-cols-2 sm:overflow-visible">
                 {designs.map((design) => {
                   const selected = selectedDesignId === design.id;
 
@@ -617,7 +622,7 @@ export default function CreatorStudio({
                       key={design.id}
                       type="button"
                       onClick={() => selectDesign(design)}
-                      className={`relative text-left ring-2 transition ${
+                      className={`relative w-[15.5rem] shrink-0 text-left ring-2 transition sm:w-auto ${
                         selected
                           ? "rounded-[1.5rem] ring-[#0b63ce] ring-offset-2"
                           : "rounded-[1.5rem] ring-transparent hover:ring-blue-200"
@@ -640,6 +645,22 @@ export default function CreatorStudio({
               </div>
             </section>
           )}
+        </div>
+
+        <div className="min-w-0 space-y-5 xl:sticky xl:top-6 xl:self-start">
+          <CreatorStudioPreview
+            design={editableDesign}
+            layoutType={layoutType}
+            title={prompt || pathDefaults[studioPath].category}
+            overlayText={prompt || "Your design preview updates here."}
+            caption={prompt || "Tell us what God is doing, then generate polished options."}
+            category={category}
+            topic={topic}
+            mood={mood}
+            templateId={templateId}
+            videoPreviewUrl={videoPreviewUrl}
+            photoPreviewUrl={photoPreviewUrl}
+          />
 
           {editableDesign && (
             <section className="space-y-4 rounded-[1.5rem] bg-blue-50/70 p-4 ring-1 ring-blue-100">
