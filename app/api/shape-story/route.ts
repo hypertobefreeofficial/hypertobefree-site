@@ -26,6 +26,25 @@ type CreatorStudioResponse = {
 const creatorStudioTemplateIds = creationCenterStoryTemplates
   .filter((template) => template.id !== "none" && template.imagePath)
   .map((template) => template.id);
+const creatorStudioTemplateIdOptions = ["none", ...creatorStudioTemplateIds];
+const creatorStudioSourceModes = [
+  "upload-video",
+  "upload-photo",
+  "build-ai",
+  "start-template",
+] as const;
+const creatorStudioLayoutTypes = [
+  "full-image-poster",
+  "text-over-image-testimony",
+  "split-layout",
+  "quote-card",
+  "prayer-request-card",
+  "praise-report-card",
+  "scripture-card",
+  "photo-collage",
+  "video-photo-mixed",
+  "before-after-testimony",
+] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -100,22 +119,55 @@ function readCreatorStudioTemplateId(
   return match.id;
 }
 
+function readCreatorStudioSourceMode(
+  value: unknown
+): CreatorStudioDesign["sourceMode"] {
+  return typeof value === "string" &&
+    creatorStudioSourceModes.includes(
+      value as (typeof creatorStudioSourceModes)[number]
+    )
+    ? (value as CreatorStudioDesign["sourceMode"])
+    : "build-ai";
+}
+
+function readCreatorStudioLayoutType(
+  value: unknown
+): CreatorStudioDesign["layoutType"] {
+  return typeof value === "string" &&
+    creatorStudioLayoutTypes.includes(
+      value as (typeof creatorStudioLayoutTypes)[number]
+    )
+    ? (value as CreatorStudioDesign["layoutType"])
+    : "text-over-image-testimony";
+}
+
 function fallbackCreatorStudioDesigns(
   body: Record<string, unknown>
 ): CreatorStudioResponse {
   const prompt = readString(body.prompt).trim();
   const cleanPrompt = prompt || "God is moving in my story.";
   const requestedChips = readStringArray(body.inspirationChips).slice(0, 3);
+  const sourceMode = readCreatorStudioSourceMode(body.sourceMode);
+  const requestedTemplateId = readCreatorStudioTemplateId(
+    body.selectedTemplateId,
+    "scripture-woods"
+  );
   const topic = requestedChips[0] || "Testimony";
   const baseTemplates = creatorStudioTemplateIds.slice(0, 6);
   const templates =
-    baseTemplates.length > 0
-      ? baseTemplates
-      : (["scripture-woods"] as CreationCenterTemplateId[]);
+    sourceMode === "upload-video" || sourceMode === "upload-photo"
+      ? (["none", ...baseTemplates] as CreationCenterTemplateId[])
+      : sourceMode === "start-template"
+        ? ([requestedTemplateId, ...baseTemplates] as CreationCenterTemplateId[])
+        : baseTemplates.length > 0
+          ? baseTemplates
+          : (["scripture-woods"] as CreationCenterTemplateId[]);
+  const layoutTypes = Array.from(creatorStudioLayoutTypes);
 
   return {
     designs: templates.slice(0, 6).map((templateId, index) => ({
       id: `creator-design-${index + 1}`,
+      sourceMode,
       title:
         index === 0
           ? "God Is Moving"
@@ -142,6 +194,14 @@ function fallbackCreatorStudioDesigns(
           : index % 3 === 1
             ? "Warm and reflective"
             : "Bold and faith-filled",
+      layoutType: layoutTypes[index % layoutTypes.length],
+      scriptureSuggestion: "",
+      suggestedPostFormat:
+        sourceMode === "upload-video"
+          ? "Video post with overlay text"
+          : sourceMode === "upload-photo"
+            ? "Photo post with caption"
+            : "Template design post",
     })),
   };
 }
@@ -193,6 +253,12 @@ function cleanCreatorStudioResponse(
         readString(item.styleMood).trim() ||
         readString(item.style_mood).trim() ||
         fallbackDesign.styleMood;
+      const sourceMode = readCreatorStudioSourceMode(
+        item.sourceMode ?? item.source_mode ?? fallbackDesign.sourceMode
+      );
+      const layoutType = readCreatorStudioLayoutType(
+        item.layoutType ?? item.layout_type ?? fallbackDesign.layoutType
+      );
       const templateId = readCreatorStudioTemplateId(
         item.templateId ?? item.template ?? item.background,
         fallbackDesign.templateId
@@ -202,6 +268,7 @@ function cleanCreatorStudioResponse(
         id:
           readString(item.id).trim() ||
           `creator-design-${index + 1}`,
+        sourceMode,
         title,
         overlayText,
         caption,
@@ -209,6 +276,15 @@ function cleanCreatorStudioResponse(
         topic,
         templateId,
         styleMood,
+        layoutType,
+        scriptureSuggestion:
+          readString(item.scriptureSuggestion).trim() ||
+          readString(item.scripture_suggestion).trim() ||
+          fallbackDesign.scriptureSuggestion,
+        suggestedPostFormat:
+          readString(item.suggestedPostFormat).trim() ||
+          readString(item.suggested_post_format).trim() ||
+          fallbackDesign.suggestedPostFormat,
       };
     })
     .filter((design): design is CreatorStudioDesign => Boolean(design))
@@ -262,14 +338,20 @@ export async function POST(request: Request) {
 
     const prompt = readString(body.prompt);
     const inspirationChips = readStringArray(body.inspirationChips);
+    const sourceMode = readCreatorStudioSourceMode(body.sourceMode);
+    const selectedTemplateId = readString(body.selectedTemplateId);
 
     const input = [
       "You create polished HTBF Creator Studio design options. Return JSON only.",
-      "The user gives one faith-centered idea, testimony, prayer, or encouragement.",
-      "Create 4 to 6 completed design options using only the allowed template ids.",
+      "The user can upload a video, upload a photo, build with AI, or start from an HTBF template.",
+      "Create 4 to 6 completed design options using only the allowed template ids and layout types.",
       "Do not quote full Bible verse text. References are okay only if naturally helpful.",
-      "Each design must include title, overlayText, caption, category, topic, templateId, and styleMood.",
-      `Allowed template ids: ${creatorStudioTemplateIds.join(", ")}`,
+      "Each design must include sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, and suggestedPostFormat.",
+      "For upload-video and upload-photo, templateId may be none because the user media is the primary visual.",
+      `Source mode: ${sourceMode}`,
+      `Selected template id, if any: ${selectedTemplateId || "none"}`,
+      `Allowed template ids: ${creatorStudioTemplateIdOptions.join(", ")}`,
+      `Allowed layout types: ${creatorStudioLayoutTypes.join(", ")}`,
       `Inspiration chips: ${inspirationChips.join(", ") || "None"}`,
       `User prompt: ${prompt}`,
     ].join("\n\n");
@@ -310,6 +392,7 @@ export async function POST(request: Request) {
                       additionalProperties: false,
                       required: [
                         "id",
+                        "sourceMode",
                         "title",
                         "overlayText",
                         "caption",
@@ -317,9 +400,16 @@ export async function POST(request: Request) {
                         "topic",
                         "templateId",
                         "styleMood",
+                        "layoutType",
+                        "scriptureSuggestion",
+                        "suggestedPostFormat",
                       ],
                       properties: {
                         id: { type: "string" },
+                        sourceMode: {
+                          type: "string",
+                          enum: creatorStudioSourceModes,
+                        },
                         title: { type: "string" },
                         overlayText: { type: "string" },
                         caption: { type: "string" },
@@ -327,9 +417,15 @@ export async function POST(request: Request) {
                         topic: { type: "string" },
                         templateId: {
                           type: "string",
-                          enum: creatorStudioTemplateIds,
+                          enum: creatorStudioTemplateIdOptions,
                         },
                         styleMood: { type: "string" },
+                        layoutType: {
+                          type: "string",
+                          enum: creatorStudioLayoutTypes,
+                        },
+                        scriptureSuggestion: { type: "string" },
+                        suggestedPostFormat: { type: "string" },
                       },
                     },
                   },
