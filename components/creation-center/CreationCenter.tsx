@@ -4,10 +4,12 @@ import {
   Camera,
   Check,
   FileText,
+  ImagePlus,
   Layers3,
   Mic2,
   PenLine,
   Sparkles,
+  Upload,
   Video,
 } from "lucide-react";
 import {
@@ -34,6 +36,8 @@ import GuidedPromptPanel from "./GuidedPromptPanel";
 import StorySuggestions from "./StorySuggestions";
 import StoryTemplatePicker from "./StoryTemplatePicker";
 
+type CreatorStudioMode = CreatorStudioDesign["sourceMode"];
+
 type CreationCenterProps = {
   format: CreationCenterFormat;
   storyType: CreationCenterStoryType;
@@ -47,6 +51,14 @@ type CreationCenterProps = {
   creatorStudioDesigns: CreatorStudioDesign[];
   creatorStudioLoading: boolean;
   creatorStudioMessage: string;
+  creatorStudioVideoFileName: string | null;
+  creatorStudioPhotoFileName: string | null;
+  creatorStudioVideoPreviewUrl: string | null;
+  creatorStudioPhotoPreviewUrl: string | null;
+  onCreatorStudioVideoSelect: (file: File | null) => void;
+  onCreatorStudioPhotoSelect: (file: File | null) => void;
+  onCreatorStudioRemoveVideo: () => void;
+  onCreatorStudioRemovePhoto: () => void;
   onFormatChange: (format: CreationCenterFormat) => void;
   onTemplateChange: (templateId: CreationCenterTemplateId) => void;
   onStoryTypeChange: (storyType: CreationCenterStoryType) => void;
@@ -57,7 +69,9 @@ type CreationCenterProps = {
   onRequestSuggestions: () => void;
   onRequestCreatorStudioDesigns: (
     prompt: string,
-    inspirationChips: string[]
+    inspirationChips: string[],
+    sourceMode: CreatorStudioMode,
+    selectedTemplateId: CreationCenterTemplateId
   ) => void;
   onUseCreatorStudioDesign: (design: CreatorStudioDesign) => void;
   onCreatorStudioActiveChange: (active: boolean) => void;
@@ -95,6 +109,51 @@ const creatorStudioChips = [
   "Prophecy",
 ];
 
+const creatorStudioModes: {
+  value: CreatorStudioMode;
+  title: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+}[] = [
+  {
+    value: "upload-video",
+    title: "Upload Video",
+    description: "Add your video, then let HTBF suggest text and styling.",
+    icon: Video,
+  },
+  {
+    value: "upload-photo",
+    title: "Upload Photo",
+    description: "Use one photo now. Multi-photo layouts can come later.",
+    icon: ImagePlus,
+  },
+  {
+    value: "build-ai",
+    title: "Build with AI",
+    description: "Describe the moment and receive complete design concepts.",
+    icon: Sparkles,
+  },
+  {
+    value: "start-template",
+    title: "Start from Template",
+    description: "Choose a background first, then let HTBF shape the words.",
+    icon: Layers3,
+  },
+];
+
+const layoutLabels: Record<CreatorStudioDesign["layoutType"], string> = {
+  "full-image-poster": "Full image poster",
+  "text-over-image-testimony": "Text-over-image testimony",
+  "split-layout": "Split layout",
+  "quote-card": "Quote card",
+  "prayer-request-card": "Prayer request card",
+  "praise-report-card": "Praise report card",
+  "scripture-card": "Scripture card",
+  "photo-collage": "Photo collage placeholder",
+  "video-photo-mixed": "Video + photo mixed placeholder",
+  "before-after-testimony": "Before/after testimony placeholder",
+};
+
 export default function CreationCenter({
   format,
   storyType,
@@ -108,6 +167,14 @@ export default function CreationCenter({
   creatorStudioDesigns,
   creatorStudioLoading,
   creatorStudioMessage,
+  creatorStudioVideoFileName,
+  creatorStudioPhotoFileName,
+  creatorStudioVideoPreviewUrl,
+  creatorStudioPhotoPreviewUrl,
+  onCreatorStudioVideoSelect,
+  onCreatorStudioPhotoSelect,
+  onCreatorStudioRemoveVideo,
+  onCreatorStudioRemovePhoto,
   onFormatChange,
   onTemplateChange,
   onStoryTypeChange,
@@ -129,10 +196,14 @@ export default function CreationCenter({
   onClearSuggestions,
 }: CreationCenterProps) {
   const [creatorStudioOpen, setCreatorStudioOpen] = useState(false);
+  const [creatorStudioMode, setCreatorStudioMode] =
+    useState<CreatorStudioMode | null>(null);
   const [creatorStudioPrompt, setCreatorStudioPrompt] = useState("");
   const [creatorStudioSelectedChips, setCreatorStudioSelectedChips] = useState<
     string[]
   >([]);
+  const [creatorStudioTemplateId, setCreatorStudioTemplateId] =
+    useState<CreationCenterTemplateId>("scripture-woods");
   const [creatorStudioHasRequested, setCreatorStudioHasRequested] =
     useState(false);
   const [selectedCreatorStudioDesignId, setSelectedCreatorStudioDesignId] =
@@ -160,6 +231,9 @@ export default function CreationCenter({
   const editableCreatorStudioTemplate = editableCreatorStudioDesign
     ? getCreationCenterTemplate(editableCreatorStudioDesign.templateId)
     : null;
+  const creatorStudioSelectedTemplate = getCreationCenterTemplate(
+    creatorStudioTemplateId
+  );
 
   useEffect(() => {
     onCreatorStudioActiveChange(creatorStudioOpen);
@@ -179,6 +253,25 @@ export default function CreationCenter({
     setEditableCreatorStudioDesign(nextDesign);
   }, [creatorStudioDesigns, creatorStudioHasRequested]);
 
+  function selectCreatorStudioMode(nextMode: CreatorStudioMode) {
+    setCreatorStudioMode(nextMode);
+    setCreatorStudioHasRequested(false);
+    setSelectedCreatorStudioDesignId(null);
+    setEditableCreatorStudioDesign(null);
+
+    if (nextMode === "upload-video") {
+      onFormatChange("video");
+      return;
+    }
+
+    if (nextMode === "upload-photo") {
+      onFormatChange("photo");
+      return;
+    }
+
+    onFormatChange("testimony-card");
+  }
+
   function toggleCreatorStudioChip(chip: string) {
     setCreatorStudioSelectedChips((current) =>
       current.includes(chip)
@@ -188,12 +281,16 @@ export default function CreationCenter({
   }
 
   function generateCreatorStudioDesigns() {
+    if (!creatorStudioMode) return;
+
     setCreatorStudioHasRequested(true);
     setSelectedCreatorStudioDesignId(null);
     setEditableCreatorStudioDesign(null);
     onRequestCreatorStudioDesigns(
       creatorStudioPrompt,
-      creatorStudioSelectedChips
+      creatorStudioSelectedChips,
+      creatorStudioMode,
+      creatorStudioMode === "start-template" ? creatorStudioTemplateId : "none"
     );
   }
 
@@ -214,6 +311,182 @@ export default function CreationCenter({
     if (!editableCreatorStudioDesign) return;
 
     onUseCreatorStudioDesign(editableCreatorStudioDesign);
+  }
+
+  function renderCreatorStudioMediaStep() {
+    if (creatorStudioMode === "upload-video") {
+      return (
+        <div className="rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/60 p-4">
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[1.25rem] bg-white px-4 py-6 text-center ring-1 ring-blue-100 hover:bg-blue-50">
+            <Upload className="h-8 w-8 text-[#0b63ce]" />
+            <div className="mt-3 text-sm font-black text-[#062a57]">
+              Upload your video
+            </div>
+            <div className="mt-1 text-xs font-semibold text-slate-500">
+              Existing HTBF video upload and approval still handles publishing.
+            </div>
+            <input
+              type="file"
+              accept="video/*"
+              onChange={(event) =>
+                onCreatorStudioVideoSelect(event.target.files?.[0] ?? null)
+              }
+              className="hidden"
+            />
+          </label>
+
+          {creatorStudioVideoPreviewUrl && (
+            <video
+              src={creatorStudioVideoPreviewUrl}
+              controls
+              playsInline
+              className="mt-4 max-h-[420px] w-full rounded-[1.25rem] bg-black object-contain"
+            />
+          )}
+
+          {creatorStudioVideoFileName && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
+              <span className="truncate">{creatorStudioVideoFileName}</span>
+              <button
+                type="button"
+                onClick={onCreatorStudioRemoveVideo}
+                className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600 ring-1 ring-red-100"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (creatorStudioMode === "upload-photo") {
+      return (
+        <div className="rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/60 p-4">
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-[1.25rem] bg-white px-4 py-6 text-center ring-1 ring-blue-100 hover:bg-blue-50">
+            <ImagePlus className="h-8 w-8 text-[#0b63ce]" />
+            <div className="mt-3 text-sm font-black text-[#062a57]">
+              Upload your photo
+            </div>
+            <div className="mt-1 text-xs font-semibold text-slate-500">
+              One photo is supported now. Multi-photo layouts are ready for
+              later.
+            </div>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) =>
+                onCreatorStudioPhotoSelect(event.target.files?.[0] ?? null)
+              }
+              className="hidden"
+            />
+          </label>
+
+          {creatorStudioPhotoPreviewUrl && (
+            <img
+              src={creatorStudioPhotoPreviewUrl}
+              alt=""
+              className="mt-4 max-h-[420px] w-full rounded-[1.25rem] object-contain"
+            />
+          )}
+
+          {creatorStudioPhotoFileName && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
+              <span className="truncate">{creatorStudioPhotoFileName}</span>
+              <button
+                type="button"
+                onClick={onCreatorStudioRemovePhoto}
+                className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600 ring-1 ring-red-100"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (creatorStudioMode === "start-template") {
+      return (
+        <div>
+          <div className="text-sm font-black text-[#062a57]">
+            Choose a starting template
+          </div>
+          <div className="mt-3 flex w-full max-w-full gap-3 overflow-x-auto pb-2">
+            {creatorStudioTemplateOptions.map((template) => {
+              const selected = creatorStudioTemplateId === template.id;
+
+              return (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => setCreatorStudioTemplateId(template.id)}
+                  className={`relative h-40 w-32 shrink-0 overflow-hidden rounded-[1.25rem] bg-slate-900 text-left ring-2 transition ${
+                    selected
+                      ? "ring-[#0b63ce] ring-offset-2"
+                      : "ring-transparent hover:ring-blue-200"
+                  }`}
+                >
+                  {template.imagePath && (
+                    <img
+                      src={template.imagePath}
+                      alt=""
+                      loading="lazy"
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  )}
+                  <span className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/90 via-transparent to-transparent" />
+                  <span className="absolute inset-x-2 bottom-2 z-10 text-xs font-black leading-4 text-white">
+                    {template.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  function renderCreatorStudioWorkingPreview() {
+    if (creatorStudioMode === "upload-video" && creatorStudioVideoPreviewUrl) {
+      return (
+        <video
+          src={creatorStudioVideoPreviewUrl}
+          muted
+          playsInline
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      );
+    }
+
+    if (creatorStudioMode === "upload-photo" && creatorStudioPhotoPreviewUrl) {
+      return (
+        <img
+          src={creatorStudioPhotoPreviewUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      );
+    }
+
+    if (
+      creatorStudioMode === "start-template" &&
+      creatorStudioSelectedTemplate?.imagePath
+    ) {
+      return (
+        <img
+          src={creatorStudioSelectedTemplate.imagePath}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      );
+    }
+
+    return null;
   }
 
   return (
@@ -258,12 +531,12 @@ export default function CreationCenter({
                     Creator Studio
                   </div>
                   <h3 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
-                    Tell us the story. We’ll shape the design.
+                    Upload media or describe the moment.
                   </h3>
                   <p className="mt-2 text-sm font-semibold leading-6 text-blue-100">
-                    Creator Studio turns one idea into polished design options
-                    with a title, overlay text, caption, topic, mood, and HTBF
-                    background.
+                    HTBF helps shape the title, overlay text, caption, category,
+                    layout, mood, and visual direction. You always preview and
+                    edit before submitting.
                   </p>
                 </div>
 
@@ -278,78 +551,140 @@ export default function CreationCenter({
             </div>
 
             <div className="space-y-6 p-4 sm:p-6">
-              <div>
-                <label
-                  htmlFor="creator-studio-prompt"
-                  className="sr-only"
-                >
-                  Share what God is doing
-                </label>
-                <textarea
-                  id="creator-studio-prompt"
-                  value={creatorStudioPrompt}
-                  onChange={(event) => setCreatorStudioPrompt(event.target.value)}
-                  placeholder="Share what God is doing..."
-                  rows={8}
-                  className="w-full resize-none rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-5 text-lg font-semibold leading-8 text-[#062a57] outline-none transition placeholder:text-slate-400 focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100 sm:text-xl sm:leading-9"
-                />
-              </div>
-
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-                  Quick inspiration
+              <section>
+                <div className="text-sm font-black text-[#062a57]">
+                  How do you want to create?
                 </div>
-                <div className="mt-3 flex w-full max-w-full gap-2 overflow-x-auto pb-2">
-                  {creatorStudioChips.map((chip) => {
-                    const selected = creatorStudioSelectedChips.includes(chip);
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {creatorStudioModes.map((mode) => {
+                    const Icon = mode.icon;
+                    const selected = creatorStudioMode === mode.value;
 
                     return (
                       <button
-                        key={chip}
+                        key={mode.value}
                         type="button"
-                        onClick={() => toggleCreatorStudioChip(chip)}
-                        className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-black ring-1 transition ${
+                        onClick={() => selectCreatorStudioMode(mode.value)}
+                        className={`rounded-[1.5rem] p-4 text-left ring-1 transition ${
                           selected
                             ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
                             : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
                         }`}
                       >
-                        {chip}
+                        <Icon className="h-5 w-5" />
+                        <div className="mt-3 text-sm font-black">
+                          {mode.title}
+                        </div>
+                        <p
+                          className={`mt-2 text-xs font-semibold leading-5 ${
+                            selected ? "text-blue-100" : "text-slate-500"
+                          }`}
+                        >
+                          {mode.description}
+                        </p>
                       </button>
                     );
                   })}
                 </div>
-              </div>
+              </section>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={generateCreatorStudioDesigns}
-                  disabled={creatorStudioLoading}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  {creatorStudioLoading
-                    ? "Generating..."
-                    : "Generate Designs ✨"}
-                </button>
+              {creatorStudioMode && (
+                <>
+                  {renderCreatorStudioMediaStep()}
 
-                {creatorStudioMessage && (
-                  <p className="text-sm font-semibold leading-6 text-slate-600">
-                    {creatorStudioMessage}
-                  </p>
-                )}
-              </div>
+                  <section>
+                    <label
+                      htmlFor="creator-studio-prompt"
+                      className="text-sm font-black text-[#062a57]"
+                    >
+                      Tell us what God is doing...
+                    </label>
+                    <textarea
+                      id="creator-studio-prompt"
+                      value={creatorStudioPrompt}
+                      onChange={(event) =>
+                        setCreatorStudioPrompt(event.target.value)
+                      }
+                      placeholder="Tell us what God is doing..."
+                      rows={7}
+                      className="mt-3 w-full resize-none rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-5 text-lg font-semibold leading-8 text-[#062a57] outline-none transition placeholder:text-slate-400 focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100 sm:text-xl sm:leading-9"
+                    />
+                  </section>
+
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
+                      Quick inspiration
+                    </div>
+                    <div className="mt-3 flex w-full max-w-full gap-2 overflow-x-auto pb-2">
+                      {creatorStudioChips.map((chip) => {
+                        const selected =
+                          creatorStudioSelectedChips.includes(chip);
+
+                        return (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() => toggleCreatorStudioChip(chip)}
+                            className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-black ring-1 transition ${
+                              selected
+                                ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
+                            }`}
+                          >
+                            {chip}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="relative min-h-[18rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white ring-1 ring-blue-100">
+                    {renderCreatorStudioWorkingPreview()}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/85 via-[#062a57]/35 to-transparent" />
+                    <div className="relative z-10 flex min-h-[15rem] flex-col justify-between">
+                      <div className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1 ring-white/20 backdrop-blur-sm">
+                        {creatorStudioModes.find(
+                          (mode) => mode.value === creatorStudioMode
+                        )?.title ?? "Creator Studio"}
+                      </div>
+                      <p className="max-w-lg whitespace-pre-wrap break-words text-2xl font-black leading-tight text-white drop-shadow-sm">
+                        {creatorStudioPrompt.trim() ||
+                          "Your Creator Studio preview will appear here."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button
+                      type="button"
+                      onClick={generateCreatorStudioDesigns}
+                      disabled={creatorStudioLoading}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {creatorStudioLoading
+                        ? "Generating..."
+                        : "Generate Designs ✨"}
+                    </button>
+
+                    {creatorStudioMessage && (
+                      <p className="text-sm font-semibold leading-6 text-slate-600">
+                        {creatorStudioMessage}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
 
               {creatorStudioDesigns.length > 0 && (
                 <div className="space-y-5">
                   <div>
                     <div className="text-sm font-black text-[#062a57]">
-                      Choose a completed design
+                      Choose a completed direction
                     </div>
                     <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                      Each option already includes post text, caption, category,
-                      topic, mood, and a selected HTBF background.
+                      Each option includes title, overlay text, caption,
+                      category, topic, mood, layout, and post format.
                     </p>
                   </div>
 
@@ -372,13 +707,15 @@ export default function CreationCenter({
                               : "ring-transparent hover:ring-blue-200"
                           }`}
                         >
-                          {designTemplate?.imagePath && (
+                          {designTemplate?.imagePath ? (
                             <img
                               src={designTemplate.imagePath}
                               alt=""
                               loading="lazy"
                               className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                             />
+                          ) : (
+                            renderCreatorStudioWorkingPreview()
                           )}
                           <span className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/90 via-[#062a57]/20 to-transparent" />
                           {selected && (
@@ -388,7 +725,8 @@ export default function CreationCenter({
                           )}
                           <span className="absolute inset-x-3 bottom-3 z-10">
                             <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-blue-100">
-                              {design.category} • {design.styleMood}
+                              {design.category} •{" "}
+                              {layoutLabels[design.layoutType]}
                             </span>
                             <span className="mt-1 line-clamp-2 block text-sm font-black leading-5 text-white">
                               {design.title}
@@ -406,8 +744,8 @@ export default function CreationCenter({
                           Edit selected design
                         </div>
                         <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                          Adjust the words and background, then submit through
-                          the normal HTBF approval flow.
+                          Adjust anything before it goes through the normal HTBF
+                          approval flow.
                         </p>
                       </div>
 
@@ -467,34 +805,86 @@ export default function CreationCenter({
                         />
                       </label>
 
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                          Template / background
+                          <select
+                            value={editableCreatorStudioDesign.templateId}
+                            onChange={(event) =>
+                              updateEditableCreatorStudioDesign({
+                                templateId: event.target
+                                  .value as CreationCenterTemplateId,
+                              })
+                            }
+                            className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                          >
+                            <option value="none">No template</option>
+                            {creatorStudioTemplateOptions.map((template) => (
+                              <option key={template.id} value={template.id}>
+                                {template.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                          Layout
+                          <select
+                            value={editableCreatorStudioDesign.layoutType}
+                            onChange={(event) =>
+                              updateEditableCreatorStudioDesign({
+                                layoutType: event.target
+                                  .value as CreatorStudioDesign["layoutType"],
+                              })
+                            }
+                            className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                          >
+                            {Object.entries(layoutLabels).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                          Mood / style
+                          <input
+                            value={editableCreatorStudioDesign.styleMood}
+                            onChange={(event) =>
+                              updateEditableCreatorStudioDesign({
+                                styleMood: event.target.value,
+                              })
+                            }
+                            className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                          />
+                        </label>
+                      </div>
+
                       <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
-                        Template / background
-                        <select
-                          value={editableCreatorStudioDesign.templateId}
+                        Scripture suggestion
+                        <input
+                          value={editableCreatorStudioDesign.scriptureSuggestion}
                           onChange={(event) =>
                             updateEditableCreatorStudioDesign({
-                              templateId: event.target
-                                .value as CreationCenterTemplateId,
+                              scriptureSuggestion: event.target.value,
                             })
                           }
+                          placeholder="Reference only, such as John 8:36"
                           className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
-                        >
-                          {creatorStudioTemplateOptions.map((template) => (
-                            <option key={template.id} value={template.id}>
-                              {template.label}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </label>
 
                       <div className="relative min-h-[24rem] overflow-hidden rounded-[1.75rem] bg-[#062a57] p-5 text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100 sm:min-h-[32rem] sm:p-8">
-                        {editableCreatorStudioTemplate?.imagePath && (
+                        {editableCreatorStudioTemplate?.imagePath ? (
                           <img
                             src={editableCreatorStudioTemplate.imagePath}
                             alt=""
                             loading="lazy"
                             className="absolute inset-0 h-full w-full object-cover"
                           />
+                        ) : (
+                          renderCreatorStudioWorkingPreview()
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/85 via-[#062a57]/35 to-transparent" />
                         <div className="relative z-10 flex min-h-[21rem] flex-col justify-between sm:min-h-[28rem]">
@@ -503,7 +893,7 @@ export default function CreationCenter({
                               {editableCreatorStudioDesign.category}
                             </span>
                             <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/15 backdrop-blur-sm">
-                              {editableCreatorStudioDesign.styleMood}
+                              {layoutLabels[editableCreatorStudioDesign.layoutType]}
                             </span>
                           </div>
 
@@ -557,12 +947,11 @@ export default function CreationCenter({
                       Creator Studio
                     </h3>
                     <p className="mt-2 text-base font-black text-white">
-                      Design something beautiful with AI.
+                      Upload media or build something beautiful with AI.
                     </p>
                     <p className="mt-2 text-sm font-semibold leading-6 text-blue-100">
-                      Create polished testimony graphics, encouragement posts,
-                      prayer graphics, scripture posts, and faith-centered
-                      designs.
+                      Start with your video, photo, template, or prompt, then
+                      preview/edit the design before review.
                     </p>
                   </div>
 
