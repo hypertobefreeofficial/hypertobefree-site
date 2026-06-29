@@ -1275,9 +1275,17 @@ export default function ShareYourStoryPage() {
     const category = readField("category") || "Testimony";
     const topic = readField("topic") || category;
     const styleMood = readField("styleMood") || readField("style_mood") || "";
+    const studioPathValue = readField("studioPath") || readField("studio_path");
+    const layoutValue = readField("layoutType") || readField("layout_type");
 
     return {
       id: readField("id") || `creator-studio-design-${index + 1}`,
+      studioPath:
+        studioPathValue === "create-design" ||
+        studioPathValue === "scripture-post" ||
+        studioPathValue === "ai-surprise"
+          ? studioPathValue
+          : "tell-story",
       sourceMode:
         readField("sourceMode") === "upload-video" ||
         readField("sourceMode") === "upload-photo" ||
@@ -1301,8 +1309,11 @@ export default function ShareYourStoryPage() {
         readField("layoutType") === "scripture-card" ||
         readField("layoutType") === "photo-collage" ||
         readField("layoutType") === "video-photo-mixed" ||
-        readField("layoutType") === "before-after-testimony"
-          ? (readField("layoutType") as CreatorStudioDesign["layoutType"])
+        readField("layoutType") === "before-after-testimony" ||
+        layoutValue === "timeline-story" ||
+        layoutValue === "magazine-style" ||
+        layoutValue === "journal-style"
+          ? (layoutValue as CreatorStudioDesign["layoutType"])
           : "text-over-image-testimony",
       scriptureSuggestion: readField("scriptureSuggestion"),
       suggestedPostFormat: readField("suggestedPostFormat") || "HTBF post",
@@ -1360,6 +1371,7 @@ export default function ShareYourStoryPage() {
                 ? "Help shape this uploaded photo into an HTBF post."
                 : "Help shape this HTBF template into a faith-centered post."),
           inspirationChips,
+          studioPath: options.studioPath,
           sourceMode,
           selectedTemplateId,
           category: options.category,
@@ -1384,7 +1396,11 @@ export default function ShareYourStoryPage() {
                 item: CreatorStudioDesign | null
               ): item is CreatorStudioDesign => Boolean(item)
             )
-            .map((design) => ({ ...design, sourceMode }))
+            .map((design) => ({
+              ...design,
+              studioPath: options.studioPath,
+              sourceMode,
+            }))
             .slice(0, 6)
         : [];
 
