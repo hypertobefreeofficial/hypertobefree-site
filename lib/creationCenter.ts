@@ -88,6 +88,11 @@ export type CreationCenterSuggestion = {
 
 export type CreatorStudioDesign = {
   id: string;
+  studioPath:
+    | "tell-story"
+    | "create-design"
+    | "scripture-post"
+    | "ai-surprise";
   sourceMode:
     | "upload-video"
     | "upload-photo"
@@ -110,19 +115,54 @@ export type CreatorStudioDesign = {
     | "scripture-card"
     | "photo-collage"
     | "video-photo-mixed"
-    | "before-after-testimony";
+    | "before-after-testimony"
+    | "timeline-story"
+    | "magazine-style"
+    | "journal-style";
   scriptureSuggestion: string;
   suggestedPostFormat: string;
 };
 
+export type CreatorStudioPath = CreatorStudioDesign["studioPath"];
+export type CreatorStudioSourceMode = CreatorStudioDesign["sourceMode"];
+export type CreatorStudioLayoutType = CreatorStudioDesign["layoutType"];
+
 export type CreatorStudioRequestOptions = {
-  sourceMode: CreatorStudioDesign["sourceMode"];
+  studioPath: CreatorStudioPath;
+  sourceMode: CreatorStudioSourceMode;
   selectedTemplateId: CreationCenterTemplateId;
   category: string;
   topic: string;
   mood: string;
-  layoutType: CreatorStudioDesign["layoutType"];
+  layoutType: CreatorStudioLayoutType;
 };
+
+export const creatorStudioPathOptions: {
+  value: CreatorStudioPath;
+  title: string;
+  description: string;
+}[] = [
+  {
+    value: "tell-story",
+    title: "Tell My Story",
+    description: "Shape a testimony, prayer, or praise moment from your words.",
+  },
+  {
+    value: "create-design",
+    title: "Create a Design",
+    description: "Build a polished HTBF graphic from a prompt or media.",
+  },
+  {
+    value: "scripture-post",
+    title: "Scripture Post",
+    description: "Create a faith-centered reflection with reference-only guidance.",
+  },
+  {
+    value: "ai-surprise",
+    title: "AI Surprise Me",
+    description: "Let HTBF create several directions from your idea.",
+  },
+];
 
 export const creatorStudioCategoryOptions = [
   "Testimony",
@@ -174,6 +214,9 @@ export const creatorStudioLayoutOptions: {
     value: "before-after-testimony",
     label: "Before/after testimony placeholder",
   },
+  { value: "timeline-story", label: "Timeline story" },
+  { value: "magazine-style", label: "Magazine style" },
+  { value: "journal-style", label: "Journal style" },
 ];
 
 export const creationCenterFormats: {
