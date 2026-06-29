@@ -32,6 +32,7 @@ import {
   sanitizeFaithStreams,
   type CreationCenterSuggestion,
   type CreationCenterTemplateId,
+  type CreatorStudioDesign,
   type FaithStream,
 } from "../../lib/creationCenter";
 import { supabase } from "../../lib/supabaseClient";
@@ -760,6 +761,15 @@ export default function ShareYourStoryPage() {
     useState(false);
   const [creationCenterSuggestionMessage, setCreationCenterSuggestionMessage] =
     useState("");
+  const [creatorStudioDesigns, setCreatorStudioDesigns] = useState<
+    CreatorStudioDesign[]
+  >([]);
+  const [creatorStudioLoading, setCreatorStudioLoading] = useState(false);
+  const [creatorStudioMessage, setCreatorStudioMessage] = useState("");
+  const [creatorStudioActive, setCreatorStudioActive] = useState(false);
+  const pendingCreatorStudioDesignRef = useRef<CreatorStudioDesign | null>(
+    null
+  );
 
   const [mediaMode, setMediaMode] = useState<MediaMode>("text");
   const [quickShareCategory, setQuickShareCategory] =
@@ -1233,6 +1243,167 @@ export default function ShareYourStoryPage() {
     } finally {
       setCreationCenterSuggestionLoading(false);
     }
+  }
+
+  function readCreatorStudioDesign(
+    value: unknown,
+    index: number
+  ): CreatorStudioDesign | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const readField = (field: string) =>
+      typeof record[field] === "string" ? record[field].trim() : "";
+    const templateValue = readField("templateId");
+    const template = getCreationCenterTemplate(
+      templateValue as CreationCenterTemplateId
+    );
+    const templateId =
+      template && template.id !== "none" && template.imagePath
+        ? template.id
+        : "scripture-woods";
+    const title = readField("title") || `Creator Studio Design ${index + 1}`;
+    const overlayText =
+      readField("overlayText") || readField("overlay_text") || title;
+    const caption = readField("caption") || overlayText;
+    const category = readField("category") || "Testimony";
+    const topic = readField("topic") || category;
+    const styleMood = readField("styleMood") || readField("style_mood") || "";
+
+    return {
+      id: readField("id") || `creator-studio-design-${index + 1}`,
+      title,
+      overlayText,
+      caption,
+      category,
+      topic,
+      templateId,
+      styleMood: styleMood || "Polished HTBF design",
+    };
+  }
+
+  async function requestCreatorStudioDesigns(
+    prompt: string,
+    inspirationChips: string[]
+  ) {
+    const cleanPrompt = prompt.trim();
+
+    if (!cleanPrompt) {
+      setCreatorStudioMessage(
+        "Share a testimony, prayer, or idea first so Creator Studio can shape it."
+      );
+      return;
+    }
+
+    setCreatorStudioLoading(true);
+    setCreatorStudioMessage("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again before generating designs.");
+      }
+
+      const response = await fetch("/api/shape-story", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mode: "creator_studio",
+          prompt: cleanPrompt,
+          inspirationChips,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not generate designs right now.");
+      }
+
+      const data = await response.json();
+      const designs = Array.isArray(data.designs)
+        ? data.designs
+            .map((item: unknown, index: number) =>
+              readCreatorStudioDesign(item, index)
+            )
+            .filter((item: CreatorStudioDesign | null): item is CreatorStudioDesign =>
+              Boolean(item)
+            )
+            .slice(0, 6)
+        : [];
+
+      if (designs.length === 0) {
+        throw new Error("No design options were returned. Try a little more detail.");
+      }
+
+      setCreatorStudioDesigns(designs);
+      setCreatorStudioMessage(
+        "Designs are ready. Choose one, edit it, then submit for review."
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Could not generate designs.";
+
+      setCreatorStudioMessage(errorMessage);
+    } finally {
+      setCreatorStudioLoading(false);
+    }
+  }
+
+  function getCreatorStudioStoryType(value: string): GuidedStoryType {
+    const normalizedValue = normalizeTopic(value);
+    const matchedType = guidedStoryTypeOptions.find(
+      (option) =>
+        option.value === normalizedValue ||
+        normalizeTopic(option.label) === normalizedValue ||
+        normalizedValue.includes(option.value)
+    );
+
+    return matchedType?.value ?? "testimony";
+  }
+
+  function useCreatorStudioDesign(design: CreatorStudioDesign) {
+    const cleanTitle = design.title.trim();
+    const cleanOverlayText = design.overlayText.trim() || cleanTitle;
+    const cleanCaption = design.caption.trim();
+    const cleanCategory = design.category.trim() || "Testimony";
+    const cleanTopic = design.topic.trim() || cleanCategory;
+    const selectedTemplate = getCreationCenterTemplate(design.templateId);
+
+    pendingCreatorStudioDesignRef.current = {
+      ...design,
+      title: cleanTitle,
+      overlayText: cleanOverlayText,
+      caption: cleanCaption,
+      category: cleanCategory,
+      topic: cleanTopic,
+      templateId:
+        selectedTemplate && selectedTemplate.id !== "none"
+          ? selectedTemplate.id
+          : "scripture-woods",
+    };
+
+    setCreationFormat("testimony-card");
+    selectMediaMode("text");
+    applyGuidedStoryType(getCreatorStudioStoryType(cleanCategory));
+    setStoryType(cleanCategory);
+    setStoryText(cleanOverlayText || cleanCaption || cleanTitle);
+    setCreationTemplateId(pendingCreatorStudioDesignRef.current.templateId);
+    setSelectedTopics(
+      Array.from(new Set([cleanCategory, cleanTopic].map(normalizeTopic))).filter(
+        Boolean
+      )
+    );
+    setCreationCenterSuggestionMessage(
+      "Creator Studio design is ready to submit. You can still edit before review."
+    );
+    setMessage("Creator Studio design prepared for review.");
   }
 
   function useCreationCenterSuggestedStoryType(value: string) {
@@ -1870,13 +2041,31 @@ export default function ShareYourStoryPage() {
       return;
     }
 
-    const cleanStoryText = getSubmitStoryText();
+    const creatorStudioDesign = pendingCreatorStudioDesignRef.current;
+    const cleanStoryText = creatorStudioDesign
+      ? (
+          creatorStudioDesign.overlayText ||
+          creatorStudioDesign.title ||
+          creatorStudioDesign.caption
+        ).trim()
+      : getSubmitStoryText();
     const cleanOverlayText = overlayText.trim();
-    const moderationText = [cleanStoryText, cleanOverlayText]
+    const moderationText = [
+      cleanStoryText,
+      cleanOverlayText,
+      creatorStudioDesign?.caption,
+    ]
       .filter(Boolean)
       .join("\n\n");
-    const hasPhoto = mediaMode === "photo" && Boolean(photoFile);
-    const hasVideo = mediaMode === "video" && Boolean(videoFile);
+    const isCreatorStudioSubmit =
+      sharePath === "guided" && Boolean(creatorStudioDesign);
+    const effectiveMediaMode: MediaMode = isCreatorStudioSubmit
+      ? "text"
+      : mediaMode;
+    const hasPhoto =
+      effectiveMediaMode === "photo" && Boolean(photoFile);
+    const hasVideo =
+      effectiveMediaMode === "video" && Boolean(videoFile);
 
     if (!cleanStoryText && !cleanOverlayText && !hasPhoto && !hasVideo) {
       setMessage(
@@ -1885,12 +2074,12 @@ export default function ShareYourStoryPage() {
       return;
     }
 
-    if (mediaMode === "photo" && !hasPhoto) {
+    if (!isCreatorStudioSubmit && effectiveMediaMode === "photo" && !hasPhoto) {
       setMessage("Please upload a photo or choose text story only.");
       return;
     }
 
-    if (mediaMode === "video" && !hasVideo) {
+    if (!isCreatorStudioSubmit && effectiveMediaMode === "video" && !hasVideo) {
       setMessage("Please upload a video or choose text story only.");
       return;
     }
@@ -1900,29 +2089,51 @@ export default function ShareYourStoryPage() {
 
     try {
       const finalStoryType =
-        sharePath === "guided"
+        sharePath === "guided" && creatorStudioDesign
+          ? creatorStudioDesign.category
+          : sharePath === "guided"
           ? getGuidedStoryTypeLabel(guidedStoryType)
-          : mediaMode === "video" || mediaMode === "photo"
+          : effectiveMediaMode === "video" || effectiveMediaMode === "photo"
             ? selectedQuickShareCategory.storyType
             : storyType;
       const finalContentType =
-        sharePath === "guided" ? creationFormat : mediaMode;
+        sharePath === "guided" && creatorStudioDesign
+          ? "testimony-card"
+          : sharePath === "guided"
+            ? creationFormat
+            : effectiveMediaMode;
       const finalTopics =
-        sharePath === "guided"
+        sharePath === "guided" && creatorStudioDesign
+          ? Array.from(
+              new Set(
+                [creatorStudioDesign.category, creatorStudioDesign.topic]
+                  .map((topic) => normalizeTopic(topic))
+                  .filter(Boolean)
+              )
+            )
+          : sharePath === "guided"
           ? selectedTopics.map((topic) => normalizeTopic(topic))
-          : mediaMode === "video" || mediaMode === "photo"
+          : effectiveMediaMode === "video" || effectiveMediaMode === "photo"
             ? selectedQuickShareCategory.topics.map((topic) =>
                 normalizeTopic(topic)
               )
             : [];
-      const creationMode = sharePath === "guided" ? "guided" : "quick";
+      const creationMode =
+        sharePath === "guided" && creatorStudioDesign
+          ? "creator-studio"
+          : sharePath === "guided"
+            ? "guided"
+            : "quick";
       const shouldSaveCreationTemplate =
-        sharePath === "guided" &&
-        mediaMode === "text" &&
-        creationFormat !== "video" &&
-        creationFormat !== "photo";
+        isCreatorStudioSubmit ||
+        (sharePath === "guided" &&
+          effectiveMediaMode === "text" &&
+          creationFormat !== "video" &&
+          creationFormat !== "photo");
       const selectedCreationTemplate =
-        shouldSaveCreationTemplate
+        isCreatorStudioSubmit && creatorStudioDesign
+          ? getCreationCenterTemplate(creatorStudioDesign.templateId)
+          : shouldSaveCreationTemplate
           ? getCreationCenterTemplate(creationTemplateId)
           : null;
       const creationTemplatePayload =
@@ -1938,6 +2149,7 @@ export default function ShareYourStoryPage() {
           ? {
               prompts: guidedPromptAnswers,
               suggestions: storyShapeSuggestion,
+              creatorStudioDesign,
               selectedTemplate: creationTemplatePayload,
             }
           : {};
@@ -1971,40 +2183,43 @@ export default function ShareYourStoryPage() {
         video_url: videoUrl,
         thumbnail_url: thumbnailUrl,
         video_template:
-          mediaMode === "photo" || hasVideo ? videoTemplate : null,
+          effectiveMediaMode === "photo" || hasVideo ? videoTemplate : null,
         htbf_watermark_enabled:
-          mediaMode === "photo" || hasVideo
+          effectiveMediaMode === "photo" || hasVideo
             ? videoTemplate === "htbf-logo"
             : null,
         silhouette_watermark_enabled:
-          mediaMode === "photo" || hasVideo
+          effectiveMediaMode === "photo" || hasVideo
             ? videoTemplate === "freedom-silhouette"
             : null,
         shared_htbf_intro_enabled:
-          mediaMode === "photo" || hasVideo
+          effectiveMediaMode === "photo" || hasVideo
             ? videoTemplate === "shared-through-htbf"
             : null,
         caption_style:
-          mediaMode === "photo" || mediaMode === "video"
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
             ? captionStyle
             : null,
         caption_font:
-          mediaMode === "photo" || mediaMode === "video" ? captionFont : null,
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionFont
+            : null,
         caption_background:
-          mediaMode === "photo" || mediaMode === "video"
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
             ? captionBackground
             : null,
-        caption_template: mediaMode === "photo" ? captionTemplate : null,
+        caption_template:
+          effectiveMediaMode === "photo" ? captionTemplate : null,
         caption_color:
-          mediaMode === "photo" || mediaMode === "video"
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
             ? captionColor
             : null,
         caption_size:
-          mediaMode === "photo" || mediaMode === "video"
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
             ? captionSize
             : null,
         caption_align:
-          mediaMode === "photo" || mediaMode === "video"
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
             ? captionAlign
             : null,
         text_size: "text-medium",
@@ -2058,6 +2273,9 @@ export default function ShareYourStoryPage() {
       setSuggestionMessage("");
       setCreationCenterSuggestion(null);
       setCreationCenterSuggestionMessage("");
+      setCreatorStudioDesigns([]);
+      setCreatorStudioMessage("");
+      pendingCreatorStudioDesignRef.current = null;
       removePhoto();
       removeVideo();
       setMediaMode(sharePath === "quick" ? "video" : "text");
@@ -2732,6 +2950,9 @@ export default function ShareYourStoryPage() {
                 suggestion={creationCenterSuggestion}
                 suggestionLoading={creationCenterSuggestionLoading}
                 suggestionMessage={creationCenterSuggestionMessage}
+                creatorStudioDesigns={creatorStudioDesigns}
+                creatorStudioLoading={creatorStudioLoading}
+                creatorStudioMessage={creatorStudioMessage}
                 onFormatChange={applyCreationFormat}
                 onTemplateChange={setCreationTemplateId}
                 onStoryTypeChange={applyGuidedStoryType}
@@ -2740,6 +2961,9 @@ export default function ShareYourStoryPage() {
                 onUsePromptAnswers={useGuidedPromptsAsCaption}
                 onSwitchToQuickShare={() => selectSharePath("quick")}
                 onRequestSuggestions={requestCreationCenterSuggestion}
+                onRequestCreatorStudioDesigns={requestCreatorStudioDesigns}
+                onUseCreatorStudioDesign={useCreatorStudioDesign}
+                onCreatorStudioActiveChange={setCreatorStudioActive}
                 onUseSuggestedStoryType={
                   useCreationCenterSuggestedStoryType
                 }
@@ -2801,6 +3025,7 @@ export default function ShareYourStoryPage() {
             )}
 
             {shouldShowMessageInput &&
+              !creatorStudioActive &&
               mediaMode !== "video" &&
               renderMessageInput({
                 label: "Your message",
@@ -2808,7 +3033,7 @@ export default function ShareYourStoryPage() {
                   "Share what God did, what you’re praying for, or what encouraged you...",
               })}
 
-            {mediaMode === "photo" && (
+            {!creatorStudioActive && mediaMode === "photo" && (
               <div>
                 <label className="mb-2 block text-sm font-black text-[#062a57]">
                   Photo
@@ -2856,7 +3081,7 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            {photoPreviewUrl && (
+            {!creatorStudioActive && photoPreviewUrl && (
               <div className="w-full max-w-full overflow-hidden rounded-[1.75rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -3011,7 +3236,7 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            {mediaMode === "video" && (
+            {!creatorStudioActive && mediaMode === "video" && (
               <div className={videoPreviewUrl ? "hidden sm:block" : undefined}>
                 <label className="mb-2 block text-sm font-black text-[#062a57]">
                   Video
@@ -3059,9 +3284,11 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            {hasSelectedVideo && renderQuickShareCategoryPicker()}
+            {!creatorStudioActive &&
+              hasSelectedVideo &&
+              renderQuickShareCategoryPicker()}
 
-            {videoPreviewUrl && (
+            {!creatorStudioActive && videoPreviewUrl && (
               <div className="sm:hidden w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] bg-slate-950 p-3 text-white shadow-sm ring-1 ring-slate-800">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -3322,20 +3549,20 @@ export default function ShareYourStoryPage() {
               </div>
             )}
 
-            {videoPreviewUrl && (
+            {!creatorStudioActive && videoPreviewUrl && (
               <div className="mt-3 sm:hidden">
                 {renderVideoCaptionContextInput()}
               </div>
             )}
 
-            {videoPreviewUrl && (
+            {!creatorStudioActive && videoPreviewUrl && (
               <div className="mt-3 space-y-3 sm:hidden">
                 {renderStatusMessage()}
                 {renderSubmitControls()}
               </div>
             )}
 
-            {videoPreviewUrl && (
+            {!creatorStudioActive && videoPreviewUrl && (
               <div className="hidden w-full max-w-full overflow-hidden rounded-[2rem] bg-slate-950 p-5 text-white shadow-sm ring-1 ring-slate-800 sm:block">
                 <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -3697,9 +3924,9 @@ export default function ShareYourStoryPage() {
 
             {!hasSelectedVideo && (
               <>
-                {renderSafetyNotice()}
+                {!creatorStudioActive && renderSafetyNotice()}
                 {renderStatusMessage()}
-                {renderSubmitControls()}
+                {!creatorStudioActive && renderSubmitControls()}
               </>
             )}
           </form>
