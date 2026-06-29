@@ -1274,6 +1274,12 @@ export default function ShareYourStoryPage() {
 
     return {
       id: readField("id") || `creator-studio-design-${index + 1}`,
+      sourceMode:
+        readField("sourceMode") === "upload-video" ||
+        readField("sourceMode") === "upload-photo" ||
+        readField("sourceMode") === "start-template"
+          ? (readField("sourceMode") as CreatorStudioDesign["sourceMode"])
+          : "build-ai",
       title,
       overlayText,
       caption,
@@ -1281,18 +1287,43 @@ export default function ShareYourStoryPage() {
       topic,
       templateId,
       styleMood: styleMood || "Polished HTBF design",
+      layoutType:
+        readField("layoutType") === "full-image-poster" ||
+        readField("layoutType") === "text-over-image-testimony" ||
+        readField("layoutType") === "split-layout" ||
+        readField("layoutType") === "quote-card" ||
+        readField("layoutType") === "prayer-request-card" ||
+        readField("layoutType") === "praise-report-card" ||
+        readField("layoutType") === "scripture-card" ||
+        readField("layoutType") === "photo-collage" ||
+        readField("layoutType") === "video-photo-mixed" ||
+        readField("layoutType") === "before-after-testimony"
+          ? (readField("layoutType") as CreatorStudioDesign["layoutType"])
+          : "text-over-image-testimony",
+      scriptureSuggestion: readField("scriptureSuggestion"),
+      suggestedPostFormat: readField("suggestedPostFormat") || "HTBF post",
     };
   }
 
   async function requestCreatorStudioDesigns(
     prompt: string,
-    inspirationChips: string[]
+    inspirationChips: string[],
+    sourceMode: CreatorStudioDesign["sourceMode"],
+    selectedTemplateId: CreationCenterTemplateId
   ) {
     const cleanPrompt = prompt.trim();
+    const hasStudioContext =
+      sourceMode === "upload-video"
+        ? Boolean(videoFile)
+        : sourceMode === "upload-photo"
+          ? Boolean(photoFile)
+          : sourceMode === "start-template"
+            ? selectedTemplateId !== "none"
+            : false;
 
-    if (!cleanPrompt) {
+    if (!cleanPrompt && !hasStudioContext) {
       setCreatorStudioMessage(
-        "Share a testimony, prayer, or idea first so Creator Studio can shape it."
+        "Add a prompt, upload media, or choose a template so Creator Studio can shape it."
       );
       return;
     }
@@ -1317,8 +1348,16 @@ export default function ShareYourStoryPage() {
         },
         body: JSON.stringify({
           mode: "creator_studio",
-          prompt: cleanPrompt,
+          prompt:
+            cleanPrompt ||
+            (sourceMode === "upload-video"
+              ? "Help shape this uploaded video into an HTBF post."
+              : sourceMode === "upload-photo"
+                ? "Help shape this uploaded photo into an HTBF post."
+                : "Help shape this HTBF template into a faith-centered post."),
           inspirationChips,
+          sourceMode,
+          selectedTemplateId,
         }),
       });
 
@@ -1332,9 +1371,12 @@ export default function ShareYourStoryPage() {
             .map((item: unknown, index: number) =>
               readCreatorStudioDesign(item, index)
             )
-            .filter((item: CreatorStudioDesign | null): item is CreatorStudioDesign =>
-              Boolean(item)
+            .filter(
+              (
+                item: CreatorStudioDesign | null
+              ): item is CreatorStudioDesign => Boolean(item)
             )
+            .map((design) => ({ ...design, sourceMode }))
             .slice(0, 6)
         : [];
 
@@ -1386,15 +1428,32 @@ export default function ShareYourStoryPage() {
       templateId:
         selectedTemplate && selectedTemplate.id !== "none"
           ? selectedTemplate.id
-          : "scripture-woods",
+          : design.sourceMode === "upload-video" ||
+              design.sourceMode === "upload-photo"
+            ? "none"
+            : "scripture-woods",
     };
 
-    setCreationFormat("testimony-card");
-    selectMediaMode("text");
+    if (design.sourceMode === "upload-video") {
+      setCreationFormat("video");
+      selectMediaMode("video");
+    } else if (design.sourceMode === "upload-photo") {
+      setCreationFormat("photo");
+      selectMediaMode("photo");
+    } else {
+      setCreationFormat("testimony-card");
+      selectMediaMode("text");
+    }
+
     applyGuidedStoryType(getCreatorStudioStoryType(cleanCategory));
     setStoryType(cleanCategory);
-    setStoryText(cleanOverlayText || cleanCaption || cleanTitle);
-    setCreationTemplateId(pendingCreatorStudioDesignRef.current.templateId);
+    setStoryText(cleanCaption || cleanOverlayText || cleanTitle);
+    setOverlayText(cleanOverlayText);
+    setCreationTemplateId(
+      design.sourceMode === "upload-video" || design.sourceMode === "upload-photo"
+        ? "none"
+        : pendingCreatorStudioDesignRef.current.templateId
+    );
     setSelectedTopics(
       Array.from(new Set([cleanCategory, cleanTopic].map(normalizeTopic))).filter(
         Boolean
@@ -2042,14 +2101,25 @@ export default function ShareYourStoryPage() {
     }
 
     const creatorStudioDesign = pendingCreatorStudioDesignRef.current;
+    const creatorStudioSourceMode = creatorStudioDesign?.sourceMode;
+    const isCreatorStudioMediaPost =
+      creatorStudioSourceMode === "upload-video" ||
+      creatorStudioSourceMode === "upload-photo";
     const cleanStoryText = creatorStudioDesign
-      ? (
-          creatorStudioDesign.overlayText ||
-          creatorStudioDesign.title ||
-          creatorStudioDesign.caption
-        ).trim()
+      ? isCreatorStudioMediaPost
+        ? (
+            creatorStudioDesign.caption ||
+            creatorStudioDesign.title ||
+            creatorStudioDesign.overlayText
+          ).trim()
+        : (
+            creatorStudioDesign.overlayText ||
+            creatorStudioDesign.title ||
+            creatorStudioDesign.caption
+          ).trim()
       : getSubmitStoryText();
-    const cleanOverlayText = overlayText.trim();
+    const cleanOverlayText =
+      creatorStudioDesign?.overlayText.trim() || overlayText.trim();
     const moderationText = [
       cleanStoryText,
       cleanOverlayText,
@@ -2060,7 +2130,11 @@ export default function ShareYourStoryPage() {
     const isCreatorStudioSubmit =
       sharePath === "guided" && Boolean(creatorStudioDesign);
     const effectiveMediaMode: MediaMode = isCreatorStudioSubmit
-      ? "text"
+      ? creatorStudioSourceMode === "upload-video"
+        ? "video"
+        : creatorStudioSourceMode === "upload-photo"
+          ? "photo"
+          : "text"
       : mediaMode;
     const hasPhoto =
       effectiveMediaMode === "photo" && Boolean(photoFile);
@@ -2098,7 +2172,11 @@ export default function ShareYourStoryPage() {
             : storyType;
       const finalContentType =
         sharePath === "guided" && creatorStudioDesign
-          ? "testimony-card"
+          ? creatorStudioSourceMode === "upload-video"
+            ? "video"
+            : creatorStudioSourceMode === "upload-photo"
+              ? "photo"
+              : "testimony-card"
           : sharePath === "guided"
             ? creationFormat
             : effectiveMediaMode;
@@ -2125,13 +2203,13 @@ export default function ShareYourStoryPage() {
             ? "guided"
             : "quick";
       const shouldSaveCreationTemplate =
-        isCreatorStudioSubmit ||
+        (isCreatorStudioSubmit && !isCreatorStudioMediaPost) ||
         (sharePath === "guided" &&
           effectiveMediaMode === "text" &&
           creationFormat !== "video" &&
           creationFormat !== "photo");
       const selectedCreationTemplate =
-        isCreatorStudioSubmit && creatorStudioDesign
+        isCreatorStudioSubmit && creatorStudioDesign && !isCreatorStudioMediaPost
           ? getCreationCenterTemplate(creatorStudioDesign.templateId)
           : shouldSaveCreationTemplate
           ? getCreationCenterTemplate(creationTemplateId)
@@ -2953,6 +3031,14 @@ export default function ShareYourStoryPage() {
                 creatorStudioDesigns={creatorStudioDesigns}
                 creatorStudioLoading={creatorStudioLoading}
                 creatorStudioMessage={creatorStudioMessage}
+                creatorStudioVideoFileName={videoFile?.name ?? null}
+                creatorStudioPhotoFileName={photoFile?.name ?? null}
+                creatorStudioVideoPreviewUrl={videoPreviewUrl}
+                creatorStudioPhotoPreviewUrl={photoPreviewUrl}
+                onCreatorStudioVideoSelect={handleVideoSelect}
+                onCreatorStudioPhotoSelect={handlePhotoSelect}
+                onCreatorStudioRemoveVideo={removeVideo}
+                onCreatorStudioRemovePhoto={removePhoto}
                 onFormatChange={applyCreationFormat}
                 onTemplateChange={setCreationTemplateId}
                 onStoryTypeChange={applyGuidedStoryType}
