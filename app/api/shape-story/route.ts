@@ -5,6 +5,7 @@ import {
   sanitizeFaithStreams,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioPath,
   type FaithStream,
 } from "../../../lib/creationCenter";
 
@@ -33,6 +34,12 @@ const creatorStudioSourceModes = [
   "build-ai",
   "start-template",
 ] as const;
+const creatorStudioPathTypes = [
+  "tell-story",
+  "create-design",
+  "scripture-post",
+  "ai-surprise",
+] as const;
 const creatorStudioLayoutTypes = [
   "full-image-poster",
   "text-over-image-testimony",
@@ -44,6 +51,9 @@ const creatorStudioLayoutTypes = [
   "photo-collage",
   "video-photo-mixed",
   "before-after-testimony",
+  "timeline-story",
+  "magazine-style",
+  "journal-style",
 ] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -139,6 +149,15 @@ function readCreatorStudioSourceMode(
     : "build-ai";
 }
 
+function readCreatorStudioPath(value: unknown): CreatorStudioPath {
+  return typeof value === "string" &&
+    creatorStudioPathTypes.includes(
+      value as (typeof creatorStudioPathTypes)[number]
+    )
+    ? (value as CreatorStudioPath)
+    : "tell-story";
+}
+
 function readCreatorStudioLayoutType(
   value: unknown
 ): CreatorStudioDesign["layoutType"] {
@@ -160,6 +179,7 @@ function fallbackCreatorStudioDesigns(
     .filter(Boolean)
     .slice(0, 4);
   const sourceMode = readCreatorStudioSourceMode(body.sourceMode);
+  const studioPath = readCreatorStudioPath(body.studioPath);
   const requestedTemplateId = readCreatorStudioTemplateId(
     body.selectedTemplateId,
     "scripture-woods"
@@ -203,6 +223,7 @@ function fallbackCreatorStudioDesigns(
   return {
     designs: templates.slice(0, 6).map((templateId, index) => ({
       id: `creator-design-${index + 1}`,
+      studioPath,
       sourceMode,
       title: titleIdeas[index % titleIdeas.length],
       overlayText:
@@ -282,6 +303,9 @@ function cleanCreatorStudioResponse(
       const sourceMode = readCreatorStudioSourceMode(
         item.sourceMode ?? item.source_mode ?? fallbackDesign.sourceMode
       );
+      const studioPath = readCreatorStudioPath(
+        item.studioPath ?? item.studio_path ?? fallbackDesign.studioPath
+      );
       const layoutType = readCreatorStudioLayoutType(
         item.layoutType ?? item.layout_type ?? fallbackDesign.layoutType
       );
@@ -294,6 +318,7 @@ function cleanCreatorStudioResponse(
         id:
           readString(item.id).trim() ||
           `creator-design-${index + 1}`,
+        studioPath,
         sourceMode,
         title,
         overlayText,
@@ -368,6 +393,7 @@ export async function POST(request: Request) {
     const prompt = readString(body.prompt);
     const inspirationChips = readStringArray(body.inspirationChips);
     const sourceMode = readCreatorStudioSourceMode(body.sourceMode);
+    const studioPath = readCreatorStudioPath(body.studioPath);
     const selectedTemplateId = readString(body.selectedTemplateId);
     const requestedCategory = readFirstString(body.category, "Testimony");
     const requestedTopic = readFirstString(body.topic, requestedCategory);
@@ -378,12 +404,13 @@ export async function POST(request: Request) {
       "You create polished HTBF Creator Studio design options. Return JSON only.",
       "The user can upload a video, upload a photo, build with AI, or start from an HTBF template.",
       "Create 4 to 6 completed design options using only the allowed template ids and layout types.",
-      "The user's selected category, topic, mood, layout, chips, and source mode must visibly shape the concepts.",
+      "The user's selected Creator Studio path, category, topic, mood, layout, chips, and source mode must visibly shape the concepts.",
       "Make the concepts meaningfully different from each other: vary the title, overlay text, caption angle, layout type, mood, and recommended background.",
       "Do not repeat the same template for every option unless the user explicitly started from a template.",
       "Do not quote full Bible verse text. References are okay only if naturally helpful.",
-      "Each design must include sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, and suggestedPostFormat.",
+      "Each design must include studioPath, sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, and suggestedPostFormat.",
       "For upload-video and upload-photo, templateId may be none because the user media is the primary visual.",
+      `Creator Studio path: ${studioPath}`,
       `Source mode: ${sourceMode}`,
       `Selected template id, if any: ${selectedTemplateId || "none"}`,
       `Requested category: ${requestedCategory}`,
@@ -432,6 +459,7 @@ export async function POST(request: Request) {
                       additionalProperties: false,
                       required: [
                         "id",
+                        "studioPath",
                         "sourceMode",
                         "title",
                         "overlayText",
@@ -446,6 +474,10 @@ export async function POST(request: Request) {
                       ],
                       properties: {
                         id: { type: "string" },
+                        studioPath: {
+                          type: "string",
+                          enum: creatorStudioPathTypes,
+                        },
                         sourceMode: {
                           type: "string",
                           enum: creatorStudioSourceModes,
