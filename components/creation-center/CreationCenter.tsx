@@ -23,12 +23,16 @@ import {
   creationCenterFormats,
   creationCenterStoryTemplates,
   creationCenterStoryTypes,
+  creatorStudioCategoryOptions,
+  creatorStudioLayoutOptions,
+  creatorStudioMoodOptions,
   getCreationCenterTemplate,
   type CreationCenterFormat,
   type CreationCenterSuggestion,
   type CreationCenterStoryType,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
 import FaithStreamPicker from "./FaithStreamPicker";
@@ -70,8 +74,7 @@ type CreationCenterProps = {
   onRequestCreatorStudioDesigns: (
     prompt: string,
     inspirationChips: string[],
-    sourceMode: CreatorStudioMode,
-    selectedTemplateId: CreationCenterTemplateId
+    options: CreatorStudioRequestOptions
   ) => void;
   onUseCreatorStudioDesign: (design: CreatorStudioDesign) => void;
   onCreatorStudioActiveChange: (active: boolean) => void;
@@ -141,18 +144,9 @@ const creatorStudioModes: {
   },
 ];
 
-const layoutLabels: Record<CreatorStudioDesign["layoutType"], string> = {
-  "full-image-poster": "Full image poster",
-  "text-over-image-testimony": "Text-over-image testimony",
-  "split-layout": "Split layout",
-  "quote-card": "Quote card",
-  "prayer-request-card": "Prayer request card",
-  "praise-report-card": "Praise report card",
-  "scripture-card": "Scripture card",
-  "photo-collage": "Photo collage placeholder",
-  "video-photo-mixed": "Video + photo mixed placeholder",
-  "before-after-testimony": "Before/after testimony placeholder",
-};
+const layoutLabels = Object.fromEntries(
+  creatorStudioLayoutOptions.map((option) => [option.value, option.label])
+) as Record<CreatorStudioDesign["layoutType"], string>;
 
 export default function CreationCenter({
   format,
@@ -204,6 +198,16 @@ export default function CreationCenter({
   >([]);
   const [creatorStudioTemplateId, setCreatorStudioTemplateId] =
     useState<CreationCenterTemplateId>("scripture-woods");
+  const [creatorStudioCategory, setCreatorStudioCategory] =
+    useState("Testimony");
+  const [creatorStudioTopic, setCreatorStudioTopic] =
+    useState("Freedom");
+  const [creatorStudioMood, setCreatorStudioMood] =
+    useState("Hopeful and bright");
+  const [creatorStudioLayoutType, setCreatorStudioLayoutType] =
+    useState<CreatorStudioDesign["layoutType"]>(
+      "text-over-image-testimony"
+    );
   const [creatorStudioHasRequested, setCreatorStudioHasRequested] =
     useState(false);
   const [selectedCreatorStudioDesignId, setSelectedCreatorStudioDesignId] =
@@ -278,6 +282,12 @@ export default function CreationCenter({
         ? current.filter((item) => item !== chip)
         : [...current, chip]
     );
+
+    if (!creatorStudioCategory || creatorStudioCategory === "Testimony") {
+      setCreatorStudioCategory(chip);
+    }
+
+    setCreatorStudioTopic(chip);
   }
 
   function generateCreatorStudioDesigns() {
@@ -289,8 +299,17 @@ export default function CreationCenter({
     onRequestCreatorStudioDesigns(
       creatorStudioPrompt,
       creatorStudioSelectedChips,
-      creatorStudioMode,
-      creatorStudioMode === "start-template" ? creatorStudioTemplateId : "none"
+      {
+        sourceMode: creatorStudioMode,
+        selectedTemplateId:
+          creatorStudioMode === "start-template"
+            ? creatorStudioTemplateId
+            : "none",
+        category: creatorStudioCategory,
+        topic: creatorStudioTopic,
+        mood: creatorStudioMood,
+        layoutType: creatorStudioLayoutType,
+      }
     );
   }
 
@@ -611,6 +630,74 @@ export default function CreationCenter({
                     />
                   </section>
 
+                  <section className="grid gap-3 rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100 sm:grid-cols-4">
+                    <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                      Category
+                      <select
+                        value={creatorStudioCategory}
+                        onChange={(event) =>
+                          setCreatorStudioCategory(event.target.value)
+                        }
+                        className="mt-2 w-full rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      >
+                        {creatorStudioCategoryOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                      Topic
+                      <input
+                        value={creatorStudioTopic}
+                        onChange={(event) =>
+                          setCreatorStudioTopic(event.target.value)
+                        }
+                        placeholder="Freedom, healing, worship..."
+                        className="mt-2 w-full rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      />
+                    </label>
+
+                    <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                      Mood
+                      <select
+                        value={creatorStudioMood}
+                        onChange={(event) =>
+                          setCreatorStudioMood(event.target.value)
+                        }
+                        className="mt-2 w-full rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      >
+                        {creatorStudioMoodOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                      Layout
+                      <select
+                        value={creatorStudioLayoutType}
+                        onChange={(event) =>
+                          setCreatorStudioLayoutType(
+                            event.target
+                              .value as CreatorStudioDesign["layoutType"]
+                          )
+                        }
+                        className="mt-2 w-full rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      >
+                        {creatorStudioLayoutOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </section>
+
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
                       Quick inspiration
@@ -647,6 +734,14 @@ export default function CreationCenter({
                           (mode) => mode.value === creatorStudioMode
                         )?.title ?? "Creator Studio"}
                       </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1 ring-white/20 backdrop-blur-sm">
+                          {creatorStudioCategory}
+                        </span>
+                        <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/15 backdrop-blur-sm">
+                          {layoutLabels[creatorStudioLayoutType]}
+                        </span>
+                      </div>
                       <p className="max-w-lg whitespace-pre-wrap break-words text-2xl font-black leading-tight text-white drop-shadow-sm">
                         {creatorStudioPrompt.trim() ||
                           "Your Creator Studio preview will appear here."}
@@ -667,12 +762,22 @@ export default function CreationCenter({
                         : "Generate Designs ✨"}
                     </button>
 
-                    {creatorStudioMessage && (
-                      <p className="text-sm font-semibold leading-6 text-slate-600">
-                        {creatorStudioMessage}
-                      </p>
-                    )}
+                      {creatorStudioMessage && (
+                        <p className="text-sm font-semibold leading-6 text-slate-600">
+                          {creatorStudioMessage}
+                        </p>
+                      )}
                   </div>
+
+                  {creatorStudioHasRequested &&
+                    !creatorStudioLoading &&
+                    creatorStudioDesigns.length === 0 && (
+                      <div className="rounded-[1.25rem] bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800 ring-1 ring-amber-100">
+                        No designs came back yet. Try adding a little more
+                        detail, or choose a mood and layout before generating
+                        again.
+                      </div>
+                    )}
                 </>
               )}
 
