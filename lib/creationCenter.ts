@@ -121,6 +121,17 @@ export type CreatorStudioDesign = {
     | "journal-style";
   scriptureSuggestion: string;
   suggestedPostFormat: string;
+  colorPalette?: string[];
+  typographyStyle?: string;
+  designTreatment?: string;
+  textStyle?: {
+    fontSize?: "small" | "medium" | "large" | "hero";
+    weight?: "regular" | "bold";
+    italic?: boolean;
+    align?: "left" | "center" | "right";
+    color?: string;
+    position?: "top" | "center" | "bottom";
+  };
 };
 
 export type CreatorStudioPath = CreatorStudioDesign["studioPath"];
