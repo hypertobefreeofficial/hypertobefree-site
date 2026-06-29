@@ -1257,6 +1257,64 @@ export default function ShareYourStoryPage() {
     const record = value as Record<string, unknown>;
     const readField = (field: string) =>
       typeof record[field] === "string" ? record[field].trim() : "";
+    const isHexColor = (color: string) =>
+      /^#[0-9a-fA-F]{6}$/.test(color.trim());
+    const readStringArray = (field: string) =>
+      Array.isArray(record[field])
+        ? record[field].filter(
+            (item): item is string =>
+              typeof item === "string" && Boolean(item.trim())
+          )
+        : [];
+    const readTextStyle = (): CreatorStudioDesign["textStyle"] => {
+      const rawTextStyle = record.textStyle ?? record.text_style;
+
+      if (
+        !rawTextStyle ||
+        typeof rawTextStyle !== "object" ||
+        Array.isArray(rawTextStyle)
+      ) {
+        return undefined;
+      }
+
+      const textStyle = rawTextStyle as Record<string, unknown>;
+      const fontSize =
+        textStyle.fontSize === "small" ||
+        textStyle.fontSize === "medium" ||
+        textStyle.fontSize === "large" ||
+        textStyle.fontSize === "hero"
+          ? textStyle.fontSize
+          : undefined;
+      const weight =
+        textStyle.weight === "regular" || textStyle.weight === "bold"
+          ? textStyle.weight
+          : undefined;
+      const align =
+        textStyle.align === "left" ||
+        textStyle.align === "center" ||
+        textStyle.align === "right"
+          ? textStyle.align
+          : undefined;
+      const position =
+        textStyle.position === "top" ||
+        textStyle.position === "center" ||
+        textStyle.position === "bottom"
+          ? textStyle.position
+          : undefined;
+
+      return {
+        fontSize,
+        weight,
+        italic:
+          typeof textStyle.italic === "boolean" ? textStyle.italic : undefined,
+        align,
+        color:
+          typeof textStyle.color === "string" && isHexColor(textStyle.color)
+            ? textStyle.color.trim()
+            : undefined,
+        position,
+      };
+    };
     const templateValue = readField("templateId");
     const template =
       templateValue === "none"
@@ -1317,6 +1375,10 @@ export default function ShareYourStoryPage() {
           : "text-over-image-testimony",
       scriptureSuggestion: readField("scriptureSuggestion"),
       suggestedPostFormat: readField("suggestedPostFormat") || "HTBF post",
+      colorPalette: readStringArray("colorPalette").filter(isHexColor).slice(0, 5),
+      typographyStyle: readField("typographyStyle"),
+      designTreatment: readField("designTreatment"),
+      textStyle: readTextStyle(),
     };
   }
 
