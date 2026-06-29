@@ -33,6 +33,7 @@ import {
   type CreationCenterSuggestion,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
 import { supabase } from "../../lib/supabaseClient";
@@ -1257,13 +1258,16 @@ export default function ShareYourStoryPage() {
     const readField = (field: string) =>
       typeof record[field] === "string" ? record[field].trim() : "";
     const templateValue = readField("templateId");
-    const template = getCreationCenterTemplate(
-      templateValue as CreationCenterTemplateId
-    );
+    const template =
+      templateValue === "none"
+        ? getCreationCenterTemplate("none")
+        : getCreationCenterTemplate(templateValue as CreationCenterTemplateId);
     const templateId =
-      template && template.id !== "none" && template.imagePath
-        ? template.id
-        : "scripture-woods";
+      templateValue === "none"
+        ? "none"
+        : template && template.id !== "none" && template.imagePath
+          ? template.id
+          : "scripture-woods";
     const title = readField("title") || `Creator Studio Design ${index + 1}`;
     const overlayText =
       readField("overlayText") || readField("overlay_text") || title;
@@ -1308,10 +1312,10 @@ export default function ShareYourStoryPage() {
   async function requestCreatorStudioDesigns(
     prompt: string,
     inspirationChips: string[],
-    sourceMode: CreatorStudioDesign["sourceMode"],
-    selectedTemplateId: CreationCenterTemplateId
+    options: CreatorStudioRequestOptions
   ) {
     const cleanPrompt = prompt.trim();
+    const { sourceMode, selectedTemplateId } = options;
     const hasStudioContext =
       sourceMode === "upload-video"
         ? Boolean(videoFile)
@@ -1358,6 +1362,10 @@ export default function ShareYourStoryPage() {
           inspirationChips,
           sourceMode,
           selectedTemplateId,
+          category: options.category,
+          topic: options.topic,
+          mood: options.mood,
+          layoutType: options.layoutType,
         }),
       });
 
@@ -1386,7 +1394,9 @@ export default function ShareYourStoryPage() {
 
       setCreatorStudioDesigns(designs);
       setCreatorStudioMessage(
-        "Designs are ready. Choose one, edit it, then submit for review."
+        typeof data.fallbackReason === "string"
+          ? `${data.fallbackReason} Safe draft designs are shown so you can keep working.`
+          : "Designs are ready. Choose one, edit it, then submit for review."
       );
     } catch (error) {
       const errorMessage =
