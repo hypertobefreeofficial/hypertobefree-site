@@ -86,6 +86,17 @@ export type CreationCenterSuggestion = {
   layoutSuggestion: string;
 };
 
+export type CreatorStudioDesign = {
+  id: string;
+  title: string;
+  overlayText: string;
+  caption: string;
+  category: string;
+  topic: string;
+  templateId: CreationCenterTemplateId;
+  styleMood: string;
+};
+
 export const creationCenterFormats: {
   value: CreationCenterFormat;
   label: string;
