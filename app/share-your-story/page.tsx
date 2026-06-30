@@ -1266,6 +1266,11 @@ export default function ShareYourStoryPage() {
               typeof item === "string" && Boolean(item.trim())
           )
         : [];
+    const readLimitedStringArray = (field: string, limit: number) =>
+      readStringArray(field)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, limit);
     const readTextStyle = (): CreatorStudioDesign["textStyle"] => {
       const rawTextStyle = record.textStyle ?? record.text_style;
 
@@ -1378,6 +1383,20 @@ export default function ShareYourStoryPage() {
       colorPalette: readStringArray("colorPalette").filter(isHexColor).slice(0, 5),
       typographyStyle: readField("typographyStyle"),
       designTreatment: readField("designTreatment"),
+      callToAction: readField("callToAction"),
+      typographyPairing: readField("typographyPairing"),
+      fontHierarchy: readField("fontHierarchy"),
+      backgroundTreatment: readField("backgroundTreatment"),
+      layoutComposition: readField("layoutComposition"),
+      overlayStyle: readField("overlayStyle"),
+      decorativeElements: readField("decorativeElements"),
+      visualTheme: readField("visualTheme"),
+      filterRecommendation: readField("filterRecommendation"),
+      cropRecommendation: readField("cropRecommendation"),
+      alternateTitles: readLimitedStringArray("alternateTitles", 4),
+      alternateCaptions: readLimitedStringArray("alternateCaptions", 4),
+      hashtags: readLimitedStringArray("hashtags", 8),
+      conceptReason: readField("conceptReason"),
       textStyle: readTextStyle(),
     };
   }
