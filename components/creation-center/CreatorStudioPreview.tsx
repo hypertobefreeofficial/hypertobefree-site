@@ -47,10 +47,12 @@ function MediaLayer({
   templateId,
   photoPreviewUrl,
   videoPreviewUrl,
+  generatedImageUrl,
 }: {
   templateId: CreationCenterTemplateId;
   photoPreviewUrl?: string | null;
   videoPreviewUrl?: string | null;
+  generatedImageUrl?: string | null;
 }) {
   const template = getCreationCenterTemplate(templateId);
 
@@ -70,6 +72,17 @@ function MediaLayer({
         src={videoPreviewUrl}
         muted
         playsInline
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+    );
+  }
+
+  if (generatedImageUrl) {
+    return (
+      <img
+        src={generatedImageUrl}
+        alt=""
+        loading="lazy"
         className="absolute inset-0 h-full w-full object-cover"
       />
     );
@@ -152,6 +165,7 @@ export default function CreatorStudioPreview({
     design?.layoutType ?? layoutType ?? "text-over-image-testimony";
   const activeTemplateId =
     design?.templateId ?? templateId ?? "scripture-woods";
+  const activeGeneratedImageUrl = design?.generatedImageUrl ?? null;
   const activeTitle = cleanText(design?.title ?? title, "God Is Moving");
   const activeOverlay = cleanText(
     design?.overlayText ?? overlayText,
@@ -234,6 +248,7 @@ export default function CreatorStudioPreview({
               templateId={activeTemplateId}
               photoPreviewUrl={photoPreviewUrl}
               videoPreviewUrl={videoPreviewUrl}
+              generatedImageUrl={activeGeneratedImageUrl}
             />
           </div>
           <div className="bg-gradient-to-br from-[#031d3d] via-[#062a57] to-[#0b63ce]" />
@@ -265,6 +280,7 @@ export default function CreatorStudioPreview({
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
           videoPreviewUrl={videoPreviewUrl}
+          generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-[#031d3d]/55" />
         <Watermark />
@@ -297,7 +313,11 @@ export default function CreatorStudioPreview({
   if (activeLayout === "video-photo-mixed") {
     return (
       <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
-        <MediaLayer templateId={activeTemplateId} photoPreviewUrl={photoPreviewUrl} />
+        <MediaLayer
+          templateId={activeTemplateId}
+          photoPreviewUrl={photoPreviewUrl}
+          generatedImageUrl={activeGeneratedImageUrl}
+        />
         <div className="absolute inset-0 bg-[#031d3d]/60" />
         <Watermark />
         <div className="relative z-10 flex h-full flex-col justify-between gap-4">
@@ -352,6 +372,7 @@ export default function CreatorStudioPreview({
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
           videoPreviewUrl={videoPreviewUrl}
+          generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/90 via-[#062a57]/45 to-[#0b63ce]/20" />
         <Watermark />
@@ -395,6 +416,7 @@ export default function CreatorStudioPreview({
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
           videoPreviewUrl={videoPreviewUrl}
+          generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-[#031d3d]/70" />
         <Watermark />
@@ -439,6 +461,7 @@ export default function CreatorStudioPreview({
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
           videoPreviewUrl={videoPreviewUrl}
+          generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-gradient-to-br from-[#031d3d]/90 via-[#062a57]/35 to-transparent" />
         <Watermark />
@@ -477,6 +500,7 @@ export default function CreatorStudioPreview({
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
           videoPreviewUrl={videoPreviewUrl}
+          generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-white/78" />
         <Watermark />
@@ -510,6 +534,7 @@ export default function CreatorStudioPreview({
         templateId={activeTemplateId}
         photoPreviewUrl={photoPreviewUrl}
         videoPreviewUrl={videoPreviewUrl}
+        generatedImageUrl={activeGeneratedImageUrl}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/88 via-[#062a57]/35 to-transparent" />
       <Watermark />
