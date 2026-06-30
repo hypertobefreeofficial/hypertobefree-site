@@ -7,7 +7,7 @@ import {
   type CreatorStudioDesign,
   type CreatorStudioPath,
   type FaithStream,
-} from "../../../lib/creationCenter";
+} from "./creationCenter";
 
 type StoryShapeResponse = {
   storyType: string;
