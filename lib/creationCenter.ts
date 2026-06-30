@@ -124,6 +124,20 @@ export type CreatorStudioDesign = {
   colorPalette?: string[];
   typographyStyle?: string;
   designTreatment?: string;
+  callToAction?: string;
+  typographyPairing?: string;
+  fontHierarchy?: string;
+  backgroundTreatment?: string;
+  layoutComposition?: string;
+  overlayStyle?: string;
+  decorativeElements?: string;
+  visualTheme?: string;
+  filterRecommendation?: string;
+  cropRecommendation?: string;
+  alternateTitles?: string[];
+  alternateCaptions?: string[];
+  hashtags?: string[];
+  conceptReason?: string;
   textStyle?: {
     fontSize?: "small" | "medium" | "large" | "hero";
     weight?: "regular" | "bold";
