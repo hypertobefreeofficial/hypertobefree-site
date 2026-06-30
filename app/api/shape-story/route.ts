@@ -70,6 +70,13 @@ function readStringArray(value: unknown) {
     : [];
 }
 
+function readLimitedStringArray(value: unknown, limit: number) {
+  return readStringArray(value)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
 function readFirstString(
   value: unknown,
   fallback: string
@@ -77,6 +84,10 @@ function readFirstString(
   const cleanValue = readString(value).trim();
 
   return cleanValue || fallback;
+}
+
+function isHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value.trim());
 }
 
 function readBearerToken(request: Request) {
@@ -169,6 +180,45 @@ function readCreatorStudioLayoutType(
     : "text-over-image-testimony";
 }
 
+function readCreatorStudioTextStyle(
+  value: unknown,
+  fallback?: CreatorStudioDesign["textStyle"]
+): CreatorStudioDesign["textStyle"] {
+  const textStyle = isRecord(value) ? value : {};
+  const fontSize = readString(textStyle.fontSize);
+  const weight = readString(textStyle.weight);
+  const align = readString(textStyle.align);
+  const position = readString(textStyle.position);
+  const color = readString(textStyle.color).trim();
+
+  return {
+    fontSize:
+      fontSize === "small" ||
+      fontSize === "medium" ||
+      fontSize === "large" ||
+      fontSize === "hero"
+        ? fontSize
+        : fallback?.fontSize ?? "large",
+    weight:
+      weight === "regular" || weight === "bold"
+        ? weight
+        : fallback?.weight ?? "bold",
+    italic:
+      typeof textStyle.italic === "boolean"
+        ? textStyle.italic
+        : fallback?.italic ?? false,
+    align:
+      align === "left" || align === "center" || align === "right"
+        ? align
+        : fallback?.align ?? "left",
+    color: isHexColor(color) ? color : fallback?.color || "#FFFFFF",
+    position:
+      position === "top" || position === "center" || position === "bottom"
+        ? position
+        : fallback?.position ?? "bottom",
+  };
+}
+
 function fallbackCreatorStudioDesigns(
   body: Record<string, unknown>
 ): CreatorStudioResponse {
@@ -219,37 +269,170 @@ function fallbackCreatorStudioDesigns(
     "Clean HTBF editorial",
     "Faith-filled and hopeful",
   ];
+  const palettes = [
+    ["#FFFFFF", "#D4AF37", "#0B1D3A"],
+    ["#F8FAFC", "#60A5FA", "#062A57"],
+    ["#FFF7ED", "#F97316", "#1E293B"],
+    ["#ECFDF5", "#22C55E", "#0B1D3A"],
+    ["#F8FAFC", "#94A3B8", "#111827"],
+    ["#FEF3C7", "#D4AF37", "#0B1D3A"],
+  ];
+  const textStyles: CreatorStudioDesign["textStyle"][] = [
+    { fontSize: "hero", weight: "bold", italic: false, align: "left", color: "#FFFFFF", position: "bottom" },
+    { fontSize: "large", weight: "bold", italic: false, align: "center", color: "#FFFFFF", position: "center" },
+    { fontSize: "medium", weight: "regular", italic: true, align: "left", color: "#F8FAFC", position: "bottom" },
+    { fontSize: "large", weight: "bold", italic: false, align: "right", color: "#FEF3C7", position: "top" },
+    { fontSize: "medium", weight: "bold", italic: false, align: "center", color: "#FFFFFF", position: "bottom" },
+    { fontSize: "hero", weight: "bold", italic: false, align: "left", color: "#F8FAFC", position: "center" },
+  ];
+  const typographyStyles = [
+    "Cinematic serif headline with clean supporting text",
+    "Modern editorial sans with bold title hierarchy",
+    "Prayer card typography with gentle spacing",
+    "Documentary lower-third style",
+    "Minimal devotional typography",
+    "Bold testimony poster typography",
+  ];
+  const designTreatments = [
+    "Dark cinematic gradient with gold accent",
+    "Bright hopeful glow with clean blue overlays",
+    "Soft prayerful card with quiet contrast",
+    "Editorial split composition with strong headline",
+    "Minimal white-space treatment with subtle texture",
+    "Timeline-inspired story treatment with milestone rhythm",
+  ];
+  const conceptDirections = [
+    {
+      name: "Elegant magazine",
+      layout: "magazine-style" as const,
+      typographyPairing: "Elegant serif headline with clean sans body",
+      fontHierarchy: "Large editorial headline, compact supporting caption",
+      backgroundTreatment: "Subtle dark gradient over the main image",
+      overlayStyle: "Editorial headline block with gold accent",
+      decorativeElements: "Thin rule lines and small journal label",
+      visualTheme: "Faith journal cover",
+      filterRecommendation: "Warm cinematic contrast",
+      cropRecommendation: "Center the subject with open sky or negative space",
+    },
+    {
+      name: "Modern cinematic",
+      layout: "full-image-poster" as const,
+      typographyPairing: "Bold modern sans headline with tight spacing",
+      fontHierarchy: "Hero title with short lower-third caption",
+      backgroundTreatment: "Full-bleed media with deep blue shadow",
+      overlayStyle: "Large lower-third text over image",
+      decorativeElements: "Soft glow, subtle HTBF gold accent",
+      visualTheme: "Cinematic testimony poster",
+      filterRecommendation: "Deep contrast with warm highlights",
+      cropRecommendation: "Use portrait crop and keep faces above center",
+    },
+    {
+      name: "Minimal",
+      layout: "quote-card" as const,
+      typographyPairing: "Minimal sans with generous spacing",
+      fontHierarchy: "Short centered statement with small reference line",
+      backgroundTreatment: "Calm muted background with lots of breathing room",
+      overlayStyle: "Centered quote-style text",
+      decorativeElements: "Tiny accent dot and quiet border",
+      visualTheme: "Peaceful devotional card",
+      filterRecommendation: "Soft neutral wash",
+      cropRecommendation: "Keep the image simple and uncluttered",
+    },
+    {
+      name: "Bold worship",
+      layout: "praise-report-card" as const,
+      typographyPairing: "Bold worship headline with expressive accent",
+      fontHierarchy: "Strong praise line, short caption, clear CTA",
+      backgroundTreatment: "Bright blue/gold overlay with high energy",
+      overlayStyle: "Stacked uppercase praise text",
+      decorativeElements: "Gold rays, praise badge, soft light burst",
+      visualTheme: "Worship celebration",
+      filterRecommendation: "Bright hopeful glow",
+      cropRecommendation: "Use the most expressive light or movement",
+    },
+    {
+      name: "Story/social style",
+      layout: "text-over-image-testimony" as const,
+      typographyPairing: "Friendly bold sans with readable body",
+      fontHierarchy: "Relatable short title plus conversational caption",
+      backgroundTreatment: "Clean social-story gradient overlay",
+      overlayStyle: "Rounded text bubble over media",
+      decorativeElements: "Small topic chips and soft shadow",
+      visualTheme: "Shareable testimony story",
+      filterRecommendation: "Natural warm phone-story look",
+      cropRecommendation: "Frame the main subject in the safe center area",
+    },
+    {
+      name: "Journal/scrapbook",
+      layout: "journal-style" as const,
+      typographyPairing: "Handwritten-inspired title with clean body type",
+      fontHierarchy: "Personal title, reflective paragraph, scripture reference",
+      backgroundTreatment: "Soft paper panel over media",
+      overlayStyle: "Journal card with layered caption",
+      decorativeElements: "Paper texture, small tape corner, gold underline",
+      visualTheme: "Personal faith journal",
+      filterRecommendation: "Soft matte devotional tone",
+      cropRecommendation: "Let the background support the written reflection",
+    },
+  ];
 
   return {
-    designs: templates.slice(0, 6).map((templateId, index) => ({
-      id: `creator-design-${index + 1}`,
-      studioPath,
-      sourceMode,
-      title: titleIdeas[index % titleIdeas.length],
-      overlayText:
+    designs: conceptDirections.map((direction, index) => {
+      const templateId = templates[index % templates.length];
+      const title = titleIdeas[index % titleIdeas.length];
+      const overlayText =
         index % 2 === 0
           ? cleanPrompt.length > 130
             ? `${cleanPrompt.slice(0, 130).trim()}...`
             : cleanPrompt
-          : titleIdeas[index % titleIdeas.length],
-      caption:
-        index % 3 === 0
-          ? cleanPrompt
-          : `${cleanPrompt}\n\n${topic} is part of what God is shaping here.`,
-      category,
-      topic,
-      templateId,
-      styleMood: moods[index % moods.length],
-      layoutType: layoutTypes[index % layoutTypes.length],
-      scriptureSuggestion:
-        index % 2 === 0 ? "" : "Consider adding a short scripture reference.",
-      suggestedPostFormat:
-        sourceMode === "upload-video"
-          ? `${layoutTypes[index % layoutTypes.length]} video post`
-          : sourceMode === "upload-photo"
-            ? `${layoutTypes[index % layoutTypes.length]} photo post`
-            : `${layoutTypes[index % layoutTypes.length]} design post`,
-    })),
+          : title;
+
+      return {
+        id: `creator-design-${index + 1}`,
+        studioPath,
+        sourceMode,
+        title,
+        overlayText,
+        caption:
+          index % 3 === 0
+            ? cleanPrompt
+            : `${cleanPrompt}\n\n${topic} is part of what God is shaping here.`,
+        category,
+        topic,
+        templateId,
+        styleMood: `${direction.name} / ${moods[index % moods.length]}`,
+        layoutType: direction.layout,
+        scriptureSuggestion:
+          index % 2 === 0 ? "" : "Consider adding a short scripture reference.",
+        suggestedPostFormat:
+          sourceMode === "upload-video"
+            ? `${direction.layout} video post`
+            : sourceMode === "upload-photo"
+              ? `${direction.layout} photo post`
+              : `${direction.layout} design post`,
+        colorPalette: palettes[index % palettes.length],
+        typographyStyle: typographyStyles[index % typographyStyles.length],
+        designTreatment: designTreatments[index % designTreatments.length],
+        callToAction: "Share what God has done.",
+        typographyPairing: direction.typographyPairing,
+        fontHierarchy: direction.fontHierarchy,
+        backgroundTreatment: direction.backgroundTreatment,
+        layoutComposition: direction.layout,
+        overlayStyle: direction.overlayStyle,
+        decorativeElements: direction.decorativeElements,
+        visualTheme: direction.visualTheme,
+        filterRecommendation: direction.filterRecommendation,
+        cropRecommendation: direction.cropRecommendation,
+        alternateTitles: [title, `God Is Moving in ${topic}`],
+        alternateCaptions: [
+          cleanPrompt,
+          `${topic} is part of this testimony of God's faithfulness.`,
+        ],
+        hashtags: [normalizeTopicValue(category), normalizeTopicValue(topic)],
+        conceptReason: `${direction.name} fits because it gives this story a distinct ${direction.visualTheme.toLowerCase()} direction.`,
+        textStyle: textStyles[index % textStyles.length],
+      };
+    }),
   };
 }
 
@@ -313,6 +496,40 @@ function cleanCreatorStudioResponse(
         item.templateId ?? item.template ?? item.background,
         fallbackDesign.templateId
       );
+      const colorPalette = readStringArray(item.colorPalette)
+        .map((color) => color.trim())
+        .filter(isHexColor)
+        .slice(0, 5);
+      const callToAction =
+        readString(item.callToAction).trim() ||
+        readString(item.call_to_action).trim();
+      const typographyPairing =
+        readString(item.typographyPairing).trim() ||
+        readString(item.typography_pairing).trim();
+      const fontHierarchy =
+        readString(item.fontHierarchy).trim() ||
+        readString(item.font_hierarchy).trim();
+      const backgroundTreatment =
+        readString(item.backgroundTreatment).trim() ||
+        readString(item.background_treatment).trim();
+      const layoutComposition =
+        readString(item.layoutComposition).trim() ||
+        readString(item.layout_composition).trim();
+      const overlayStyle =
+        readString(item.overlayStyle).trim() ||
+        readString(item.overlay_style).trim();
+      const decorativeElements =
+        readString(item.decorativeElements).trim() ||
+        readString(item.decorative_elements).trim();
+      const visualTheme =
+        readString(item.visualTheme).trim() ||
+        readString(item.visual_theme).trim();
+      const filterRecommendation =
+        readString(item.filterRecommendation).trim() ||
+        readString(item.filter_recommendation).trim();
+      const cropRecommendation =
+        readString(item.cropRecommendation).trim() ||
+        readString(item.crop_recommendation).trim();
 
       return {
         id:
@@ -336,6 +553,54 @@ function cleanCreatorStudioResponse(
           readString(item.suggestedPostFormat).trim() ||
           readString(item.suggested_post_format).trim() ||
           fallbackDesign.suggestedPostFormat,
+        colorPalette:
+          colorPalette.length > 0
+            ? colorPalette
+            : fallbackDesign.colorPalette,
+        typographyStyle:
+          readString(item.typographyStyle).trim() ||
+          readString(item.typography_style).trim() ||
+          fallbackDesign.typographyStyle,
+        designTreatment:
+          readString(item.designTreatment).trim() ||
+          readString(item.design_treatment).trim() ||
+          fallbackDesign.designTreatment,
+        callToAction: callToAction || fallbackDesign.callToAction,
+        typographyPairing:
+          typographyPairing || fallbackDesign.typographyPairing,
+        fontHierarchy: fontHierarchy || fallbackDesign.fontHierarchy,
+        backgroundTreatment:
+          backgroundTreatment || fallbackDesign.backgroundTreatment,
+        layoutComposition:
+          layoutComposition || fallbackDesign.layoutComposition,
+        overlayStyle: overlayStyle || fallbackDesign.overlayStyle,
+        decorativeElements:
+          decorativeElements || fallbackDesign.decorativeElements,
+        visualTheme: visualTheme || fallbackDesign.visualTheme,
+        filterRecommendation:
+          filterRecommendation || fallbackDesign.filterRecommendation,
+        cropRecommendation:
+          cropRecommendation || fallbackDesign.cropRecommendation,
+        alternateTitles:
+          readLimitedStringArray(item.alternateTitles, 4).length > 0
+            ? readLimitedStringArray(item.alternateTitles, 4)
+            : fallbackDesign.alternateTitles,
+        alternateCaptions:
+          readLimitedStringArray(item.alternateCaptions, 4).length > 0
+            ? readLimitedStringArray(item.alternateCaptions, 4)
+            : fallbackDesign.alternateCaptions,
+        hashtags:
+          readLimitedStringArray(item.hashtags, 8).length > 0
+            ? readLimitedStringArray(item.hashtags, 8)
+            : fallbackDesign.hashtags,
+        conceptReason:
+          readString(item.conceptReason).trim() ||
+          readString(item.concept_reason).trim() ||
+          fallbackDesign.conceptReason,
+        textStyle: readCreatorStudioTextStyle(
+          item.textStyle ?? item.text_style,
+          fallbackDesign.textStyle
+        ),
       };
     })
     .filter((design): design is CreatorStudioDesign => Boolean(design))
@@ -403,12 +668,17 @@ export async function POST(request: Request) {
     const input = [
       "You create polished HTBF Creator Studio design options. Return JSON only.",
       "The user can upload a video, upload a photo, build with AI, or start from an HTBF template.",
-      "Create 4 to 6 completed design options using only the allowed template ids and layout types.",
+      "Create exactly 6 completed design concepts using only the allowed template ids and layout types.",
       "The user's selected Creator Studio path, category, topic, mood, layout, chips, and source mode must visibly shape the concepts.",
-      "Make the concepts meaningfully different from each other: vary the title, overlay text, caption angle, layout type, mood, and recommended background.",
+      "Make the concepts meaningfully different from each other: vary the title, overlay text, caption angle, layout type, mood, recommended background, color palette, typography style, design treatment, overlay style, crop recommendation, decorative elements, and scripture placement.",
+      "Do not simply reuse the same background with different words. Treat each concept as a distinct creative direction such as Cinematic, Magazine, Prayer Card, Timeline, Minimal, Documentary, or Editorial.",
+      "The six concepts should feel like these distinct directions: Elegant magazine, Modern cinematic, Minimal, Bold worship, Story/social style, and Journal/scrapbook.",
       "Do not repeat the same template for every option unless the user explicitly started from a template.",
+      "If sourceMode is upload-video or upload-photo, treat the uploaded media as the main canvas and suggest styling, crop, palette, text, and overlay choices for that media.",
       "Do not quote full Bible verse text. References are okay only if naturally helpful.",
-      "Each design must include studioPath, sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, and suggestedPostFormat.",
+      "Each design must include studioPath, sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, suggestedPostFormat, colorPalette, typographyStyle, designTreatment, callToAction, typographyPairing, fontHierarchy, backgroundTreatment, layoutComposition, overlayStyle, decorativeElements, visualTheme, filterRecommendation, cropRecommendation, alternateTitles, alternateCaptions, hashtags, conceptReason, and textStyle.",
+      "textStyle must include fontSize, weight, italic, align, color, and position. Use these to make each concept visually distinct.",
+      "Use six-digit hex values for every colorPalette item and textStyle.color.",
       "For upload-video and upload-photo, templateId may be none because the user media is the primary visual.",
       `Creator Studio path: ${studioPath}`,
       `Source mode: ${sourceMode}`,
@@ -452,7 +722,7 @@ export async function POST(request: Request) {
                 properties: {
                   designs: {
                     type: "array",
-                    minItems: 4,
+                    minItems: 6,
                     maxItems: 6,
                     items: {
                       type: "object",
@@ -471,6 +741,24 @@ export async function POST(request: Request) {
                         "layoutType",
                         "scriptureSuggestion",
                         "suggestedPostFormat",
+                        "colorPalette",
+                        "typographyStyle",
+                        "designTreatment",
+                        "callToAction",
+                        "typographyPairing",
+                        "fontHierarchy",
+                        "backgroundTreatment",
+                        "layoutComposition",
+                        "overlayStyle",
+                        "decorativeElements",
+                        "visualTheme",
+                        "filterRecommendation",
+                        "cropRecommendation",
+                        "alternateTitles",
+                        "alternateCaptions",
+                        "hashtags",
+                        "conceptReason",
+                        "textStyle",
                       ],
                       properties: {
                         id: { type: "string" },
@@ -498,6 +786,75 @@ export async function POST(request: Request) {
                         },
                         scriptureSuggestion: { type: "string" },
                         suggestedPostFormat: { type: "string" },
+                        colorPalette: {
+                          type: "array",
+                          minItems: 3,
+                          maxItems: 5,
+                          items: { type: "string" },
+                        },
+                        typographyStyle: { type: "string" },
+                        designTreatment: { type: "string" },
+                        callToAction: { type: "string" },
+                        typographyPairing: { type: "string" },
+                        fontHierarchy: { type: "string" },
+                        backgroundTreatment: { type: "string" },
+                        layoutComposition: { type: "string" },
+                        overlayStyle: { type: "string" },
+                        decorativeElements: { type: "string" },
+                        visualTheme: { type: "string" },
+                        filterRecommendation: { type: "string" },
+                        cropRecommendation: { type: "string" },
+                        alternateTitles: {
+                          type: "array",
+                          minItems: 2,
+                          maxItems: 4,
+                          items: { type: "string" },
+                        },
+                        alternateCaptions: {
+                          type: "array",
+                          minItems: 2,
+                          maxItems: 4,
+                          items: { type: "string" },
+                        },
+                        hashtags: {
+                          type: "array",
+                          minItems: 2,
+                          maxItems: 8,
+                          items: { type: "string" },
+                        },
+                        conceptReason: { type: "string" },
+                        textStyle: {
+                          type: "object",
+                          additionalProperties: false,
+                          required: [
+                            "fontSize",
+                            "weight",
+                            "italic",
+                            "align",
+                            "color",
+                            "position",
+                          ],
+                          properties: {
+                            fontSize: {
+                              type: "string",
+                              enum: ["small", "medium", "large", "hero"],
+                            },
+                            weight: {
+                              type: "string",
+                              enum: ["regular", "bold"],
+                            },
+                            italic: { type: "boolean" },
+                            align: {
+                              type: "string",
+                              enum: ["left", "center", "right"],
+                            },
+                            color: { type: "string" },
+                            position: {
+                              type: "string",
+                              enum: ["top", "center", "bottom"],
+                            },
+                          },
+                        },
                       },
                     },
                   },
