@@ -33,6 +33,8 @@ import {
   type CreationCenterSuggestion,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioImageRequest,
+  type CreatorStudioImageResult,
   type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
@@ -1397,6 +1399,10 @@ export default function ShareYourStoryPage() {
       alternateCaptions: readLimitedStringArray("alternateCaptions", 4),
       hashtags: readLimitedStringArray("hashtags", 8),
       conceptReason: readField("conceptReason"),
+      generatedImageUrl: readField("generatedImageUrl"),
+      generatedImagePath: readField("generatedImagePath"),
+      generatedImageBucket: readField("generatedImageBucket"),
+      imageGenerationPrompt: readField("imageGenerationPrompt"),
       textStyle: readTextStyle(),
     };
   }
@@ -1502,6 +1508,70 @@ export default function ShareYourStoryPage() {
       setCreatorStudioMessage(errorMessage);
     } finally {
       setCreatorStudioLoading(false);
+    }
+  }
+
+  async function requestCreatorStudioImage(
+    request: CreatorStudioImageRequest
+  ): Promise<CreatorStudioImageResult | null> {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Please sign in again before generating a visual.");
+      }
+
+      const response = await fetch("/api/generate-creator-studio-image", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+      const data: unknown = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          data &&
+          typeof data === "object" &&
+          "error" in data &&
+          typeof (data as { error?: unknown }).error === "string"
+            ? (data as { error: string }).error
+            : "Could not generate a visual design right now.";
+
+        throw new Error(message);
+      }
+
+      if (
+        !data ||
+        typeof data !== "object" ||
+        typeof (data as { imageUrl?: unknown }).imageUrl !== "string" ||
+        typeof (data as { imagePath?: unknown }).imagePath !== "string" ||
+        typeof (data as { bucket?: unknown }).bucket !== "string"
+      ) {
+        throw new Error("Creator Studio did not return a saved visual.");
+      }
+
+      return {
+        imageUrl: (data as { imageUrl: string }).imageUrl,
+        imagePath: (data as { imagePath: string }).imagePath,
+        bucket: (data as { bucket: string }).bucket,
+        prompt:
+          typeof (data as { prompt?: unknown }).prompt === "string"
+            ? (data as { prompt: string }).prompt
+            : "",
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Could not generate a visual design right now.";
+
+      setCreatorStudioMessage(errorMessage);
+      return null;
     }
   }
 
@@ -2321,14 +2391,25 @@ export default function ShareYourStoryPage() {
           : shouldSaveCreationTemplate
           ? getCreationCenterTemplate(creationTemplateId)
           : null;
+      const generatedCreationTemplatePayload =
+        creatorStudioDesign?.generatedImageUrl && !isCreatorStudioMediaPost
+          ? {
+              id: "generated-creator-studio",
+              label: "Creator Studio visual design",
+              imagePath: creatorStudioDesign.generatedImageUrl,
+              generatedImagePath: creatorStudioDesign.generatedImagePath,
+              generatedImageBucket: creatorStudioDesign.generatedImageBucket,
+            }
+          : null;
       const creationTemplatePayload =
-        selectedCreationTemplate && selectedCreationTemplate.id !== "none"
+        generatedCreationTemplatePayload ??
+        (selectedCreationTemplate && selectedCreationTemplate.id !== "none"
           ? {
               id: selectedCreationTemplate.id,
               label: selectedCreationTemplate.label,
               imagePath: selectedCreationTemplate.imagePath,
             }
-          : null;
+          : null);
       const suggestionPayload =
         sharePath === "guided"
           ? {
@@ -3155,6 +3236,7 @@ export default function ShareYourStoryPage() {
                 onSwitchToQuickShare={() => selectSharePath("quick")}
                 onRequestSuggestions={requestCreationCenterSuggestion}
                 onRequestCreatorStudioDesigns={requestCreatorStudioDesigns}
+                onRequestCreatorStudioImage={requestCreatorStudioImage}
                 onUseCreatorStudioDesign={useCreatorStudioDesign}
                 onCreatorStudioActiveChange={setCreatorStudioActive}
                 onUseSuggestedStoryType={
