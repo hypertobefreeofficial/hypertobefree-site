@@ -1,16 +1,14 @@
 "use client";
 
 import {
-  BookOpen,
   ImagePlus,
-  Layers3,
-  PenLine,
   Sparkles,
   Upload,
   Video,
 } from "lucide-react";
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useState } from "react";
 import {
+  creationCenterStoryTemplates,
   creatorStudioCategoryOptions,
   creatorStudioLayoutOptions,
   creatorStudioMoodOptions,
@@ -51,16 +49,13 @@ type CreatorStudioProps = {
 };
 
 type StudioScreen = "home" | "thinking" | "choose" | "editor" | "publish";
-
-const pathIcons: Record<
-  CreatorStudioPath,
-  ComponentType<{ className?: string }>
-> = {
-  "tell-story": PenLine,
-  "create-design": Layers3,
-  "scripture-post": BookOpen,
-  "ai-surprise": Sparkles,
-};
+type StudioTool =
+  | "templates"
+  | "ai"
+  | "filters"
+  | "text"
+  | "scripture"
+  | "layouts";
 
 const inspirationChips = [
   "Healing",
@@ -71,6 +66,42 @@ const inspirationChips = [
   "Testimony",
   "Teaching",
   "Prophecy",
+];
+
+const studioToolOptions: { value: StudioTool; label: string }[] = [
+  { value: "templates", label: "Templates" },
+  { value: "ai", label: "AI" },
+  { value: "filters", label: "Filters" },
+  { value: "text", label: "Text" },
+  { value: "scripture", label: "Scripture" },
+  { value: "layouts", label: "Layouts" },
+];
+
+const visualFilterOptions = [
+  {
+    label: "Clean",
+    mood: "Clean and minimal",
+    treatment: "Natural media with crisp HTBF contrast",
+    palette: ["#0B1D3A", "#FFFFFF", "#D4AF37"],
+  },
+  {
+    label: "Warm",
+    mood: "Warm encouragement",
+    treatment: "Warm golden glow with soft contrast",
+    palette: ["#7C2D12", "#FFF7ED", "#F97316"],
+  },
+  {
+    label: "Cinematic",
+    mood: "Premium cinematic",
+    treatment: "Deep cinematic shadows with gold accent",
+    palette: ["#020617", "#F8FAFC", "#D4AF37"],
+  },
+  {
+    label: "Peaceful",
+    mood: "Calm and prayerful",
+    treatment: "Prayerful blue wash with gentle light",
+    palette: ["#062A57", "#E0F2FE", "#93C5FD"],
+  },
 ];
 
 const studioSteps: { key: StudioScreen; label: string }[] = [
@@ -182,6 +213,26 @@ export default function CreatorStudio({
   const [templateId, setTemplateId] = useState<CreationCenterTemplateId>(
     pathDefaults["tell-story"].templateId
   );
+  const [activeTool, setActiveTool] = useState<StudioTool>("templates");
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftOverlayText, setDraftOverlayText] = useState("");
+  const [draftCaption, setDraftCaption] = useState("");
+  const [scriptureSuggestion, setScriptureSuggestion] = useState("");
+  const [colorPalette, setColorPalette] = useState<string[]>([
+    "#0B1D3A",
+    "#FFFFFF",
+    "#D4AF37",
+  ]);
+  const [textStyle, setTextStyle] = useState<
+    NonNullable<CreatorStudioDesign["textStyle"]>
+  >({
+    fontSize: "large",
+    weight: "bold",
+    italic: false,
+    align: "left",
+    color: "#FFFFFF",
+    position: "bottom",
+  });
   const [hasRequested, setHasRequested] = useState(false);
   const [selectedDesignId, setSelectedDesignId] = useState<string | null>(null);
   const [editableDesign, setEditableDesign] =
@@ -198,6 +249,41 @@ export default function CreatorStudio({
   );
   const currentPathLabel = getPathLabel(studioPath);
   const hasMedia = Boolean(videoFileName || photoFileName);
+  const promptPreview = prompt.trim();
+  const canvasTitle =
+    draftTitle.trim() ||
+    promptPreview.split(/[.!?]/)[0]?.trim().slice(0, 64) ||
+    "What God Is Doing";
+  const canvasOverlayText =
+    draftOverlayText.trim() || canvasTitle || "Share what God is doing";
+  const canvasCaption =
+    draftCaption.trim() ||
+    promptPreview ||
+    "Upload media, choose a template, or use AI to shape this post.";
+  const canvasDesign: CreatorStudioDesign = {
+    id: "creator-studio-live-canvas",
+    studioPath,
+    sourceMode,
+    title: canvasTitle,
+    overlayText: canvasOverlayText,
+    caption: canvasCaption,
+    category,
+    topic,
+    templateId,
+    styleMood: mood,
+    layoutType,
+    scriptureSuggestion,
+    suggestedPostFormat:
+      sourceMode === "upload-video"
+        ? "HTBF video post"
+        : sourceMode === "upload-photo"
+          ? "HTBF photo post"
+          : "HTBF design post",
+    colorPalette,
+    typographyStyle: textStyle.weight === "bold" ? "Bold HTBF headline" : "Clean HTBF type",
+    designTreatment: mood,
+    textStyle,
+  };
 
   useEffect(() => {
     if (!hasRequested || loading || designs.length === 0) return;
@@ -217,22 +303,6 @@ export default function CreatorStudio({
 
     setScreen("home");
   }, [designs.length, hasRequested, loading, screen]);
-
-  function choosePath(nextPath: CreatorStudioPath) {
-    const defaults = pathDefaults[nextPath];
-
-    setStudioPath(nextPath);
-    setCategory(defaults.category);
-    setTopic(defaults.topic);
-    setMood(defaults.mood);
-    setLayoutType(defaults.layoutType);
-    setTemplateId(defaults.templateId);
-    setHasRequested(false);
-    setSelectedDesignId(null);
-    setEditableDesign(null);
-    setScreen("home");
-    onFormatChange("testimony-card");
-  }
 
   function toggleChip(chip: string) {
     setSelectedChips((current) =>
@@ -284,6 +354,24 @@ export default function CreatorStudio({
     if (!editableDesign) return;
 
     onUseDesign(editableDesign);
+  }
+
+  function handlePhotoSelect(file: File | null) {
+    onFormatChange("photo");
+    onPhotoSelect(file);
+    if (file) setTemplateId("none");
+  }
+
+  function handleVideoSelect(file: File | null) {
+    onFormatChange("video");
+    onVideoSelect(file);
+    if (file) setTemplateId("none");
+  }
+
+  function prepareDraftForPublish() {
+    setEditableDesign(canvasDesign);
+    setSelectedDesignId(canvasDesign.id);
+    setScreen("publish");
   }
 
   return (
@@ -364,241 +452,370 @@ export default function CreatorStudio({
         )}
 
         {currentScreen === "home" && (
-          <div className="grid w-full max-w-full min-w-0 gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(20rem,0.55fr)]">
-            <div className="min-w-0 space-y-5">
-              <section className="rounded-[2rem] bg-white p-4 shadow-xl shadow-blue-950/5 ring-1 ring-blue-100 sm:p-5">
-                <div className="mb-4 flex items-end justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-black text-[#062a57]">
-                      Start here
-                    </div>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
-                      Choose what you want HTBF to help create.
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0b63ce]">
-                    Home
-                  </span>
+          <div className="mx-auto grid w-full max-w-6xl min-w-0 gap-4">
+            <section className="overflow-hidden rounded-[2rem] bg-[#031d3d] p-3 shadow-2xl shadow-blue-950/20 ring-1 ring-blue-100 sm:p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-2 pt-1 text-white">
+                <div>
+                  <div className="text-sm font-black">Create from media</div>
+                  <p className="mt-1 text-xs font-semibold text-blue-100">
+                    Upload first, then use tools to shape the post.
+                  </p>
                 </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {creatorStudioPathOptions.map((option, index) => {
-                    const Icon = pathIcons[option.value];
-                    const selected = studioPath === option.value;
-                    const gradients = [
-                      "from-[#0b63ce] to-[#084f9f]",
-                      "from-[#6d5dfc] to-[#4f46e5]",
-                      "from-[#0f9f9a] to-[#0b63ce]",
-                      "from-[#f97316] to-[#ef4444]",
-                    ];
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => choosePath(option.value)}
-                        className={`group relative min-h-[10rem] overflow-hidden rounded-[1.6rem] bg-gradient-to-br ${
-                          gradients[index] ?? gradients[0]
-                        } p-4 text-left text-white shadow-lg transition hover:-translate-y-1 hover:shadow-2xl ${
-                          selected
-                            ? "ring-4 ring-[#0b63ce]/20"
-                            : "ring-1 ring-white/20"
-                        }`}
-                      >
-                        <span className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/15" />
-                        <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-white/18 ring-1 ring-white/20">
-                          <Icon className="h-5 w-5" />
-                        </span>
-                        <div className="relative mt-4 text-base font-black">
-                          {option.title}
-                        </div>
-                        <p className="relative mt-2 max-w-[13rem] text-xs font-semibold leading-5 text-white/85">
-                          {option.description}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="rounded-[2rem] bg-white p-4 shadow-xl shadow-blue-950/5 ring-1 ring-blue-100 sm:p-5">
-                <label
-                  htmlFor="creator-studio-v3-prompt"
-                  className="text-sm font-black text-[#062a57]"
-                >
-                  What has God done?
-                </label>
-                <textarea
-                  id="creator-studio-v3-prompt"
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Tell us your testimony, prayer, worship moment, or what God placed on your heart..."
-                  rows={5}
-                  className="mt-3 w-full resize-none rounded-[1.5rem] border border-blue-100 bg-blue-50/70 px-5 py-5 text-base font-semibold leading-7 text-[#062a57] outline-none transition placeholder:text-slate-400 focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100 sm:text-lg sm:leading-8"
-                />
-
-                <div className="mt-4 flex w-full max-w-full gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
-                  {inspirationChips.map((chip) => {
-                    const selected = selectedChips.includes(chip);
-
-                    return (
-                      <button
-                        key={chip}
-                        type="button"
-                        onClick={() => toggleChip(chip)}
-                        className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-black ring-1 transition ${
-                          selected
-                            ? "bg-[#0b63ce] text-white ring-[#0b63ce] shadow-lg shadow-blue-900/15"
-                            : "bg-white text-slate-600 ring-blue-100 hover:-translate-y-0.5 hover:bg-blue-50"
-                        }`}
-                      >
-                        {chip}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={generateDesigns}
-                  disabled={loading}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3.5 text-sm font-black text-white shadow-xl shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Generate Designs
-                  <Sparkles className="h-4 w-4" />
-                </button>
-              </section>
-
-              {hasRequested && !loading && designs.length === 0 && (
-                <div className="rounded-[1.5rem] bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-700 ring-1 ring-red-100">
-                  Couldn&apos;t generate designs. Try again.
-                </div>
-              )}
-            </div>
-
-            <aside className="min-w-0 space-y-4">
-              <section className="rounded-[2rem] bg-white p-4 shadow-xl shadow-blue-950/5 ring-1 ring-blue-100">
-                <div className="text-sm font-black text-[#062a57]">
-                  Add media
-                </div>
-                <p className="mt-1 text-xs font-semibold text-slate-500">
-                  Optional. Uploads still use the existing HTBF flow.
-                </p>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <label className="flex min-h-[7rem] cursor-pointer flex-col items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-blue-50 to-white p-4 text-center text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-950/10">
-                    <ImagePlus className="h-6 w-6" />
-                    <span className="mt-2">Upload Photo</span>
+                <div className="flex gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-black text-[#0b63ce] shadow-sm transition hover:bg-blue-50">
+                    <ImagePlus className="h-4 w-4" />
+                    Photo
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       onChange={(event) =>
-                        onPhotoSelect(event.target.files?.[0] ?? null)
+                        handlePhotoSelect(event.target.files?.[0] ?? null)
                       }
                       className="hidden"
                     />
                   </label>
-
-                  <label className="flex min-h-[7rem] cursor-pointer flex-col items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-blue-50 to-white p-4 text-center text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-950/10">
-                    <Video className="h-6 w-6" />
-                    <span className="mt-2">Upload Video</span>
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/12 px-4 py-2 text-xs font-black text-white ring-1 ring-white/20 transition hover:bg-white/18">
+                    <Video className="h-4 w-4" />
+                    Video
                     <input
                       type="file"
                       accept="video/*"
                       onChange={(event) =>
-                        onVideoSelect(event.target.files?.[0] ?? null)
+                        handleVideoSelect(event.target.files?.[0] ?? null)
                       }
                       className="hidden"
                     />
                   </label>
                 </div>
+              </div>
 
-                {hasMedia && (
-                  <div className="mt-4 space-y-2">
-                    {photoFileName && (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-bold text-[#082f63] ring-1 ring-blue-100">
-                        <span className="truncate">{photoFileName}</span>
-                        <button
-                          type="button"
-                          onClick={onRemovePhoto}
-                          className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black text-red-600 ring-1 ring-red-100"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-                    {videoFileName && (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-bold text-[#082f63] ring-1 ring-blue-100">
-                        <span className="truncate">{videoFileName}</span>
-                        <button
-                          type="button"
-                          onClick={onRemoveVideo}
-                          className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black text-red-600 ring-1 ring-red-100"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
+              <div className="mx-auto w-full max-w-[42rem]">
+                <CreatorStudioPreview
+                  design={canvasDesign}
+                  videoPreviewUrl={videoPreviewUrl}
+                  photoPreviewUrl={photoPreviewUrl}
+                  canvas
+                />
+              </div>
+
+              {hasMedia && (
+                <div className="mt-3 grid gap-2 px-1 sm:grid-cols-2">
+                  {photoFileName && (
+                    <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-4 py-3 text-xs font-bold text-white ring-1 ring-white/15">
+                      <span className="truncate">{photoFileName}</span>
+                      <button
+                        type="button"
+                        onClick={onRemovePhoto}
+                        className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black text-red-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                  {videoFileName && (
+                    <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/10 px-4 py-3 text-xs font-bold text-white ring-1 ring-white/15">
+                      <span className="truncate">{videoFileName}</span>
+                      <button
+                        type="button"
+                        onClick={onRemoveVideo}
+                        className="shrink-0 rounded-full bg-white px-3 py-1 text-[10px] font-black text-red-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section className="overflow-hidden rounded-[2rem] bg-white shadow-xl shadow-blue-950/5 ring-1 ring-blue-100">
+              <div className="flex w-full max-w-full gap-2 overflow-x-auto border-b border-blue-100 px-4 py-3 [-webkit-overflow-scrolling:touch] sm:px-5">
+                {studioToolOptions.map((tool) => {
+                  const selected = activeTool === tool.value;
+
+                  return (
+                    <button
+                      key={tool.value}
+                      type="button"
+                      onClick={() => setActiveTool(tool.value)}
+                      className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-black ring-1 transition ${
+                        selected
+                          ? "bg-[#0b63ce] text-white ring-[#0b63ce] shadow-lg shadow-blue-900/15"
+                          : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"
+                      }`}
+                    >
+                      {tool.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="p-4 sm:p-5">
+                {activeTool === "templates" && (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {creationCenterStoryTemplates
+                      .filter((template) => template.id === "none" || template.imagePath)
+                      .map((template) => {
+                        const selected = templateId === template.id;
+
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => {
+                              setTemplateId(template.id);
+                              if (template.id !== "none") {
+                                onFormatChange("testimony-card");
+                              }
+                            }}
+                            className={`overflow-hidden rounded-2xl text-left ring-2 transition ${
+                              selected
+                                ? "ring-[#0b63ce] ring-offset-2 shadow-xl shadow-blue-900/15"
+                                : "ring-blue-100 hover:-translate-y-0.5 hover:ring-blue-200"
+                            }`}
+                          >
+                            <div className="relative aspect-[4/3] bg-blue-50">
+                              {template.imagePath ? (
+                                <img
+                                  src={template.imagePath}
+                                  alt=""
+                                  className="absolute inset-0 h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#062a57] to-[#0b63ce] text-xs font-black uppercase tracking-[0.14em] text-white">
+                                  Clean
+                                </div>
+                              )}
+                            </div>
+                            <div className="bg-white px-3 py-3">
+                              <div className="text-sm font-black text-[#062a57]">
+                                {template.label}
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">
+                                {template.description}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
                   </div>
                 )}
-              </section>
 
-              <section className="rounded-[2rem] bg-white p-4 shadow-xl shadow-blue-950/5 ring-1 ring-blue-100">
-                <div className="text-sm font-black text-[#062a57]">
-                  Creative settings
-                </div>
-                <div className="mt-4 grid gap-3">
-                  <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
-                    Category
-                    <select
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                {activeTool === "ai" && (
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+                    <div>
+                      <label
+                        htmlFor="creator-studio-media-prompt"
+                        className="text-sm font-black text-[#062a57]"
+                      >
+                        Tell us what God is doing
+                      </label>
+                      <textarea
+                        id="creator-studio-media-prompt"
+                        value={prompt}
+                        onChange={(event) => setPrompt(event.target.value)}
+                        placeholder="Describe the story, prayer, worship moment, or what this media means..."
+                        rows={4}
+                        className="mt-3 w-full resize-none rounded-[1.5rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-base font-semibold leading-7 text-[#062a57] outline-none transition placeholder:text-slate-400 focus:border-[#0b63ce] focus:bg-white focus:ring-4 focus:ring-blue-100"
+                      />
+
+                      <div className="mt-4 flex w-full max-w-full gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+                        {inspirationChips.map((chip) => {
+                          const selected = selectedChips.includes(chip);
+
+                          return (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => toggleChip(chip)}
+                              className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-black ring-1 transition ${
+                                selected
+                                  ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                                  : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"
+                              }`}
+                            >
+                              {chip}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={generateDesigns}
+                      disabled={loading}
+                      className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 lg:self-end"
                     >
-                      {creatorStudioCategoryOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      Generate Designs
+                      <Sparkles className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
 
-                  <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
-                    Mood
-                    <select
-                      value={mood}
-                      onChange={(event) => setMood(event.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
-                    >
-                      {creatorStudioMoodOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                {activeTool === "filters" && (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {visualFilterOptions.map((filter) => (
+                      <button
+                        key={filter.label}
+                        type="button"
+                        onClick={() => {
+                          setMood(filter.mood);
+                          setColorPalette(filter.palette);
+                          setTextStyle((current) => ({
+                            ...current,
+                            color: filter.palette[1],
+                          }));
+                        }}
+                        className="rounded-2xl bg-white p-4 text-left ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-lg hover:shadow-blue-950/10"
+                      >
+                        <div className="flex gap-1">
+                          {filter.palette.map((color) => (
+                            <span
+                              key={color}
+                              className="h-8 w-8 rounded-full ring-1 ring-white"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                        <div className="mt-3 text-sm font-black text-[#062a57]">
+                          {filter.label}
+                        </div>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                          {filter.treatment}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                  <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
-                    Layout
+                {activeTool === "text" && (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <input
+                      value={draftTitle}
+                      onChange={(event) => setDraftTitle(event.target.value)}
+                      placeholder="Title"
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                    />
+                    <input
+                      value={draftOverlayText}
+                      onChange={(event) => setDraftOverlayText(event.target.value)}
+                      placeholder="Overlay text"
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                    />
+                    <textarea
+                      value={draftCaption}
+                      onChange={(event) => setDraftCaption(event.target.value)}
+                      placeholder="Caption"
+                      rows={3}
+                      className="w-full resize-none rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-semibold leading-7 text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100 lg:col-span-2"
+                    />
                     <select
-                      value={layoutType}
+                      value={textStyle.fontSize}
                       onChange={(event) =>
-                        setLayoutType(
-                          event.target.value as CreatorStudioLayoutType
-                        )
+                        setTextStyle((current) => ({
+                          ...current,
+                          fontSize: event.target.value as NonNullable<
+                            CreatorStudioDesign["textStyle"]
+                          >["fontSize"],
+                        }))
                       }
-                      className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
                     >
-                      {creatorStudioLayoutOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                      <option value="hero">Hero</option>
                     </select>
-                  </label>
-                </div>
-              </section>
-            </aside>
+                    <select
+                      value={textStyle.align}
+                      onChange={(event) =>
+                        setTextStyle((current) => ({
+                          ...current,
+                          align: event.target.value as NonNullable<
+                            CreatorStudioDesign["textStyle"]
+                          >["align"],
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                    >
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </div>
+                )}
+
+                {activeTool === "scripture" && (
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <input
+                      value={scriptureSuggestion}
+                      onChange={(event) => setScriptureSuggestion(event.target.value)}
+                      placeholder="Scripture reference, such as John 8:36"
+                      className="w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setScriptureSuggestion("John 8:36")}
+                      className="rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white"
+                    >
+                      Suggest Scripture
+                    </button>
+                  </div>
+                )}
+
+                {activeTool === "layouts" && (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {creatorStudioLayoutOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setLayoutType(option.value)}
+                        className={`rounded-2xl px-4 py-4 text-left text-sm font-black ring-1 transition ${
+                          layoutType === option.value
+                            ? "bg-[#0b63ce] text-white ring-[#0b63ce] shadow-lg shadow-blue-900/15"
+                            : "bg-white text-[#062a57] ring-blue-100 hover:-translate-y-0.5 hover:bg-blue-50"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {hasRequested && !loading && designs.length === 0 && (
+                  <div className="mt-4 rounded-[1.5rem] bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-700 ring-1 ring-red-100">
+                    Couldn&apos;t generate designs. Try again.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <div className="fixed inset-x-0 bottom-0 z-40 bg-white/92 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl shadow-blue-950/15 ring-1 ring-blue-100 backdrop-blur-xl sm:static sm:rounded-[2rem] sm:px-4 sm:pb-4 sm:shadow-xl">
+              <div className="mx-auto flex max-w-3xl gap-2 overflow-x-auto [-webkit-overflow-scrolling:touch] sm:justify-center">
+                {studioToolOptions.map((tool) => (
+                  <button
+                    key={tool.value}
+                    type="button"
+                    onClick={() => setActiveTool(tool.value)}
+                    className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-black ring-1 transition ${
+                      activeTool === tool.value
+                        ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                        : "bg-white text-slate-600 ring-blue-100"
+                    }`}
+                  >
+                    {tool.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={prepareDraftForPublish}
+                  className="shrink-0 rounded-full bg-[#062a57] px-5 py-2.5 text-xs font-black text-white"
+                >
+                  Publish
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
