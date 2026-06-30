@@ -24,6 +24,8 @@ import {
   type CreationCenterStoryType,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioImageRequest,
+  type CreatorStudioImageResult,
   type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
@@ -67,6 +69,9 @@ type CreationCenterProps = {
     inspirationChips: string[],
     options: CreatorStudioRequestOptions
   ) => void;
+  onRequestCreatorStudioImage: (
+    request: CreatorStudioImageRequest
+  ) => Promise<CreatorStudioImageResult | null>;
   onUseCreatorStudioDesign: (design: CreatorStudioDesign) => void;
   onCreatorStudioActiveChange: (active: boolean) => void;
   onUseSuggestedStoryType: (storyType: string) => void;
@@ -122,6 +127,7 @@ export default function CreationCenter({
   onSwitchToQuickShare,
   onRequestSuggestions,
   onRequestCreatorStudioDesigns,
+  onRequestCreatorStudioImage,
   onUseCreatorStudioDesign,
   onCreatorStudioActiveChange,
   onUseSuggestedStoryType,
@@ -200,6 +206,7 @@ export default function CreationCenter({
             onFormatChange={onFormatChange}
             onBack={() => setCreatorStudioOpen(false)}
             onRequestDesigns={onRequestCreatorStudioDesigns}
+            onRequestImage={onRequestCreatorStudioImage}
             onUseDesign={onUseCreatorStudioDesign}
           />
         ) : (
