@@ -216,14 +216,14 @@ export const creatorStudioLayoutOptions: {
   { value: "prayer-request-card", label: "Prayer request card" },
   { value: "praise-report-card", label: "Praise report card" },
   { value: "scripture-card", label: "Scripture card" },
-  { value: "photo-collage", label: "Photo collage placeholder" },
+  { value: "photo-collage", label: "Photo collage" },
   {
     value: "video-photo-mixed",
-    label: "Video + photo mixed placeholder",
+    label: "Video + photo mixed",
   },
   {
     value: "before-after-testimony",
-    label: "Before/after testimony placeholder",
+    label: "Before/after testimony",
   },
   { value: "timeline-story", label: "Timeline story" },
   { value: "magazine-style", label: "Magazine style" },
