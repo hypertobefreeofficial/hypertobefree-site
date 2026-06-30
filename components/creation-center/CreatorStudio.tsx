@@ -21,7 +21,6 @@ import {
   type CreatorStudioRequestOptions,
   type CreatorStudioSourceMode,
 } from "../../lib/creationCenter";
-import CreatorStudioDesignCards from "./CreatorStudioDesignCards";
 import CreatorStudioGeneration from "./CreatorStudioGeneration";
 import CreatorStudioLayoutEditor from "./CreatorStudioLayoutEditor";
 import CreatorStudioPreview from "./CreatorStudioPreview";
@@ -75,6 +74,15 @@ const studioToolOptions: { value: StudioTool; label: string }[] = [
   { value: "text", label: "Text" },
   { value: "scripture", label: "Scripture" },
   { value: "layouts", label: "Layouts" },
+];
+
+const quickAiActions = [
+  "More Like This",
+  "Surprise Me",
+  "Change Style",
+  "Rewrite Text",
+  "Different Scripture",
+  "New Background",
 ];
 
 const visualFilterOptions = [
@@ -235,6 +243,7 @@ export default function CreatorStudio({
   });
   const [hasRequested, setHasRequested] = useState(false);
   const [selectedDesignId, setSelectedDesignId] = useState<string | null>(null);
+  const [resultTouchStartX, setResultTouchStartX] = useState<number | null>(null);
   const [editableDesign, setEditableDesign] =
     useState<CreatorStudioDesign | null>(null);
 
@@ -284,6 +293,16 @@ export default function CreatorStudio({
     designTreatment: mood,
     textStyle,
   };
+  const activeDesignIndex = Math.max(
+    designs.findIndex((design) => design.id === selectedDesignId),
+    0
+  );
+  const activeResultDesign =
+    designs[activeDesignIndex] ?? editableDesign ?? designs[0] ?? null;
+  const activeConceptLabel =
+    activeResultDesign?.visualTheme ||
+    activeResultDesign?.styleMood ||
+    currentLayoutLabel;
 
   useEffect(() => {
     if (!hasRequested || loading || designs.length === 0) return;
@@ -348,6 +367,62 @@ export default function CreatorStudio({
   function selectDesign(design: CreatorStudioDesign) {
     setSelectedDesignId(design.id);
     setEditableDesign(design);
+  }
+
+  function selectDesignByIndex(nextIndex: number) {
+    if (designs.length === 0) return;
+
+    const normalizedIndex =
+      (nextIndex + designs.length) % designs.length;
+    selectDesign(designs[normalizedIndex]);
+  }
+
+  function moveDesign(direction: 1 | -1) {
+    selectDesignByIndex(activeDesignIndex + direction);
+  }
+
+  function handleResultSwipe(endX: number) {
+    if (resultTouchStartX === null) return;
+
+    const deltaX = endX - resultTouchStartX;
+    setResultTouchStartX(null);
+
+    if (Math.abs(deltaX) < 40) return;
+
+    moveDesign(deltaX < 0 ? 1 : -1);
+  }
+
+  function requestQuickAiAction(action: string) {
+    const activeDesign = activeResultDesign;
+    const basePrompt =
+      prompt.trim() ||
+      activeDesign?.caption ||
+      activeDesign?.overlayText ||
+      "Create a polished HTBF faith-centered post.";
+    const actionPrompt = [
+      basePrompt,
+      `AI action: ${action}.`,
+      activeDesign
+        ? `Current concept: ${activeDesign.visualTheme || activeDesign.styleMood}. Keep what works, but make the next six options meaningfully different.`
+        : "Create six visually distinct concepts.",
+    ].join("\n\n");
+
+    setHasRequested(true);
+    setSelectedDesignId(null);
+    setEditableDesign(null);
+    setScreen("thinking");
+    onRequestDesigns(actionPrompt, selectedChips, {
+      studioPath,
+      sourceMode,
+      selectedTemplateId: templateId,
+      category: activeDesign?.category || category,
+      topic: activeDesign?.topic || topic,
+      mood:
+        action === "Surprise Me"
+          ? "Unexpected but polished HTBF direction"
+          : activeDesign?.styleMood || mood,
+      layoutType: activeDesign?.layoutType || layoutType,
+    });
   }
 
   function useEditableDesign() {
@@ -819,45 +894,147 @@ export default function CreatorStudio({
           </div>
         )}
 
-        {currentScreen === "choose" && designs.length > 0 && (
-          <div className="grid w-full max-w-full min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.58fr)]">
-            <CreatorStudioDesignCards
-              designs={designs}
-              selectedDesignId={selectedDesignId}
-              videoPreviewUrl={videoPreviewUrl}
-              photoPreviewUrl={photoPreviewUrl}
-              onSelect={selectDesign}
-            />
-
-            <aside className="min-w-0 space-y-4">
-              <section className="overflow-hidden rounded-[2rem] bg-[#031d3d] p-3 shadow-2xl shadow-blue-950/20 ring-1 ring-blue-100">
-                <div className="mb-3 flex items-center justify-between gap-3 px-2 pt-1 text-white">
+        {currentScreen === "choose" && activeResultDesign && (
+          <div className="mx-auto grid w-full max-w-6xl min-w-0 gap-5">
+            <section className="overflow-hidden rounded-[2.25rem] bg-white shadow-2xl shadow-blue-950/10 ring-1 ring-blue-100">
+              <div className="border-b border-blue-100 px-4 py-5 sm:px-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <div className="text-sm font-black">Preview</div>
-                    <p className="mt-1 text-xs font-semibold text-blue-100">
-                      Tap a concept to update this canvas.
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                      AI Results
+                    </div>
+                    <h3 className="mt-1 text-2xl font-black tracking-tight text-[#062a57] sm:text-3xl">
+                      AI created 6 concepts for you
+                    </h3>
+                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
+                      Swipe through the concepts. The large preview is the
+                      selector, so you can judge the artwork at real size.
                     </p>
                   </div>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-blue-100 ring-1 ring-white/15">
-                    {currentLayoutLabel}
+                  <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#0b63ce] ring-1 ring-blue-100">
+                    {activeConceptLabel}
                   </span>
                 </div>
-                <CreatorStudioPreview
-                  design={editableDesign}
-                  videoPreviewUrl={videoPreviewUrl}
-                  photoPreviewUrl={photoPreviewUrl}
-                />
-              </section>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => editableDesign && setScreen("editor")}
-                disabled={!editableDesign}
-                className="inline-flex w-full items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3.5 text-sm font-black text-white shadow-xl shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Edit Selected Design
-              </button>
-            </aside>
+              <div className="bg-[#031d3d] p-3 sm:p-5">
+                <div
+                  className="relative mx-auto w-full max-w-[44rem]"
+                  onTouchStart={(event) =>
+                    setResultTouchStartX(event.touches[0]?.clientX ?? null)
+                  }
+                  onTouchEnd={(event) =>
+                    handleResultSwipe(event.changedTouches[0]?.clientX ?? 0)
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => moveDesign(-1)}
+                    className="absolute left-2 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-2xl font-black text-[#062a57] shadow-lg shadow-blue-950/20 backdrop-blur transition hover:bg-white"
+                    aria-label="Previous concept"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveDesign(1)}
+                    className="absolute right-2 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-2xl font-black text-[#062a57] shadow-lg shadow-blue-950/20 backdrop-blur transition hover:bg-white"
+                    aria-label="Next concept"
+                  >
+                    ›
+                  </button>
+                  <CreatorStudioPreview
+                    design={activeResultDesign}
+                    videoPreviewUrl={videoPreviewUrl}
+                    photoPreviewUrl={photoPreviewUrl}
+                    canvas
+                  />
+                </div>
+
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  {designs.map((design, index) => {
+                    const selected = design.id === activeResultDesign.id;
+
+                    return (
+                      <button
+                        key={design.id}
+                        type="button"
+                        onClick={() => selectDesignByIndex(index)}
+                        className={`h-2.5 rounded-full transition ${
+                          selected
+                            ? "w-8 bg-white"
+                            : "w-2.5 bg-white/35 hover:bg-white/60"
+                        }`}
+                        aria-label={`Show concept ${index + 1}`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="min-w-0">
+                  <div className="text-sm font-black text-[#062a57]">
+                    {activeResultDesign.visualTheme ||
+                      activeResultDesign.styleMood}
+                  </div>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                    {activeResultDesign.conceptReason ||
+                      activeResultDesign.designTreatment ||
+                      "This concept gives your story a distinct visual direction."}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+                    {[
+                      activeResultDesign.layoutComposition ||
+                        getLayoutLabel(activeResultDesign.layoutType),
+                      activeResultDesign.typographyPairing,
+                      activeResultDesign.filterRecommendation,
+                    ]
+                      .filter((item): item is string => Boolean(item))
+                      .map((item) => (
+                        <span
+                          key={item}
+                          className="rounded-full bg-blue-50 px-3 py-1 ring-1 ring-blue-100"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectDesign(activeResultDesign);
+                    setScreen("editor");
+                  }}
+                  className="inline-flex items-center justify-center rounded-full bg-[#0b63ce] px-6 py-3.5 text-sm font-black text-white shadow-xl shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f]"
+                >
+                  Edit This Design
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-[2rem] bg-white p-4 shadow-xl shadow-blue-950/5 ring-1 ring-blue-100 sm:p-5">
+              <div className="text-sm font-black text-[#062a57]">
+                Quick AI actions
+              </div>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                Ask HTBF to create a fresh set based on this direction.
+              </p>
+              <div className="mt-4 flex w-full max-w-full gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+                {quickAiActions.map((action) => (
+                  <button
+                    key={action}
+                    type="button"
+                    onClick={() => requestQuickAiAction(action)}
+                    className="shrink-0 rounded-full bg-blue-50 px-4 py-2.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:shadow-blue-950/10"
+                  >
+                    {action}
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
         )}
 
