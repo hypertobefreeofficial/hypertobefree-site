@@ -16,6 +16,9 @@ import {
   type CreationCenterFormat,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioImageAction,
+  type CreatorStudioImageRequest,
+  type CreatorStudioImageResult,
   type CreatorStudioLayoutType,
   type CreatorStudioPath,
   type CreatorStudioRequestOptions,
@@ -44,6 +47,9 @@ type CreatorStudioProps = {
     inspirationChips: string[],
     options: CreatorStudioRequestOptions
   ) => void;
+  onRequestImage: (
+    request: CreatorStudioImageRequest
+  ) => Promise<CreatorStudioImageResult | null>;
   onUseDesign: (design: CreatorStudioDesign) => void;
 };
 
@@ -205,6 +211,7 @@ export default function CreatorStudio({
   onFormatChange,
   onBack,
   onRequestDesigns,
+  onRequestImage,
   onUseDesign,
 }: CreatorStudioProps) {
   const [screen, setScreen] = useState<StudioScreen>("home");
@@ -246,6 +253,17 @@ export default function CreatorStudio({
   const [resultTouchStartX, setResultTouchStartX] = useState<number | null>(null);
   const [editableDesign, setEditableDesign] =
     useState<CreatorStudioDesign | null>(null);
+  const [imageEnhancedDesign, setImageEnhancedDesign] =
+    useState<CreatorStudioDesign | null>(null);
+  const [imageGeneratingAction, setImageGeneratingAction] =
+    useState<CreatorStudioImageAction | null>(null);
+  const [imageMessage, setImageMessage] = useState("");
+  const [generatedCanvasImageUrl, setGeneratedCanvasImageUrl] = useState("");
+  const [generatedCanvasImagePath, setGeneratedCanvasImagePath] = useState("");
+  const [generatedCanvasImageBucket, setGeneratedCanvasImageBucket] =
+    useState("");
+  const [generatedCanvasImagePrompt, setGeneratedCanvasImagePrompt] =
+    useState("");
 
   const sourceMode = getSourceMode({
     hasVideo: Boolean(videoPreviewUrl),
@@ -291,14 +309,24 @@ export default function CreatorStudio({
     colorPalette,
     typographyStyle: textStyle.weight === "bold" ? "Bold HTBF headline" : "Clean HTBF type",
     designTreatment: mood,
+    generatedImageUrl: generatedCanvasImageUrl || undefined,
+    generatedImagePath: generatedCanvasImagePath || undefined,
+    generatedImageBucket: generatedCanvasImageBucket || undefined,
+    imageGenerationPrompt: generatedCanvasImagePrompt || undefined,
     textStyle,
   };
   const activeDesignIndex = Math.max(
     designs.findIndex((design) => design.id === selectedDesignId),
     0
   );
-  const activeResultDesign =
+  const baseResultDesign =
     designs[activeDesignIndex] ?? editableDesign ?? designs[0] ?? null;
+  const activeResultDesign =
+    imageEnhancedDesign &&
+    baseResultDesign &&
+    imageEnhancedDesign.id === baseResultDesign.id
+      ? imageEnhancedDesign
+      : baseResultDesign;
   const activeConceptLabel =
     activeResultDesign?.visualTheme ||
     activeResultDesign?.styleMood ||
@@ -312,6 +340,7 @@ export default function CreatorStudio({
 
     setSelectedDesignId(nextDesign.id);
     setEditableDesign(nextDesign);
+    setImageEnhancedDesign(null);
     setScreen("choose");
   }, [designs, hasRequested, loading]);
 
@@ -346,6 +375,7 @@ export default function CreatorStudio({
     setHasRequested(true);
     setSelectedDesignId(null);
     setEditableDesign(null);
+    setImageEnhancedDesign(null);
     setScreen("thinking");
     onRequestDesigns(cleanPrompt || fallbackPrompt, selectedChips, {
       studioPath,
@@ -367,6 +397,7 @@ export default function CreatorStudio({
   function selectDesign(design: CreatorStudioDesign) {
     setSelectedDesignId(design.id);
     setEditableDesign(design);
+    setImageEnhancedDesign(null);
   }
 
   function selectDesignByIndex(nextIndex: number) {
@@ -393,6 +424,11 @@ export default function CreatorStudio({
   }
 
   function requestQuickAiAction(action: string) {
+    if (action === "New Background") {
+      void requestGeneratedVisual("New Background");
+      return;
+    }
+
     const activeDesign = activeResultDesign;
     const basePrompt =
       prompt.trim() ||
@@ -410,6 +446,7 @@ export default function CreatorStudio({
     setHasRequested(true);
     setSelectedDesignId(null);
     setEditableDesign(null);
+    setImageEnhancedDesign(null);
     setScreen("thinking");
     onRequestDesigns(actionPrompt, selectedChips, {
       studioPath,
@@ -423,6 +460,75 @@ export default function CreatorStudio({
           : activeDesign?.styleMood || mood,
       layoutType: activeDesign?.layoutType || layoutType,
     });
+  }
+
+  async function requestGeneratedVisual(action: CreatorStudioImageAction) {
+    const baseDesign =
+      screen === "editor" || screen === "publish"
+        ? editableDesign ?? activeResultDesign ?? canvasDesign
+        : activeResultDesign ?? editableDesign ?? canvasDesign;
+    const cleanPrompt =
+      prompt.trim() ||
+      baseDesign.caption ||
+      baseDesign.overlayText ||
+      baseDesign.title ||
+      "Create a polished HTBF faith-centered visual design.";
+
+    setImageGeneratingAction(action);
+    setImageMessage("");
+
+    try {
+      const result = await onRequestImage({
+        action,
+        prompt: cleanPrompt,
+        design: baseDesign,
+      });
+
+      if (!result) {
+        throw new Error("Could not create a visual design right now.");
+      }
+
+      const nextDesign: CreatorStudioDesign = {
+        ...baseDesign,
+        generatedImageUrl: result.imageUrl,
+        generatedImagePath: result.imagePath,
+        generatedImageBucket: result.bucket,
+        imageGenerationPrompt: result.prompt,
+        templateId:
+          baseDesign.sourceMode === "upload-video" ||
+          baseDesign.sourceMode === "upload-photo"
+            ? baseDesign.templateId
+            : "none",
+        backgroundTreatment:
+          baseDesign.backgroundTreatment || `${action} created by HTBF`,
+      };
+
+      if (baseDesign.id === canvasDesign.id) {
+        setGeneratedCanvasImageUrl(result.imageUrl);
+        setGeneratedCanvasImagePath(result.imagePath);
+        setGeneratedCanvasImageBucket(result.bucket);
+        setGeneratedCanvasImagePrompt(result.prompt);
+        setTemplateId("none");
+      }
+
+      setImageEnhancedDesign(nextDesign);
+      setSelectedDesignId(nextDesign.id);
+
+      if (editableDesign?.id === baseDesign.id) {
+        setEditableDesign(nextDesign);
+      }
+
+      setImageMessage(`${action} is ready. It has been saved for this design.`);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Could not create a visual design right now.";
+
+      setImageMessage(errorMessage);
+    } finally {
+      setImageGeneratingAction(null);
+    }
   }
 
   function useEditableDesign() {
@@ -446,6 +552,7 @@ export default function CreatorStudio({
   function prepareDraftForPublish() {
     setEditableDesign(canvasDesign);
     setSelectedDesignId(canvasDesign.id);
+    setImageEnhancedDesign(null);
     setScreen("publish");
   }
 
@@ -627,52 +734,76 @@ export default function CreatorStudio({
 
               <div className="p-4 sm:p-5">
                 {activeTool === "templates" && (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {creationCenterStoryTemplates
-                      .filter((template) => template.id === "none" || template.imagePath)
-                      .map((template) => {
-                        const selected = templateId === template.id;
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-3 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-sm font-black text-[#062a57]">
+                          Want something new?
+                        </div>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                          Generate an AI background only when you choose it.
+                          Normal templates stay free and instant.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void requestGeneratedVisual("AI Background")}
+                        disabled={Boolean(imageGeneratingAction)}
+                        className="inline-flex shrink-0 items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-xs font-black text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {imageGeneratingAction === "AI Background"
+                          ? "Creating..."
+                          : "AI Background"}
+                      </button>
+                    </div>
 
-                        return (
-                          <button
-                            key={template.id}
-                            type="button"
-                            onClick={() => {
-                              setTemplateId(template.id);
-                              if (template.id !== "none") {
-                                onFormatChange("testimony-card");
-                              }
-                            }}
-                            className={`overflow-hidden rounded-2xl text-left ring-2 transition ${
-                              selected
-                                ? "ring-[#0b63ce] ring-offset-2 shadow-xl shadow-blue-900/15"
-                                : "ring-blue-100 hover:-translate-y-0.5 hover:ring-blue-200"
-                            }`}
-                          >
-                            <div className="relative aspect-[4/3] bg-blue-50">
-                              {template.imagePath ? (
-                                <img
-                                  src={template.imagePath}
-                                  alt=""
-                                  className="absolute inset-0 h-full w-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#062a57] to-[#0b63ce] text-xs font-black uppercase tracking-[0.14em] text-white">
-                                  Clean
-                                </div>
-                              )}
-                            </div>
-                            <div className="bg-white px-3 py-3">
-                              <div className="text-sm font-black text-[#062a57]">
-                                {template.label}
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {creationCenterStoryTemplates
+                        .filter((template) => template.id === "none" || template.imagePath)
+                        .map((template) => {
+                          const selected = templateId === template.id;
+
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() => {
+                                setTemplateId(template.id);
+                                if (template.id !== "none") {
+                                  onFormatChange("testimony-card");
+                                }
+                              }}
+                              className={`overflow-hidden rounded-2xl text-left ring-2 transition ${
+                                selected
+                                  ? "ring-[#0b63ce] ring-offset-2 shadow-xl shadow-blue-900/15"
+                                  : "ring-blue-100 hover:-translate-y-0.5 hover:ring-blue-200"
+                              }`}
+                            >
+                              <div className="relative aspect-[4/3] bg-blue-50">
+                                {template.imagePath ? (
+                                  <img
+                                    src={template.imagePath}
+                                    alt=""
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-full items-center justify-center bg-gradient-to-br from-[#062a57] to-[#0b63ce] text-xs font-black uppercase tracking-[0.14em] text-white">
+                                    Clean
+                                  </div>
+                                )}
                               </div>
-                              <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">
-                                {template.description}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
+                              <div className="bg-white px-3 py-3">
+                                <div className="text-sm font-black text-[#062a57]">
+                                  {template.label}
+                                </div>
+                                <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">
+                                  {template.description}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
                   </div>
                 )}
 
@@ -716,15 +847,29 @@ export default function CreatorStudio({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={generateDesigns}
-                      disabled={loading}
-                      className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60 lg:self-end"
-                    >
-                      Generate Designs
-                      <Sparkles className="h-4 w-4" />
-                    </button>
+                    <div className="flex flex-col gap-3 lg:self-end">
+                      <button
+                        type="button"
+                        onClick={generateDesigns}
+                        disabled={loading}
+                        className="inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 transition hover:-translate-y-0.5 hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Generate Designs
+                        <Sparkles className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void requestGeneratedVisual("Generate Visual Design")
+                        }
+                        disabled={Boolean(imageGeneratingAction)}
+                        className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#062a57] px-5 py-3 text-xs font-black text-white shadow-lg shadow-blue-950/15 transition hover:-translate-y-0.5 hover:bg-[#0b63ce] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {imageGeneratingAction === "Generate Visual Design"
+                          ? "Creating visual..."
+                          : "Generate Visual Design"}
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -861,6 +1006,12 @@ export default function CreatorStudio({
                 {hasRequested && !loading && designs.length === 0 && (
                   <div className="mt-4 rounded-[1.5rem] bg-red-50 px-4 py-3 text-sm font-bold leading-6 text-red-700 ring-1 ring-red-100">
                     Couldn&apos;t generate designs. Try again.
+                  </div>
+                )}
+
+                {imageMessage && (
+                  <div className="mt-4 rounded-[1.5rem] bg-blue-50 px-4 py-3 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
+                    {imageMessage}
                   </div>
                 )}
               </div>
@@ -1028,12 +1179,22 @@ export default function CreatorStudio({
                     key={action}
                     type="button"
                     onClick={() => requestQuickAiAction(action)}
-                    className="shrink-0 rounded-full bg-blue-50 px-4 py-2.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:shadow-blue-950/10"
+                    disabled={action === "New Background" && Boolean(imageGeneratingAction)}
+                    className="shrink-0 rounded-full bg-blue-50 px-4 py-2.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:shadow-blue-950/10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {action}
+                    {action === "New Background" &&
+                    imageGeneratingAction === "New Background"
+                      ? "Creating..."
+                      : action}
                   </button>
                 ))}
               </div>
+
+              {imageMessage && (
+                <div className="mt-3 rounded-[1.5rem] bg-blue-50 px-4 py-3 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
+                  {imageMessage}
+                </div>
+              )}
             </section>
           </div>
         )}
