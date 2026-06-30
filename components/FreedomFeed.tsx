@@ -156,7 +156,7 @@ type ApprovedStory = {
 };
 
 type CreationTemplateMetadata = {
-  id: CreationCenterTemplateId;
+  id: CreationCenterTemplateId | "generated-creator-studio";
   label: string;
   imagePath: string;
 };
@@ -658,8 +658,19 @@ export default function FreedomFeed({
     const metadata = readRecord(value);
     const selectedTemplate = readRecord(metadata?.selectedTemplate);
     const templateId = readString(selectedTemplate?.id);
+    const storedImagePath = readString(selectedTemplate?.imagePath);
 
     if (!templateId || templateId === "none") return null;
+
+    if (templateId === "generated-creator-studio" && storedImagePath) {
+      return {
+        id: "generated-creator-studio",
+        label:
+          readString(selectedTemplate?.label) ??
+          "Creator Studio visual design",
+        imagePath: storedImagePath,
+      };
+    }
 
     const template = creationCenterStoryTemplates.find(
       (item) => item.id === templateId
