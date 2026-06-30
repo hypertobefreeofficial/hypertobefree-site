@@ -134,6 +134,10 @@ export type CreatorStudioDesign = {
   visualTheme?: string;
   filterRecommendation?: string;
   cropRecommendation?: string;
+  generatedImageUrl?: string;
+  generatedImagePath?: string;
+  generatedImageBucket?: string;
+  imageGenerationPrompt?: string;
   alternateTitles?: string[];
   alternateCaptions?: string[];
   hashtags?: string[];
@@ -151,6 +155,23 @@ export type CreatorStudioDesign = {
 export type CreatorStudioPath = CreatorStudioDesign["studioPath"];
 export type CreatorStudioSourceMode = CreatorStudioDesign["sourceMode"];
 export type CreatorStudioLayoutType = CreatorStudioDesign["layoutType"];
+export type CreatorStudioImageAction =
+  | "AI Background"
+  | "New Background"
+  | "Generate Visual Design";
+
+export type CreatorStudioImageRequest = {
+  action: CreatorStudioImageAction;
+  prompt: string;
+  design: CreatorStudioDesign;
+};
+
+export type CreatorStudioImageResult = {
+  imageUrl: string;
+  imagePath: string;
+  bucket: string;
+  prompt: string;
+};
 
 export type CreatorStudioRequestOptions = {
   studioPath: CreatorStudioPath;
