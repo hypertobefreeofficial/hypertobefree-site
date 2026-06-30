@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import {
   getCreationCenterTemplate,
   type CreationCenterTemplateId,
@@ -21,10 +22,25 @@ type CreatorStudioPreviewProps = {
   photoPreviewUrl?: string | null;
   compact?: boolean;
   gallery?: boolean;
+  canvas?: boolean;
 };
 
 function cleanText(value: string | undefined, fallback: string) {
   return value?.trim() || fallback;
+}
+
+function isHexColor(value: string | undefined): value is string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim());
+}
+
+function getPaletteColor(
+  palette: string[] | undefined,
+  index: number,
+  fallback: string
+) {
+  const value = palette?.[index];
+
+  return isHexColor(value) ? value.trim() : fallback;
 }
 
 function MediaLayer({
@@ -93,6 +109,29 @@ function PlaceholderTile({ label }: { label: string }) {
   );
 }
 
+function getStyledSizeClass(
+  size: NonNullable<CreatorStudioDesign["textStyle"]>["fontSize"] | undefined,
+  gallery: boolean
+) {
+  if (size === "small") return gallery ? "text-lg" : "text-2xl";
+  if (size === "medium") return gallery ? "text-2xl" : "text-3xl sm:text-5xl";
+  if (size === "large") return gallery ? "text-[2.6rem]" : "text-[clamp(2rem,7vw,5rem)]";
+  if (size === "hero") return gallery ? "text-[3rem]" : "text-[clamp(2.5rem,9vw,6rem)]";
+
+  return "";
+}
+
+function getPositionClass(
+  position:
+    | NonNullable<CreatorStudioDesign["textStyle"]>["position"]
+    | undefined
+) {
+  if (position === "top") return "justify-start";
+  if (position === "center") return "justify-center";
+
+  return "justify-end";
+}
+
 export default function CreatorStudioPreview({
   design,
   layoutType,
@@ -107,6 +146,7 @@ export default function CreatorStudioPreview({
   photoPreviewUrl,
   compact = false,
   gallery = false,
+  canvas = false,
 }: CreatorStudioPreviewProps) {
   const activeLayout =
     design?.layoutType ?? layoutType ?? "text-over-image-testimony";
@@ -124,14 +164,23 @@ export default function CreatorStudioPreview({
   const activeCategory = cleanText(design?.category ?? category, "Testimony");
   const activeTopic = cleanText(design?.topic ?? topic, "Freedom");
   const activeMood = cleanText(design?.styleMood ?? mood, "Hopeful");
+  const activeTextStyle = design?.textStyle ?? {};
+  const activeBackgroundColor = getPaletteColor(
+    design?.colorPalette,
+    0,
+    "#062a57"
+  );
+  const activeAccentColor = getPaletteColor(design?.colorPalette, 2, "#D4AF37");
   const frameHeight = gallery
     ? "aspect-[9/16] min-h-0"
-    : compact
-      ? "min-h-[13.5rem]"
-      : "min-h-[24rem] sm:min-h-[30rem] lg:min-h-[34rem]";
+    : canvas
+      ? "min-h-[34rem] sm:min-h-[40rem] lg:min-h-[44rem]"
+      : compact
+        ? "min-h-[13.5rem]"
+        : "min-h-[24rem] sm:min-h-[30rem] lg:min-h-[34rem]";
 
   const baseShell =
-    "relative isolate w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] bg-[#062a57] text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100";
+    "relative isolate w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100";
   const innerPadding = gallery ? "p-4" : compact ? "p-4" : "p-5 sm:p-8";
   const contentFrame = gallery ? "h-full" : frameHeight;
   const smallTitleClass = gallery
@@ -149,10 +198,36 @@ export default function CreatorStudioPreview({
   const bodyTextClass = gallery
     ? "text-xs leading-5"
     : "text-sm leading-6 sm:text-base";
+  const styledTitleSizeClass = getStyledSizeClass(
+    activeTextStyle.fontSize,
+    gallery
+  );
+  const textWeightClass =
+    activeTextStyle.weight === "regular" ? "font-semibold" : "font-black";
+  const textItalicClass = activeTextStyle.italic ? "italic" : "";
+  const textAlignClass =
+    activeTextStyle.align === "center"
+      ? "text-center"
+      : activeTextStyle.align === "right"
+        ? "text-right"
+        : "text-left";
+  const textPositionClass = getPositionClass(activeTextStyle.position);
+  const styledTitleStyle: CSSProperties = {
+    color:
+      activeTextStyle.color ||
+      getPaletteColor(design?.colorPalette, 1, "#FFFFFF"),
+    textAlign: activeTextStyle.align,
+  };
+  const shellStyle: CSSProperties = {
+    backgroundColor: activeBackgroundColor,
+  };
+  const accentStyle: CSSProperties = {
+    backgroundColor: activeAccentColor,
+  };
 
   if (activeLayout === "split-layout") {
     return (
-      <div className={`${baseShell} ${frameHeight}`}>
+      <div className={`${baseShell} ${frameHeight}`} style={shellStyle}>
         <div className="absolute inset-0 grid grid-cols-2">
           <div className="relative overflow-hidden">
             <MediaLayer
@@ -169,7 +244,10 @@ export default function CreatorStudioPreview({
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
             {activeCategory} / {activeTopic}
           </p>
-          <h4 className={`mt-3 max-w-full break-words font-black leading-none ${splitTitleClass}`}>
+          <h4
+            style={styledTitleStyle}
+            className={`mt-3 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || splitTitleClass}`}
+          >
             {activeTitle}
           </h4>
           <p className={`mt-4 max-w-full break-words font-semibold text-blue-50 ${bodyTextClass}`}>
@@ -182,7 +260,7 @@ export default function CreatorStudioPreview({
 
   if (activeLayout === "photo-collage") {
     return (
-      <div className={`${baseShell} ${frameHeight} ${innerPadding}`}>
+      <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
         <MediaLayer
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
@@ -195,7 +273,10 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Photo collage
             </p>
-            <h4 className={`mt-2 max-w-full break-words font-black leading-none ${smallTitleClass}`}>
+            <h4
+              style={styledTitleStyle}
+              className={`mt-2 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
+            >
               {activeTitle}
             </h4>
           </div>
@@ -215,7 +296,7 @@ export default function CreatorStudioPreview({
 
   if (activeLayout === "video-photo-mixed") {
     return (
-      <div className={`${baseShell} ${frameHeight} ${innerPadding}`}>
+      <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
         <MediaLayer templateId={activeTemplateId} photoPreviewUrl={photoPreviewUrl} />
         <div className="absolute inset-0 bg-[#031d3d]/60" />
         <Watermark />
@@ -224,7 +305,10 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Video + photo mixed post
             </p>
-            <h4 className={`mt-2 max-w-full break-words font-black leading-none ${smallTitleClass}`}>
+            <h4
+              style={styledTitleStyle}
+              className={`mt-2 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
+            >
               {activeTitle}
             </h4>
           </div>
@@ -263,7 +347,7 @@ export default function CreatorStudioPreview({
 
   if (activeLayout === "before-after-testimony") {
     return (
-      <div className={`${baseShell} ${frameHeight} ${innerPadding}`}>
+      <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
         <MediaLayer
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
@@ -272,7 +356,10 @@ export default function CreatorStudioPreview({
         <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/90 via-[#062a57]/45 to-[#0b63ce]/20" />
         <Watermark />
         <div className="relative z-10 flex h-full flex-col justify-between gap-4">
-          <h4 className={`max-w-full break-words font-black leading-none ${smallTitleClass}`}>
+          <h4
+            style={styledTitleStyle}
+            className={`max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
+          >
             {activeTitle}
           </h4>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -303,7 +390,7 @@ export default function CreatorStudioPreview({
 
   if (activeLayout === "timeline-story") {
     return (
-      <div className={`${baseShell} ${frameHeight} ${innerPadding}`}>
+      <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
         <MediaLayer
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
@@ -316,7 +403,10 @@ export default function CreatorStudioPreview({
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
               Timeline story
             </p>
-            <h4 className={`mt-3 max-w-full break-words font-black leading-none ${smallTitleClass}`}>
+            <h4
+              style={styledTitleStyle}
+              className={`mt-3 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
+            >
               {activeTitle}
             </h4>
           </div>
@@ -344,7 +434,7 @@ export default function CreatorStudioPreview({
 
   if (activeLayout === "magazine-style") {
     return (
-      <div className={`${baseShell} ${frameHeight}`}>
+      <div className={`${baseShell} ${frameHeight}`} style={shellStyle}>
         <MediaLayer
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
@@ -365,7 +455,10 @@ export default function CreatorStudioPreview({
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-100">
               {activeCategory} / {activeTopic}
             </p>
-            <h4 className={`mt-4 max-w-full break-words font-black leading-[0.9] ${magazineTitleClass}`}>
+            <h4
+              style={styledTitleStyle}
+              className={`mt-4 max-w-full break-words leading-[0.9] ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || magazineTitleClass}`}
+            >
               {activeTitle}
             </h4>
           </div>
@@ -379,7 +472,7 @@ export default function CreatorStudioPreview({
 
   if (activeLayout === "journal-style") {
     return (
-      <div className={`${baseShell} ${frameHeight} bg-blue-50 ${innerPadding}`}>
+      <div className={`${baseShell} ${frameHeight} bg-blue-50 ${innerPadding}`} style={shellStyle}>
         <MediaLayer
           templateId={activeTemplateId}
           photoPreviewUrl={photoPreviewUrl}
@@ -391,7 +484,10 @@ export default function CreatorStudioPreview({
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
             Journal style / {activeTopic}
           </p>
-          <h4 className={`mt-4 max-w-full break-words font-black leading-none ${gallery ? "text-2xl" : "text-3xl sm:text-4xl"}`}>
+          <h4
+            style={styledTitleStyle}
+            className={`mt-4 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || (gallery ? "text-2xl" : "text-3xl sm:text-4xl")}`}
+          >
             {activeTitle}
           </h4>
           <p className={`mt-5 whitespace-pre-wrap font-semibold ${gallery ? "text-xs leading-5" : "text-base leading-7"}`}>
@@ -409,7 +505,7 @@ export default function CreatorStudioPreview({
     activeLayout === "praise-report-card";
 
   return (
-    <div className={`${baseShell} ${frameHeight} ${innerPadding}`}>
+    <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
       <MediaLayer
         templateId={activeTemplateId}
         photoPreviewUrl={photoPreviewUrl}
@@ -417,17 +513,23 @@ export default function CreatorStudioPreview({
       />
       <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/88 via-[#062a57]/35 to-transparent" />
       <Watermark />
-      <div className="relative z-10 flex h-full flex-col justify-between">
+      <div className={`relative z-10 flex h-full flex-col ${textPositionClass}`}>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1 ring-white/20 backdrop-blur-sm">
             {activeCategory}
           </span>
-          <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1 ring-white/15 backdrop-blur-sm">
+          <span
+            className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0B1D3A] ring-1 ring-white/15 backdrop-blur-sm"
+            style={accentStyle}
+          >
             {activeMood}
           </span>
         </div>
         <div className={isQuote ? "mx-auto max-w-xl text-center" : "max-w-xl"}>
-          <h4 className={`whitespace-pre-wrap break-words font-black leading-none text-white drop-shadow-sm ${heroTitleClass}`}>
+          <h4
+            style={styledTitleStyle}
+            className={`whitespace-pre-wrap break-words leading-none drop-shadow-sm ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || heroTitleClass}`}
+          >
             {activeLayout === "full-image-poster" ? activeTitle : activeOverlay}
           </h4>
           <p className={`mt-5 whitespace-pre-wrap break-words font-semibold text-blue-50 ${bodyTextClass}`}>
