@@ -207,7 +207,10 @@ export default function CreationCenter({
             onBack={() => setCreatorStudioOpen(false)}
             onRequestDesigns={onRequestCreatorStudioDesigns}
             onRequestImage={onRequestCreatorStudioImage}
-            onUseDesign={onUseCreatorStudioDesign}
+            onUseDesign={(design) => {
+              onUseCreatorStudioDesign(design);
+              setCreatorStudioOpen(false);
+            }}
           />
         ) : (
           <>
