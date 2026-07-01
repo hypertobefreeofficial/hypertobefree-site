@@ -2415,8 +2415,10 @@ export default function ShareYourStoryPage() {
           ? {
               prompts: guidedPromptAnswers,
               suggestions: storyShapeSuggestion,
-              creatorStudioDesign,
+              creatorStudioDesign:
+                creatorStudioDesign ?? pendingCreatorStudioDesignRef.current,
               selectedTemplate: creationTemplatePayload,
+              creation_mode: creationMode,
             }
           : {};
 
@@ -2514,6 +2516,15 @@ export default function ShareYourStoryPage() {
         .insert(storyPayloadWithCreationMetadata);
 
       if (error) {
+        if (
+          isCreatorStudioSubmit &&
+          isCreationMetadataColumnError(error.message)
+        ) {
+          throw new Error(
+            "Creator Studio metadata could not be saved. Your database may be missing creation columns (content_type, topics, creation_mode, ai_suggestions). The post was not submitted."
+          );
+        }
+
         if (isCreationMetadataColumnError(error.message)) {
           const { error: fallbackError } = await supabase
             .from("stories")
@@ -3237,8 +3248,8 @@ export default function ShareYourStoryPage() {
                 onRequestSuggestions={requestCreationCenterSuggestion}
                 onRequestCreatorStudioDesigns={requestCreatorStudioDesigns}
                 onRequestCreatorStudioImage={requestCreatorStudioImage}
-                onUseCreatorStudioDesign={useCreatorStudioDesign}
-                onCreatorStudioActiveChange={setCreatorStudioActive}
+            onUseCreatorStudioDesign={useCreatorStudioDesign}
+            onCreatorStudioActiveChange={setCreatorStudioActive}
                 onUseSuggestedStoryType={
                   useCreationCenterSuggestedStoryType
                 }
