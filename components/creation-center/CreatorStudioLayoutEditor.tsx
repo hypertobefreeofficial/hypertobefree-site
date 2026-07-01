@@ -8,6 +8,7 @@ import {
   creatorStudioMoodOptions,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 
 type CreatorStudioLayoutEditorProps = {
@@ -19,6 +20,8 @@ type CreatorStudioLayoutEditorProps = {
   onPhotoSelect: (file: File | null) => void;
   onRemoveVideo: () => void;
   onRemovePhoto: () => void;
+  selectedTextLayer?: CreatorStudioTextLayer;
+  onSelectTextLayer?: (layer: CreatorStudioTextLayer) => void;
 };
 
 type EditorTab = "text" | "style" | "colors" | "layout" | "media" | "scripture";
@@ -62,6 +65,7 @@ function getSafeColor(value: string | undefined, fallback: string) {
 function getTextStyle(design: CreatorStudioDesign) {
   return {
     fontSize: design.textStyle?.fontSize ?? "large",
+    fontScale: design.textStyle?.fontScale ?? 1,
     weight: design.textStyle?.weight ?? "bold",
     italic: design.textStyle?.italic ?? false,
     align: design.textStyle?.align ?? "left",
@@ -83,6 +87,8 @@ export default function CreatorStudioLayoutEditor({
   onPhotoSelect,
   onRemoveVideo,
   onRemovePhoto,
+  selectedTextLayer = "overlay",
+  onSelectTextLayer,
 }: CreatorStudioLayoutEditorProps) {
   const [activeTab, setActiveTab] = useState<EditorTab>("text");
   const textStyle = getTextStyle(design);
@@ -164,6 +170,31 @@ export default function CreatorStudioLayoutEditor({
       <div className="p-4 sm:p-6">
         {activeTab === "text" && (
           <div className="grid gap-4 lg:grid-cols-2">
+            <div className="lg:col-span-2 flex flex-wrap gap-2">
+              {(
+                [
+                  ["title", "Title"],
+                  ["overlay", "Subtitle"],
+                  ["caption", "Caption"],
+                  ["scripture", "Scripture"],
+                  ["callToAction", "CTA"],
+                ] as const
+              ).map(([layer, label]) => (
+                <button
+                  key={layer}
+                  type="button"
+                  onClick={() => onSelectTextLayer?.(layer)}
+                  className={`rounded-full px-4 py-2 text-xs font-black ring-1 transition ${
+                    selectedTextLayer === layer
+                      ? "bg-[#0b63ce] text-white ring-[#0b63ce]"
+                      : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
               Title
               <input
@@ -209,8 +240,30 @@ export default function CreatorStudioLayoutEditor({
               />
             </label>
 
-            <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+            <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce] lg:col-span-2">
               Font size
+              <div className="mt-3 flex items-center gap-4">
+                <input
+                  type="range"
+                  min={0.75}
+                  max={1.5}
+                  step={0.05}
+                  value={textStyle.fontScale ?? 1}
+                  onChange={(event) =>
+                    updateTextStyle({
+                      fontScale: Number(event.target.value),
+                    })
+                  }
+                  className="w-full accent-[#0b63ce]"
+                />
+                <span className="w-12 shrink-0 text-sm font-black text-[#062a57]">
+                  {Math.round((textStyle.fontScale ?? 1) * 100)}%
+                </span>
+              </div>
+            </label>
+
+            <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+              Font preset
               <select
                 value={textStyle.fontSize}
                 onChange={(event) =>
