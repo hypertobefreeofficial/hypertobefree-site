@@ -35,6 +35,11 @@ import {
   creationCenterStoryTemplates,
   type CreationCenterTemplateId,
 } from "../lib/creationCenter";
+import {
+  isCreatorStudioFeedPost,
+  readCreatorStudioDesignFromSuggestions,
+} from "../lib/creatorStudioMetadata";
+import CreatorStudioPreview from "./creation-center/CreatorStudioPreview";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
 
@@ -1736,15 +1741,28 @@ export default function FreedomFeed({
               const creationTemplate = getCreationTemplateMetadata(
                 story.ai_suggestions
               );
+              const creatorStudioDesign = readCreatorStudioDesignFromSuggestions(
+                story.ai_suggestions
+              );
+              const showCreatorStudioDesignCard = isCreatorStudioFeedPost({
+                aiSuggestions: story.ai_suggestions,
+                hasVideoMedia,
+                hasImageMedia,
+              });
               const showCreationTemplateCard = Boolean(
                 creationTemplate &&
                   story.story_text &&
                   !hasVideoMedia &&
-                  !hasImageMedia
+                  !hasImageMedia &&
+                  !showCreatorStudioDesignCard
+              );
+              const showCreatorStudioCard = Boolean(
+                showCreatorStudioDesignCard && creatorStudioDesign
               );
               const showInlineStoryText =
                 Boolean(story.story_text) &&
                 !showCreationTemplateCard &&
+                !showCreatorStudioCard &&
                 !hasVideoMedia &&
                 (!hasImageMedia || captionStyle === "classic-caption");
               const showVideoCaptionText =
@@ -1799,6 +1817,20 @@ export default function FreedomFeed({
                         <ComposedFeedPostVisual
                           captionStyle={captionStyle}
                           story={story}
+                        />
+                      </button>
+                    )}
+
+                    {showCreatorStudioCard && creatorStudioDesign && (
+                      <button
+                        type="button"
+                        onClick={() => openStoryDetail(story)}
+                        className="mt-4 block w-full max-w-full cursor-pointer overflow-hidden rounded-[1.5rem] text-left ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        aria-label="Open Creator Studio post"
+                      >
+                        <CreatorStudioPreview
+                          design={creatorStudioDesign}
+                          variant="feed"
                         />
                       </button>
                     )}
@@ -2827,6 +2859,28 @@ function ComposedFeedPostVisual({
   template?: CreationTemplateMetadata | null;
   variant?: "feed" | "detail";
 }) {
+  const creatorStudioDesign = readCreatorStudioDesignFromSuggestions(
+    story.ai_suggestions
+  );
+  const hasVideoMedia = Boolean(story.signed_video_url || story.video_url);
+  const hasImageMedia = Boolean(story.signed_image_url);
+
+  if (
+    creatorStudioDesign &&
+    isCreatorStudioFeedPost({
+      aiSuggestions: story.ai_suggestions,
+      hasVideoMedia,
+      hasImageMedia,
+    })
+  ) {
+    return (
+      <CreatorStudioPreview
+        design={creatorStudioDesign}
+        variant={variant === "detail" ? "detail" : "feed"}
+      />
+    );
+  }
+
   const cleanText = story.story_text?.trim() ?? "";
   const isTemplateLong = cleanText.length > 260;
   const visibleTemplateText =
