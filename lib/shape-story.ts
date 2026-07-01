@@ -7,7 +7,7 @@ import {
   type CreatorStudioDesign,
   type CreatorStudioPath,
   type FaithStream,
-} from "../../../lib/creationCenter";
+} from "./creationCenter";
 
 type StoryShapeResponse = {
   storyType: string;
@@ -68,13 +68,6 @@ function readStringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
-}
-
-function readLimitedStringArray(value: unknown, limit: number) {
-  return readStringArray(value)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, limit);
 }
 
 function readFirstString(
@@ -301,138 +294,41 @@ function fallbackCreatorStudioDesigns(
     "Minimal white-space treatment with subtle texture",
     "Timeline-inspired story treatment with milestone rhythm",
   ];
-  const conceptDirections = [
-    {
-      name: "Elegant magazine",
-      layout: "magazine-style" as const,
-      typographyPairing: "Elegant serif headline with clean sans body",
-      fontHierarchy: "Large editorial headline, compact supporting caption",
-      backgroundTreatment: "Subtle dark gradient over the main image",
-      overlayStyle: "Editorial headline block with gold accent",
-      decorativeElements: "Thin rule lines and small journal label",
-      visualTheme: "Faith journal cover",
-      filterRecommendation: "Warm cinematic contrast",
-      cropRecommendation: "Center the subject with open sky or negative space",
-    },
-    {
-      name: "Modern cinematic",
-      layout: "full-image-poster" as const,
-      typographyPairing: "Bold modern sans headline with tight spacing",
-      fontHierarchy: "Hero title with short lower-third caption",
-      backgroundTreatment: "Full-bleed media with deep blue shadow",
-      overlayStyle: "Large lower-third text over image",
-      decorativeElements: "Soft glow, subtle HTBF gold accent",
-      visualTheme: "Cinematic testimony poster",
-      filterRecommendation: "Deep contrast with warm highlights",
-      cropRecommendation: "Use portrait crop and keep faces above center",
-    },
-    {
-      name: "Minimal",
-      layout: "quote-card" as const,
-      typographyPairing: "Minimal sans with generous spacing",
-      fontHierarchy: "Short centered statement with small reference line",
-      backgroundTreatment: "Calm muted background with lots of breathing room",
-      overlayStyle: "Centered quote-style text",
-      decorativeElements: "Tiny accent dot and quiet border",
-      visualTheme: "Peaceful devotional card",
-      filterRecommendation: "Soft neutral wash",
-      cropRecommendation: "Keep the image simple and uncluttered",
-    },
-    {
-      name: "Bold worship",
-      layout: "praise-report-card" as const,
-      typographyPairing: "Bold worship headline with expressive accent",
-      fontHierarchy: "Strong praise line, short caption, clear CTA",
-      backgroundTreatment: "Bright blue/gold overlay with high energy",
-      overlayStyle: "Stacked uppercase praise text",
-      decorativeElements: "Gold rays, praise badge, soft light burst",
-      visualTheme: "Worship celebration",
-      filterRecommendation: "Bright hopeful glow",
-      cropRecommendation: "Use the most expressive light or movement",
-    },
-    {
-      name: "Story/social style",
-      layout: "text-over-image-testimony" as const,
-      typographyPairing: "Friendly bold sans with readable body",
-      fontHierarchy: "Relatable short title plus conversational caption",
-      backgroundTreatment: "Clean social-story gradient overlay",
-      overlayStyle: "Rounded text bubble over media",
-      decorativeElements: "Small topic chips and soft shadow",
-      visualTheme: "Shareable testimony story",
-      filterRecommendation: "Natural warm phone-story look",
-      cropRecommendation: "Frame the main subject in the safe center area",
-    },
-    {
-      name: "Journal/scrapbook",
-      layout: "journal-style" as const,
-      typographyPairing: "Handwritten-inspired title with clean body type",
-      fontHierarchy: "Personal title, reflective paragraph, scripture reference",
-      backgroundTreatment: "Soft paper panel over media",
-      overlayStyle: "Journal card with layered caption",
-      decorativeElements: "Paper texture, small tape corner, gold underline",
-      visualTheme: "Personal faith journal",
-      filterRecommendation: "Soft matte devotional tone",
-      cropRecommendation: "Let the background support the written reflection",
-    },
-  ];
 
   return {
-    designs: conceptDirections.map((direction, index) => {
-      const templateId = templates[index % templates.length];
-      const title = titleIdeas[index % titleIdeas.length];
-      const overlayText =
+    designs: templates.slice(0, 6).map((templateId, index) => ({
+      id: `creator-design-${index + 1}`,
+      studioPath,
+      sourceMode,
+      title: titleIdeas[index % titleIdeas.length],
+      overlayText:
         index % 2 === 0
           ? cleanPrompt.length > 130
             ? `${cleanPrompt.slice(0, 130).trim()}...`
             : cleanPrompt
-          : title;
-
-      return {
-        id: `creator-design-${index + 1}`,
-        studioPath,
-        sourceMode,
-        title,
-        overlayText,
-        caption:
-          index % 3 === 0
-            ? cleanPrompt
-            : `${cleanPrompt}\n\n${topic} is part of what God is shaping here.`,
-        category,
-        topic,
-        templateId,
-        styleMood: `${direction.name} / ${moods[index % moods.length]}`,
-        layoutType: direction.layout,
-        scriptureSuggestion:
-          index % 2 === 0 ? "" : "Consider adding a short scripture reference.",
-        suggestedPostFormat:
-          sourceMode === "upload-video"
-            ? `${direction.layout} video post`
-            : sourceMode === "upload-photo"
-              ? `${direction.layout} photo post`
-              : `${direction.layout} design post`,
-        colorPalette: palettes[index % palettes.length],
-        typographyStyle: typographyStyles[index % typographyStyles.length],
-        designTreatment: designTreatments[index % designTreatments.length],
-        callToAction: "Share what God has done.",
-        typographyPairing: direction.typographyPairing,
-        fontHierarchy: direction.fontHierarchy,
-        backgroundTreatment: direction.backgroundTreatment,
-        layoutComposition: direction.layout,
-        overlayStyle: direction.overlayStyle,
-        decorativeElements: direction.decorativeElements,
-        visualTheme: direction.visualTheme,
-        filterRecommendation: direction.filterRecommendation,
-        cropRecommendation: direction.cropRecommendation,
-        alternateTitles: [title, `God Is Moving in ${topic}`],
-        alternateCaptions: [
-          cleanPrompt,
-          `${topic} is part of this testimony of God's faithfulness.`,
-        ],
-        hashtags: [normalizeTopicValue(category), normalizeTopicValue(topic)],
-        conceptReason: `${direction.name} fits because it gives this story a distinct ${direction.visualTheme.toLowerCase()} direction.`,
-        textStyle: textStyles[index % textStyles.length],
-      };
-    }),
+          : titleIdeas[index % titleIdeas.length],
+      caption:
+        index % 3 === 0
+          ? cleanPrompt
+          : `${cleanPrompt}\n\n${topic} is part of what God is shaping here.`,
+      category,
+      topic,
+      templateId,
+      styleMood: moods[index % moods.length],
+      layoutType: layoutTypes[index % layoutTypes.length],
+      scriptureSuggestion:
+        index % 2 === 0 ? "" : "Consider adding a short scripture reference.",
+      suggestedPostFormat:
+        sourceMode === "upload-video"
+          ? `${layoutTypes[index % layoutTypes.length]} video post`
+          : sourceMode === "upload-photo"
+            ? `${layoutTypes[index % layoutTypes.length]} photo post`
+            : `${layoutTypes[index % layoutTypes.length]} design post`,
+      colorPalette: palettes[index % palettes.length],
+      typographyStyle: typographyStyles[index % typographyStyles.length],
+      designTreatment: designTreatments[index % designTreatments.length],
+      textStyle: textStyles[index % textStyles.length],
+    })),
   };
 }
 
@@ -500,36 +396,6 @@ function cleanCreatorStudioResponse(
         .map((color) => color.trim())
         .filter(isHexColor)
         .slice(0, 5);
-      const callToAction =
-        readString(item.callToAction).trim() ||
-        readString(item.call_to_action).trim();
-      const typographyPairing =
-        readString(item.typographyPairing).trim() ||
-        readString(item.typography_pairing).trim();
-      const fontHierarchy =
-        readString(item.fontHierarchy).trim() ||
-        readString(item.font_hierarchy).trim();
-      const backgroundTreatment =
-        readString(item.backgroundTreatment).trim() ||
-        readString(item.background_treatment).trim();
-      const layoutComposition =
-        readString(item.layoutComposition).trim() ||
-        readString(item.layout_composition).trim();
-      const overlayStyle =
-        readString(item.overlayStyle).trim() ||
-        readString(item.overlay_style).trim();
-      const decorativeElements =
-        readString(item.decorativeElements).trim() ||
-        readString(item.decorative_elements).trim();
-      const visualTheme =
-        readString(item.visualTheme).trim() ||
-        readString(item.visual_theme).trim();
-      const filterRecommendation =
-        readString(item.filterRecommendation).trim() ||
-        readString(item.filter_recommendation).trim();
-      const cropRecommendation =
-        readString(item.cropRecommendation).trim() ||
-        readString(item.crop_recommendation).trim();
 
       return {
         id:
@@ -565,38 +431,6 @@ function cleanCreatorStudioResponse(
           readString(item.designTreatment).trim() ||
           readString(item.design_treatment).trim() ||
           fallbackDesign.designTreatment,
-        callToAction: callToAction || fallbackDesign.callToAction,
-        typographyPairing:
-          typographyPairing || fallbackDesign.typographyPairing,
-        fontHierarchy: fontHierarchy || fallbackDesign.fontHierarchy,
-        backgroundTreatment:
-          backgroundTreatment || fallbackDesign.backgroundTreatment,
-        layoutComposition:
-          layoutComposition || fallbackDesign.layoutComposition,
-        overlayStyle: overlayStyle || fallbackDesign.overlayStyle,
-        decorativeElements:
-          decorativeElements || fallbackDesign.decorativeElements,
-        visualTheme: visualTheme || fallbackDesign.visualTheme,
-        filterRecommendation:
-          filterRecommendation || fallbackDesign.filterRecommendation,
-        cropRecommendation:
-          cropRecommendation || fallbackDesign.cropRecommendation,
-        alternateTitles:
-          readLimitedStringArray(item.alternateTitles, 4).length > 0
-            ? readLimitedStringArray(item.alternateTitles, 4)
-            : fallbackDesign.alternateTitles,
-        alternateCaptions:
-          readLimitedStringArray(item.alternateCaptions, 4).length > 0
-            ? readLimitedStringArray(item.alternateCaptions, 4)
-            : fallbackDesign.alternateCaptions,
-        hashtags:
-          readLimitedStringArray(item.hashtags, 8).length > 0
-            ? readLimitedStringArray(item.hashtags, 8)
-            : fallbackDesign.hashtags,
-        conceptReason:
-          readString(item.conceptReason).trim() ||
-          readString(item.concept_reason).trim() ||
-          fallbackDesign.conceptReason,
         textStyle: readCreatorStudioTextStyle(
           item.textStyle ?? item.text_style,
           fallbackDesign.textStyle
@@ -668,15 +502,13 @@ export async function POST(request: Request) {
     const input = [
       "You create polished HTBF Creator Studio design options. Return JSON only.",
       "The user can upload a video, upload a photo, build with AI, or start from an HTBF template.",
-      "Create exactly 6 completed design concepts using only the allowed template ids and layout types.",
+      "Create 4 to 6 completed design options using only the allowed template ids and layout types.",
       "The user's selected Creator Studio path, category, topic, mood, layout, chips, and source mode must visibly shape the concepts.",
-      "Make the concepts meaningfully different from each other: vary the title, overlay text, caption angle, layout type, mood, recommended background, color palette, typography style, design treatment, overlay style, crop recommendation, decorative elements, and scripture placement.",
+      "Make the concepts meaningfully different from each other: vary the title, overlay text, caption angle, layout type, mood, recommended background, color palette, typography style, and design treatment.",
       "Do not simply reuse the same background with different words. Treat each concept as a distinct creative direction such as Cinematic, Magazine, Prayer Card, Timeline, Minimal, Documentary, or Editorial.",
-      "The six concepts should feel like these distinct directions: Elegant magazine, Modern cinematic, Minimal, Bold worship, Story/social style, and Journal/scrapbook.",
       "Do not repeat the same template for every option unless the user explicitly started from a template.",
-      "If sourceMode is upload-video or upload-photo, treat the uploaded media as the main canvas and suggest styling, crop, palette, text, and overlay choices for that media.",
       "Do not quote full Bible verse text. References are okay only if naturally helpful.",
-      "Each design must include studioPath, sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, suggestedPostFormat, colorPalette, typographyStyle, designTreatment, callToAction, typographyPairing, fontHierarchy, backgroundTreatment, layoutComposition, overlayStyle, decorativeElements, visualTheme, filterRecommendation, cropRecommendation, alternateTitles, alternateCaptions, hashtags, conceptReason, and textStyle.",
+      "Each design must include studioPath, sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, suggestedPostFormat, colorPalette, typographyStyle, designTreatment, and textStyle.",
       "textStyle must include fontSize, weight, italic, align, color, and position. Use these to make each concept visually distinct.",
       "Use six-digit hex values for every colorPalette item and textStyle.color.",
       "For upload-video and upload-photo, templateId may be none because the user media is the primary visual.",
@@ -722,7 +554,7 @@ export async function POST(request: Request) {
                 properties: {
                   designs: {
                     type: "array",
-                    minItems: 6,
+                    minItems: 4,
                     maxItems: 6,
                     items: {
                       type: "object",
@@ -744,20 +576,6 @@ export async function POST(request: Request) {
                         "colorPalette",
                         "typographyStyle",
                         "designTreatment",
-                        "callToAction",
-                        "typographyPairing",
-                        "fontHierarchy",
-                        "backgroundTreatment",
-                        "layoutComposition",
-                        "overlayStyle",
-                        "decorativeElements",
-                        "visualTheme",
-                        "filterRecommendation",
-                        "cropRecommendation",
-                        "alternateTitles",
-                        "alternateCaptions",
-                        "hashtags",
-                        "conceptReason",
                         "textStyle",
                       ],
                       properties: {
@@ -794,35 +612,6 @@ export async function POST(request: Request) {
                         },
                         typographyStyle: { type: "string" },
                         designTreatment: { type: "string" },
-                        callToAction: { type: "string" },
-                        typographyPairing: { type: "string" },
-                        fontHierarchy: { type: "string" },
-                        backgroundTreatment: { type: "string" },
-                        layoutComposition: { type: "string" },
-                        overlayStyle: { type: "string" },
-                        decorativeElements: { type: "string" },
-                        visualTheme: { type: "string" },
-                        filterRecommendation: { type: "string" },
-                        cropRecommendation: { type: "string" },
-                        alternateTitles: {
-                          type: "array",
-                          minItems: 2,
-                          maxItems: 4,
-                          items: { type: "string" },
-                        },
-                        alternateCaptions: {
-                          type: "array",
-                          minItems: 2,
-                          maxItems: 4,
-                          items: { type: "string" },
-                        },
-                        hashtags: {
-                          type: "array",
-                          minItems: 2,
-                          maxItems: 8,
-                          items: { type: "string" },
-                        },
-                        conceptReason: { type: "string" },
                         textStyle: {
                           type: "object",
                           additionalProperties: false,
