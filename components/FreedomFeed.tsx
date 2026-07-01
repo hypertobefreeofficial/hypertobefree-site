@@ -32,10 +32,9 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import {
-  resolveCreationTemplateFromSuggestions,
-  type SavedCreationTemplateMetadata,
+  creationCenterStoryTemplates,
+  type CreationCenterTemplateId,
 } from "../lib/creationCenter";
-import CreationCenterTemplatePostVisual from "./creation-center/CreationCenterTemplatePostVisual";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
 
@@ -154,6 +153,12 @@ type ApprovedStory = {
     praying: number;
   };
   user_reactions: ReactionType[];
+};
+
+type CreationTemplateMetadata = {
+  id: CreationCenterTemplateId | "generated-creator-studio";
+  label: string;
+  imagePath: string;
 };
 
 const STORY_IMAGE_BUCKET = "story-images";
@@ -645,6 +650,39 @@ export default function FreedomFeed({
     }
 
     return value as Record<string, unknown>;
+  }
+
+  function getCreationTemplateMetadata(
+    value: unknown
+  ): CreationTemplateMetadata | null {
+    const metadata = readRecord(value);
+    const selectedTemplate = readRecord(metadata?.selectedTemplate);
+    const templateId = readString(selectedTemplate?.id);
+    const storedImagePath = readString(selectedTemplate?.imagePath);
+
+    if (!templateId || templateId === "none") return null;
+
+    if (templateId === "generated-creator-studio" && storedImagePath) {
+      return {
+        id: "generated-creator-studio",
+        label:
+          readString(selectedTemplate?.label) ??
+          "Creator Studio visual design",
+        imagePath: storedImagePath,
+      };
+    }
+
+    const template = creationCenterStoryTemplates.find(
+      (item) => item.id === templateId
+    );
+
+    if (!template?.imagePath) return null;
+
+    return {
+      id: template.id,
+      label: readString(selectedTemplate?.label) ?? template.label,
+      imagePath: template.imagePath,
+    };
   }
 
   async function loadAccountSafety(currentUserId: string) {
@@ -1695,7 +1733,7 @@ export default function FreedomFeed({
               );
               const hasImageMedia = Boolean(story.signed_image_url);
               const overlayText = story.overlay_text?.trim() ?? "";
-              const creationTemplate = resolveCreationTemplateFromSuggestions(
+              const creationTemplate = getCreationTemplateMetadata(
                 story.ai_suggestions
               );
               const showCreationTemplateCard = Boolean(
@@ -2110,7 +2148,7 @@ export default function FreedomFeed({
                   <ComposedFeedPostVisual
                     captionStyle={photoViewerStory.caption_style}
                     story={photoViewerStory}
-                    template={resolveCreationTemplateFromSuggestions(
+                    template={getCreationTemplateMetadata(
                       photoViewerStory.ai_suggestions
                     )}
                     variant="detail"
@@ -2760,13 +2798,13 @@ function ComposedFeedPostButton({
   captionStyle: CaptionStyle;
   onOpen: () => void;
   story: ApprovedStory;
-  template: SavedCreationTemplateMetadata;
+  template: CreationTemplateMetadata;
 }) {
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] text-left transition hover:opacity-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-100"
+      className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#062a57] text-left shadow-sm ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
       aria-label="Open post"
     >
       <ComposedFeedPostVisual
@@ -2786,10 +2824,27 @@ function ComposedFeedPostVisual({
 }: {
   captionStyle: CaptionStyle;
   story: ApprovedStory;
-  template?: SavedCreationTemplateMetadata | null;
+  template?: CreationTemplateMetadata | null;
   variant?: "feed" | "detail";
 }) {
   const cleanText = story.story_text?.trim() ?? "";
+  const isTemplateLong = cleanText.length > 260;
+  const visibleTemplateText =
+    variant === "feed" && isTemplateLong
+      ? `${cleanText.slice(0, 260).trim()}...`
+      : cleanText;
+  const templateFrameClass =
+    variant === "detail"
+      ? "relative min-h-[68dvh] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-4 text-white sm:min-h-[42rem] sm:p-6"
+      : "relative min-h-[22rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white sm:min-h-[25rem] sm:p-6";
+  const templateInnerClass =
+    variant === "detail"
+      ? "relative z-10 flex min-h-[calc(68dvh-2rem)] flex-col justify-between sm:min-h-[39rem]"
+      : "relative z-10 flex min-h-[19.5rem] flex-col justify-between sm:min-h-[22.5rem]";
+  const templateTextClass =
+    variant === "detail"
+      ? "whitespace-pre-wrap break-words text-[clamp(1.45rem,7vw,2.35rem)] font-black leading-tight text-white drop-shadow-sm sm:text-4xl sm:leading-tight"
+      : "whitespace-pre-wrap break-words text-xl font-black leading-8 text-white drop-shadow-sm sm:text-2xl sm:leading-9";
   const imageFrameClass =
     variant === "detail"
       ? "relative overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10"
@@ -2801,13 +2856,44 @@ function ComposedFeedPostVisual({
 
   if (template && cleanText) {
     return (
-      <CreationCenterTemplatePostVisual
-        formatLabel={template.formatLabel}
-        imagePath={template.imagePath}
-        templateLabel={template.label}
-        text={cleanText}
-        variant={variant === "detail" ? "detail" : "feed"}
-      />
+      <div className={templateFrameClass}>
+        <img
+          src={template.imagePath}
+          alt=""
+          loading="lazy"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+
+        <div className={templateInnerClass}>
+          <div className="flex items-start justify-between gap-3">
+            <div />
+            <img
+              src="/images/htbf-logo.png"
+              alt=""
+              loading="lazy"
+              className="pointer-events-none h-9 w-9 shrink-0 rounded-full bg-white/80 object-contain p-1.5 opacity-85 shadow-sm ring-1 ring-white/50"
+            />
+          </div>
+
+          <div className="mt-8">
+            <p
+              className={templateTextClass}
+              style={{
+                overflowWrap: "anywhere",
+                wordBreak: "break-word",
+              }}
+            >
+              {visibleTemplateText}
+            </p>
+
+            {variant === "feed" && isTemplateLong && (
+              <span className="mt-4 inline-flex rounded-full bg-white/90 px-4 py-2 text-xs font-black text-[#0b63ce] ring-1 ring-white/50 backdrop-blur-sm">
+                Open full post
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
     );
   }
 
