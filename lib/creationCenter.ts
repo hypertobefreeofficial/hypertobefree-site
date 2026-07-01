@@ -86,185 +86,6 @@ export type CreationCenterSuggestion = {
   layoutSuggestion: string;
 };
 
-export type CreatorStudioDesign = {
-  id: string;
-  studioPath:
-    | "tell-story"
-    | "create-design"
-    | "scripture-post"
-    | "ai-surprise";
-  sourceMode:
-    | "upload-video"
-    | "upload-photo"
-    | "build-ai"
-    | "start-template";
-  title: string;
-  overlayText: string;
-  caption: string;
-  category: string;
-  topic: string;
-  templateId: CreationCenterTemplateId;
-  styleMood: string;
-  layoutType:
-    | "full-image-poster"
-    | "text-over-image-testimony"
-    | "split-layout"
-    | "quote-card"
-    | "prayer-request-card"
-    | "praise-report-card"
-    | "scripture-card"
-    | "photo-collage"
-    | "video-photo-mixed"
-    | "before-after-testimony"
-    | "timeline-story"
-    | "magazine-style"
-    | "journal-style";
-  scriptureSuggestion: string;
-  suggestedPostFormat: string;
-  colorPalette?: string[];
-  typographyStyle?: string;
-  designTreatment?: string;
-  callToAction?: string;
-  typographyPairing?: string;
-  fontHierarchy?: string;
-  backgroundTreatment?: string;
-  layoutComposition?: string;
-  overlayStyle?: string;
-  decorativeElements?: string;
-  visualTheme?: string;
-  filterRecommendation?: string;
-  cropRecommendation?: string;
-  generatedImageUrl?: string;
-  generatedImagePath?: string;
-  generatedImageBucket?: string;
-  imageGenerationPrompt?: string;
-  alternateTitles?: string[];
-  alternateCaptions?: string[];
-  hashtags?: string[];
-  conceptReason?: string;
-  textStyle?: {
-    fontSize?: "small" | "medium" | "large" | "hero";
-    weight?: "regular" | "bold";
-    italic?: boolean;
-    align?: "left" | "center" | "right";
-    color?: string;
-    position?: "top" | "center" | "bottom";
-  };
-};
-
-export type CreatorStudioPath = CreatorStudioDesign["studioPath"];
-export type CreatorStudioSourceMode = CreatorStudioDesign["sourceMode"];
-export type CreatorStudioLayoutType = CreatorStudioDesign["layoutType"];
-export type CreatorStudioImageAction =
-  | "AI Background"
-  | "New Background"
-  | "Generate Visual Design";
-
-export type CreatorStudioImageRequest = {
-  action: CreatorStudioImageAction;
-  prompt: string;
-  design: CreatorStudioDesign;
-};
-
-export type CreatorStudioImageResult = {
-  imageUrl: string;
-  imagePath: string;
-  bucket: string;
-  prompt: string;
-};
-
-export type CreatorStudioRequestOptions = {
-  studioPath: CreatorStudioPath;
-  sourceMode: CreatorStudioSourceMode;
-  selectedTemplateId: CreationCenterTemplateId;
-  category: string;
-  topic: string;
-  mood: string;
-  layoutType: CreatorStudioLayoutType;
-};
-
-export const creatorStudioPathOptions: {
-  value: CreatorStudioPath;
-  title: string;
-  description: string;
-}[] = [
-  {
-    value: "tell-story",
-    title: "Tell My Story",
-    description: "Shape a testimony, prayer, or praise moment from your words.",
-  },
-  {
-    value: "create-design",
-    title: "Create a Design",
-    description: "Build a polished HTBF graphic from a prompt or media.",
-  },
-  {
-    value: "scripture-post",
-    title: "Scripture Post",
-    description: "Create a faith-centered reflection with reference-only guidance.",
-  },
-  {
-    value: "ai-surprise",
-    title: "AI Surprise Me",
-    description: "Let HTBF create several directions from your idea.",
-  },
-];
-
-export const creatorStudioCategoryOptions = [
-  "Testimony",
-  "Prayer Request",
-  "Praise Report",
-  "Deliverance",
-  "Healing",
-  "Worship",
-  "Teaching",
-  "Prophecy",
-  "Encouragement",
-  "Bible Study",
-  "Devotional",
-  "Other",
-];
-
-export const creatorStudioMoodOptions = [
-  "Hopeful and bright",
-  "Bold testimony",
-  "Calm and prayerful",
-  "Worshipful",
-  "Devotional",
-  "Breakthrough",
-  "Warm encouragement",
-  "Clean and minimal",
-  "Premium cinematic",
-];
-
-export const creatorStudioLayoutOptions: {
-  value: CreatorStudioDesign["layoutType"];
-  label: string;
-}[] = [
-  { value: "full-image-poster", label: "Full image poster" },
-  {
-    value: "text-over-image-testimony",
-    label: "Text-over-image testimony",
-  },
-  { value: "split-layout", label: "Split layout" },
-  { value: "quote-card", label: "Quote card" },
-  { value: "prayer-request-card", label: "Prayer request card" },
-  { value: "praise-report-card", label: "Praise report card" },
-  { value: "scripture-card", label: "Scripture card" },
-  { value: "photo-collage", label: "Photo collage" },
-  {
-    value: "video-photo-mixed",
-    label: "Video + photo mixed",
-  },
-  {
-    value: "before-after-testimony",
-    label: "Before/after testimony",
-  },
-  { value: "timeline-story", label: "Timeline story" },
-  { value: "magazine-style", label: "Magazine style" },
-  { value: "journal-style", label: "Journal style" },
-];
-
 export const creationCenterFormats: {
   value: CreationCenterFormat;
   label: string;
@@ -587,4 +408,62 @@ export function getCreationCenterTemplate(
   return creationCenterStoryTemplates.find(
     (template) => template.id === templateId
   );
+}
+
+export type SavedCreationTemplateMetadata = {
+  id: CreationCenterTemplateId;
+  label: string;
+  imagePath: string | null;
+  formatLabel: string | null;
+};
+
+function readMetadataRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function readMetadataString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function isCreationCenterTemplateId(
+  value: string
+): value is CreationCenterTemplateId {
+  return creationCenterStoryTemplates.some((template) => template.id === value);
+}
+
+export function resolveCreationTemplateFromSuggestions(
+  value: unknown
+): SavedCreationTemplateMetadata | null {
+  const metadata = readMetadataRecord(value);
+  const selectedTemplate = readMetadataRecord(metadata?.selectedTemplate);
+  const templateId = readMetadataString(selectedTemplate?.id);
+
+  if (!templateId || !isCreationCenterTemplateId(templateId)) {
+    return null;
+  }
+
+  const libTemplate = getCreationCenterTemplate(templateId);
+  const savedImagePath = readMetadataString(selectedTemplate?.imagePath)?.trim();
+  const imagePath = savedImagePath || libTemplate?.imagePath || null;
+  const contentFormat = readMetadataString(metadata?.contentFormat);
+  const formatLabel =
+    readMetadataString(selectedTemplate?.formatLabel) ||
+    (contentFormat
+      ? getCreationCenterFormat(contentFormat as CreationCenterFormat)?.label ??
+        null
+      : null);
+
+  return {
+    id: templateId,
+    label:
+      readMetadataString(selectedTemplate?.label) ??
+      libTemplate?.label ??
+      "Story Template",
+    imagePath,
+    formatLabel,
+  };
 }
