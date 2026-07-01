@@ -86,6 +86,11 @@ export type CreationCenterSuggestion = {
   layoutSuggestion: string;
 };
 
+export type CreatorStudioImageAction =
+  | "AI Background"
+  | "New Background"
+  | "Generate Visual Design";
+
 export const creationCenterFormats: {
   value: CreationCenterFormat;
   label: string;
