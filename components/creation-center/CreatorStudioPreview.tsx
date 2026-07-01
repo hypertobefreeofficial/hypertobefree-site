@@ -1,12 +1,19 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   getCreationCenterTemplate,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
   type CreatorStudioLayoutType,
+  type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
+
+type CreatorStudioPreviewVariant =
+  | "preview"
+  | "feed"
+  | "detail"
+  | "publish";
 
 type CreatorStudioPreviewProps = {
   design?: CreatorStudioDesign | null;
@@ -23,6 +30,10 @@ type CreatorStudioPreviewProps = {
   compact?: boolean;
   gallery?: boolean;
   canvas?: boolean;
+  variant?: CreatorStudioPreviewVariant;
+  selectedTextLayer?: CreatorStudioTextLayer | null;
+  onSelectTextLayer?: (layer: CreatorStudioTextLayer) => void;
+  interactive?: boolean;
 };
 
 function cleanText(value: string | undefined, fallback: string) {
@@ -145,6 +156,64 @@ function getPositionClass(
   return "justify-end";
 }
 
+function scaleFontSize(base: string, scale = 1) {
+  if (scale === 1) return base;
+
+  return base
+    .replace(/clamp\(([^)]+)\)/g, (_match, inner: string) => {
+      const parts = inner.split(",").map((part: string) => part.trim());
+
+      return `clamp(${parts
+        .map((part: string, index: number) =>
+          index === 0
+            ? part
+            : part.replace(/([\d.]+)(rem|vw|px)/g, (_m, num: string, unit: string) =>
+                `${Math.max(0.75, Number(num) * scale).toFixed(2)}${unit}`
+              )
+        )
+        .join(", ")})`;
+    })
+    .replace(/text-\[([\d.]+)rem\]/g, (_m, num: string) =>
+      `text-[${Math.max(0.75, Number(num) * scale).toFixed(2)}rem]`
+    );
+}
+
+function SelectableLayer({
+  layer,
+  selectedTextLayer,
+  interactive,
+  onSelectTextLayer,
+  className = "",
+  children,
+}: {
+  layer: CreatorStudioTextLayer;
+  selectedTextLayer?: CreatorStudioTextLayer | null;
+  interactive?: boolean;
+  onSelectTextLayer?: (layer: CreatorStudioTextLayer) => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  const selected = selectedTextLayer === layer;
+
+  if (!interactive || !onSelectTextLayer) {
+    return <div className={className}>{children}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelectTextLayer(layer)}
+      className={`rounded-2xl text-left transition ${className} ${
+        selected
+          ? "ring-2 ring-[#D4AF37] ring-offset-2 ring-offset-transparent"
+          : "hover:ring-1 hover:ring-white/40"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function CreatorStudioPreview({
   design,
   layoutType,
@@ -160,6 +229,10 @@ export default function CreatorStudioPreview({
   compact = false,
   gallery = false,
   canvas = false,
+  variant = "preview",
+  selectedTextLayer = null,
+  onSelectTextLayer,
+  interactive = false,
 }: CreatorStudioPreviewProps) {
   const activeLayout =
     design?.layoutType ?? layoutType ?? "text-over-image-testimony";
@@ -178,20 +251,29 @@ export default function CreatorStudioPreview({
   const activeCategory = cleanText(design?.category ?? category, "Testimony");
   const activeTopic = cleanText(design?.topic ?? topic, "Freedom");
   const activeMood = cleanText(design?.styleMood ?? mood, "Hopeful");
+  const activeScripture = cleanText(design?.scriptureSuggestion, "");
+  const activeCallToAction = cleanText(design?.callToAction, "");
   const activeTextStyle = design?.textStyle ?? {};
+  const fontScale = activeTextStyle.fontScale ?? 1;
   const activeBackgroundColor = getPaletteColor(
     design?.colorPalette,
     0,
     "#062a57"
   );
   const activeAccentColor = getPaletteColor(design?.colorPalette, 2, "#D4AF37");
+  const isFeed = variant === "feed";
+  const isPublish = variant === "publish" || variant === "detail";
   const frameHeight = gallery
     ? "aspect-[9/16] min-h-0"
-    : canvas
-      ? "min-h-[34rem] sm:min-h-[40rem] lg:min-h-[44rem]"
-      : compact
-        ? "min-h-[13.5rem]"
-        : "min-h-[24rem] sm:min-h-[30rem] lg:min-h-[34rem]";
+    : isFeed
+      ? "min-h-[22rem] sm:min-h-[26rem]"
+      : canvas
+        ? "min-h-[min(72dvh,44rem)] sm:min-h-[40rem] lg:min-h-[44rem]"
+        : compact
+          ? "min-h-[13.5rem]"
+          : isPublish
+            ? "min-h-[min(68dvh,42rem)]"
+            : "min-h-[24rem] sm:min-h-[30rem] lg:min-h-[34rem]";
 
   const baseShell =
     "relative isolate w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100";
@@ -212,9 +294,9 @@ export default function CreatorStudioPreview({
   const bodyTextClass = gallery
     ? "text-xs leading-5"
     : "text-sm leading-6 sm:text-base";
-  const styledTitleSizeClass = getStyledSizeClass(
-    activeTextStyle.fontSize,
-    gallery
+  const styledTitleSizeClass = scaleFontSize(
+    getStyledSizeClass(activeTextStyle.fontSize, gallery || isFeed),
+    fontScale
   );
   const textWeightClass =
     activeTextStyle.weight === "regular" ? "font-semibold" : "font-black";
@@ -551,15 +633,73 @@ export default function CreatorStudioPreview({
           </span>
         </div>
         <div className={isQuote ? "mx-auto max-w-xl text-center" : "max-w-xl"}>
-          <h4
-            style={styledTitleStyle}
-            className={`whitespace-pre-wrap break-words leading-none drop-shadow-sm ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || heroTitleClass}`}
+          <SelectableLayer
+            layer="title"
+            selectedTextLayer={selectedTextLayer}
+            interactive={interactive}
+            onSelectTextLayer={onSelectTextLayer}
+            className="block w-full px-1 py-1"
           >
-            {activeLayout === "full-image-poster" ? activeTitle : activeOverlay}
-          </h4>
-          <p className={`mt-5 whitespace-pre-wrap break-words font-semibold text-blue-50 ${bodyTextClass}`}>
-            {activeCaption}
-          </p>
+            <h4
+              style={styledTitleStyle}
+              className={`whitespace-pre-wrap break-words leading-none drop-shadow-sm ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || heroTitleClass}`}
+            >
+              {activeLayout === "full-image-poster" ? activeTitle : activeOverlay}
+            </h4>
+          </SelectableLayer>
+          {activeLayout !== "full-image-poster" && activeTitle !== activeOverlay && (
+            <SelectableLayer
+              layer="overlay"
+              selectedTextLayer={selectedTextLayer}
+              interactive={interactive}
+              onSelectTextLayer={onSelectTextLayer}
+              className="mt-3 block w-full px-1 py-1"
+            >
+              <p className={`font-black text-blue-50 ${bodyTextClass}`}>
+                {activeTitle}
+              </p>
+            </SelectableLayer>
+          )}
+          <SelectableLayer
+            layer="caption"
+            selectedTextLayer={selectedTextLayer}
+            interactive={interactive}
+            onSelectTextLayer={onSelectTextLayer}
+            className="mt-4 block w-full px-1 py-1"
+          >
+            <p className={`whitespace-pre-wrap break-words font-semibold text-blue-50 ${bodyTextClass}`}>
+              {activeCaption}
+            </p>
+          </SelectableLayer>
+          {activeScripture && (
+            <SelectableLayer
+              layer="scripture"
+              selectedTextLayer={selectedTextLayer}
+              interactive={interactive}
+              onSelectTextLayer={onSelectTextLayer}
+              className="mt-4 block w-full px-1 py-1"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-100">
+                {activeScripture}
+              </p>
+            </SelectableLayer>
+          )}
+          {activeCallToAction && (
+            <SelectableLayer
+              layer="callToAction"
+              selectedTextLayer={selectedTextLayer}
+              interactive={interactive}
+              onSelectTextLayer={onSelectTextLayer}
+              className="mt-4 inline-block px-1 py-1"
+            >
+              <span
+                className="inline-flex rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#0B1D3A]"
+                style={accentStyle}
+              >
+                {activeCallToAction}
+              </span>
+            </SelectableLayer>
+          )}
         </div>
       </div>
     </div>
