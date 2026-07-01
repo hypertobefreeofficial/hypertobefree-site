@@ -144,6 +144,7 @@ export type CreatorStudioDesign = {
   conceptReason?: string;
   textStyle?: {
     fontSize?: "small" | "medium" | "large" | "hero";
+    fontScale?: number;
     weight?: "regular" | "bold";
     italic?: boolean;
     align?: "left" | "center" | "right";
@@ -151,6 +152,59 @@ export type CreatorStudioDesign = {
     position?: "top" | "center" | "bottom";
   };
 };
+
+export type CreatorStudioTextLayer =
+  | "title"
+  | "overlay"
+  | "caption"
+  | "scripture"
+  | "callToAction";
+
+export type CreatorStudioTool =
+  | "templates"
+  | "ai"
+  | "filters"
+  | "text"
+  | "fonts"
+  | "colors"
+  | "scripture"
+  | "layout"
+  | "publish";
+
+export const creatorStudioTopCarousel: {
+  value: CreatorStudioTool;
+  label: string;
+}[] = [
+  { value: "templates", label: "Templates" },
+  { value: "ai", label: "AI" },
+  { value: "filters", label: "Filters" },
+  { value: "text", label: "Text" },
+  { value: "scripture", label: "Scripture" },
+  { value: "layout", label: "Layouts" },
+];
+
+export const creatorStudioBottomToolbar: {
+  value: CreatorStudioTool;
+  label: string;
+}[] = [
+  { value: "text", label: "Text" },
+  { value: "fonts", label: "Fonts" },
+  { value: "colors", label: "Colors" },
+  { value: "ai", label: "AI" },
+  { value: "scripture", label: "Scripture" },
+  { value: "filters", label: "Filters" },
+  { value: "layout", label: "Layout" },
+  { value: "publish", label: "Publish" },
+];
+
+export const creatorStudioQuickActions = [
+  "More Like This",
+  "Surprise Me",
+  "Change Style",
+  "Rewrite Text",
+  "Different Scripture",
+  "New Background",
+] as const;
 
 export type CreatorStudioPath = CreatorStudioDesign["studioPath"];
 export type CreatorStudioSourceMode = CreatorStudioDesign["sourceMode"];
