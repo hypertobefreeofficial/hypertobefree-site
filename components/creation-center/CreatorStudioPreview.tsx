@@ -4,12 +4,14 @@ import type { CSSProperties, ReactNode } from "react";
 import {
   getCreationCenterTemplate,
   getCreatorStudioLayerStyle,
+  shouldUseCreatorStudioCanvasLayout,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
   type CreatorStudioLayerPosition,
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
+import CreatorStudioCanvasLayers from "./CreatorStudioCanvasLayers";
 
 type CreatorStudioPreviewVariant =
   | "preview"
@@ -675,113 +677,23 @@ export default function CreatorStudioPreview({
     activeLayout === "prayer-request-card" ||
     activeLayout === "praise-report-card";
 
-  const hasCustomLayerStyles = Boolean(
-    design?.layerStyles && Object.keys(design.layerStyles).length > 0
-  );
-  const useInteractiveCanvasLayers =
-    (interactive && canvas && !gallery && !isFeed) ||
-    (hasCustomLayerStyles && !gallery);
+  const hasCustomLayerStyles = shouldUseCreatorStudioCanvasLayout(design);
 
-  if (useInteractiveCanvasLayers) {
-    const activeDesign = design ?? ({} as CreatorStudioDesign);
-    const titleTypography = buildLayerTypography(activeDesign, "title", gallery, isFeed);
-    const overlayTypography = buildLayerTypography(activeDesign, "overlay", gallery, isFeed);
-    const captionTypography = buildLayerTypography(activeDesign, "caption", gallery, isFeed);
-    const scriptureTypography = buildLayerTypography(activeDesign, "scripture", gallery, isFeed);
-    const ctaTypography = buildLayerTypography(activeDesign, "callToAction", gallery, isFeed);
-
+  if (hasCustomLayerStyles && design) {
     return (
-      <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
-        <MediaLayer
-          templateId={activeTemplateId}
+      <div
+        className={`${baseShell} ${frameHeight} ${innerPadding}`}
+        style={shellStyle}
+      >
+        <CreatorStudioCanvasLayers
+          design={design}
           photoPreviewUrl={photoPreviewUrl}
           videoPreviewUrl={videoPreviewUrl}
-          generatedImageUrl={activeGeneratedImageUrl}
+          compact={gallery || isFeed}
+          selectedLayer={selectedTextLayer}
+          onSelectLayer={onSelectTextLayer}
+          interactive={interactive}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/88 via-[#062a57]/35 to-transparent" />
-        <Watermark />
-        <div className="relative z-10 h-full">
-          <SelectableLayer
-            layer="title"
-            selectedTextLayer={selectedTextLayer}
-            interactive={interactive}
-            onSelectTextLayer={onSelectTextLayer}
-            className={`absolute block px-1 py-1 ${getLayerPositionClass(titleTypography.layerStyle.position)}`}
-          >
-            <h4
-              style={titleTypography.inlineStyle}
-              className={`whitespace-pre-wrap break-words leading-none drop-shadow-sm ${titleTypography.weightClass} ${titleTypography.italicClass} ${titleTypography.alignClass} ${titleTypography.styledSizeClass || heroTitleClass}`}
-            >
-              {activeLayout === "full-image-poster" ? activeTitle : activeOverlay}
-            </h4>
-          </SelectableLayer>
-
-          {activeLayout !== "full-image-poster" && (
-            <SelectableLayer
-              layer="overlay"
-              selectedTextLayer={selectedTextLayer}
-              interactive={interactive}
-              onSelectTextLayer={onSelectTextLayer}
-              className={`absolute block px-1 py-1 ${getLayerPositionClass(overlayTypography.layerStyle.position)}`}
-            >
-              <p
-                style={overlayTypography.inlineStyle}
-                className={`whitespace-pre-wrap break-words ${overlayTypography.weightClass} ${overlayTypography.italicClass} ${overlayTypography.alignClass} ${overlayTypography.styledSizeClass || bodyTextClass}`}
-              >
-                {activeTitle !== activeOverlay ? activeTitle : activeOverlay || "Subtitle"}
-              </p>
-            </SelectableLayer>
-          )}
-
-          <SelectableLayer
-            layer="caption"
-            selectedTextLayer={selectedTextLayer}
-            interactive={interactive}
-            onSelectTextLayer={onSelectTextLayer}
-            className={`absolute block px-1 py-1 ${getLayerPositionClass(captionTypography.layerStyle.position)}`}
-          >
-            <p
-              style={captionTypography.inlineStyle}
-              className={`whitespace-pre-wrap break-words rounded-2xl bg-white/10 px-3 py-2 backdrop-blur-sm ${captionTypography.weightClass} ${captionTypography.italicClass} ${captionTypography.alignClass} ${captionTypography.styledSizeClass || bodyTextClass}`}
-            >
-              {activeCaption}
-            </p>
-          </SelectableLayer>
-
-          <SelectableLayer
-            layer="scripture"
-            selectedTextLayer={selectedTextLayer}
-            interactive={interactive}
-            onSelectTextLayer={onSelectTextLayer}
-            className={`absolute block px-1 py-1 ${getLayerPositionClass(scriptureTypography.layerStyle.position)}`}
-          >
-            <p
-              style={scriptureTypography.inlineStyle}
-              className={`rounded-2xl bg-black/45 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] backdrop-blur-sm ${scriptureTypography.alignClass}`}
-            >
-              {activeScripture || "Scripture reference"}
-            </p>
-          </SelectableLayer>
-
-          <SelectableLayer
-            layer="callToAction"
-            selectedTextLayer={selectedTextLayer}
-            interactive={interactive}
-            onSelectTextLayer={onSelectTextLayer}
-            className={`absolute block px-1 py-1 ${getLayerPositionClass(ctaTypography.layerStyle.position)}`}
-          >
-            <span
-              className={`inline-flex rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.12em] ${ctaTypography.alignClass}`}
-              style={{
-                ...ctaTypography.inlineStyle,
-                backgroundColor: activeAccentColor,
-                color: "#0B1D3A",
-              }}
-            >
-              {activeCallToAction || "Call to action"}
-            </span>
-          </SelectableLayer>
-        </div>
       </div>
     );
   }
