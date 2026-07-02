@@ -35,3 +35,83 @@ body {
   background: white;
   box-shadow: 0 0 0 4px rgb(239 246 255);
 }
+
+@keyframes htbf-cinematic-zoom {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes htbf-pulse-ring {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes htbf-particle-drift {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.85);
+  }
+  20% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -120px, 0) scale(1.15);
+  }
+}
+
+@keyframes htbf-loader-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes htbf-loader-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.htbf-cinematic-zoom {
+  animation: htbf-cinematic-zoom 22s ease-in-out infinite alternate;
+}
+
+.htbf-pulse-ring {
+  animation: htbf-pulse-ring 2.8s ease-out infinite;
+}
+
+.htbf-pulse-ring-delayed {
+  animation: htbf-pulse-ring 2.8s ease-out 0.9s infinite;
+}
+
+.htbf-particle {
+  animation: htbf-particle-drift linear infinite;
+}
+
+.htbf-loader-enter {
+  animation: htbf-loader-fade-in 700ms ease-out forwards;
+}
+
+.htbf-loader-exit {
+  animation: htbf-loader-fade-out 650ms ease-in forwards;
+}
