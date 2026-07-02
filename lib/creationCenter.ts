@@ -144,13 +144,183 @@ export type CreatorStudioDesign = {
   conceptReason?: string;
   textStyle?: {
     fontSize?: "small" | "medium" | "large" | "hero";
+    fontScale?: number;
     weight?: "regular" | "bold";
     italic?: boolean;
     align?: "left" | "center" | "right";
     color?: string;
     position?: "top" | "center" | "bottom";
   };
+  layerStyles?: Partial<
+    Record<CreatorStudioTextLayer, CreatorStudioLayerStyle>
+  >;
 };
+
+export type CreatorStudioTextLayer =
+  | "title"
+  | "overlay"
+  | "caption"
+  | "scripture"
+  | "callToAction";
+
+export type CreatorStudioLayerPosition =
+  | "top-left"
+  | "top-center"
+  | "top-right"
+  | "center"
+  | "bottom-left"
+  | "bottom-center"
+  | "bottom-right";
+
+export type CreatorStudioLayerStyle = {
+  fontSize?: "small" | "medium" | "large" | "hero";
+  fontScale?: number;
+  weight?: "regular" | "bold";
+  italic?: boolean;
+  align?: "left" | "center" | "right";
+  color?: string;
+  position?: CreatorStudioLayerPosition;
+};
+
+export const creatorStudioTextLayers: {
+  value: CreatorStudioTextLayer;
+  label: string;
+  defaultPosition: CreatorStudioLayerPosition;
+}[] = [
+  { value: "title", label: "Title", defaultPosition: "top-center" },
+  { value: "overlay", label: "Subtitle", defaultPosition: "center" },
+  { value: "caption", label: "Caption", defaultPosition: "bottom-center" },
+  { value: "scripture", label: "Scripture", defaultPosition: "bottom-left" },
+  { value: "callToAction", label: "CTA", defaultPosition: "bottom-right" },
+];
+
+export const creatorStudioLayerPositions: CreatorStudioLayerPosition[] = [
+  "top-left",
+  "top-center",
+  "top-right",
+  "center",
+  "bottom-left",
+  "bottom-center",
+  "bottom-right",
+];
+
+export function getCreatorStudioLayerStyle(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioTextLayer
+): CreatorStudioLayerStyle {
+  const layerDefault = creatorStudioTextLayers.find(
+    (entry) => entry.value === layer
+  );
+
+  return {
+    fontSize: design.textStyle?.fontSize ?? "large",
+    fontScale: design.textStyle?.fontScale ?? 1,
+    weight: design.textStyle?.weight ?? "bold",
+    italic: design.textStyle?.italic ?? false,
+    align: design.textStyle?.align ?? "left",
+    color: design.textStyle?.color ?? "#FFFFFF",
+    position: layerDefault?.defaultPosition ?? "center",
+    ...design.layerStyles?.[layer],
+  };
+}
+
+export function getCreatorStudioLayerText(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioTextLayer
+): string {
+  switch (layer) {
+    case "title":
+      return design.title;
+    case "overlay":
+      return design.overlayText;
+    case "caption":
+      return design.caption;
+    case "scripture":
+      return design.scriptureSuggestion ?? "";
+    case "callToAction":
+      return design.callToAction ?? "";
+  }
+}
+
+export function buildCreatorStudioLayerTextUpdate(
+  layer: CreatorStudioTextLayer,
+  value: string
+): Partial<CreatorStudioDesign> {
+  switch (layer) {
+    case "title":
+      return { title: value };
+    case "overlay":
+      return { overlayText: value };
+    case "caption":
+      return { caption: value };
+    case "scripture":
+      return { scriptureSuggestion: value };
+    case "callToAction":
+      return { callToAction: value };
+  }
+}
+
+export function buildCreatorStudioLayerStyleUpdate(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioTextLayer,
+  updates: Partial<CreatorStudioLayerStyle>
+): Partial<CreatorStudioDesign> {
+  return {
+    layerStyles: {
+      ...design.layerStyles,
+      [layer]: {
+        ...getCreatorStudioLayerStyle(design, layer),
+        ...updates,
+      },
+    },
+  };
+}
+
+export type CreatorStudioTool =
+  | "templates"
+  | "ai"
+  | "filters"
+  | "text"
+  | "fonts"
+  | "colors"
+  | "scripture"
+  | "layout"
+  | "publish";
+
+export const creatorStudioTopCarousel: {
+  value: CreatorStudioTool;
+  label: string;
+}[] = [
+  { value: "templates", label: "Templates" },
+  { value: "ai", label: "AI" },
+  { value: "filters", label: "Filters" },
+  { value: "text", label: "Text" },
+  { value: "scripture", label: "Scripture" },
+  { value: "layout", label: "Layouts" },
+];
+
+export const creatorStudioBottomToolbar: {
+  value: CreatorStudioTool;
+  label: string;
+}[] = [
+  { value: "text", label: "Text" },
+  { value: "fonts", label: "Fonts" },
+  { value: "colors", label: "Colors" },
+  { value: "ai", label: "AI" },
+  { value: "scripture", label: "Scripture" },
+  { value: "filters", label: "Filters" },
+  { value: "layout", label: "Layout" },
+  { value: "publish", label: "Publish" },
+];
+
+export const creatorStudioQuickActions = [
+  "More Like This",
+  "Surprise Me",
+  "Change Style",
+  "Rewrite Text",
+  "Different Scripture",
+  "New Background",
+] as const;
 
 export type CreatorStudioPath = CreatorStudioDesign["studioPath"];
 export type CreatorStudioSourceMode = CreatorStudioDesign["sourceMode"];
