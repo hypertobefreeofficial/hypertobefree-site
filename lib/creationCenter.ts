@@ -120,6 +120,7 @@ export type CreatorStudioDesign = {
     | "magazine-style"
     | "journal-style";
   scriptureSuggestion: string;
+  scriptureText?: string;
   suggestedPostFormat: string;
   colorPalette?: string[];
   typographyStyle?: string;
@@ -180,6 +181,22 @@ export type CreatorStudioLayerStyle = {
   align?: "left" | "center" | "right";
   color?: string;
   position?: CreatorStudioLayerPosition;
+  x?: number;
+  y?: number;
+  hidden?: boolean;
+};
+
+export const creatorStudioLayerPositionCoordinates: Record<
+  CreatorStudioLayerPosition,
+  { x: number; y: number }
+> = {
+  "top-left": { x: 8, y: 12 },
+  "top-center": { x: 50, y: 12 },
+  "top-right": { x: 92, y: 12 },
+  center: { x: 50, y: 46 },
+  "bottom-left": { x: 8, y: 82 },
+  "bottom-center": { x: 50, y: 82 },
+  "bottom-right": { x: 92, y: 82 },
 };
 
 export const creatorStudioTextLayers: {
@@ -203,6 +220,118 @@ export const creatorStudioLayerPositions: CreatorStudioLayerPosition[] = [
   "bottom-center",
   "bottom-right",
 ];
+
+export function getCreatorStudioLayerCoordinates(
+  style: CreatorStudioLayerStyle
+): { x: number; y: number } {
+  if (typeof style.x === "number" && typeof style.y === "number") {
+    return {
+      x: Math.min(98, Math.max(2, style.x)),
+      y: Math.min(98, Math.max(2, style.y)),
+    };
+  }
+
+  return (
+    creatorStudioLayerPositionCoordinates[
+      style.position ?? "center"
+    ] ?? creatorStudioLayerPositionCoordinates.center
+  );
+}
+
+export function getCreatorStudioLayerTransform(
+  align: CreatorStudioLayerStyle["align"],
+  x: number
+): string {
+  if (align === "center" || x === 50) {
+    return "translate(-50%, -50%)";
+  }
+
+  if (align === "right" || x >= 70) {
+    return "translate(-100%, -50%)";
+  }
+
+  return "translate(0, -50%)";
+}
+
+export function getScriptureDisplayText(design: CreatorStudioDesign): string {
+  const reference = design.scriptureSuggestion?.trim() ?? "";
+  const body = design.scriptureText?.trim() ?? "";
+
+  if (reference && body) {
+    return `${reference}\n${body}`;
+  }
+
+  return reference || body;
+}
+
+export function parseScriptureEditValue(value: string): {
+  scriptureSuggestion: string;
+  scriptureText: string;
+} {
+  const lines = value.split("\n");
+  const scriptureSuggestion = lines[0]?.trim() ?? "";
+  const scriptureText = lines.slice(1).join("\n").trim();
+
+  return { scriptureSuggestion, scriptureText };
+}
+
+export function getCreatorStudioLayerDisplayText(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioTextLayer
+): string {
+  switch (layer) {
+    case "title":
+      return design.title;
+    case "overlay":
+      return design.overlayText;
+    case "caption":
+      return design.caption;
+    case "scripture":
+      return getScriptureDisplayText(design);
+    case "callToAction":
+      return design.callToAction ?? "";
+  }
+}
+
+export function buildCreatorStudioLayerDisplayTextUpdate(
+  layer: CreatorStudioTextLayer,
+  value: string
+): Partial<CreatorStudioDesign> {
+  if (layer === "scripture") {
+    return parseScriptureEditValue(value);
+  }
+
+  return buildCreatorStudioLayerTextUpdate(layer, value);
+}
+
+export function shouldUseCreatorStudioCanvasLayout(
+  design: CreatorStudioDesign | null | undefined
+): boolean {
+  if (!design) return false;
+
+  return Boolean(
+    design.layerStyles && Object.keys(design.layerStyles).length > 0
+  );
+}
+
+export function ensureCreatorStudioCanvasLayers(
+  design: CreatorStudioDesign
+): CreatorStudioDesign {
+  if (design.layerStyles && Object.keys(design.layerStyles).length > 0) {
+    return design;
+  }
+
+  const layerStyles = Object.fromEntries(
+    creatorStudioTextLayers.map((entry) => {
+      const style = getCreatorStudioLayerStyle(design, entry.value);
+      const { x, y } = getCreatorStudioLayerCoordinates(style);
+
+      return [entry.value, { ...style, x, y }];
+    })
+  ) as NonNullable<CreatorStudioDesign["layerStyles"]>;
+
+  return { ...design, layerStyles };
+}
 
 export function getCreatorStudioLayerStyle(
   design: CreatorStudioDesign,
