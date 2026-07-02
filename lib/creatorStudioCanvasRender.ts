@@ -102,4 +102,3 @@ export function buildCreatorStudioLayerTypography(
 export function getCreatorStudioAccentColor(design: CreatorStudioDesign) {
   return getPaletteColor(design.colorPalette, 2, "#D4AF37");
 }
-
