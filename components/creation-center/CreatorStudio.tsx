@@ -18,6 +18,7 @@ import {
   creatorStudioPathOptions,
   creatorStudioQuickActions,
   creatorStudioTopCarousel,
+  ensureCreatorStudioCanvasLayers,
   type CreationCenterFormat,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
@@ -371,7 +372,8 @@ export default function CreatorStudio({
   }
 
   function openEditor(design?: CreatorStudioDesign | null) {
-    const nextDesign = design ?? toolbarContextDesign;
+    const baseDesign = design ?? toolbarContextDesign;
+    const nextDesign = ensureCreatorStudioCanvasLayers(baseDesign);
     setEditableDesign(nextDesign);
     setActiveEditorPanel("style");
     setScreen("editor");
@@ -579,7 +581,8 @@ export default function CreatorStudio({
             showChangeConcept={designs.length > 0}
             onChangeConcept={() => setScreen("choose")}
             onContinueToPublish={() => {
-              setEditableDesign(toolbarContextDesign);
+              const readyDesign = ensureCreatorStudioCanvasLayers(toolbarContextDesign);
+              setEditableDesign(readyDesign);
               setScreen("publish");
             }}
             aiControls={
@@ -628,7 +631,7 @@ export default function CreatorStudio({
             <aside className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
               <p className="text-sm font-black text-[#062a57]">Publish to feed preview</p>
               <textarea value={toolbarContextDesign.caption} onChange={(e) => setEditableDesign((current) => ({ ...(current ?? toolbarContextDesign), caption: e.target.value }))} rows={6} className="mt-3 w-full resize-none rounded-2xl border border-blue-100 px-4 py-3 text-sm font-semibold text-[#062a57]" />
-              <button type="submit" onClick={() => onUseDesign(toolbarContextDesign)} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">
+              <button type="submit" onClick={() => onUseDesign(ensureCreatorStudioCanvasLayers(toolbarContextDesign))} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">
                 Submit for Approval <Upload className="h-4 w-4" />
               </button>
             </aside>
