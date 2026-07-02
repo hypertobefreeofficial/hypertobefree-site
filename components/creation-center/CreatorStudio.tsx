@@ -8,7 +8,7 @@ import {
   Upload,
   Video,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   creationCenterStoryTemplates,
   creatorStudioBottomToolbar,
@@ -28,11 +28,11 @@ import {
   type CreatorStudioPath,
   type CreatorStudioRequestOptions,
   type CreatorStudioSourceMode,
-  type CreatorStudioTextLayer,
-  type CreatorStudioTool,
 } from "../../lib/creationCenter";
 import CreatorStudioGeneration from "./CreatorStudioGeneration";
-import CreatorStudioLayoutEditor from "./CreatorStudioLayoutEditor";
+import CreatorStudioLayoutEditor, {
+  type CreatorStudioEditorPanel,
+} from "./CreatorStudioLayoutEditor";
 import CreatorStudioPreview from "./CreatorStudioPreview";
 
 type StudioScreen = "home" | "thinking" | "choose" | "editor" | "publish";
@@ -158,12 +158,13 @@ function getSourceMode({
   return "build-ai";
 }
 
-function mapBottomToTopTool(tool: BottomTool): TopTool {
+function mapBottomToEditorPanel(tool: BottomTool): CreatorStudioEditorPanel {
   if (tool === "layout") return "layout";
   if (tool === "ai") return "ai";
-  if (tool === "filters") return "filters";
+  if (tool === "filters") return "style";
   if (tool === "scripture") return "scripture";
-  if (tool === "text" || tool === "fonts" || tool === "colors") return "text";
+  if (tool === "colors") return "colors";
+  if (tool === "fonts" || tool === "text") return "style";
   return "templates";
 }
 
@@ -211,9 +212,11 @@ export default function CreatorStudio({
   const [generatedCanvasImagePath, setGeneratedCanvasImagePath] = useState("");
   const [generatedCanvasImageBucket, setGeneratedCanvasImageBucket] = useState("");
   const [generatedCanvasImagePrompt, setGeneratedCanvasImagePrompt] = useState("");
-  const [activeTopTool, setActiveTopTool] = useState<TopTool>("templates");
+  const [activeTopTool, setActiveTopTool] = useState<TopTool>("ai");
   const [activeBottomTool, setActiveBottomTool] = useState<BottomTool>("text");
-  const [selectedTextLayer, setSelectedTextLayer] = useState<CreatorStudioTextLayer>("overlay");
+  const [activeEditorPanel, setActiveEditorPanel] =
+    useState<CreatorStudioEditorPanel>("style");
+  const [showHomeExtras, setShowHomeExtras] = useState(false);
   const [hasRequested, setHasRequested] = useState(false);
   const [resultTouchStartX, setResultTouchStartX] = useState<number | null>(null);
   const [textStyle, setTextStyle] = useState<NonNullable<CreatorStudioDesign["textStyle"]>>({
@@ -268,10 +271,6 @@ export default function CreatorStudio({
   const currentPathLabel = creatorStudioPathOptions.find((o) => o.value === studioPath)?.title ?? "Creator Studio";
   const currentLayoutLabel =
     creatorStudioLayoutOptions.find((o) => o.value === toolbarContextDesign.layoutType)?.label ?? "Creative direction";
-
-  const topPanelTitle = useMemo(() => {
-    return creatorStudioTopCarousel.find((t) => t.value === activeTopTool)?.label ?? "Tools";
-  }, [activeTopTool]);
 
   useEffect(() => {
     if (!hasRequested || loading || designs.length === 0) return;
@@ -370,6 +369,13 @@ export default function CreatorStudio({
     }
   }
 
+  function openEditor(design?: CreatorStudioDesign | null) {
+    const nextDesign = design ?? toolbarContextDesign;
+    setEditableDesign(nextDesign);
+    setActiveEditorPanel("style");
+    setScreen("editor");
+  }
+
   function handleBottomTool(tool: BottomTool) {
     setActiveBottomTool(tool);
     if (tool === "publish") {
@@ -377,12 +383,16 @@ export default function CreatorStudio({
       setScreen("publish");
       return;
     }
-    setActiveTopTool(mapBottomToTopTool(tool));
-    if (currentScreen === "choose" || currentScreen === "publish") {
-      setEditableDesign(toolbarContextDesign);
-      setScreen("editor");
-    } else if (currentScreen === "home") {
-      setScreen("home");
+
+    setActiveEditorPanel(mapBottomToEditorPanel(tool));
+
+    if (currentScreen === "choose" || currentScreen === "home") {
+      openEditor(toolbarContextDesign);
+      return;
+    }
+
+    if (currentScreen !== "editor") {
+      openEditor(toolbarContextDesign);
     }
   }
 
@@ -421,17 +431,9 @@ export default function CreatorStudio({
         {currentScreen === "thinking" && <CreatorStudioGeneration message={message} />}
 
         {currentScreen === "home" && (
-          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-            <div className="min-w-0 space-y-3 rounded-[1.5rem] bg-white p-3 ring-1 ring-blue-100 sm:p-4">
-              <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                {creatorStudioTopCarousel.map((tool) => (
-                  <button key={tool.value} type="button" onClick={() => setActiveTopTool(tool.value)} className={`min-h-12 shrink-0 rounded-full px-4 text-xs font-black ring-1 transition ${activeTopTool === tool.value ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-slate-600 ring-blue-100 hover:bg-blue-50"}`}>
-                    {tool.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+          <div className="mx-auto grid min-w-0 max-w-4xl gap-4">
+            <div className="min-w-0 space-y-4 rounded-[1.5rem] bg-white p-3 ring-1 ring-blue-100 sm:p-5">
+              <div className="flex min-w-0 flex-wrap gap-2">
                 <label className="inline-flex min-h-12 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-[#062a57] px-4 text-xs font-black text-white">
                   <ImagePlus className="h-4 w-4" /> Photo
                   <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { onFormatChange("photo"); onPhotoSelect(e.target.files?.[0] ?? null); setTemplateId("none"); }} />
@@ -445,7 +447,12 @@ export default function CreatorStudio({
                 </button>
               </div>
 
-              <CreatorStudioPreview design={canvasDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} canvas />
+              <div className="overflow-hidden rounded-[1.5rem] bg-[#031d3d] p-3 ring-1 ring-blue-100">
+                <p className="mb-3 px-1 text-xs font-black uppercase tracking-[0.14em] text-blue-100">
+                  Live canvas
+                </p>
+                <CreatorStudioPreview design={canvasDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} canvas />
+              </div>
 
               {(photoFileName || videoFileName) && (
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -455,64 +462,73 @@ export default function CreatorStudio({
               )}
             </div>
 
-            <aside className="min-w-0 rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
-              <h3 className="text-sm font-black text-[#062a57]">{topPanelTitle}</h3>
-              <p className="mt-1 text-xs font-semibold text-slate-500">Adjust your live canvas before generating or editing.</p>
-
-              <div className="mt-3 space-y-3">
-                {activeTopTool === "templates" && (
-                  <div className="grid gap-2">
-                    {creationCenterStoryTemplates.filter((t) => t.id === "none" || t.imagePath).map((template) => (
-                      <button key={template.id} type="button" onClick={() => setTemplateId(template.id)} className={`min-h-12 rounded-2xl px-4 text-left text-xs font-black ring-1 ${templateId === template.id ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-[#062a57] ring-blue-100"}`}>
-                        {template.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {activeTopTool === "ai" && (
-                  <>
-                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="Tell us what God is doing..." className="w-full resize-none rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm font-semibold text-[#062a57] outline-none focus:border-[#0b63ce]" />
-                    <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">{inspirationChips.map((chip) => <button key={chip} type="button" onClick={() => setSelectedChips((c) => (c.includes(chip) ? c.filter((x) => x !== chip) : [...c, chip]))} className={`min-h-12 shrink-0 rounded-full px-4 text-xs font-black ring-1 ${selectedChips.includes(chip) ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-slate-600 ring-blue-100"}`}>{chip}</button>)}</div>
-                    <button type="button" onClick={generateDesigns} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white"><Sparkles className="h-4 w-4" />Generate Designs</button>
-                  </>
-                )}
-
-                {activeTopTool === "filters" && (
-                  <div className="grid gap-2">
-                    {visualFilterOptions.map((filter) => (
-                      <button key={filter.label} type="button" onClick={() => { setMood(filter.mood); setColorPalette(filter.palette); setTextStyle((s) => ({ ...s, color: filter.palette[1] })); }} className="min-h-12 rounded-2xl bg-white px-4 text-left text-xs font-black text-[#062a57] ring-1 ring-blue-100">
-                        {filter.label} - {filter.treatment}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {activeTopTool === "text" && (
-                  <div className="grid gap-2">
-                    <input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} placeholder="Title" className="min-h-12 rounded-2xl border border-blue-100 px-4 text-sm font-bold text-[#062a57]" />
-                    <input value={draftOverlayText} onChange={(e) => setDraftOverlayText(e.target.value)} placeholder="Overlay text" className="min-h-12 rounded-2xl border border-blue-100 px-4 text-sm font-bold text-[#062a57]" />
-                    <textarea value={draftCaption} onChange={(e) => setDraftCaption(e.target.value)} rows={3} placeholder="Caption" className="rounded-2xl border border-blue-100 px-4 py-3 text-sm font-semibold text-[#062a57]" />
-                  </div>
-                )}
-
-                {activeTopTool === "scripture" && (
-                  <div className="grid gap-2">
-                    <input value={scriptureSuggestion} onChange={(e) => setScriptureSuggestion(e.target.value)} placeholder="Scripture reference" className="min-h-12 rounded-2xl border border-blue-100 px-4 text-sm font-bold text-[#062a57]" />
-                  </div>
-                )}
-
-                {activeTopTool === "layout" && (
-                  <div className="grid gap-2">
-                    {creatorStudioLayoutOptions.map((option) => (
-                      <button key={option.value} type="button" onClick={() => setLayoutType(option.value)} className={`min-h-12 rounded-2xl px-4 text-left text-xs font-black ring-1 ${layoutType === option.value ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-[#062a57] ring-blue-100"}`}>
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <section className="min-w-0 rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100 sm:p-5">
+              <h3 className="text-sm font-black text-[#062a57]">Start with AI</h3>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                Describe your story, generate concepts, then edit everything in the design editor.
+              </p>
+              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="Tell us what God is doing..." className="mt-4 w-full resize-none rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm font-semibold text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100" />
+              <div className="mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+                {inspirationChips.map((chip) => (
+                  <button key={chip} type="button" onClick={() => setSelectedChips((c) => (c.includes(chip) ? c.filter((x) => x !== chip) : [...c, chip]))} className={`min-h-11 shrink-0 rounded-full px-4 text-xs font-black ring-1 ${selectedChips.includes(chip) ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-slate-600 ring-blue-100"}`}>
+                    {chip}
+                  </button>
+                ))}
               </div>
-            </aside>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <button type="button" onClick={generateDesigns} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">
+                  <Sparkles className="h-4 w-4" /> Generate 6 Concepts
+                </button>
+                <button type="button" onClick={() => openEditor(canvasDesign)} className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-4 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100">
+                  Edit manually
+                </button>
+              </div>
+            </section>
+
+            <section className="min-w-0 rounded-[1.5rem] bg-white ring-1 ring-blue-100">
+              <button type="button" onClick={() => setShowHomeExtras((current) => !current)} className="flex min-h-12 w-full items-center justify-between px-4 text-left text-sm font-black text-[#062a57] sm:px-5">
+                More starting options
+                <span className="text-xs font-black text-[#0b63ce]">{showHomeExtras ? "Hide" : "Show"}</span>
+              </button>
+              {showHomeExtras && (
+                <div className="space-y-4 border-t border-blue-100 px-4 pb-4 pt-3 sm:px-5">
+                  <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+                    {creatorStudioTopCarousel.map((tool) => (
+                      <button key={tool.value} type="button" onClick={() => setActiveTopTool(tool.value)} className={`min-h-11 shrink-0 rounded-full px-4 text-xs font-black ring-1 ${activeTopTool === tool.value ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-slate-600 ring-blue-100"}`}>
+                        {tool.label}
+                      </button>
+                    ))}
+                  </div>
+                  {activeTopTool === "templates" && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {creationCenterStoryTemplates.filter((t) => t.id === "none" || t.imagePath).map((template) => (
+                        <button key={template.id} type="button" onClick={() => setTemplateId(template.id)} className={`min-h-11 rounded-2xl px-4 text-left text-xs font-black ring-1 ${templateId === template.id ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-[#062a57] ring-blue-100"}`}>
+                          {template.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {activeTopTool === "layout" && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {creatorStudioLayoutOptions.map((option) => (
+                        <button key={option.value} type="button" onClick={() => setLayoutType(option.value)} className={`min-h-11 rounded-2xl px-4 text-left text-xs font-black ring-1 ${layoutType === option.value ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-[#062a57] ring-blue-100"}`}>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {activeTopTool === "filters" && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {visualFilterOptions.map((filter) => (
+                        <button key={filter.label} type="button" onClick={() => { setMood(filter.mood); setColorPalette(filter.palette); setTextStyle((s) => ({ ...s, color: filter.palette[1] })); }} className="min-h-11 rounded-2xl bg-white px-4 text-left text-xs font-black text-[#062a57] ring-1 ring-blue-100">
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
           </div>
         )}
 
@@ -526,7 +542,7 @@ export default function CreatorStudio({
                 <CreatorStudioPreview design={activeResultDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} canvas />
               </div>
               <div className="mt-3 flex items-center justify-center gap-2">{designs.map((d, i) => <button key={d.id} type="button" onClick={() => { setSelectedDesignId(d.id); setEditableDesign(d); setImageEnhancedDesign(null); }} className={`h-2.5 rounded-full ${d.id === activeResultDesign.id ? "w-8 bg-[#0b63ce]" : "w-2.5 bg-blue-200"}`} aria-label={`Go to concept ${i + 1}`} />)}</div>
-              <button type="button" onClick={() => { setEditableDesign(activeResultDesign); setScreen("editor"); }} className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">Edit This Design</button>
+              <button type="button" onClick={() => openEditor(activeResultDesign)} className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">Edit This Design</button>
             </section>
 
             <section className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
@@ -543,27 +559,89 @@ export default function CreatorStudio({
         )}
 
         {currentScreen === "editor" && toolbarContextDesign && (
-          <div className="grid min-w-0 gap-4">
-            <CreatorStudioPreview
-              design={toolbarContextDesign}
-              videoPreviewUrl={videoPreviewUrl}
-              photoPreviewUrl={photoPreviewUrl}
-              canvas
-              interactive
-              selectedTextLayer={selectedTextLayer}
-              onSelectTextLayer={setSelectedTextLayer}
-            />
+          <div className="mx-auto grid min-w-0 max-w-6xl gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
+            <div className="min-w-0 space-y-3">
+              <div className="overflow-hidden rounded-[1.5rem] bg-[#031d3d] p-3 ring-1 ring-blue-100 sm:p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-100">
+                    Live preview
+                  </p>
+                  {designs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setScreen("choose")}
+                      className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white ring-1 ring-white/15"
+                    >
+                      Change concept
+                    </button>
+                  )}
+                </div>
+                <CreatorStudioPreview
+                  design={toolbarContextDesign}
+                  videoPreviewUrl={videoPreviewUrl}
+                  photoPreviewUrl={photoPreviewUrl}
+                  canvas
+                />
+              </div>
+            </div>
+
             <CreatorStudioLayoutEditor
               design={toolbarContextDesign}
-              onChange={(updates) => setEditableDesign((current) => ({ ...(current ?? toolbarContextDesign), ...updates }))}
+              onChange={(updates) =>
+                setEditableDesign((current) => ({
+                  ...(current ?? toolbarContextDesign),
+                  ...updates,
+                }))
+              }
               videoFileName={videoFileName}
               photoFileName={photoFileName}
               onVideoSelect={onVideoSelect}
               onPhotoSelect={onPhotoSelect}
               onRemoveVideo={onRemoveVideo}
               onRemovePhoto={onRemovePhoto}
-              selectedTextLayer={selectedTextLayer}
-              onSelectTextLayer={setSelectedTextLayer}
+              activePanel={activeEditorPanel}
+              onPanelChange={setActiveEditorPanel}
+              onContinueToPublish={() => {
+                setEditableDesign(toolbarContextDesign);
+                setScreen("publish");
+              }}
+              aiControls={
+                <>
+                  <button
+                    type="button"
+                    onClick={generateDesigns}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white"
+                  >
+                    <Sparkles className="h-4 w-4" /> Regenerate 6 Concepts
+                  </button>
+                  <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+                    {creatorStudioQuickActions.map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        onClick={() => requestQuickAiAction(action)}
+                        disabled={
+                          action === "New Background" &&
+                          Boolean(imageGeneratingAction)
+                        }
+                        className="min-h-11 shrink-0 rounded-full bg-blue-50 px-4 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+                      >
+                        {action}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void requestGeneratedVisual("AI Background")}
+                    disabled={Boolean(imageGeneratingAction)}
+                    className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#062a57] px-4 text-sm font-black text-white"
+                  >
+                    {imageGeneratingAction === "AI Background"
+                      ? "Creating background..."
+                      : "Generate AI Background"}
+                  </button>
+                </>
+              }
             />
           </div>
         )}
@@ -588,6 +666,7 @@ export default function CreatorStudio({
         ) : null}
       </div>
 
+      {(currentScreen === "home" || currentScreen === "choose") && (
       <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl ring-1 ring-blue-100 backdrop-blur sm:static sm:rounded-b-[2rem] sm:px-4 sm:pb-4">
         <div className="mx-auto flex max-w-4xl min-w-0 gap-2 overflow-x-auto [-webkit-overflow-scrolling:touch]">
           {creatorStudioBottomToolbar.map((tool) => (
@@ -598,6 +677,7 @@ export default function CreatorStudio({
         </div>
         <div className="mt-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-blue-400">{currentLayoutLabel} · {currentPathLabel}</div>
       </div>
+      )}
     </section>
   );
 }
