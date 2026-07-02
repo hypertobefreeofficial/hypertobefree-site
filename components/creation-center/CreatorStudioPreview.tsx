@@ -4,14 +4,12 @@ import type { CSSProperties, ReactNode } from "react";
 import {
   getCreationCenterTemplate,
   getCreatorStudioLayerStyle,
-  shouldUseCreatorStudioCanvasLayout,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
   type CreatorStudioLayerPosition,
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
-import CreatorStudioCanvasLayers from "./CreatorStudioCanvasLayers";
 
 type CreatorStudioPreviewVariant =
   | "preview"
@@ -676,27 +674,6 @@ export default function CreatorStudioPreview({
     activeLayout === "scripture-card" ||
     activeLayout === "prayer-request-card" ||
     activeLayout === "praise-report-card";
-
-  const hasCustomLayerStyles = shouldUseCreatorStudioCanvasLayout(design);
-
-  if (hasCustomLayerStyles && design) {
-    return (
-      <div
-        className={`${baseShell} ${frameHeight} ${innerPadding}`}
-        style={shellStyle}
-      >
-        <CreatorStudioCanvasLayers
-          design={design}
-          photoPreviewUrl={photoPreviewUrl}
-          videoPreviewUrl={videoPreviewUrl}
-          compact={gallery || isFeed}
-          selectedLayer={selectedTextLayer}
-          onSelectLayer={onSelectTextLayer}
-          interactive={interactive}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className={`${baseShell} ${frameHeight} ${innerPadding}`} style={shellStyle}>
