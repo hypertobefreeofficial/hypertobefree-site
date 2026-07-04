@@ -1,5 +1,6 @@
 import {
   getCreationCenterTemplate,
+  prepareCreatorStudioForEditing,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
   type CreatorStudioLayerStyle,
@@ -186,6 +187,46 @@ function readTextStyle(
   };
 }
 
+export function parseAiSuggestionsRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return isRecord(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return isRecord(value) ? value : null;
+}
+
+export function serializeCreatorStudioDesignForStorage(
+  design: CreatorStudioDesign
+): CreatorStudioDesign {
+  const prepared = prepareCreatorStudioForEditing(design);
+
+  return JSON.parse(JSON.stringify(prepared)) as CreatorStudioDesign;
+}
+
+export function buildCreatorStudioAiSuggestionsPayload(options: {
+  design: CreatorStudioDesign;
+  prompts?: Record<string, string>;
+  suggestions?: unknown;
+  selectedTemplate?: unknown;
+}) {
+  const creatorStudioDesign = serializeCreatorStudioDesignForStorage(
+    options.design
+  );
+
+  return {
+    prompts: options.prompts ?? {},
+    suggestions: options.suggestions ?? null,
+    creatorStudioDesign,
+    selectedTemplate: options.selectedTemplate ?? null,
+    creation_mode: "creator-studio",
+  };
+}
+
 export function readCreatorStudioDesignRecord(
   value: unknown
 ): CreatorStudioDesign | null {
@@ -287,29 +328,87 @@ export function readCreatorStudioDesignRecord(
 export function readCreatorStudioDesignFromSuggestions(
   value: unknown
 ): CreatorStudioDesign | null {
-  const metadata = isRecord(value) ? value : null;
+  const metadata = parseAiSuggestionsRecord(value);
   if (!metadata) return null;
 
   return readCreatorStudioDesignRecord(metadata.creatorStudioDesign);
 }
 
 export function readCreationModeFromSuggestions(value: unknown) {
-  const metadata = isRecord(value) ? value : null;
+  const metadata = parseAiSuggestionsRecord(value);
 
-  return readString(metadata?.creation_mode) || readString(metadata?.creationMode);
+  return (
+    readString(metadata?.creation_mode) || readString(metadata?.creationMode)
+  );
 }
 
 export function isCreatorStudioFeedPost({
   aiSuggestions,
+  creationMode,
 }: {
   aiSuggestions: unknown;
+  creationMode?: string | null;
   hasVideoMedia?: boolean;
   hasImageMedia?: boolean;
 }) {
   const design = readCreatorStudioDesignFromSuggestions(aiSuggestions);
-  const creationMode = readCreationModeFromSuggestions(aiSuggestions);
+  if (!design) return false;
 
-  return Boolean(design && creationMode === "creator-studio");
+  const mode =
+    readString(creationMode) ||
+    readCreationModeFromSuggestions(aiSuggestions);
+
+  return mode === "creator-studio" || Boolean(design.layerStyles);
+}
+
+export function readStoredCreatorStudioDesignFromStory(story: {
+  ai_suggestions: unknown;
+  creation_mode?: string | null;
+}) {
+  const design = readCreatorStudioDesignFromSuggestions(story.ai_suggestions);
+
+  if (
+    !design ||
+    !isCreatorStudioFeedPost({
+      aiSuggestions: story.ai_suggestions,
+      creationMode: story.creation_mode,
+    })
+  ) {
+    return null;
+  }
+
+  return prepareCreatorStudioForEditing(design);
+}
+
+export function verifyCreatorStudioDesignPersisted(
+  aiSuggestions: unknown,
+  expectedDesign: CreatorStudioDesign
+) {
+  const stored = readCreatorStudioDesignFromSuggestions(aiSuggestions);
+
+  if (!stored) {
+    throw new Error(
+      "Creator Studio design JSON was not saved with this post. The published story cannot render overlay layers."
+    );
+  }
+
+  if (!stored.layerStyles || Object.keys(stored.layerStyles).length === 0) {
+    throw new Error(
+      "Creator Studio layerStyles were not saved with this post."
+    );
+  }
+
+  console.log("[CreatorStudio/pipeline] verified persisted design", {
+    title: stored.title,
+    overlayText: stored.overlayText,
+    caption: stored.caption,
+    layerStyles: stored.layerStyles,
+    textStyle: stored.textStyle,
+    expectedLayerCount: Object.keys(expectedDesign.layerStyles ?? {}).length,
+    storedLayerCount: Object.keys(stored.layerStyles ?? {}).length,
+  });
+
+  return stored;
 }
 
 export function resolveCreatorStudioBackgroundUrl(
