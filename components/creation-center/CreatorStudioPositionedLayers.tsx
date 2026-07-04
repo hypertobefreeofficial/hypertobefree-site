@@ -34,6 +34,7 @@ import {
 import {
   buildCreatorStudioLayerTypography,
   getCreatorStudioAccentColor,
+  type CreatorStudioLayerTypography,
 } from "../../lib/creatorStudioCanvasRender";
 import {
   clampCreatorStudioFontScale,
@@ -96,7 +97,7 @@ function LayerContent({
 }: {
   layer: CreatorStudioTextLayer;
   design: CreatorStudioDesign;
-  typography: ReturnType<typeof buildCreatorStudioLayerTypography>;
+  typography: CreatorStudioLayerTypography;
   textClassName: string;
   accentColor: string;
   text: string;
