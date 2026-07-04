@@ -184,6 +184,13 @@ export type CreatorStudioLayerStyle = {
   x?: number;
   y?: number;
   hidden?: boolean;
+  opacity?: number;
+  letterSpacing?: number;
+  lineHeight?: number;
+  shadowStrength?: number;
+  outlineWidth?: number;
+  rotation?: number;
+  layerOrder?: number;
 };
 
 export const creatorStudioLayerPositionCoordinates: Record<
@@ -240,17 +247,24 @@ export function getCreatorStudioLayerCoordinates(
 
 export function getCreatorStudioLayerTransform(
   align: CreatorStudioLayerStyle["align"],
-  x: number
+  x: number,
+  rotation = 0
 ): string {
+  let base: string;
+
   if (align === "center" || x === 50) {
-    return "translate(-50%, -50%)";
+    base = "translate(-50%, -50%)";
+  } else if (align === "right" || x >= 70) {
+    base = "translate(-100%, -50%)";
+  } else {
+    base = "translate(0, -50%)";
   }
 
-  if (align === "right" || x >= 70) {
-    return "translate(-100%, -50%)";
+  if (rotation !== 0) {
+    return `${base} rotate(${rotation}deg)`;
   }
 
-  return "translate(0, -50%)";
+  return base;
 }
 
 export function getScriptureDisplayText(design: CreatorStudioDesign): string {
@@ -321,16 +335,305 @@ export function ensureCreatorStudioCanvasLayers(
     return design;
   }
 
-  const layerStyles = Object.fromEntries(
-    creatorStudioTextLayers.map((entry) => {
-      const style = getCreatorStudioLayerStyle(design, entry.value);
-      const { x, y } = getCreatorStudioLayerCoordinates(style);
+  return {
+    ...design,
+    layerStyles: buildConceptLayerStyles(design),
+  };
+}
 
-      return [entry.value, { ...style, x, y }];
+export function prepareCreatorStudioForEditing(
+  design: CreatorStudioDesign
+): CreatorStudioDesign {
+  return ensureCreatorStudioCanvasLayers(design);
+}
+
+export function getConceptPersonalityLabel(design: CreatorStudioDesign) {
+  return (
+    design.visualTheme?.trim() ||
+    design.typographyStyle?.trim() ||
+    creatorStudioLayoutOptions.find((option) => option.value === design.layoutType)
+      ?.label ||
+    "Creative direction"
+  );
+}
+
+function paletteColor(design: CreatorStudioDesign, index: number, fallback: string) {
+  const value = design.colorPalette?.[index];
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim())
+    ? value.trim()
+    : fallback;
+}
+
+function layerStyleFromPosition(
+  position: CreatorStudioLayerPosition,
+  overrides: Partial<CreatorStudioLayerStyle> = {}
+): CreatorStudioLayerStyle {
+  const { x, y } = creatorStudioLayerPositionCoordinates[position];
+
+  return { x, y, ...overrides };
+}
+
+function buildConceptLayerStyles(
+  design: CreatorStudioDesign
+): NonNullable<CreatorStudioDesign["layerStyles"]> {
+  const textColor = design.textStyle?.color ?? paletteColor(design, 1, "#FFFFFF");
+  const accentColor = paletteColor(design, 2, "#D4AF37");
+  const baseScale = design.textStyle?.fontScale ?? 1;
+  const layout = design.layoutType;
+
+  const personalities: Partial<
+    Record<CreatorStudioLayoutType, Partial<Record<CreatorStudioTextLayer, CreatorStudioLayerStyle>>>
+  > = {
+    "magazine-style": {
+      title: layerStyleFromPosition("top-left", {
+        fontSize: "hero",
+        fontScale: baseScale * 1.08,
+        weight: "bold",
+        align: "left",
+        color: textColor,
+        shadowStrength: 0.45,
+        y: 34,
+        layerOrder: 4,
+      }),
+      overlay: layerStyleFromPosition("center", {
+        fontSize: "medium",
+        weight: "regular",
+        italic: true,
+        align: "left",
+        color: textColor,
+        x: 12,
+        y: 52,
+        lineHeight: 1.35,
+        layerOrder: 3,
+      }),
+      caption: layerStyleFromPosition("bottom-left", {
+        fontSize: "small",
+        weight: "regular",
+        align: "left",
+        color: textColor,
+        opacity: 0.92,
+        y: 76,
+        layerOrder: 2,
+      }),
+      scripture: layerStyleFromPosition("bottom-left", {
+        fontSize: "small",
+        weight: "bold",
+        align: "left",
+        color: accentColor,
+        letterSpacing: 0.08,
+        y: 88,
+        layerOrder: 1,
+      }),
+      callToAction: { hidden: true },
+    },
+    "full-image-poster": {
+      title: layerStyleFromPosition("bottom-left", {
+        fontSize: "hero",
+        fontScale: baseScale * 1.12,
+        weight: "bold",
+        align: "left",
+        color: textColor,
+        shadowStrength: 0.55,
+        y: 68,
+        layerOrder: 4,
+      }),
+      overlay: { hidden: true },
+      caption: layerStyleFromPosition("bottom-left", {
+        fontSize: "medium",
+        weight: "regular",
+        align: "left",
+        color: textColor,
+        opacity: 0.95,
+        y: 82,
+        layerOrder: 3,
+      }),
+      scripture: layerStyleFromPosition("bottom-right", {
+        fontSize: "small",
+        weight: "bold",
+        align: "right",
+        color: accentColor,
+        y: 90,
+        layerOrder: 2,
+      }),
+      callToAction: layerStyleFromPosition("bottom-right", {
+        fontSize: "small",
+        weight: "bold",
+        align: "right",
+        color: "#0B1D3A",
+        y: 94,
+        layerOrder: 1,
+      }),
+    },
+    "quote-card": {
+      title: layerStyleFromPosition("center", {
+        fontSize: "large",
+        fontScale: baseScale * 0.98,
+        weight: "regular",
+        italic: true,
+        align: "center",
+        color: textColor,
+        lineHeight: 1.45,
+        letterSpacing: 0.02,
+        shadowStrength: 0.2,
+        layerOrder: 3,
+      }),
+      overlay: { hidden: true },
+      caption: { hidden: true },
+      scripture: layerStyleFromPosition("bottom-center", {
+        fontSize: "small",
+        weight: "bold",
+        align: "center",
+        color: accentColor,
+        letterSpacing: 0.1,
+        y: 78,
+        layerOrder: 2,
+      }),
+      callToAction: { hidden: true },
+    },
+    "praise-report-card": {
+      title: layerStyleFromPosition("top-center", {
+        fontSize: "hero",
+        fontScale: baseScale * 1.05,
+        weight: "bold",
+        align: "center",
+        color: accentColor,
+        shadowStrength: 0.4,
+        y: 28,
+        layerOrder: 4,
+      }),
+      overlay: layerStyleFromPosition("center", {
+        fontSize: "medium",
+        weight: "bold",
+        align: "center",
+        color: textColor,
+        y: 48,
+        layerOrder: 3,
+      }),
+      caption: layerStyleFromPosition("bottom-center", {
+        fontSize: "small",
+        weight: "regular",
+        align: "center",
+        color: textColor,
+        y: 72,
+        layerOrder: 2,
+      }),
+      scripture: { hidden: true },
+      callToAction: layerStyleFromPosition("bottom-center", {
+        fontSize: "small",
+        weight: "bold",
+        align: "center",
+        color: "#0B1D3A",
+        y: 88,
+        layerOrder: 1,
+      }),
+    },
+    "journal-style": {
+      title: layerStyleFromPosition("center", {
+        fontSize: "large",
+        fontScale: baseScale,
+        weight: "bold",
+        align: "left",
+        color: "#062A57",
+        x: 14,
+        y: 38,
+        lineHeight: 1.15,
+        layerOrder: 4,
+      }),
+      overlay: layerStyleFromPosition("center", {
+        fontSize: "medium",
+        weight: "regular",
+        align: "left",
+        color: "#334155",
+        x: 14,
+        y: 52,
+        lineHeight: 1.5,
+        layerOrder: 3,
+      }),
+      caption: layerStyleFromPosition("center", {
+        fontSize: "small",
+        weight: "regular",
+        align: "left",
+        color: "#475569",
+        x: 14,
+        y: 68,
+        lineHeight: 1.55,
+        layerOrder: 2,
+      }),
+      scripture: layerStyleFromPosition("bottom-left", {
+        fontSize: "small",
+        weight: "bold",
+        align: "left",
+        color: "#0B63CE",
+        x: 14,
+        y: 84,
+        layerOrder: 1,
+      }),
+      callToAction: { hidden: true },
+    },
+    "text-over-image-testimony": {
+      title: layerStyleFromPosition("top-center", {
+        fontSize: "large",
+        fontScale: baseScale,
+        weight: "bold",
+        align: "center",
+        color: textColor,
+        shadowStrength: 0.35,
+        y: 18,
+        layerOrder: 4,
+      }),
+      overlay: layerStyleFromPosition("center", {
+        fontSize: "medium",
+        weight: "regular",
+        align: "center",
+        color: textColor,
+        lineHeight: 1.35,
+        layerOrder: 3,
+      }),
+      caption: layerStyleFromPosition("bottom-center", {
+        fontSize: "small",
+        weight: "regular",
+        align: "center",
+        color: textColor,
+        opacity: 0.9,
+        y: 78,
+        layerOrder: 2,
+      }),
+      scripture: layerStyleFromPosition("bottom-left", {
+        fontSize: "small",
+        weight: "bold",
+        align: "left",
+        color: accentColor,
+        y: 90,
+        layerOrder: 1,
+      }),
+      callToAction: layerStyleFromPosition("bottom-right", {
+        fontSize: "small",
+        weight: "bold",
+        align: "right",
+        color: "#0B1D3A",
+        y: 90,
+        layerOrder: 0,
+      }),
+    },
+  };
+
+  const personality =
+    personalities[layout] ?? personalities["text-over-image-testimony"];
+
+  return Object.fromEntries(
+    creatorStudioTextLayers.map((entry) => {
+      const fallback = layerStyleFromPosition(entry.defaultPosition, {
+        fontSize: design.textStyle?.fontSize ?? "large",
+        fontScale: baseScale,
+        weight: design.textStyle?.weight ?? "bold",
+        italic: design.textStyle?.italic ?? false,
+        align: design.textStyle?.align ?? "left",
+        color: textColor,
+      });
+
+      return [entry.value, personality?.[entry.value] ?? fallback];
     })
   ) as NonNullable<CreatorStudioDesign["layerStyles"]>;
-
-  return { ...design, layerStyles };
 }
 
 export function getCreatorStudioLayerStyle(
