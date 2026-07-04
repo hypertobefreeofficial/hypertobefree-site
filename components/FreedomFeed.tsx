@@ -35,6 +35,11 @@ import {
   creationCenterStoryTemplates,
   type CreationCenterTemplateId,
 } from "../lib/creationCenter";
+import {
+  isCreatorStudioFeedPost,
+  readStoredCreatorStudioDesignFromStory,
+} from "../lib/creatorStudioMetadata";
+import CreatorStudioStoryRenderer from "./creation-center/CreatorStudioStoryRenderer";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
 
@@ -145,6 +150,7 @@ type ApprovedStory = {
   prayer_status: string | null;
   answered_at: string | null;
   answered_text: string | null;
+  creation_mode: string | null;
   ai_suggestions: unknown | null;
   reaction_counts: {
     amen: number;
@@ -738,7 +744,7 @@ export default function FreedomFeed({
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text, ai_suggestions"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text, creation_mode, ai_suggestions"
       )
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -857,6 +863,8 @@ export default function FreedomFeed({
           prayer_status: story.prayer_status ?? "active",
           answered_at: story.answered_at,
           answered_text: story.answered_text,
+          creation_mode:
+            typeof story.creation_mode === "string" ? story.creation_mode : null,
           ai_suggestions: story.ai_suggestions ?? null,
           reaction_counts: {
             amen: storyReactions.filter(
@@ -1736,19 +1744,35 @@ export default function FreedomFeed({
               const creationTemplate = getCreationTemplateMetadata(
                 story.ai_suggestions
               );
+              const creatorStudioDesign = readStoredCreatorStudioDesignFromStory(
+                story
+              );
+              const showCreatorStudioDesignCard = isCreatorStudioFeedPost({
+                aiSuggestions: story.ai_suggestions,
+                creationMode: story.creation_mode,
+                hasVideoMedia,
+                hasImageMedia,
+              });
               const showCreationTemplateCard = Boolean(
                 creationTemplate &&
                   story.story_text &&
                   !hasVideoMedia &&
-                  !hasImageMedia
+                  !hasImageMedia &&
+                  !showCreatorStudioDesignCard
+              );
+              const showCreatorStudioCard = Boolean(
+                showCreatorStudioDesignCard && creatorStudioDesign
               );
               const showInlineStoryText =
                 Boolean(story.story_text) &&
                 !showCreationTemplateCard &&
+                !showCreatorStudioCard &&
                 !hasVideoMedia &&
                 (!hasImageMedia || captionStyle === "classic-caption");
               const showVideoCaptionText =
-                Boolean(story.story_text) && hasVideoMedia;
+                Boolean(story.story_text) &&
+                hasVideoMedia &&
+                !showCreatorStudioCard;
               const miniReelAnchorId = `freedom-feed-mini-reels-${index + 1}`;
               const shouldShowMiniReels =
                 showMiniReelsInFeed &&
@@ -1789,7 +1813,7 @@ export default function FreedomFeed({
                       </div>
                     </div>
 
-                    {story.signed_image_url && (
+                    {story.signed_image_url && !showCreatorStudioCard && (
                       <button
                         type="button"
                         onClick={() => openStoryDetail(story)}
@@ -1799,6 +1823,38 @@ export default function FreedomFeed({
                         <ComposedFeedPostVisual
                           captionStyle={captionStyle}
                           story={story}
+                        />
+                      </button>
+                    )}
+
+                    {showCreatorStudioCard && creatorStudioDesign && (
+                      <button
+                        type="button"
+                        onClick={() => openStoryDetail(story)}
+                        className="mt-4 block w-full max-w-full cursor-pointer overflow-hidden rounded-[1.5rem] text-left ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                        aria-label="Open Creator Studio post"
+                      >
+                        {(() => {
+                          console.log(
+                            "[CreatorStudio/pipeline] payload received by FeedCard",
+                            {
+                              storyId: story.id,
+                              creation_mode: story.creation_mode,
+                              layerStyles: creatorStudioDesign.layerStyles,
+                              title: creatorStudioDesign.title,
+                              overlayText: creatorStudioDesign.overlayText,
+                              caption: creatorStudioDesign.caption,
+                            }
+                          );
+                          return null;
+                        })()}
+                        <CreatorStudioStoryRenderer
+                          design={creatorStudioDesign}
+                          photoPreviewUrl={story.signed_image_url}
+                          videoPreviewUrl={
+                            story.signed_video_url ?? story.video_url
+                          }
+                          variant="feed"
                         />
                       </button>
                     )}
@@ -1820,7 +1876,7 @@ export default function FreedomFeed({
                     )}
                   </div>
 
-                  {story.signed_video_url && (
+                  {story.signed_video_url && !showCreatorStudioCard && (
                     <button
                       type="button"
                       onClick={() => openStoryDetail(story)}
@@ -2827,6 +2883,28 @@ function ComposedFeedPostVisual({
   template?: CreationTemplateMetadata | null;
   variant?: "feed" | "detail";
 }) {
+  const creatorStudioDesign = readStoredCreatorStudioDesignFromStory(story);
+
+  if (creatorStudioDesign) {
+    console.log("[CreatorStudio/pipeline] payload received by Story Detail", {
+      storyId: story.id,
+      creation_mode: story.creation_mode,
+      layerStyles: creatorStudioDesign.layerStyles,
+      title: creatorStudioDesign.title,
+      overlayText: creatorStudioDesign.overlayText,
+      caption: creatorStudioDesign.caption,
+    });
+
+    return (
+      <CreatorStudioStoryRenderer
+        design={creatorStudioDesign}
+        photoPreviewUrl={story.signed_image_url}
+        videoPreviewUrl={story.signed_video_url ?? story.video_url}
+        variant={variant === "detail" ? "detail" : "feed"}
+      />
+    );
+  }
+
   const cleanText = story.story_text?.trim() ?? "";
   const isTemplateLong = cleanText.length > 260;
   const visibleTemplateText =
