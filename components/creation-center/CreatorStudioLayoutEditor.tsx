@@ -8,10 +8,13 @@ import {
   getCreatorStudioLayerStyle,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioLayerStyle,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import CreatorStudioAdvancedControls from "./CreatorStudioAdvancedControls";
+import CreatorStudioLayerAiRewrite from "./CreatorStudioLayerAiRewrite";
 import CreatorStudioStoryCoach from "./CreatorStudioStoryCoach";
+import { creatorStudioFontPresets } from "../../lib/creatorStudioTypography";
 
 export type CreatorStudioEditorPanel =
   | "text"
@@ -360,8 +363,8 @@ export default function CreatorStudioLayoutEditor({
                   <div className="mt-3 flex items-center gap-4">
                     <input
                       type="range"
-                      min={0.75}
-                      max={1.5}
+                      min={0.55}
+                      max={2.2}
                       step={0.05}
                       value={layerStyle.fontScale ?? 1}
                       onChange={(event) =>
@@ -377,8 +380,30 @@ export default function CreatorStudioLayoutEditor({
                   </div>
                 </label>
 
+                <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce] sm:col-span-2">
+                  Font personality
+                  <select
+                    value={layerStyle.fontPreset ?? "modern-bold"}
+                    onChange={(event) =>
+                      updateLayerStyle({
+                        fontPreset: event.target
+                          .value as NonNullable<
+                          CreatorStudioLayerStyle["fontPreset"]
+                        >,
+                      })
+                    }
+                    className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
+                  >
+                    {creatorStudioFontPresets.map((preset) => (
+                      <option key={preset.value} value={preset.value}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
-                  Font preset
+                  Text size preset
                   <select
                     value={layerStyle.fontSize ?? "large"}
                     onChange={(event) =>
@@ -438,8 +463,8 @@ export default function CreatorStudioLayoutEditor({
                   <div className="mt-3 flex items-center gap-4">
                     <input
                       type="range"
-                      min={0.75}
-                      max={1.5}
+                      min={0.55}
+                      max={2.2}
                       step={0.05}
                       value={textStyle.fontScale ?? 1}
                       onChange={(event) =>
@@ -711,6 +736,11 @@ export default function CreatorStudioLayoutEditor({
                 <p className="text-xs font-semibold leading-5 text-slate-500">
                   AI suggestions are optional. Your testimony stays yours.
                 </p>
+                <CreatorStudioLayerAiRewrite
+                  design={design}
+                  selectedLayer={selectedLayer ?? "title"}
+                  onChange={onChange}
+                />
                 {aiControls}
               </div>
             )}
