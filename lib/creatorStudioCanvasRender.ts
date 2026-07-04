@@ -80,11 +80,28 @@ export function buildCreatorStudioLayerTypography(
         ? "text-right"
         : "text-left";
   const coordinates = getCreatorStudioLayerCoordinates(layerStyle);
+  const opacity = layerStyle.opacity ?? 1;
+  const shadowStrength = layerStyle.shadowStrength ?? 0.35;
+  const outlineWidth = layerStyle.outlineWidth ?? 0;
   const inlineStyle: CSSProperties = {
     color:
       layerStyle.color ||
       getPaletteColor(design.colorPalette, 1, "#FFFFFF"),
     textAlign: layerStyle.align,
+    opacity,
+    letterSpacing:
+      layerStyle.letterSpacing !== undefined
+        ? `${layerStyle.letterSpacing}em`
+        : undefined,
+    lineHeight: layerStyle.lineHeight,
+    textShadow:
+      shadowStrength > 0
+        ? `0 2px ${Math.round(shadowStrength * 18)}px rgba(0,0,0,${Math.min(0.85, shadowStrength)})`
+        : undefined,
+    WebkitTextStroke:
+      outlineWidth > 0
+        ? `${outlineWidth}px rgba(0,0,0,${Math.min(0.75, 0.25 + outlineWidth * 0.15)})`
+        : undefined,
   };
 
   return {
@@ -94,7 +111,11 @@ export function buildCreatorStudioLayerTypography(
     italicClass,
     alignClass,
     coordinates,
-    transform: getCreatorStudioLayerTransform(layerStyle.align, coordinates.x),
+    transform: getCreatorStudioLayerTransform(
+      layerStyle.align,
+      coordinates.x,
+      layerStyle.rotation ?? 0
+    ),
     inlineStyle,
   };
 }
