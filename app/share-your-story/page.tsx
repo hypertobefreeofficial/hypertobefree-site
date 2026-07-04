@@ -29,6 +29,7 @@ import {
   MAX_FAITH_STREAMS,
   creationCenterStoryTemplates,
   getCreationCenterTemplate,
+  prepareCreatorStudioForEditing,
   sanitizeFaithStreams,
   type CreationCenterSuggestion,
   type CreationCenterTemplateId,
@@ -39,6 +40,10 @@ import {
   type FaithStream,
 } from "../../lib/creationCenter";
 import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
+import {
+  buildCreatorStudioAiSuggestionsPayload,
+  verifyCreatorStudioDesignPersisted,
+} from "../../lib/creatorStudioMetadata";
 
 type ProfileRow = {
   id: string;
@@ -1668,15 +1673,26 @@ export default function ShareYourStoryPage() {
   }
 
   function useCreatorStudioDesign(design: CreatorStudioDesign) {
-    const cleanTitle = design.title.trim();
-    const cleanOverlayText = design.overlayText.trim() || cleanTitle;
-    const cleanCaption = design.caption.trim();
-    const cleanCategory = design.category.trim() || "Testimony";
-    const cleanTopic = design.topic.trim() || cleanCategory;
-    const selectedTemplate = getCreationCenterTemplate(design.templateId);
+    const preparedDesign = prepareCreatorStudioForEditing(design);
+    const cleanTitle = preparedDesign.title.trim();
+    const cleanOverlayText = preparedDesign.overlayText.trim() || cleanTitle;
+    const cleanCaption = preparedDesign.caption.trim();
+    const cleanCategory = preparedDesign.category.trim() || "Testimony";
+    const cleanTopic = preparedDesign.topic.trim() || cleanCategory;
+    const selectedTemplate = getCreationCenterTemplate(preparedDesign.templateId);
+
+    console.log("[CreatorStudio/pipeline] selectedDesign", preparedDesign);
+    console.log("[CreatorStudio/pipeline] creatorStudioDesign", {
+      title: preparedDesign.title,
+      overlayText: preparedDesign.overlayText,
+      caption: preparedDesign.caption,
+      scriptureSuggestion: preparedDesign.scriptureSuggestion,
+      textStyle: preparedDesign.textStyle,
+      layerStyles: preparedDesign.layerStyles,
+    });
 
     pendingCreatorStudioDesignRef.current = {
-      ...design,
+      ...preparedDesign,
       title: cleanTitle,
       overlayText: cleanOverlayText,
       caption: cleanCaption,
@@ -1685,16 +1701,16 @@ export default function ShareYourStoryPage() {
       templateId:
         selectedTemplate && selectedTemplate.id !== "none"
           ? selectedTemplate.id
-          : design.sourceMode === "upload-video" ||
-              design.sourceMode === "upload-photo"
+          : preparedDesign.sourceMode === "upload-video" ||
+              preparedDesign.sourceMode === "upload-photo"
             ? "none"
             : "scripture-woods",
     };
 
-    if (design.sourceMode === "upload-video") {
+    if (preparedDesign.sourceMode === "upload-video") {
       setCreationFormat("video");
       selectMediaMode("video");
-    } else if (design.sourceMode === "upload-photo") {
+    } else if (preparedDesign.sourceMode === "upload-photo") {
       setCreationFormat("photo");
       selectMediaMode("photo");
     } else {
@@ -1707,7 +1723,8 @@ export default function ShareYourStoryPage() {
     setStoryText(cleanCaption || cleanOverlayText || cleanTitle);
     setOverlayText(cleanOverlayText);
     setCreationTemplateId(
-      design.sourceMode === "upload-video" || design.sourceMode === "upload-photo"
+      preparedDesign.sourceMode === "upload-video" ||
+        preparedDesign.sourceMode === "upload-photo"
         ? "none"
         : pendingCreatorStudioDesignRef.current.templateId
     );
@@ -2357,7 +2374,9 @@ export default function ShareYourStoryPage() {
       return;
     }
 
-    const creatorStudioDesign = pendingCreatorStudioDesignRef.current;
+    const creatorStudioDesign = pendingCreatorStudioDesignRef.current
+      ? prepareCreatorStudioForEditing(pendingCreatorStudioDesignRef.current)
+      : null;
     const creatorStudioSourceMode = creatorStudioDesign?.sourceMode;
     const isCreatorStudioMediaPost =
       creatorStudioSourceMode === "upload-video" ||
@@ -2491,16 +2510,37 @@ export default function ShareYourStoryPage() {
             }
           : null);
       const suggestionPayload =
-        sharePath === "guided"
-          ? {
+        sharePath === "guided" && creatorStudioDesign
+          ? buildCreatorStudioAiSuggestionsPayload({
+              design: creatorStudioDesign,
               prompts: guidedPromptAnswers,
               suggestions: storyShapeSuggestion,
-              creatorStudioDesign:
-                creatorStudioDesign ?? pendingCreatorStudioDesignRef.current,
               selectedTemplate: creationTemplatePayload,
-              creation_mode: creationMode,
-            }
-          : {};
+            })
+          : sharePath === "guided"
+            ? {
+                prompts: guidedPromptAnswers,
+                suggestions: storyShapeSuggestion,
+                selectedTemplate: creationTemplatePayload,
+                creation_mode: creationMode,
+              }
+            : {};
+
+      if (isCreatorStudioSubmit && creatorStudioDesign) {
+        console.log("[CreatorStudio/pipeline] selectedDesign", creatorStudioDesign);
+        console.log("[CreatorStudio/pipeline] creatorStudioDesign", {
+          title: creatorStudioDesign.title,
+          overlayText: creatorStudioDesign.overlayText,
+          caption: creatorStudioDesign.caption,
+          scriptureSuggestion: creatorStudioDesign.scriptureSuggestion,
+          textStyle: creatorStudioDesign.textStyle,
+          layerStyles: creatorStudioDesign.layerStyles,
+        });
+        console.log(
+          "[CreatorStudio/pipeline] payload inserted into Supabase (ai_suggestions)",
+          suggestionPayload
+        );
+      }
 
       setMessage("Checking your post...");
 
@@ -2591,9 +2631,20 @@ export default function ShareYourStoryPage() {
         ai_suggestions: suggestionPayload,
       };
 
-      const { error } = await supabase
+      const { data: insertedStory, error } = await supabase
         .from("stories")
-        .insert(storyPayloadWithCreationMetadata);
+        .insert(storyPayloadWithCreationMetadata)
+        .select("id, ai_suggestions, creation_mode")
+        .single();
+
+      if (isCreatorStudioSubmit && creatorStudioDesign) {
+        console.log("[CreatorStudio/pipeline] payload returned from Supabase", {
+          id: insertedStory?.id ?? null,
+          error: error?.message ?? null,
+          creation_mode: insertedStory?.creation_mode ?? null,
+          ai_suggestions: insertedStory?.ai_suggestions ?? null,
+        });
+      }
 
       if (error) {
         if (
@@ -2616,6 +2667,11 @@ export default function ShareYourStoryPage() {
         } else {
           throw new Error(error.message);
         }
+      } else if (isCreatorStudioSubmit && creatorStudioDesign) {
+        verifyCreatorStudioDesignPersisted(
+          insertedStory?.ai_suggestions,
+          creatorStudioDesign
+        );
       }
 
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
