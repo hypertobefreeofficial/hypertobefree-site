@@ -12,7 +12,7 @@ import CreatorStudioLayoutEditor, {
   type CreatorStudioEditorPanel,
 } from "./CreatorStudioLayoutEditor";
 
-type CreatorStudioCanvasEditorProps = {
+export type CreatorStudioCanvasEditorProps = {
   design: CreatorStudioDesign;
   onChange: (updates: Partial<CreatorStudioDesign>) => void;
   videoPreviewUrl: string | null;
@@ -26,6 +26,8 @@ type CreatorStudioCanvasEditorProps = {
   onContinueToPublish: () => void;
   onChangeConcept?: () => void;
   showChangeConcept?: boolean;
+  onGenerateConcepts?: () => void;
+  showGenerateConcepts?: boolean;
   aiControls: ReactNode;
 };
 
@@ -43,6 +45,8 @@ export default function CreatorStudioCanvasEditor({
   onContinueToPublish,
   onChangeConcept,
   showChangeConcept = false,
+  onGenerateConcepts,
+  showGenerateConcepts = false,
   aiControls,
 }: CreatorStudioCanvasEditorProps) {
   const [selectedLayer, setSelectedLayer] =
@@ -62,6 +66,8 @@ export default function CreatorStudioCanvasEditor({
         onContinueToPublish={onContinueToPublish}
         onChangeConcept={onChangeConcept}
         showChangeConcept={showChangeConcept}
+        onGenerateConcepts={onGenerateConcepts}
+        showGenerateConcepts={showGenerateConcepts}
         onOpenOverflow={(panel) => setOverflowPanel(panel)}
       />
 
