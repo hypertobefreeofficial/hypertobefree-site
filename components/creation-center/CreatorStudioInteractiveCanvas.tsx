@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Layers, Upload } from "lucide-react";
+import { Layers, Sparkles, Upload } from "lucide-react";
 import {
   useCallback,
   useMemo,
@@ -20,8 +20,8 @@ import {
 } from "../../lib/creationCenter";
 import { buildCreatorStudioLayerTypography } from "../../lib/creatorStudioCanvasRender";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
+import CreatorStudioEditorialHints from "./CreatorStudioEditorialHints";
 import CreatorStudioPositionedLayers from "./CreatorStudioPositionedLayers";
-import CreatorStudioSuggestionChips from "./CreatorStudioSuggestionChips";
 import HTBFWatermark from "./HTBFWatermark";
 
 type CreatorStudioInteractiveCanvasProps = {
@@ -33,7 +33,9 @@ type CreatorStudioInteractiveCanvasProps = {
   onSelectLayer: (layer: CreatorStudioTextLayer) => void;
   onContinueToPublish: () => void;
   onChangeConcept?: () => void;
+  onGenerateConcepts?: () => void;
   showChangeConcept?: boolean;
+  showGenerateConcepts?: boolean;
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
 };
 
@@ -110,7 +112,9 @@ export default function CreatorStudioInteractiveCanvas({
   onSelectLayer,
   onContinueToPublish,
   onChangeConcept,
+  onGenerateConcepts,
   showChangeConcept = false,
+  showGenerateConcepts = false,
   onOpenOverflow,
 }: CreatorStudioInteractiveCanvasProps) {
   const reducedMotion = useReducedMotion();
@@ -211,16 +215,16 @@ export default function CreatorStudioInteractiveCanvas({
   }
 
   return (
-    <div className="mx-auto min-w-0 max-w-4xl">
+    <div className="mx-auto min-w-0 w-full max-w-none">
       <motion.div
-        initial={reducedMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className="relative min-w-0 overflow-hidden rounded-[1.75rem] bg-[#031d3d] shadow-2xl shadow-blue-950/20 ring-1 ring-white/10"
+        initial={reducedMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="relative min-w-0 overflow-hidden rounded-none bg-[#031d3d] sm:rounded-[1.75rem] sm:shadow-2xl sm:shadow-blue-950/20 sm:ring-1 sm:ring-white/10"
       >
         <div
           ref={canvasRef}
-          className="relative isolate min-h-[min(78dvh,46rem)] w-full sm:min-h-[42rem]"
+          className="relative isolate min-h-[min(100dvh,52rem)] w-full sm:min-h-[42rem]"
         >
           <CanvasBackground
             templateId={design.templateId}
@@ -232,6 +236,16 @@ export default function CreatorStudioInteractiveCanvas({
 
           <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-2 p-3 sm:p-4">
             <div className="pointer-events-auto flex flex-wrap gap-2">
+              {showGenerateConcepts && onGenerateConcepts && (
+                <button
+                  type="button"
+                  onClick={onGenerateConcepts}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-black/30 px-3.5 text-[11px] font-semibold text-white backdrop-blur-md ring-1 ring-white/15 transition hover:bg-black/45"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Style my testimony
+                </button>
+              )}
               {showChangeConcept && onChangeConcept && (
                 <button
                   type="button"
@@ -239,17 +253,17 @@ export default function CreatorStudioInteractiveCanvas({
                   className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-black/30 px-3.5 text-[11px] font-semibold text-white backdrop-blur-md ring-1 ring-white/15 transition hover:bg-black/45"
                 >
                   <Layers className="h-3.5 w-3.5" />
-                  Browse directions
+                  Other directions
                 </button>
               )}
             </div>
             <button
               type="button"
               onClick={onContinueToPublish}
-              className="pointer-events-auto inline-flex min-h-10 items-center gap-2 rounded-full bg-white/95 px-4 text-xs font-black text-[#062a57] shadow-lg shadow-black/15 backdrop-blur-md transition hover:bg-white"
+              className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full bg-white/95 px-5 text-sm font-black text-[#062a57] shadow-lg shadow-black/15 backdrop-blur-md transition hover:bg-white"
             >
-              Ready to share
-              <Upload className="h-3.5 w-3.5" />
+              Share Testimony
+              <Upload className="h-4 w-4" />
             </button>
           </div>
 
@@ -275,21 +289,14 @@ export default function CreatorStudioInteractiveCanvas({
             />
           </div>
 
-          <CreatorStudioSuggestionChips
+          <CreatorStudioEditorialHints
             design={design}
-            onChange={onChange}
-            onFocusLayer={(layer) => {
-              onSelectLayer(layer);
-              setEditingLayer(layer);
-            }}
+            onApplyTitle={(title) => onChange({ title })}
+            onApplyCaption={(caption) => onChange({ caption })}
+            onFocusScripture={() => onSelectLayer("scripture")}
           />
         </div>
       </motion.div>
-
-      <p className="mt-3 px-1 text-center text-xs font-medium leading-5 text-slate-500">
-        Tap any text to edit. Drag to move. Pinch-friendly sizing on the floating
-        toolbar.
-      </p>
     </div>
   );
 }
