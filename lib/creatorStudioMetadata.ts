@@ -1,0 +1,325 @@
+import {
+  getCreationCenterTemplate,
+  type CreationCenterTemplateId,
+  type CreatorStudioDesign,
+  type CreatorStudioLayerStyle,
+  type CreatorStudioLayoutType,
+  type CreatorStudioTextLayer,
+} from "./creationCenter";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readStringArray(value: unknown, limit = 8) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function isHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value.trim());
+}
+
+const layoutTypes: CreatorStudioLayoutType[] = [
+  "full-image-poster",
+  "text-over-image-testimony",
+  "split-layout",
+  "quote-card",
+  "prayer-request-card",
+  "praise-report-card",
+  "scripture-card",
+  "photo-collage",
+  "video-photo-mixed",
+  "before-after-testimony",
+  "timeline-story",
+  "magazine-style",
+  "journal-style",
+];
+
+function readLayoutType(value: unknown): CreatorStudioLayoutType {
+  return typeof value === "string" &&
+    layoutTypes.includes(value as CreatorStudioLayoutType)
+    ? (value as CreatorStudioLayoutType)
+    : "text-over-image-testimony";
+}
+
+function readTemplateId(value: unknown): CreationCenterTemplateId {
+  if (typeof value !== "string") return "scripture-woods";
+
+  const template = getCreationCenterTemplate(value as CreationCenterTemplateId);
+
+  if (template?.id && template.id !== "none") {
+    return template.id;
+  }
+
+  return "scripture-woods";
+}
+
+const creatorStudioTextLayerKeys: CreatorStudioTextLayer[] = [
+  "title",
+  "overlay",
+  "caption",
+  "scripture",
+  "callToAction",
+];
+
+function readNumber(value: unknown, fallback?: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
+  if (!isRecord(value)) return null;
+
+  const fontSize = readString(value.fontSize);
+  const weight = readString(value.weight);
+  const align = readString(value.align);
+  const position = readString(value.position);
+  const color = readString(value.color);
+
+  return {
+    fontSize:
+      fontSize === "small" ||
+      fontSize === "medium" ||
+      fontSize === "large" ||
+      fontSize === "hero"
+        ? fontSize
+        : undefined,
+    fontScale: readNumber(value.fontScale),
+    weight: weight === "regular" || weight === "bold" ? weight : undefined,
+    italic: typeof value.italic === "boolean" ? value.italic : undefined,
+    align:
+      align === "left" || align === "center" || align === "right"
+        ? align
+        : undefined,
+    color: isHexColor(color) ? color : undefined,
+    position:
+      position === "top-left" ||
+      position === "top-center" ||
+      position === "top-right" ||
+      position === "center" ||
+      position === "bottom-left" ||
+      position === "bottom-center" ||
+      position === "bottom-right"
+        ? position
+        : undefined,
+    x: readNumber(value.x),
+    y: readNumber(value.y),
+    hidden: typeof value.hidden === "boolean" ? value.hidden : undefined,
+    opacity: readNumber(value.opacity),
+    letterSpacing: readNumber(value.letterSpacing),
+    lineHeight: readNumber(value.lineHeight),
+    shadowStrength: readNumber(value.shadowStrength),
+    outlineWidth: readNumber(value.outlineWidth),
+    rotation: readNumber(value.rotation),
+    layerOrder: readNumber(value.layerOrder),
+  };
+}
+
+function readLayerStyles(
+  value: unknown
+): CreatorStudioDesign["layerStyles"] | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const layerStyles = Object.fromEntries(
+    creatorStudioTextLayerKeys
+      .map((layer) => {
+        const style = readLayerStyle(value[layer]);
+        return style ? [layer, style] : null;
+      })
+      .filter(
+        (
+          entry
+        ): entry is [CreatorStudioTextLayer, CreatorStudioLayerStyle] =>
+          Boolean(entry)
+      )
+  ) as CreatorStudioDesign["layerStyles"];
+
+  return layerStyles && Object.keys(layerStyles).length > 0
+    ? layerStyles
+    : undefined;
+}
+
+function readTextStyle(
+  value: unknown
+): NonNullable<CreatorStudioDesign["textStyle"]> {
+  const style = isRecord(value) ? value : {};
+  const fontSize = readString(style.fontSize);
+  const weight = readString(style.weight);
+  const align = readString(style.align);
+  const position = readString(style.position);
+  const color = readString(style.color);
+  const fontScaleRaw = style.fontScale;
+  const fontScale =
+    typeof fontScaleRaw === "number" && Number.isFinite(fontScaleRaw)
+      ? Math.min(1.5, Math.max(0.75, fontScaleRaw))
+      : undefined;
+
+  return {
+    fontSize:
+      fontSize === "small" ||
+      fontSize === "medium" ||
+      fontSize === "large" ||
+      fontSize === "hero"
+        ? fontSize
+        : "large",
+    weight: weight === "regular" || weight === "bold" ? weight : "bold",
+    italic: typeof style.italic === "boolean" ? style.italic : false,
+    align:
+      align === "left" || align === "center" || align === "right"
+        ? align
+        : "left",
+    color: isHexColor(color) ? color : "#FFFFFF",
+    position:
+      position === "top" || position === "center" || position === "bottom"
+        ? position
+        : "bottom",
+    fontScale,
+  };
+}
+
+export function readCreatorStudioDesignRecord(
+  value: unknown
+): CreatorStudioDesign | null {
+  if (!isRecord(value)) return null;
+
+  const title = readString(value.title);
+  const overlayText =
+    readString(value.overlayText) || readString(value.overlay_text) || title;
+  const caption =
+    readString(value.caption) || overlayText || title;
+
+  if (!title && !overlayText && !caption) return null;
+
+  const palette = readStringArray(value.colorPalette, 5).filter(isHexColor);
+
+  return {
+    id: readString(value.id) || "creator-studio-feed",
+    studioPath:
+      value.studioPath === "create-design" ||
+      value.studioPath === "scripture-post" ||
+      value.studioPath === "ai-surprise"
+        ? value.studioPath
+        : "tell-story",
+    sourceMode:
+      value.sourceMode === "upload-video" ||
+      value.sourceMode === "upload-photo" ||
+      value.sourceMode === "start-template"
+        ? value.sourceMode
+        : "build-ai",
+    title: title || overlayText || "God Is Moving",
+    overlayText: overlayText || title,
+    caption,
+    category: readString(value.category) || "Testimony",
+    topic: readString(value.topic) || readString(value.category) || "Hope",
+    templateId: readTemplateId(value.templateId ?? value.template),
+    styleMood: readString(value.styleMood) || readString(value.style_mood) || "Hopeful",
+    layoutType: readLayoutType(value.layoutType ?? value.layout_type),
+    scriptureSuggestion:
+      readString(value.scriptureSuggestion) ||
+      readString(value.scripture_suggestion),
+    suggestedPostFormat:
+      readString(value.suggestedPostFormat) ||
+      readString(value.suggested_post_format) ||
+      "HTBF design post",
+    colorPalette: palette.length > 0 ? palette : ["#062A57", "#FFFFFF", "#D4AF37"],
+    typographyStyle:
+      readString(value.typographyStyle) || readString(value.typography_style),
+    designTreatment:
+      readString(value.designTreatment) || readString(value.design_treatment),
+    callToAction:
+      readString(value.callToAction) || readString(value.call_to_action),
+    typographyPairing:
+      readString(value.typographyPairing) ||
+      readString(value.typography_pairing),
+    fontHierarchy:
+      readString(value.fontHierarchy) || readString(value.font_hierarchy),
+    backgroundTreatment:
+      readString(value.backgroundTreatment) ||
+      readString(value.background_treatment),
+    layoutComposition:
+      readString(value.layoutComposition) ||
+      readString(value.layout_composition),
+    overlayStyle:
+      readString(value.overlayStyle) || readString(value.overlay_style),
+    decorativeElements:
+      readString(value.decorativeElements) ||
+      readString(value.decorative_elements),
+    visualTheme:
+      readString(value.visualTheme) || readString(value.visual_theme),
+    filterRecommendation:
+      readString(value.filterRecommendation) ||
+      readString(value.filter_recommendation),
+    cropRecommendation:
+      readString(value.cropRecommendation) ||
+      readString(value.crop_recommendation),
+    generatedImageUrl:
+      readString(value.generatedImageUrl) ||
+      readString(value.generated_image_url),
+    generatedImagePath:
+      readString(value.generatedImagePath) ||
+      readString(value.generated_image_path),
+    generatedImageBucket:
+      readString(value.generatedImageBucket) ||
+      readString(value.generated_image_bucket),
+    imageGenerationPrompt:
+      readString(value.imageGenerationPrompt) ||
+      readString(value.image_generation_prompt),
+    alternateTitles: readStringArray(value.alternateTitles, 4),
+    alternateCaptions: readStringArray(value.alternateCaptions, 4),
+    hashtags: readStringArray(value.hashtags, 8),
+    conceptReason:
+      readString(value.conceptReason) || readString(value.concept_reason),
+    textStyle: readTextStyle(value.textStyle ?? value.text_style),
+    scriptureText: readString(value.scriptureText) || readString(value.scripture_text),
+    layerStyles: readLayerStyles(value.layerStyles ?? value.layer_styles),
+  };
+}
+
+export function readCreatorStudioDesignFromSuggestions(
+  value: unknown
+): CreatorStudioDesign | null {
+  const metadata = isRecord(value) ? value : null;
+  if (!metadata) return null;
+
+  return readCreatorStudioDesignRecord(metadata.creatorStudioDesign);
+}
+
+export function readCreationModeFromSuggestions(value: unknown) {
+  const metadata = isRecord(value) ? value : null;
+
+  return readString(metadata?.creation_mode) || readString(metadata?.creationMode);
+}
+
+export function isCreatorStudioFeedPost({
+  aiSuggestions,
+}: {
+  aiSuggestions: unknown;
+  hasVideoMedia?: boolean;
+  hasImageMedia?: boolean;
+}) {
+  const design = readCreatorStudioDesignFromSuggestions(aiSuggestions);
+  const creationMode = readCreationModeFromSuggestions(aiSuggestions);
+
+  return Boolean(design && creationMode === "creator-studio");
+}
+
+export function resolveCreatorStudioBackgroundUrl(
+  design: CreatorStudioDesign
+): string | null {
+  if (design.generatedImageUrl) {
+    return design.generatedImageUrl;
+  }
+
+  const template = getCreationCenterTemplate(design.templateId);
+
+  return template?.imagePath ?? null;
+}
