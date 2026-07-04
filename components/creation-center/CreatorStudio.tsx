@@ -2,13 +2,13 @@
 
 import {
   ChevronLeft,
-  ChevronRight,
   ImagePlus,
+  PenLine,
   Sparkles,
   Upload,
   Video,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   creationCenterStoryTemplates,
   creatorStudioBottomToolbar,
@@ -34,9 +34,10 @@ import CreatorStudioGeneration from "./CreatorStudioGeneration";
 import CreatorStudioLayoutEditor, {
   type CreatorStudioEditorPanel,
 } from "./CreatorStudioLayoutEditor";
-import CreatorStudioPreview from "./CreatorStudioPreview";
+import CreatorStudioStoryRenderer from "./CreatorStudioStoryRenderer";
 
 type StudioScreen = "home" | "thinking" | "choose" | "editor" | "publish";
+type HomeStep = "welcome" | "write";
 
 type CreatorStudioProps = {
   designs: CreatorStudioDesign[];
@@ -189,6 +190,9 @@ export default function CreatorStudio({
   onUseDesign,
 }: CreatorStudioProps) {
   const [screen, setScreen] = useState<StudioScreen>("home");
+  const [homeStep, setHomeStep] = useState<HomeStep>("welcome");
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const [studioPath, setStudioPath] = useState<CreatorStudioPath>("tell-story");
   const [prompt, setPrompt] = useState("");
   const [selectedChips, setSelectedChips] = useState<string[]>([]);
@@ -289,7 +293,49 @@ export default function CreatorStudio({
       designs.find((design) => design.id === selectedDesignId) ?? designs[0];
     setSelectedDesignId(nextDesign.id);
     setImageEnhancedDesign(null);
-    openEditor({ ...nextDesign, layerStyles: undefined });
+    setScreen("choose");
+  }
+
+  function openEditorFromMedia(design?: CreatorStudioDesign) {
+    const base = design ?? {
+      ...canvasDesign,
+      caption: prompt.trim() || canvasDesign.caption,
+      title:
+        prompt.trim().slice(0, 64) ||
+        canvasDesign.title ||
+        "What God has done",
+      overlayText:
+        prompt.trim().slice(0, 120) ||
+        canvasDesign.overlayText ||
+        "Share what God is doing",
+    };
+    const nextDesign = prepareCreatorStudioForEditing({
+      ...base,
+      layerStyles: undefined,
+    });
+    setEditableDesign(nextDesign);
+    setScreen("editor");
+  }
+
+  function handlePhotoSelected(file: File | null) {
+    if (!file) return;
+    onFormatChange("photo");
+    onPhotoSelect(file);
+    setTemplateId("none");
+    openEditorFromMedia();
+  }
+
+  function handleVideoSelected(file: File | null) {
+    if (!file) return;
+    onFormatChange("video");
+    onVideoSelect(file);
+    setTemplateId("none");
+    openEditorFromMedia();
+  }
+
+  function handleWriteContinue() {
+    if (!prompt.trim()) return;
+    generateDesigns();
   }
 
   const designsReady = hasRequested && !loading && designs.length > 0;
@@ -431,18 +477,45 @@ export default function CreatorStudio({
   }
 
   return (
-    <section className="w-full min-w-0 overflow-hidden rounded-[2rem] bg-[#f8fafc] shadow-2xl shadow-blue-950/10 ring-1 ring-blue-100">
-      <header className="flex items-center justify-between border-b border-blue-100 bg-white px-4 py-4 sm:px-6">
-        <button type="button" onClick={onBack} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-blue-50 px-4 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
+    <section
+      className={`relative w-full min-w-0 overflow-hidden bg-[#f8fafc] ${
+        currentScreen === "editor" || currentScreen === "publish"
+          ? "rounded-none shadow-none ring-0"
+          : "rounded-[2rem] shadow-2xl shadow-blue-950/10 ring-1 ring-blue-100"
+      }`}
+    >
+      <header
+        className={`flex items-center justify-between border-b border-blue-100 bg-white px-4 py-4 sm:px-6 ${
+          currentScreen === "editor" ? "absolute inset-x-0 top-0 z-50 border-transparent bg-transparent" : ""
+        }`}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          className={`inline-flex min-h-12 items-center gap-2 rounded-full px-4 text-xs font-black ring-1 ${
+            currentScreen === "editor"
+              ? "bg-black/30 text-white ring-white/15 backdrop-blur-md"
+              : "bg-blue-50 text-[#0b63ce] ring-blue-100"
+          }`}
+        >
           <ChevronLeft className="h-4 w-4" /> Back
         </button>
-        <h2 className="text-lg font-black text-[#062a57]">Creator Studio</h2>
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0b63ce] ring-1 ring-blue-100">{currentPathLabel}</span>
+        {currentScreen !== "editor" && (
+          <>
+            <h2 className="text-lg font-black text-[#062a57]">Creator Studio</h2>
+            <span className="w-16" />
+          </>
+        )}
+        {currentScreen === "editor" && <span className="w-16" />}
       </header>
 
       <div
-        className={`p-3 sm:p-5 ${
-          currentScreen === "thinking" ? "min-h-0 flex flex-col" : ""
+        className={`${
+          currentScreen === "editor"
+            ? "p-0"
+            : currentScreen === "thinking"
+              ? "min-h-0 flex flex-col p-3 sm:p-5"
+              : "p-3 sm:p-5"
         }`}
       >
         {currentScreen === "thinking" && (
@@ -461,46 +534,99 @@ export default function CreatorStudio({
         )}
 
         {currentScreen === "home" && (
-          <div className="mx-auto grid min-w-0 max-w-3xl gap-5">
-            <section className="overflow-hidden rounded-[1.75rem] bg-white p-5 ring-1 ring-blue-100 sm:p-7">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b63ce]">
-                Share what God has done
-              </p>
-              <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57] sm:text-3xl">
-                Tell your story. We&apos;ll help it shine.
-              </h3>
-              <p className="mt-3 text-sm font-medium leading-7 text-slate-500">
-                Add a photo or video, write a few words, and HTBF will compose
-                six beautiful directions — already styled for you to refine.
-              </p>
+          <div className="mx-auto grid min-w-0 max-w-lg gap-6 py-6 sm:py-10">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/*"
+              className="hidden"
+              onChange={(event) => {
+                handlePhotoSelected(event.target.files?.[0] ?? null);
+                event.target.value = "";
+              }}
+            />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(event) => {
+                handleVideoSelected(event.target.files?.[0] ?? null);
+                event.target.value = "";
+              }}
+            />
 
-              <div className="mt-5 flex min-w-0 flex-wrap gap-2">
-                <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-[#062a57] px-4 text-xs font-black text-white transition hover:bg-[#0b63ce]">
-                  <ImagePlus className="h-4 w-4" /> Photo
-                  <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { onFormatChange("photo"); onPhotoSelect(e.target.files?.[0] ?? null); setTemplateId("none"); }} />
-                </label>
-                <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-[#0b63ce] px-4 text-xs font-black text-white">
-                  <Video className="h-4 w-4" /> Video
-                  <input type="file" accept="video/*" className="hidden" onChange={(e) => { onFormatChange("video"); onVideoSelect(e.target.files?.[0] ?? null); setTemplateId("none"); }} />
-                </label>
-              </div>
+            {homeStep === "welcome" ? (
+              <section className="overflow-hidden rounded-[2rem] bg-white p-6 text-center ring-1 ring-blue-100 sm:p-10">
+                <h3 className="text-3xl font-black leading-tight text-[#062a57] sm:text-4xl">
+                  What has God done?
+                </h3>
+                <p className="mx-auto mt-3 max-w-sm text-sm font-medium leading-7 text-slate-500">
+                  Share your testimony in a beautiful way.
+                </p>
 
-              {(photoPreviewUrl || videoPreviewUrl) && (
-                <div className="mt-5 overflow-hidden rounded-[1.25rem] ring-1 ring-blue-100">
-                  <CreatorStudioPreview design={canvasDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} canvas />
+                <div className="mt-8 grid gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setHomeStep("write")}
+                    className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[1.25rem] bg-[#062a57] px-5 text-base font-black text-white transition hover:bg-[#0b63ce]"
+                  >
+                    <PenLine className="h-5 w-5" />
+                    Write
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[1.25rem] bg-white px-5 text-base font-black text-[#062a57] ring-1 ring-blue-100 transition hover:bg-blue-50"
+                  >
+                    <ImagePlus className="h-5 w-5" />
+                    Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => videoInputRef.current?.click()}
+                    className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[1.25rem] bg-white px-5 text-base font-black text-[#062a57] ring-1 ring-blue-100 transition hover:bg-blue-50"
+                  >
+                    <Video className="h-5 w-5" />
+                    Video
+                  </button>
                 </div>
-              )}
-
-              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="What has God done in your life?" className="mt-5 w-full resize-none rounded-[1.25rem] border-0 bg-blue-50/80 px-4 py-4 text-sm font-medium leading-7 text-[#062a57] outline-none ring-1 ring-blue-100 focus:ring-2 focus:ring-[#0b63ce]" />
-
-              <button type="button" onClick={generateDesigns} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#062a57]">
-                <Sparkles className="h-4 w-4" /> Create my testimony
-              </button>
-
-              <button type="button" onClick={() => openEditor(canvasDesign)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-full text-xs font-semibold text-slate-500 transition hover:text-[#0b63ce]">
-                Or start with a blank canvas
-              </button>
-            </section>
+              </section>
+            ) : (
+              <section className="overflow-hidden rounded-[2rem] bg-white p-6 ring-1 ring-blue-100 sm:p-8">
+                <button
+                  type="button"
+                  onClick={() => setHomeStep("welcome")}
+                  className="text-xs font-semibold text-slate-400"
+                >
+                  ← Back
+                </button>
+                <h3 className="mt-4 text-2xl font-black text-[#062a57]">
+                  What has God done?
+                </h3>
+                <p className="mt-2 text-sm font-medium leading-7 text-slate-500">
+                  Write freely. We&apos;ll shape six beautiful directions from
+                  your words.
+                </p>
+                <textarea
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  rows={6}
+                  autoFocus
+                  placeholder="Tell your story in your own words..."
+                  className="mt-5 w-full resize-none rounded-[1.25rem] border-0 bg-blue-50/80 px-4 py-4 text-base font-medium leading-7 text-[#062a57] outline-none ring-1 ring-blue-100 focus:ring-2 focus:ring-[#0b63ce]"
+                />
+                <button
+                  type="button"
+                  onClick={handleWriteContinue}
+                  disabled={!prompt.trim()}
+                  className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#062a57] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Continue
+                </button>
+              </section>
+            )}
           </div>
         )}
 
@@ -508,14 +634,14 @@ export default function CreatorStudio({
           <div className="mx-auto grid max-w-6xl min-w-0 gap-4">
             <section className="rounded-[1.5rem] bg-white/80 p-4 ring-1 ring-blue-100 sm:p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b63ce]">
-                Six directions
+                Six editorial directions
               </p>
               <h3 className="mt-1 text-xl font-black text-[#062a57]">
-                Each concept has its own visual personality
+                Each one tells your story differently
               </h3>
               <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
-                Tap one to continue editing on the canvas. Your words stay
-                exactly as you wrote them.
+                Quiet reflection, magazine cover, bold declaration, and more.
+                Pick the one that feels closest — then refine on your canvas.
               </p>
             </section>
 
@@ -551,6 +677,8 @@ export default function CreatorStudio({
             onRemoveVideo={onRemoveVideo}
             onRemovePhoto={onRemovePhoto}
             showChangeConcept={designs.length > 0}
+            showGenerateConcepts={designs.length === 0 && Boolean(prompt.trim() || toolbarContextDesign.caption.trim())}
+            onGenerateConcepts={generateDesigns}
             onChangeConcept={() => setScreen("choose")}
             onContinueToPublish={() => {
               const readyDesign = prepareCreatorStudioForEditing(toolbarContextDesign);
@@ -598,24 +726,40 @@ export default function CreatorStudio({
         )}
 
         {currentScreen === "publish" && toolbarContextDesign && (
-          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.68fr)_minmax(0,0.32fr)]">
-            <CreatorStudioPreview design={toolbarContextDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} variant="publish" />
-            <aside className="rounded-[1.75rem] bg-white p-5 ring-1 ring-blue-100">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b63ce]">
-                You&apos;re ready
-              </p>
-              <p className="mt-2 text-lg font-black text-[#062a57]">
-                Your testimony looks beautiful.
-              </p>
-              <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
-                Share it with the HTBF community when you feel confident. You can
-                still adjust the caption below.
-              </p>
-              <textarea value={toolbarContextDesign.caption} onChange={(e) => setEditableDesign((current) => ({ ...(current ?? toolbarContextDesign), caption: e.target.value }))} rows={5} placeholder="A few words about what God has done..." className="mt-4 w-full resize-none rounded-[1.25rem] border-0 bg-blue-50/70 px-4 py-3 text-sm font-medium leading-7 text-[#062a57] outline-none ring-1 ring-blue-100 focus:ring-2 focus:ring-[#0b63ce]" />
-              <button type="submit" onClick={() => onUseDesign(prepareCreatorStudioForEditing(toolbarContextDesign))} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white shadow-lg shadow-blue-900/15">
-                Share my testimony <Upload className="h-4 w-4" />
-              </button>
-            </aside>
+          <div className="mx-auto grid min-w-0 max-w-lg gap-5 py-4">
+            <p className="px-1 text-center text-sm font-medium text-slate-500">
+              This is exactly how your testimony will appear in the feed.
+            </p>
+            <CreatorStudioStoryRenderer
+              design={toolbarContextDesign}
+              videoPreviewUrl={videoPreviewUrl}
+              photoPreviewUrl={photoPreviewUrl}
+              variant="publish"
+            />
+            <textarea
+              value={toolbarContextDesign.caption}
+              onChange={(event) =>
+                setEditableDesign((current) => ({
+                  ...(current ?? toolbarContextDesign),
+                  caption: event.target.value,
+                }))
+              }
+              rows={4}
+              placeholder="A few words about what God has done..."
+              className="w-full resize-none rounded-[1.25rem] border-0 bg-white px-4 py-3 text-sm font-medium leading-7 text-[#062a57] outline-none ring-1 ring-blue-100 focus:ring-2 focus:ring-[#0b63ce]"
+            />
+            <button
+              type="submit"
+              onClick={() => {
+                const preparedDesign =
+                  prepareCreatorStudioForEditing(toolbarContextDesign);
+                onUseDesign(preparedDesign);
+              }}
+              className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-base font-black text-white shadow-lg shadow-blue-900/15"
+            >
+              Share Testimony
+              <Upload className="h-4 w-4" />
+            </button>
           </div>
         )}
 
