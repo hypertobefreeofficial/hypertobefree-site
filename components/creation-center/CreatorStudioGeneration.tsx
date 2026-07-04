@@ -5,7 +5,7 @@ import {
   motion,
   useReducedMotion,
 } from "framer-motion";
-import { BookOpen, Check, Cross, Lock, Sparkles } from "lucide-react";
+import { BookOpen, Check, CheckCircle2, Cross, Layers, Lock, PenTool } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CreatorStudioDesign } from "../../lib/creationCenter";
 
@@ -36,19 +36,19 @@ const progressSteps = [
     icon: Cross,
   },
   {
-    title: "Discovering themes",
-    detail: "Exploring creative directions.",
-    icon: Sparkles,
+    title: "Exploring creative directions",
+    detail: "Discovering themes for your testimony.",
+    icon: Layers,
   },
   {
-    title: "Creating visual concepts",
+    title: "Preparing visual elements",
     detail: "Designing multiple inspired concepts.",
-    icon: Sparkles,
+    icon: PenTool,
   },
   {
-    title: "Final polish",
+    title: "Finalizing your concepts",
     detail: "Wrapping up your six unique designs.",
-    icon: Sparkles,
+    icon: CheckCircle2,
   },
 ] as const;
 
@@ -74,7 +74,24 @@ function HeroOrb({ phase, reducedMotion }: { phase: GenerationPhase; reducedMoti
   return (
     <div className="relative mx-auto flex aspect-square w-[min(42vw,9.5rem)] items-center justify-center sm:w-[min(34vw,11rem)]">
       <motion.div
-        className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.35),transparent_68%)]"
+        className="absolute inset-[6%] rounded-full bg-[radial-gradient(circle,rgba(191,219,254,0.42)_0%,rgba(96,165,250,0.28)_38%,rgba(255,255,255,0.08)_62%,transparent_78%)] blur-[2px]"
+        animate={
+          reducedMotion
+            ? { opacity: completing ? 0.95 : 0.6 }
+            : {
+                opacity: completing ? [0.75, 1, 0.88] : [0.45, 0.72, 0.5],
+                scale: completing ? [1, 1.12, 1.04] : [1, 1.05, 1],
+              }
+        }
+        transition={{
+          duration: reducedMotion ? 0.3 : completing ? 1.8 : 3.2,
+          repeat: completing || reducedMotion ? 0 : Infinity,
+          ease: "easeInOut",
+        }}
+      />
+
+      <motion.div
+        className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.22),transparent_68%)]"
         animate={
           reducedMotion
             ? { opacity: completing ? 0.95 : 0.55 }
@@ -144,13 +161,21 @@ function HeroOrb({ phase, reducedMotion }: { phase: GenerationPhase; reducedMoti
         animate={{ opacity: phase === "exit" ? 0 : 1 }}
         transition={{ duration: 0.55 }}
       >
-        <Sparkles className="mb-1 h-4 w-4 text-[#93c5fd]" />
         <p className="text-[9px] font-black uppercase tracking-[0.22em] text-blue-100/90">
           AI Thinking
         </p>
-        <p className="mt-1 text-sm font-black leading-tight text-white sm:text-base">
+
+        <div className="relative my-2.5 flex h-[3.4rem] w-[3.4rem] items-center justify-center sm:h-[3.75rem] sm:w-[3.75rem]">
+          <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.28)_0%,rgba(147,197,253,0.38)_45%,transparent_72%)]" />
+          <Layers
+            className="relative h-8 w-8 text-white/95 drop-shadow-[0_0_20px_rgba(191,219,254,0.75)] sm:h-9 sm:w-9"
+            strokeWidth={1.5}
+          />
+        </div>
+
+        <p className="text-sm font-black leading-tight text-white sm:text-base">
           Creating your{" "}
-          <span className="bg-gradient-to-r from-[#93c5fd] to-[#c4b5fd] bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-[#dbeafe] via-[#93c5fd] to-[#c4b5fd] bg-clip-text text-transparent">
             designs
           </span>
         </p>
