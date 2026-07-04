@@ -98,6 +98,49 @@ function readBearerToken(request: Request) {
     : "";
 }
 
+function readConfiguredEnv(name: string) {
+  return process.env[name]?.trim() ?? "";
+}
+
+function resolveShapeStoryAuthFailure(accessToken: string) {
+  const supabaseUrl = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseAnonKey = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (!supabaseUrl) {
+    console.error("[shape-story] Missing NEXT_PUBLIC_SUPABASE_URL");
+    return Response.json(
+      {
+        error:
+          "Server misconfiguration: NEXT_PUBLIC_SUPABASE_URL is not set.",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (!supabaseAnonKey) {
+    console.error("[shape-story] Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    return Response.json(
+      {
+        error:
+          "Server misconfiguration: NEXT_PUBLIC_SUPABASE_ANON_KEY is not set.",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (!accessToken) {
+    console.error("[shape-story] Missing Authorization Bearer token");
+    return Response.json(
+      {
+        error: "Unauthorized: missing session token. Please sign in again.",
+      },
+      { status: 401 }
+    );
+  }
+
+  return null;
+}
+
 function fallbackShape(body: Record<string, unknown>): StoryShapeResponse {
   const storyType =
     readString(body.storyType) || readString(body.story_type) || "testimony";
@@ -610,13 +653,15 @@ function cleanCreatorStudioResponse(
 }
 
 export async function POST(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const accessToken = readBearerToken(request);
+  const authFailure = resolveShapeStoryAuthFailure(accessToken);
 
-  if (!supabaseUrl || !supabaseAnonKey || !accessToken) {
-    return Response.json({ error: "Unauthorized." }, { status: 401 });
+  if (authFailure) {
+    return authFailure;
   }
+
+  const supabaseUrl = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseAnonKey = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -626,7 +671,13 @@ export async function POST(request: Request) {
   } = await authClient.auth.getUser(accessToken);
 
   if (!user) {
-    return Response.json({ error: "Unauthorized." }, { status: 401 });
+    console.error("[shape-story] Supabase auth.getUser returned no user");
+    return Response.json(
+      {
+        error: "Unauthorized: session expired or invalid. Please sign in again.",
+      },
+      { status: 401 }
+    );
   }
 
   let body: unknown;
@@ -646,9 +697,19 @@ export async function POST(request: Request) {
     readString(body.mode) || readString(body.requestMode) || "";
 
   if (requestMode === "creator_studio") {
+    console.log("[shape-story/creator_studio] POST received", {
+      hasOpenAiKey: Boolean(apiKey),
+      hasSupabaseUrl: Boolean(supabaseUrl),
+      hasSupabaseAnonKey: Boolean(supabaseAnonKey),
+      userId: user.id,
+    });
+
     const fallback = fallbackCreatorStudioDesigns(body);
 
     if (!apiKey) {
+      console.warn(
+        "[shape-story/creator_studio] OPENAI_API_KEY missing; returning fallback designs"
+      );
       return Response.json({
         ...fallback,
         fallbackReason: "Creator Studio is not connected to OpenAI yet.",
@@ -694,6 +755,8 @@ export async function POST(request: Request) {
     ].join("\n\n");
 
     try {
+      console.log("[shape-story/creator_studio] Calling OpenAI chat/completions");
+
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -867,7 +930,17 @@ export async function POST(request: Request) {
         cache: "no-store",
       });
 
+      console.log("[shape-story/creator_studio] OpenAI HTTP response", {
+        ok: response.ok,
+        status: response.status,
+      });
+
       if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        console.error(
+          "[shape-story/creator_studio] OpenAI error body:",
+          errorBody.slice(0, 500)
+        );
         return Response.json({
           ...fallback,
           fallbackReason: "Creator Studio could not reach OpenAI.",
@@ -884,17 +957,43 @@ export async function POST(request: Request) {
           : null;
 
       if (typeof content !== "string") {
+        console.error(
+          "[shape-story/creator_studio] OpenAI returned no string content:",
+          payload
+        );
         return Response.json({
           ...fallback,
           fallbackReason: "Creator Studio received an empty OpenAI response.",
         });
       }
 
-      return Response.json(
-        cleanCreatorStudioResponse(JSON.parse(content), fallback)
-      );
+      let parsedContent: unknown;
+
+      try {
+        parsedContent = JSON.parse(content);
+      } catch (parseError) {
+        console.error(
+          "[shape-story/creator_studio] OpenAI content JSON.parse failed:",
+          parseError
+        );
+        console.error(
+          "[shape-story/creator_studio] Raw content preview:",
+          content.slice(0, 400)
+        );
+        return Response.json({
+          ...fallback,
+          fallbackReason: "Creator Studio could not parse OpenAI JSON.",
+        });
+      }
+
+      const cleaned = cleanCreatorStudioResponse(parsedContent, fallback);
+      console.log("[shape-story/creator_studio] Returning designs", {
+        count: cleaned.designs.length,
+      });
+
+      return Response.json(cleaned);
     } catch (error) {
-      console.error("Creator Studio shaping failed:", error);
+      console.error("[shape-story/creator_studio] Unexpected failure:", error);
       return Response.json({
         ...fallback,
         fallbackReason: "Creator Studio could not generate with OpenAI.",
