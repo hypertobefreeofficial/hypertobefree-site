@@ -12,13 +12,11 @@ import { useEffect, useState } from "react";
 import {
   creationCenterStoryTemplates,
   creatorStudioBottomToolbar,
-  creatorStudioCategoryOptions,
   creatorStudioLayoutOptions,
-  creatorStudioMoodOptions,
   creatorStudioPathOptions,
   creatorStudioQuickActions,
   creatorStudioTopCarousel,
-  ensureCreatorStudioCanvasLayers,
+  prepareCreatorStudioForEditing,
   type CreationCenterFormat,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
@@ -31,6 +29,7 @@ import {
   type CreatorStudioSourceMode,
 } from "../../lib/creationCenter";
 import CreatorStudioCanvasEditor from "./CreatorStudioCanvasEditor";
+import CreatorStudioDesignCards from "./CreatorStudioDesignCards";
 import CreatorStudioGeneration from "./CreatorStudioGeneration";
 import CreatorStudioLayoutEditor, {
   type CreatorStudioEditorPanel,
@@ -163,10 +162,11 @@ function getSourceMode({
 function mapBottomToEditorPanel(tool: BottomTool): CreatorStudioEditorPanel {
   if (tool === "layout") return "layout";
   if (tool === "ai") return "ai";
-  if (tool === "filters") return "style";
+  if (tool === "filters") return "fonts";
   if (tool === "scripture") return "scripture";
   if (tool === "colors") return "colors";
-  if (tool === "fonts" || tool === "text") return "style";
+  if (tool === "fonts") return "fonts";
+  if (tool === "text") return "text";
   return "templates";
 }
 
@@ -217,7 +217,7 @@ export default function CreatorStudio({
   const [activeTopTool, setActiveTopTool] = useState<TopTool>("ai");
   const [activeBottomTool, setActiveBottomTool] = useState<BottomTool>("text");
   const [activeEditorPanel, setActiveEditorPanel] =
-    useState<CreatorStudioEditorPanel>("style");
+    useState<CreatorStudioEditorPanel>("text");
   const [showHomeExtras, setShowHomeExtras] = useState(false);
   const [hasRequested, setHasRequested] = useState(false);
   const [resultTouchStartX, setResultTouchStartX] = useState<number | null>(null);
@@ -230,6 +230,14 @@ export default function CreatorStudio({
     position: "bottom",
   });
   const [colorPalette, setColorPalette] = useState<string[]>(["#0B1D3A", "#FFFFFF", "#D4AF37"]);
+
+  useEffect(() => {
+    if (!hasRequested || loading || designs.length > 0 || !message) {
+      return;
+    }
+
+    setScreen("home");
+  }, [hasRequested, loading, designs.length, message]);
 
   const sourceMode = getSourceMode({
     hasVideo: Boolean(videoPreviewUrl),
@@ -280,9 +288,8 @@ export default function CreatorStudio({
     const nextDesign =
       designs.find((design) => design.id === selectedDesignId) ?? designs[0];
     setSelectedDesignId(nextDesign.id);
-    setEditableDesign(nextDesign);
     setImageEnhancedDesign(null);
-    setScreen("choose");
+    openEditor({ ...nextDesign, layerStyles: undefined });
   }
 
   const designsReady = hasRequested && !loading && designs.length > 0;
@@ -377,9 +384,8 @@ export default function CreatorStudio({
 
   function openEditor(design?: CreatorStudioDesign | null) {
     const baseDesign = design ?? toolbarContextDesign;
-    const nextDesign = ensureCreatorStudioCanvasLayers(baseDesign);
+    const nextDesign = prepareCreatorStudioForEditing(baseDesign);
     setEditableDesign(nextDesign);
-    setActiveEditorPanel("style");
     setScreen("editor");
   }
 
@@ -455,130 +461,75 @@ export default function CreatorStudio({
         )}
 
         {currentScreen === "home" && (
-          <div className="mx-auto grid min-w-0 max-w-4xl gap-4">
-            <div className="min-w-0 space-y-4 rounded-[1.5rem] bg-white p-3 ring-1 ring-blue-100 sm:p-5">
-              <div className="flex min-w-0 flex-wrap gap-2">
-                <label className="inline-flex min-h-12 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-[#062a57] px-4 text-xs font-black text-white">
+          <div className="mx-auto grid min-w-0 max-w-3xl gap-5">
+            <section className="overflow-hidden rounded-[1.75rem] bg-white p-5 ring-1 ring-blue-100 sm:p-7">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b63ce]">
+                Share what God has done
+              </p>
+              <h3 className="mt-2 text-2xl font-black leading-tight text-[#062a57] sm:text-3xl">
+                Tell your story. We&apos;ll help it shine.
+              </h3>
+              <p className="mt-3 text-sm font-medium leading-7 text-slate-500">
+                Add a photo or video, write a few words, and HTBF will compose
+                six beautiful directions — already styled for you to refine.
+              </p>
+
+              <div className="mt-5 flex min-w-0 flex-wrap gap-2">
+                <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-[#062a57] px-4 text-xs font-black text-white transition hover:bg-[#0b63ce]">
                   <ImagePlus className="h-4 w-4" /> Photo
                   <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { onFormatChange("photo"); onPhotoSelect(e.target.files?.[0] ?? null); setTemplateId("none"); }} />
                 </label>
-                <label className="inline-flex min-h-12 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-[#0b63ce] px-4 text-xs font-black text-white">
+                <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-[#0b63ce] px-4 text-xs font-black text-white">
                   <Video className="h-4 w-4" /> Video
                   <input type="file" accept="video/*" className="hidden" onChange={(e) => { onFormatChange("video"); onVideoSelect(e.target.files?.[0] ?? null); setTemplateId("none"); }} />
                 </label>
-                <button type="button" onClick={() => { onFormatChange("testimony-card"); setTemplateId("none"); }} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-blue-50 px-4 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-                  <Sparkles className="h-4 w-4" /> Blank design
-                </button>
               </div>
 
-              <div className="overflow-hidden rounded-[1.5rem] bg-[#031d3d] p-3 ring-1 ring-blue-100">
-                <p className="mb-3 px-1 text-xs font-black uppercase tracking-[0.14em] text-blue-100">
-                  Live canvas
-                </p>
-                <CreatorStudioPreview design={canvasDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} canvas />
-              </div>
-
-              {(photoFileName || videoFileName) && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {photoFileName && <button type="button" onClick={onRemovePhoto} className="min-h-12 rounded-2xl bg-blue-50 px-4 text-left text-xs font-black text-[#062a57] ring-1 ring-blue-100">Remove photo: {photoFileName}</button>}
-                  {videoFileName && <button type="button" onClick={onRemoveVideo} className="min-h-12 rounded-2xl bg-blue-50 px-4 text-left text-xs font-black text-[#062a57] ring-1 ring-blue-100">Remove video: {videoFileName}</button>}
+              {(photoPreviewUrl || videoPreviewUrl) && (
+                <div className="mt-5 overflow-hidden rounded-[1.25rem] ring-1 ring-blue-100">
+                  <CreatorStudioPreview design={canvasDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} canvas />
                 </div>
               )}
-            </div>
 
-            <section className="min-w-0 rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100 sm:p-5">
-              <h3 className="text-sm font-black text-[#062a57]">Start with AI</h3>
-              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                Describe your story, generate concepts, then edit everything in the design editor.
-              </p>
-              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="Tell us what God is doing..." className="mt-4 w-full resize-none rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm font-semibold text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100" />
-              <div className="mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                {inspirationChips.map((chip) => (
-                  <button key={chip} type="button" onClick={() => setSelectedChips((c) => (c.includes(chip) ? c.filter((x) => x !== chip) : [...c, chip]))} className={`min-h-11 shrink-0 rounded-full px-4 text-xs font-black ring-1 ${selectedChips.includes(chip) ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-slate-600 ring-blue-100"}`}>
-                    {chip}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <button type="button" onClick={generateDesigns} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">
-                  <Sparkles className="h-4 w-4" /> Generate 6 Concepts
-                </button>
-                <button type="button" onClick={() => openEditor(canvasDesign)} className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-4 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100">
-                  Edit manually
-                </button>
-              </div>
-            </section>
+              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="What has God done in your life?" className="mt-5 w-full resize-none rounded-[1.25rem] border-0 bg-blue-50/80 px-4 py-4 text-sm font-medium leading-7 text-[#062a57] outline-none ring-1 ring-blue-100 focus:ring-2 focus:ring-[#0b63ce]" />
 
-            <section className="min-w-0 rounded-[1.5rem] bg-white ring-1 ring-blue-100">
-              <button type="button" onClick={() => setShowHomeExtras((current) => !current)} className="flex min-h-12 w-full items-center justify-between px-4 text-left text-sm font-black text-[#062a57] sm:px-5">
-                More starting options
-                <span className="text-xs font-black text-[#0b63ce]">{showHomeExtras ? "Hide" : "Show"}</span>
+              <button type="button" onClick={generateDesigns} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#062a57]">
+                <Sparkles className="h-4 w-4" /> Create my testimony
               </button>
-              {showHomeExtras && (
-                <div className="space-y-4 border-t border-blue-100 px-4 pb-4 pt-3 sm:px-5">
-                  <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                    {creatorStudioTopCarousel.map((tool) => (
-                      <button key={tool.value} type="button" onClick={() => setActiveTopTool(tool.value)} className={`min-h-11 shrink-0 rounded-full px-4 text-xs font-black ring-1 ${activeTopTool === tool.value ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-slate-600 ring-blue-100"}`}>
-                        {tool.label}
-                      </button>
-                    ))}
-                  </div>
-                  {activeTopTool === "templates" && (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {creationCenterStoryTemplates.filter((t) => t.id === "none" || t.imagePath).map((template) => (
-                        <button key={template.id} type="button" onClick={() => setTemplateId(template.id)} className={`min-h-11 rounded-2xl px-4 text-left text-xs font-black ring-1 ${templateId === template.id ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-[#062a57] ring-blue-100"}`}>
-                          {template.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {activeTopTool === "layout" && (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {creatorStudioLayoutOptions.map((option) => (
-                        <button key={option.value} type="button" onClick={() => setLayoutType(option.value)} className={`min-h-11 rounded-2xl px-4 text-left text-xs font-black ring-1 ${layoutType === option.value ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-[#062a57] ring-blue-100"}`}>
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {activeTopTool === "filters" && (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {visualFilterOptions.map((filter) => (
-                        <button key={filter.label} type="button" onClick={() => { setMood(filter.mood); setColorPalette(filter.palette); setTextStyle((s) => ({ ...s, color: filter.palette[1] })); }} className="min-h-11 rounded-2xl bg-white px-4 text-left text-xs font-black text-[#062a57] ring-1 ring-blue-100">
-                          {filter.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+
+              <button type="button" onClick={() => openEditor(canvasDesign)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-full text-xs font-semibold text-slate-500 transition hover:text-[#0b63ce]">
+                Or start with a blank canvas
+              </button>
             </section>
           </div>
         )}
 
-        {currentScreen === "choose" && activeResultDesign && (
-          <div className="mx-auto grid max-w-5xl min-w-0 gap-4">
-            <section className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
-              <h3 className="text-xl font-black text-[#062a57]">AI created 6 concepts for you</h3>
-              <div className="mt-3 relative" onTouchStart={(e) => setResultTouchStartX(e.touches[0]?.clientX ?? null)} onTouchEnd={(e) => handleSwipe(e.changedTouches[0]?.clientX ?? 0)}>
-                <button type="button" onClick={() => moveDesign(-1)} className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/90 p-2 text-[#062a57] shadow"><ChevronLeft className="h-5 w-5" /></button>
-                <button type="button" onClick={() => moveDesign(1)} className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/90 p-2 text-[#062a57] shadow"><ChevronRight className="h-5 w-5" /></button>
-                <CreatorStudioPreview design={activeResultDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} canvas />
-              </div>
-              <div className="mt-3 flex items-center justify-center gap-2">{designs.map((d, i) => <button key={d.id} type="button" onClick={() => { setSelectedDesignId(d.id); setEditableDesign(d); setImageEnhancedDesign(null); }} className={`h-2.5 rounded-full ${d.id === activeResultDesign.id ? "w-8 bg-[#0b63ce]" : "w-2.5 bg-blue-200"}`} aria-label={`Go to concept ${i + 1}`} />)}</div>
-              <button type="button" onClick={() => openEditor(activeResultDesign)} className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">Edit This Design</button>
+        {currentScreen === "choose" && designs.length > 0 && (
+          <div className="mx-auto grid max-w-6xl min-w-0 gap-4">
+            <section className="rounded-[1.5rem] bg-white/80 p-4 ring-1 ring-blue-100 sm:p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b63ce]">
+                Six directions
+              </p>
+              <h3 className="mt-1 text-xl font-black text-[#062a57]">
+                Each concept has its own visual personality
+              </h3>
+              <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
+                Tap one to continue editing on the canvas. Your words stay
+                exactly as you wrote them.
+              </p>
             </section>
 
-            <section className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
-              <h4 className="text-sm font-black text-[#062a57]">Quick AI Actions</h4>
-              <div className="mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                {creatorStudioQuickActions.map((action) => (
-                  <button key={action} type="button" onClick={() => requestQuickAiAction(action)} disabled={imageGeneratingAction === "New Background" && action === "New Background"} className="min-h-12 shrink-0 rounded-full bg-blue-50 px-4 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-                    {action}
-                  </button>
-                ))}
-              </div>
-            </section>
+            <CreatorStudioDesignCards
+              designs={designs}
+              selectedDesignId={selectedDesignId}
+              videoPreviewUrl={videoPreviewUrl}
+              photoPreviewUrl={photoPreviewUrl}
+              onSelect={(design) => {
+                setSelectedDesignId(design.id);
+                setImageEnhancedDesign(null);
+                openEditor({ ...design, layerStyles: undefined });
+              }}
+            />
           </div>
         )}
 
@@ -602,7 +553,7 @@ export default function CreatorStudio({
             showChangeConcept={designs.length > 0}
             onChangeConcept={() => setScreen("choose")}
             onContinueToPublish={() => {
-              const readyDesign = ensureCreatorStudioCanvasLayers(toolbarContextDesign);
+              const readyDesign = prepareCreatorStudioForEditing(toolbarContextDesign);
               setEditableDesign(readyDesign);
               setScreen("publish");
             }}
@@ -649,35 +600,34 @@ export default function CreatorStudio({
         {currentScreen === "publish" && toolbarContextDesign && (
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.68fr)_minmax(0,0.32fr)]">
             <CreatorStudioPreview design={toolbarContextDesign} videoPreviewUrl={videoPreviewUrl} photoPreviewUrl={photoPreviewUrl} variant="publish" />
-            <aside className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
-              <p className="text-sm font-black text-[#062a57]">Publish to feed preview</p>
-              <textarea value={toolbarContextDesign.caption} onChange={(e) => setEditableDesign((current) => ({ ...(current ?? toolbarContextDesign), caption: e.target.value }))} rows={6} className="mt-3 w-full resize-none rounded-2xl border border-blue-100 px-4 py-3 text-sm font-semibold text-[#062a57]" />
-              <button type="submit" onClick={() => onUseDesign(ensureCreatorStudioCanvasLayers(toolbarContextDesign))} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white">
-                Submit for Approval <Upload className="h-4 w-4" />
+            <aside className="rounded-[1.75rem] bg-white p-5 ring-1 ring-blue-100">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b63ce]">
+                You&apos;re ready
+              </p>
+              <p className="mt-2 text-lg font-black text-[#062a57]">
+                Your testimony looks beautiful.
+              </p>
+              <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
+                Share it with the HTBF community when you feel confident. You can
+                still adjust the caption below.
+              </p>
+              <textarea value={toolbarContextDesign.caption} onChange={(e) => setEditableDesign((current) => ({ ...(current ?? toolbarContextDesign), caption: e.target.value }))} rows={5} placeholder="A few words about what God has done..." className="mt-4 w-full resize-none rounded-[1.25rem] border-0 bg-blue-50/70 px-4 py-3 text-sm font-medium leading-7 text-[#062a57] outline-none ring-1 ring-blue-100 focus:ring-2 focus:ring-[#0b63ce]" />
+              <button type="submit" onClick={() => onUseDesign(prepareCreatorStudioForEditing(toolbarContextDesign))} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white shadow-lg shadow-blue-900/15">
+                Share my testimony <Upload className="h-4 w-4" />
               </button>
             </aside>
           </div>
         )}
 
-        {(hasRequested && !loading && designs.length === 0) || imageMessage ? (
+        {(hasRequested && !loading && designs.length === 0 && message) ||
+        imageMessage ? (
           <div className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
-            {hasRequested && !loading && designs.length === 0 ? "Could not generate designs. Try again." : imageMessage}
+            {hasRequested && !loading && designs.length === 0 && message
+              ? message
+              : imageMessage}
           </div>
         ) : null}
       </div>
-
-      {(currentScreen === "home" || currentScreen === "choose") && (
-      <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl ring-1 ring-blue-100 backdrop-blur sm:static sm:rounded-b-[2rem] sm:px-4 sm:pb-4">
-        <div className="mx-auto flex max-w-4xl min-w-0 gap-2 overflow-x-auto [-webkit-overflow-scrolling:touch]">
-          {creatorStudioBottomToolbar.map((tool) => (
-            <button key={tool.value} type="button" onClick={() => handleBottomTool(tool.value as BottomTool)} className={`min-h-12 shrink-0 rounded-full px-4 text-xs font-black ring-1 transition ${activeBottomTool === tool.value ? "bg-[#0b63ce] text-white ring-[#0b63ce]" : "bg-white text-slate-600 ring-blue-100"}`}>
-              {tool.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-blue-400">{currentLayoutLabel} · {currentPathLabel}</div>
-      </div>
-      )}
     </section>
   );
 }
