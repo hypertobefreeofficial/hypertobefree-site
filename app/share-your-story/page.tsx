@@ -24,6 +24,7 @@ import {
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
 import CreationCenter from "../../components/creation-center/CreationCenter";
+import type { CreatorStudioPublishResult } from "../../components/creation-center/CreatorStudio";
 import {
   CREATION_CENTER_V2_ENABLED,
   MAX_FAITH_STREAMS,
@@ -1672,7 +1673,7 @@ export default function ShareYourStoryPage() {
     return matchedType?.value ?? "testimony";
   }
 
-  function useCreatorStudioDesign(design: CreatorStudioDesign) {
+  function stageCreatorStudioDesign(design: CreatorStudioDesign) {
     const preparedDesign = prepareCreatorStudioForEditing(design);
     const cleanTitle = preparedDesign.title.trim();
     const cleanOverlayText = preparedDesign.overlayText.trim() || cleanTitle;
@@ -1680,16 +1681,6 @@ export default function ShareYourStoryPage() {
     const cleanCategory = preparedDesign.category.trim() || "Testimony";
     const cleanTopic = preparedDesign.topic.trim() || cleanCategory;
     const selectedTemplate = getCreationCenterTemplate(preparedDesign.templateId);
-
-    console.log("[CreatorStudio/pipeline] selectedDesign", preparedDesign);
-    console.log("[CreatorStudio/pipeline] creatorStudioDesign", {
-      title: preparedDesign.title,
-      overlayText: preparedDesign.overlayText,
-      caption: preparedDesign.caption,
-      scriptureSuggestion: preparedDesign.scriptureSuggestion,
-      textStyle: preparedDesign.textStyle,
-      layerStyles: preparedDesign.layerStyles,
-    });
 
     pendingCreatorStudioDesignRef.current = {
       ...preparedDesign,
@@ -1733,10 +1724,291 @@ export default function ShareYourStoryPage() {
         Boolean
       )
     );
+  }
+
+  function useCreatorStudioDesign(design: CreatorStudioDesign) {
+    stageCreatorStudioDesign(design);
+
+    console.log("[CreatorStudio/pipeline] selectedDesign", design);
+    console.log("[CreatorStudio/pipeline] creatorStudioDesign", {
+      title: design.title,
+      overlayText: design.overlayText,
+      caption: design.caption,
+      scriptureSuggestion: design.scriptureSuggestion,
+      textStyle: design.textStyle,
+      layerStyles: design.layerStyles,
+    });
+
     setCreationCenterSuggestionMessage(
       "Creator Studio design is ready to submit. You can still edit before review."
     );
     setMessage("Creator Studio design prepared for review.");
+  }
+
+  async function publishCreatorStudioTestimony(
+    design: CreatorStudioDesign,
+    onProgress: (step: string) => void
+  ): Promise<CreatorStudioPublishResult> {
+    if (!userId || !profile) {
+      return { success: false, error: "Please sign in before sharing." };
+    }
+
+    stageCreatorStudioDesign(design);
+
+    const creatorStudioDesign = pendingCreatorStudioDesignRef.current
+      ? prepareCreatorStudioForEditing(pendingCreatorStudioDesignRef.current)
+      : null;
+
+    if (!creatorStudioDesign) {
+      return { success: false, error: "Could not prepare your design." };
+    }
+
+    const creatorStudioSourceMode = creatorStudioDesign.sourceMode;
+    const isCreatorStudioMediaPost =
+      creatorStudioSourceMode === "upload-video" ||
+      creatorStudioSourceMode === "upload-photo";
+    const cleanStoryText = isCreatorStudioMediaPost
+      ? (
+          creatorStudioDesign.caption ||
+          creatorStudioDesign.title ||
+          creatorStudioDesign.overlayText
+        ).trim()
+      : (
+          creatorStudioDesign.overlayText ||
+          creatorStudioDesign.title ||
+          creatorStudioDesign.caption
+        ).trim();
+    const cleanOverlayText = creatorStudioDesign.overlayText.trim();
+    const moderationText = [
+      cleanStoryText,
+      cleanOverlayText,
+      creatorStudioDesign.caption,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    const effectiveMediaMode: MediaMode =
+      creatorStudioSourceMode === "upload-video"
+        ? "video"
+        : creatorStudioSourceMode === "upload-photo"
+          ? "photo"
+          : "text";
+    const hasPhoto = effectiveMediaMode === "photo" && Boolean(photoFile);
+    const hasVideo = effectiveMediaMode === "video" && Boolean(videoFile);
+
+    if (!cleanStoryText && !cleanOverlayText && !hasPhoto && !hasVideo) {
+      return {
+        success: false,
+        error: "Add a little text or media before sharing.",
+      };
+    }
+
+    setSubmitting(true);
+    setMessage("");
+
+    try {
+      onProgress("Publishing your testimony...");
+
+      const finalStoryType = creatorStudioDesign.category;
+      const finalContentType =
+        creatorStudioSourceMode === "upload-video"
+          ? "video"
+          : creatorStudioSourceMode === "upload-photo"
+            ? "photo"
+            : "testimony-card";
+      const finalTopics = Array.from(
+        new Set(
+          [creatorStudioDesign.category, creatorStudioDesign.topic]
+            .map((topic) => normalizeTopic(topic))
+            .filter(Boolean)
+        )
+      );
+      const selectedCreationTemplate = !isCreatorStudioMediaPost
+        ? getCreationCenterTemplate(creatorStudioDesign.templateId)
+        : null;
+      const generatedCreationTemplatePayload =
+        creatorStudioDesign.generatedImageUrl && !isCreatorStudioMediaPost
+          ? {
+              id: "generated-creator-studio",
+              label: "Creator Studio visual design",
+              imagePath: creatorStudioDesign.generatedImageUrl,
+              generatedImagePath: creatorStudioDesign.generatedImagePath,
+              generatedImageBucket: creatorStudioDesign.generatedImageBucket,
+            }
+          : null;
+      const creationTemplatePayload =
+        generatedCreationTemplatePayload ??
+        (selectedCreationTemplate && selectedCreationTemplate.id !== "none"
+          ? {
+              id: selectedCreationTemplate.id,
+              label: selectedCreationTemplate.label,
+              imagePath: selectedCreationTemplate.imagePath,
+            }
+          : null);
+      const suggestionPayload = buildCreatorStudioAiSuggestionsPayload({
+        design: creatorStudioDesign,
+        prompts: guidedPromptAnswers,
+        suggestions: storyShapeSuggestion,
+        selectedTemplate: creationTemplatePayload,
+      });
+
+      console.log("[CreatorStudio/pipeline] selectedDesign", creatorStudioDesign);
+      console.log(
+        "[CreatorStudio/pipeline] payload inserted into Supabase (ai_suggestions)",
+        suggestionPayload
+      );
+
+      onProgress("Reviewing safety...");
+
+      const moderationDecision = await moderateStoryText({
+        finalStoryType,
+        cleanStoryText: moderationText,
+        hasVideo,
+        hasPhoto,
+      });
+
+      onProgress("Uploading media...");
+
+      const imagePath = hasPhoto ? await uploadPhotoIfNeeded(userId) : null;
+      const { videoUrl, thumbnailUrl } = hasVideo
+        ? await uploadVideoIfNeeded(userId)
+        : { videoUrl: null, thumbnailUrl: null };
+
+      onProgress("Preparing design...");
+
+      const storyPayload = {
+        user_id: userId,
+        name: getPostingName(),
+        location: getPostingLocation(),
+        story_type: finalStoryType,
+        story_text: cleanStoryText || null,
+        overlay_text: hasVideo ? cleanOverlayText || null : null,
+        overlay_x: hasVideo ? mobileCaptionPositionPercent.x : null,
+        overlay_y: hasVideo ? mobileCaptionPositionPercent.y : null,
+        image_url: imagePath,
+        video_url: videoUrl,
+        thumbnail_url: thumbnailUrl,
+        video_template:
+          effectiveMediaMode === "photo" || hasVideo ? videoTemplate : null,
+        htbf_watermark_enabled:
+          effectiveMediaMode === "photo" || hasVideo
+            ? videoTemplate === "htbf-logo"
+            : null,
+        silhouette_watermark_enabled:
+          effectiveMediaMode === "photo" || hasVideo
+            ? videoTemplate === "freedom-silhouette"
+            : null,
+        shared_htbf_intro_enabled:
+          effectiveMediaMode === "photo" || hasVideo
+            ? videoTemplate === "shared-through-htbf"
+            : null,
+        caption_style:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionStyle
+            : null,
+        caption_font:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionFont
+            : null,
+        caption_background:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionBackground
+            : null,
+        caption_template:
+          effectiveMediaMode === "photo" ? captionTemplate : null,
+        caption_color:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionColor
+            : null,
+        caption_size:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionSize
+            : null,
+        caption_align:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionAlign
+            : null,
+        text_size: "text-medium",
+        text_style: "style-clean",
+        text_position: "position-bottom-left",
+        text_background: "background-dark",
+        status: moderationDecision.statusToUse,
+        ai_review_status: moderationDecision.aiReviewStatus,
+        ai_reviewed_at: new Date().toISOString(),
+        ai_risk_level: moderationDecision.aiRiskLevel,
+        ai_suggested_action: moderationDecision.aiSuggestedAction,
+        ai_flags: moderationDecision.aiFlags,
+        ai_summary: moderationDecision.aiSummary,
+      };
+
+      const storyPayloadWithCreationMetadata = {
+        ...storyPayload,
+        content_type: finalContentType,
+        topics: finalTopics,
+        creation_mode: "creator-studio" as const,
+        ai_suggestions: suggestionPayload,
+      };
+
+      onProgress("Almost finished...");
+
+      const { data: insertedStory, error } = await supabase
+        .from("stories")
+        .insert(storyPayloadWithCreationMetadata)
+        .select("id, ai_suggestions, creation_mode")
+        .single();
+
+      console.log("[CreatorStudio/pipeline] payload returned from Supabase", {
+        id: insertedStory?.id ?? null,
+        error: error?.message ?? null,
+        creation_mode: insertedStory?.creation_mode ?? null,
+        ai_suggestions: insertedStory?.ai_suggestions ?? null,
+      });
+
+      if (error) {
+        if (isCreationMetadataColumnError(error.message)) {
+          throw new Error(
+            "Creator Studio metadata could not be saved. Your database may be missing creation columns (content_type, topics, creation_mode, ai_suggestions). The post was not submitted."
+          );
+        }
+
+        throw new Error(error.message);
+      }
+
+      verifyCreatorStudioDesignPersisted(
+        insertedStory?.ai_suggestions,
+        creatorStudioDesign
+      );
+
+      const wentLiveInstantly = moderationDecision.statusToUse === "approved";
+
+      setStoryText("");
+      setOverlayText("");
+      setSelectedTopics([]);
+      setSelectedFaithStreams([]);
+      setCreationTemplateId("none");
+      setGuidedPromptAnswers({});
+      setStoryShapeSuggestion(null);
+      setSuggestionMessage("");
+      setCreationCenterSuggestion(null);
+      setCreationCenterSuggestionMessage("");
+      setCreatorStudioDesigns([]);
+      setCreatorStudioMessage("");
+      pendingCreatorStudioDesignRef.current = null;
+      removePhoto();
+      removeVideo();
+      setMediaMode("text");
+      setQuickShareCategory("testimony");
+      setCaptionInputExpanded(false);
+      setStoryType("Testimony");
+
+      return { success: true, wentLiveInstantly };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Something went wrong.";
+
+      return { success: false, error: errorMessage };
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function useCreationCenterSuggestedStoryType(value: string) {
@@ -3384,6 +3656,7 @@ export default function ShareYourStoryPage() {
                 onRequestCreatorStudioDesigns={requestCreatorStudioDesigns}
                 onRequestCreatorStudioImage={requestCreatorStudioImage}
             onUseCreatorStudioDesign={useCreatorStudioDesign}
+            onPublishCreatorStudioTestimony={publishCreatorStudioTestimony}
             onCreatorStudioActiveChange={setCreatorStudioActive}
                 onUseSuggestedStoryType={
                   useCreationCenterSuggestedStoryType
