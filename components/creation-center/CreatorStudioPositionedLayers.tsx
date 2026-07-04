@@ -7,15 +7,20 @@ import {
   AlignRight,
   Minus,
   MoreHorizontal,
+  Pencil,
   Plus,
+  Sparkles,
+  Type,
 } from "lucide-react";
 import {
   useEffect,
   useMemo,
+  useRef,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
 import {
   buildCreatorStudioLayerDisplayTextUpdate,
@@ -30,6 +35,9 @@ import {
   buildCreatorStudioLayerTypography,
   getCreatorStudioAccentColor,
 } from "../../lib/creatorStudioCanvasRender";
+import {
+  clampCreatorStudioFontScale,
+} from "../../lib/creatorStudioTypography";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
 
 type CreatorStudioPositionedLayersProps = {
@@ -64,16 +72,6 @@ function layerUsesMultiline(layer: CreatorStudioTextLayer) {
   return layer === "caption" || layer === "scripture";
 }
 
-function usesSerifTypography(design: CreatorStudioDesign) {
-  const hint =
-    `${design.typographyPairing ?? ""} ${design.typographyStyle ?? ""} ${design.visualTheme ?? ""}`.toLowerCase();
-
-  return (
-    hint.includes("serif") ||
-    hint.includes("journal") ||
-    hint.includes("magazine")
-  );
-}
 
 function getLayerPlaceholder(layer: CreatorStudioTextLayer) {
   if (layer === "title") return "Tap to write your headline";
@@ -193,12 +191,89 @@ function LayerContent({
   );
 }
 
+function getTouchDistance(touches: TouchList | ReactTouchEvent["touches"]) {
+  if (touches.length < 2) return 0;
+
+  const first = touches[0];
+  const second = touches[1];
+  if (!first || !second) return 0;
+
+  return Math.hypot(
+    first.clientX - second.clientX,
+    first.clientY - second.clientY
+  );
+}
+
+function ScaleResizeHandle({
+  layer,
+  layerStyle,
+  onUpdateLayerStyle,
+}: {
+  layer: CreatorStudioTextLayer;
+  layerStyle: CreatorStudioLayerStyle;
+  onUpdateLayerStyle?: (
+    layer: CreatorStudioTextLayer,
+    updates: Partial<CreatorStudioLayerStyle>
+  ) => void;
+}) {
+  const startRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    scale: number;
+  } | null>(null);
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    startRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      scale: layerStyle.fontScale ?? 1,
+    };
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = startRef.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+
+    const delta =
+      (event.clientX - start.x + (event.clientY - start.y) * 0.35) / 110;
+
+    onUpdateLayerStyle?.(layer, {
+      fontScale: clampCreatorStudioFontScale(start.scale + delta),
+    });
+  }
+
+  function handlePointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!startRef.current || startRef.current.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    startRef.current = null;
+  }
+
+  return (
+    <div
+      aria-label="Drag to resize text"
+      className="absolute -bottom-1.5 -right-1.5 z-40 h-4 w-4 cursor-se-resize rounded-full bg-white shadow-md ring-2 ring-[#0b63ce]"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+    />
+  );
+}
+
 function FloatingToolbar({
   layer,
   layerStyle,
   paletteSwatches,
   onUpdateLayerStyle,
   onOpenOverflow,
+  onBeginEdit,
   reducedMotion,
 }: {
   layer: CreatorStudioTextLayer;
@@ -209,98 +284,129 @@ function FloatingToolbar({
     updates: Partial<CreatorStudioLayerStyle>
   ) => void;
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
+  onBeginEdit?: (layer: CreatorStudioTextLayer) => void;
   reducedMotion: boolean | null;
 }) {
+  const toolbarButtonClass =
+    "inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-[10px] font-bold text-white/90 hover:bg-white/10";
+
   return (
     <motion.div
       initial={reducedMotion ? false : { opacity: 0, y: 6, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto absolute -top-12 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full bg-[#031d3d]/92 px-1.5 py-1 shadow-xl shadow-black/25 ring-1 ring-white/15 backdrop-blur-md"
+      className="pointer-events-auto absolute -top-14 left-1/2 z-30 max-w-[min(96vw,28rem)] -translate-x-1/2 rounded-[1.25rem] bg-[#031d3d]/94 px-2 py-1.5 shadow-xl shadow-black/25 ring-1 ring-white/15 backdrop-blur-md"
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        aria-label="Smaller"
-        onClick={() =>
-          onUpdateLayerStyle?.(layer, {
-            fontScale: Math.max(0.75, (layerStyle.fontScale ?? 1) - 0.05),
-          })
-        }
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white/90 hover:bg-white/10"
-      >
-        <Minus className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Larger"
-        onClick={() =>
-          onUpdateLayerStyle?.(layer, {
-            fontScale: Math.min(1.5, (layerStyle.fontScale ?? 1) + 0.05),
-          })
-        }
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white/90 hover:bg-white/10"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
-      <span className="mx-0.5 h-5 w-px bg-white/15" />
-      {paletteSwatches.slice(0, 4).map((color) => (
+      <div className="flex items-center gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
         <button
-          key={color}
           type="button"
-          aria-label={`Color ${color}`}
-          onClick={() => onUpdateLayerStyle?.(layer, { color })}
-          className={`h-6 w-6 rounded-full ring-2 ${
-            layerStyle.color === color ? "ring-white" : "ring-transparent"
+          aria-label="Edit text"
+          onClick={() => onBeginEdit?.(layer)}
+          className={toolbarButtonClass}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Font"
+          onClick={() => onOpenOverflow?.("fonts")}
+          className={toolbarButtonClass}
+        >
+          <Type className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Smaller"
+          onClick={() =>
+            onUpdateLayerStyle?.(layer, {
+              fontScale: clampCreatorStudioFontScale(
+                (layerStyle.fontScale ?? 1) - 0.06
+              ),
+            })
+          }
+          className={toolbarButtonClass}
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <span className="min-w-[2.5rem] text-center text-[10px] font-black text-white/80">
+          {Math.round((layerStyle.fontScale ?? 1) * 100)}%
+        </span>
+        <button
+          type="button"
+          aria-label="Larger"
+          onClick={() =>
+            onUpdateLayerStyle?.(layer, {
+              fontScale: clampCreatorStudioFontScale(
+                (layerStyle.fontScale ?? 1) + 0.06
+              ),
+            })
+          }
+          className={toolbarButtonClass}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <span className="mx-0.5 h-5 w-px shrink-0 bg-white/15" />
+        {paletteSwatches.slice(0, 4).map((color) => (
+          <button
+            key={color}
+            type="button"
+            aria-label={`Color ${color}`}
+            onClick={() => onUpdateLayerStyle?.(layer, { color })}
+            className={`h-6 w-6 shrink-0 rounded-full ring-2 ${
+              layerStyle.color === color ? "ring-white" : "ring-transparent"
+            }`}
+            style={{ backgroundColor: color }}
+          />
+        ))}
+        <span className="mx-0.5 h-5 w-px shrink-0 bg-white/15" />
+        <button
+          type="button"
+          aria-label="Align left"
+          onClick={() => onUpdateLayerStyle?.(layer, { align: "left" })}
+          className={`${toolbarButtonClass} ${
+            layerStyle.align === "left" ? "bg-[#0b63ce] text-white" : ""
           }`}
-          style={{ backgroundColor: color }}
-        />
-      ))}
-      <span className="mx-0.5 h-5 w-px bg-white/15" />
-      <button
-        type="button"
-        aria-label="Align left"
-        onClick={() => onUpdateLayerStyle?.(layer, { align: "left" })}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
-          layerStyle.align === "left"
-            ? "bg-[#0b63ce] text-white"
-            : "text-white/90 hover:bg-white/10"
-        }`}
-      >
-        <AlignLeft className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Align center"
-        onClick={() => onUpdateLayerStyle?.(layer, { align: "center" })}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
-          layerStyle.align === "center"
-            ? "bg-[#0b63ce] text-white"
-            : "text-white/90 hover:bg-white/10"
-        }`}
-      >
-        <AlignCenter className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="Align right"
-        onClick={() => onUpdateLayerStyle?.(layer, { align: "right" })}
-        className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${
-          layerStyle.align === "right"
-            ? "bg-[#0b63ce] text-white"
-            : "text-white/90 hover:bg-white/10"
-        }`}
-      >
-        <AlignRight className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="More options"
-        onClick={() => onOpenOverflow?.("advanced")}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white/90 hover:bg-white/10"
-      >
-        <MoreHorizontal className="h-3.5 w-3.5" />
-      </button>
+        >
+          <AlignLeft className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Align center"
+          onClick={() => onUpdateLayerStyle?.(layer, { align: "center" })}
+          className={`${toolbarButtonClass} ${
+            layerStyle.align === "center" ? "bg-[#0b63ce] text-white" : ""
+          }`}
+        >
+          <AlignCenter className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Align right"
+          onClick={() => onUpdateLayerStyle?.(layer, { align: "right" })}
+          className={`${toolbarButtonClass} ${
+            layerStyle.align === "right" ? "bg-[#0b63ce] text-white" : ""
+          }`}
+        >
+          <AlignRight className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="AI rewrite"
+          onClick={() => onOpenOverflow?.("ai")}
+          className={toolbarButtonClass}
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="More options"
+          onClick={() => onOpenOverflow?.("advanced")}
+          className={toolbarButtonClass}
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </motion.div>
   );
 }
@@ -324,7 +430,11 @@ export default function CreatorStudioPositionedLayers({
 }: CreatorStudioPositionedLayersProps) {
   const reducedMotion = useReducedMotion();
   const accentColor = getCreatorStudioAccentColor(design);
-  const serifClass = usesSerifTypography(design) ? "font-serif" : "font-sans";
+  const pinchStateRef = useRef<{
+    layer: CreatorStudioTextLayer;
+    distance: number;
+    scale: number;
+  } | null>(null);
 
   const sortedLayers = useMemo(
     () =>
@@ -377,7 +487,7 @@ export default function CreatorStudioPositionedLayers({
       zIndex:
         10 + (layerStyle.layerOrder ?? 0) + (isSelected && interactive ? 20 : 0),
     };
-    const textClassName = `w-full whitespace-pre-wrap break-words leading-snug ${serifClass} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass} ${typography.styledSizeClass}`;
+    const textClassName = `w-full whitespace-pre-wrap break-words leading-snug ${typography.fontClassName} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass} ${typography.styledSizeClass}`;
     const layerBody = (
       <div
         className={`relative rounded-xl px-1 py-0.5 transition-shadow duration-300 ${
@@ -395,7 +505,15 @@ export default function CreatorStudioPositionedLayers({
             paletteSwatches={paletteSwatches}
             onUpdateLayerStyle={onUpdateLayerStyle}
             onOpenOverflow={onOpenOverflow}
+            onBeginEdit={(activeLayer) => onEditingLayerChange?.(activeLayer)}
             reducedMotion={reducedMotion}
+          />
+        )}
+        {isSelected && !isEditing && interactive && (
+          <ScaleResizeHandle
+            layer={layer}
+            layerStyle={layerStyle}
+            onUpdateLayerStyle={onUpdateLayerStyle}
           />
         )}
         <LayerContent
@@ -436,6 +554,36 @@ export default function CreatorStudioPositionedLayers({
         onPointerMove={onLayerPointerMove}
         onPointerUp={(event) => onLayerPointerUp?.(layer, event)}
         onPointerCancel={(event) => onLayerPointerUp?.(layer, event)}
+        onTouchStart={(event) => {
+          if (!isSelected || event.touches.length !== 2) return;
+
+          pinchStateRef.current = {
+            layer,
+            distance: getTouchDistance(event.touches),
+            scale: layerStyle.fontScale ?? 1,
+          };
+        }}
+        onTouchMove={(event) => {
+          const pinch = pinchStateRef.current;
+          if (!pinch || pinch.layer !== layer || event.touches.length !== 2) {
+            return;
+          }
+
+          const distance = getTouchDistance(event.touches);
+          if (pinch.distance <= 0 || distance <= 0) return;
+
+          event.preventDefault();
+          onUpdateLayerStyle?.(layer, {
+            fontScale: clampCreatorStudioFontScale(
+              pinch.scale * (distance / pinch.distance)
+            ),
+          });
+        }}
+        onTouchEnd={() => {
+          if (pinchStateRef.current?.layer === layer) {
+            pinchStateRef.current = null;
+          }
+        }}
       >
         {layerBody}
       </motion.div>
