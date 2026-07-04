@@ -7,6 +7,10 @@ import {
   type CreatorStudioLayerStyle,
   type CreatorStudioTextLayer,
 } from "./creationCenter";
+import {
+  clampCreatorStudioFontScale,
+  getCreatorStudioFontClassName,
+} from "./creatorStudioTypography";
 
 function isHexColor(value: string | undefined): value is string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim());
@@ -59,13 +63,26 @@ function scaleFontSize(base: string, scale = 1) {
     );
 }
 
+export type CreatorStudioLayerTypography = {
+  layerStyle: CreatorStudioLayerStyle;
+  fontClassName: string;
+  styledSizeClass: string;
+  weightClass: string;
+  italicClass: string;
+  alignClass: string;
+  coordinates: { x: number; y: number };
+  transform: string;
+  inlineStyle: CSSProperties;
+};
+
 export function buildCreatorStudioLayerTypography(
   design: CreatorStudioDesign,
   layer: CreatorStudioTextLayer,
   compact = false
-) {
+): CreatorStudioLayerTypography {
   const layerStyle = getCreatorStudioLayerStyle(design, layer);
-  const fontScale = layerStyle.fontScale ?? 1;
+  const fontScale = clampCreatorStudioFontScale(layerStyle.fontScale);
+  const fontClassName = getCreatorStudioFontClassName(design, layerStyle, layer);
   const styledSizeClass = scaleFontSize(
     getStyledSizeClass(layerStyle.fontSize, compact),
     fontScale
@@ -106,6 +123,7 @@ export function buildCreatorStudioLayerTypography(
 
   return {
     layerStyle,
+    fontClassName,
     styledSizeClass,
     weightClass,
     italicClass,
