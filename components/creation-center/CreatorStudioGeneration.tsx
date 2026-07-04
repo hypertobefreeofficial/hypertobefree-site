@@ -224,34 +224,37 @@ export default function CreatorStudioGeneration({
     () => [
       {
         icon: "✨",
-        label: "Detected theme",
-        value: primaryDesign?.topic || topic || category || "Hope",
+        label: "Your story",
+        value:
+          primaryDesign?.overlayText?.slice(0, 72) ||
+          primaryDesign?.title ||
+          "Listening for what matters most",
       },
       {
         icon: "📖",
-        label: "Scripture found",
+        label: "Scripture",
         value:
           primaryDesign?.scriptureSuggestion ||
           scriptureSuggestion ||
-          "Proverbs 3:5–6",
+          "Finding a fitting reference",
       },
       {
         icon: "🎨",
-        label: "Creative direction",
-        value: primaryDesign?.styleMood || mood || "Hopeful & Bright",
+        label: "Visual balance",
+        value: "Placing text where it reads beautifully",
       },
       {
         icon: "💙",
-        label: "Emotion",
-        value: primaryDesign?.designTreatment || "Restoration",
+        label: "Composition",
+        value: "Respecting faces, light, and open space",
       },
       {
         icon: "🕊️",
-        label: "Preparing concepts",
-        value: "6 inspired designs",
+        label: "Almost ready",
+        value: "6 concepts inspired by your testimony",
       },
     ],
-    [primaryDesign, topic, category, scriptureSuggestion, mood]
+    [primaryDesign, scriptureSuggestion]
   );
 
   useEffect(() => {
