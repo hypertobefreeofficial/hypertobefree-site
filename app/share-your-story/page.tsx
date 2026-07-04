@@ -38,7 +38,7 @@ import {
   type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
-import { supabase } from "../../lib/supabaseClient";
+import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
 
 type ProfileRow = {
   id: string;
@@ -1407,6 +1407,34 @@ export default function ShareYourStoryPage() {
     };
   }
 
+  async function readShapeStoryErrorMessage(
+    response: Response,
+    fallback: string
+  ) {
+    try {
+      const data: unknown = await response.json();
+
+      if (
+        data &&
+        typeof data === "object" &&
+        "error" in data &&
+        typeof (data as { error?: unknown }).error === "string"
+      ) {
+        const message = (data as { error: string }).error.trim();
+        if (message) {
+          return message;
+        }
+      }
+    } catch (parseError) {
+      console.error(
+        "[CreatorStudio] Failed to parse error response JSON:",
+        parseError
+      );
+    }
+
+    return `${fallback} (HTTP ${response.status})`;
+  }
+
   async function requestCreatorStudioDesigns(
     prompt: string,
     inspirationChips: string[],
@@ -1434,6 +1462,20 @@ export default function ShareYourStoryPage() {
     setCreatorStudioMessage("");
 
     try {
+      console.log("[CreatorStudio] Calling POST /api/shape-story", {
+        mode: "creator_studio",
+        sourceMode,
+        studioPath: options.studioPath,
+        promptLength: cleanPrompt.length,
+        supabaseConfigured: isSupabaseConfigured,
+      });
+
+      if (!isSupabaseConfigured) {
+        throw new Error(
+          "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local, then restart the dev server."
+        );
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -1468,13 +1510,42 @@ export default function ShareYourStoryPage() {
         }),
       });
 
+      console.log("[CreatorStudio] /api/shape-story response", {
+        ok: response.ok,
+        status: response.status,
+      });
+
       if (!response.ok) {
-        throw new Error("Could not generate designs right now.");
+        throw new Error(
+          await readShapeStoryErrorMessage(
+            response,
+            "Could not generate designs right now."
+          )
+        );
       }
 
-      const data = await response.json();
-      const designs = Array.isArray(data.designs)
-        ? data.designs
+      let data: unknown;
+
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error(
+          "[CreatorStudio] Failed to parse success response JSON:",
+          parseError
+        );
+        throw new Error(
+          `Could not parse design response: ${
+            parseError instanceof Error ? parseError.message : String(parseError)
+          }`
+        );
+      }
+
+      const responseRecord =
+        data && typeof data === "object" && !Array.isArray(data)
+          ? (data as Record<string, unknown>)
+          : null;
+      const designs = Array.isArray(responseRecord?.designs)
+        ? responseRecord.designs
             .map((item: unknown, index: number) =>
               readCreatorStudioDesign(item, index)
             )
@@ -1491,20 +1562,29 @@ export default function ShareYourStoryPage() {
             .slice(0, 6)
         : [];
 
+      console.log("[CreatorStudio] Parsed designs", {
+        count: designs.length,
+        fallbackReason:
+          typeof responseRecord?.fallbackReason === "string"
+            ? responseRecord.fallbackReason
+            : null,
+      });
+
       if (designs.length === 0) {
         throw new Error("No design options were returned. Try a little more detail.");
       }
 
       setCreatorStudioDesigns(designs);
       setCreatorStudioMessage(
-        typeof data.fallbackReason === "string"
-          ? `${data.fallbackReason} Safe draft designs are shown so you can keep working.`
+        typeof responseRecord?.fallbackReason === "string"
+          ? `${responseRecord.fallbackReason} Safe draft designs are shown so you can keep working.`
           : "Designs are ready. Choose one, edit it, then submit for review."
       );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Could not generate designs.";
 
+      console.error("[CreatorStudio] Design generation failed:", error);
       setCreatorStudioMessage(errorMessage);
     } finally {
       setCreatorStudioLoading(false);
