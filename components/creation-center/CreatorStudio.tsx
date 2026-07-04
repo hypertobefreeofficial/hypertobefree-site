@@ -274,14 +274,18 @@ export default function CreatorStudio({
   const currentLayoutLabel =
     creatorStudioLayoutOptions.find((o) => o.value === toolbarContextDesign.layoutType)?.label ?? "Creative direction";
 
-  useEffect(() => {
-    if (!hasRequested || loading || designs.length === 0) return;
-    const nextDesign = designs.find((d) => d.id === selectedDesignId) ?? designs[0];
+  function handleGenerationTransitionComplete() {
+    if (!hasRequested || designs.length === 0) return;
+
+    const nextDesign =
+      designs.find((design) => design.id === selectedDesignId) ?? designs[0];
     setSelectedDesignId(nextDesign.id);
     setEditableDesign(nextDesign);
     setImageEnhancedDesign(null);
     setScreen("choose");
-  }, [designs, hasRequested, loading, selectedDesignId]);
+  }
+
+  const designsReady = hasRequested && !loading && designs.length > 0;
 
   function generateDesigns() {
     const cleanPrompt = prompt.trim();
@@ -430,8 +434,25 @@ export default function CreatorStudio({
         <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0b63ce] ring-1 ring-blue-100">{currentPathLabel}</span>
       </header>
 
-      <div className="p-3 sm:p-5">
-        {currentScreen === "thinking" && <CreatorStudioGeneration message={message} />}
+      <div
+        className={`p-3 sm:p-5 ${
+          currentScreen === "thinking" ? "min-h-0 flex flex-col" : ""
+        }`}
+      >
+        {currentScreen === "thinking" && (
+          <CreatorStudioGeneration
+            message={message}
+            loading={loading}
+            ready={designsReady}
+            prompt={prompt}
+            category={category}
+            topic={topic}
+            mood={mood}
+            scriptureSuggestion={scriptureSuggestion}
+            designs={designs}
+            onTransitionComplete={handleGenerationTransitionComplete}
+          />
+        )}
 
         {currentScreen === "home" && (
           <div className="mx-auto grid min-w-0 max-w-4xl gap-4">
