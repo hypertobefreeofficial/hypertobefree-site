@@ -1,22 +1,13 @@
 "use client";
 
 import { Check } from "lucide-react";
-import {
-  getConceptPersonalityLabel,
-  type CreatorStudioDesign,
-} from "../../lib/creationCenter";
+import { getConceptPersonalityLabel } from "../../lib/creationCenter";
+import type { CreatorStudioDesignCardsProps } from "./creatorStudioComponentProps";
 import CreatorStudioPreview from "./CreatorStudioPreview";
 
-type CreatorStudioDesignCardsProps = {
-  designs: CreatorStudioDesign[];
-  selectedDesignId: string | null;
-  videoPreviewUrl: string | null;
-  photoPreviewUrl: string | null;
-  onSelect: (design: CreatorStudioDesign) => void;
-};
+export type { CreatorStudioDesignCardsProps };
 
-
-export default function CreatorStudioDesignCards({
+export function CreatorStudioDesignCards({
   designs,
   selectedDesignId,
   videoPreviewUrl,
@@ -31,8 +22,8 @@ export default function CreatorStudioDesignCards({
             Choose a creative direction
           </div>
           <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-            These are style directions, not final limits. Pick the one that
-            feels closest.
+            These are style directions, not final limits. Pick the one that feels
+            closest.
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-[#0b63ce] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">
@@ -90,3 +81,5 @@ export default function CreatorStudioDesignCards({
     </section>
   );
 }
+
+export default CreatorStudioDesignCards;
