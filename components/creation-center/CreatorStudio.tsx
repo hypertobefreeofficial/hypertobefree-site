@@ -2,10 +2,10 @@
 
 import {
   ChevronLeft,
+  ChevronRight,
   ImagePlus,
   PenLine,
   Sparkles,
-  Upload,
   Video,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -34,9 +34,30 @@ import CreatorStudioGeneration from "./CreatorStudioGeneration";
 import CreatorStudioLayoutEditor, {
   type CreatorStudioEditorPanel,
 } from "./CreatorStudioLayoutEditor";
-import CreatorStudioStoryRenderer from "./CreatorStudioStoryRenderer";
+import CreatorStudioPublishPreview from "./CreatorStudioPublishPreview";
+import CreatorStudioPublishing from "./CreatorStudioPublishing";
+import CreatorStudioPublishSuccess from "./CreatorStudioPublishSuccess";
 
-type StudioScreen = "home" | "thinking" | "choose" | "editor" | "publish";
+export type CreatorStudioPublishResult = {
+  success: boolean;
+  wentLiveInstantly?: boolean;
+  error?: string;
+};
+
+type PublishSnapshot = {
+  design: CreatorStudioDesign;
+  photoPreviewUrl: string | null;
+  videoPreviewUrl: string | null;
+};
+
+type StudioScreen =
+  | "home"
+  | "thinking"
+  | "choose"
+  | "editor"
+  | "preview"
+  | "publishing"
+  | "success";
 type HomeStep = "welcome" | "write";
 
 type CreatorStudioProps = {
@@ -62,6 +83,12 @@ type CreatorStudioProps = {
     request: CreatorStudioImageRequest
   ) => Promise<CreatorStudioImageResult | null>;
   onUseDesign: (design: CreatorStudioDesign) => void;
+  onPublishTestimony: (
+    design: CreatorStudioDesign,
+    onProgress: (step: string) => void
+  ) => Promise<CreatorStudioPublishResult>;
+  onViewFeed: () => void;
+  onExitStudio: () => void;
 };
 
 type TopTool = (typeof creatorStudioTopCarousel)[number]["value"];
@@ -188,6 +215,9 @@ export default function CreatorStudio({
   onRequestDesigns,
   onRequestImage,
   onUseDesign,
+  onPublishTestimony,
+  onViewFeed,
+  onExitStudio,
 }: CreatorStudioProps) {
   const [screen, setScreen] = useState<StudioScreen>("home");
   const [homeStep, setHomeStep] = useState<HomeStep>("welcome");
@@ -225,6 +255,14 @@ export default function CreatorStudio({
   const [showHomeExtras, setShowHomeExtras] = useState(false);
   const [hasRequested, setHasRequested] = useState(false);
   const [resultTouchStartX, setResultTouchStartX] = useState<number | null>(null);
+  const [publishSnapshot, setPublishSnapshot] = useState<PublishSnapshot | null>(
+    null
+  );
+  const [publishStep, setPublishStep] = useState("Publishing your testimony...");
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishResult, setPublishResult] =
+    useState<CreatorStudioPublishResult | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [textStyle, setTextStyle] = useState<NonNullable<CreatorStudioDesign["textStyle"]>>({
     fontSize: "large",
     weight: "bold",
@@ -394,7 +432,7 @@ export default function CreatorStudio({
   }
 
   async function requestGeneratedVisual(action: CreatorStudioImageAction) {
-    const baseDesign = currentScreen === "editor" || currentScreen === "publish" ? toolbarContextDesign : activeResultDesign ?? toolbarContextDesign;
+    const baseDesign = currentScreen === "editor" || currentScreen === "preview" || currentScreen === "publishing" || currentScreen === "success" ? toolbarContextDesign : activeResultDesign ?? toolbarContextDesign;
     const cleanPrompt = prompt.trim() || baseDesign.caption || baseDesign.overlayText || baseDesign.title || "Create a polished HTBF faith-centered visual design.";
     setImageGeneratingAction(action);
     setImageMessage("");
@@ -439,7 +477,7 @@ export default function CreatorStudio({
     setActiveBottomTool(tool);
     if (tool === "publish") {
       setEditableDesign(toolbarContextDesign);
-      setScreen("publish");
+      continueToPreview();
       return;
     }
 
@@ -476,42 +514,90 @@ export default function CreatorStudio({
     setImageEnhancedDesign(null);
   }
 
+  function continueToPreview() {
+    if (!toolbarContextDesign) return;
+    const readyDesign = prepareCreatorStudioForEditing(toolbarContextDesign);
+    setEditableDesign(readyDesign);
+    setPublishError(null);
+    setScreen("preview");
+  }
+
+  async function shareTestimony() {
+    if (!toolbarContextDesign || isPublishing) return;
+
+    const preparedDesign = prepareCreatorStudioForEditing(toolbarContextDesign);
+    setPublishSnapshot({
+      design: preparedDesign,
+      photoPreviewUrl,
+      videoPreviewUrl,
+    });
+    setPublishError(null);
+    setPublishStep("Publishing your testimony...");
+    setScreen("publishing");
+    setIsPublishing(true);
+
+    const result = await onPublishTestimony(preparedDesign, (step) => {
+      setPublishStep(step);
+    });
+
+    setIsPublishing(false);
+
+    if (result.success) {
+      setPublishResult(result);
+      setScreen("success");
+      return;
+    }
+
+    setPublishError(result.error ?? "Something went wrong while publishing.");
+    setScreen("publishing");
+  }
+
+  function resetStudioForAnother() {
+    setScreen("home");
+    setHomeStep("welcome");
+    setEditableDesign(null);
+    setSelectedDesignId(null);
+    setImageEnhancedDesign(null);
+    setPublishSnapshot(null);
+    setPublishResult(null);
+    setPublishError(null);
+    setPublishStep("Publishing your testimony...");
+    setHasRequested(false);
+    setPrompt("");
+    setSelectedChips([]);
+  }
+
+  const flowScreen =
+    currentScreen === "editor" ||
+    currentScreen === "preview" ||
+    currentScreen === "publishing" ||
+    currentScreen === "success";
+
   return (
     <section
-      className={`relative w-full min-w-0 overflow-hidden bg-[#f8fafc] ${
-        currentScreen === "editor" || currentScreen === "publish"
-          ? "rounded-none shadow-none ring-0"
-          : "rounded-[2rem] shadow-2xl shadow-blue-950/10 ring-1 ring-blue-100"
+      className={`relative w-full min-w-0 overflow-hidden ${
+        flowScreen
+          ? "bg-[#020617] rounded-none shadow-none ring-0"
+          : "rounded-[2rem] bg-[#f8fafc] shadow-2xl shadow-blue-950/10 ring-1 ring-blue-100"
       }`}
     >
-      <header
-        className={`flex items-center justify-between border-b border-blue-100 bg-white px-4 py-4 sm:px-6 ${
-          currentScreen === "editor" ? "absolute inset-x-0 top-0 z-50 border-transparent bg-transparent" : ""
-        }`}
-      >
+      {!flowScreen && (
+      <header className="flex items-center justify-between border-b border-blue-100 bg-white px-4 py-4 sm:px-6">
         <button
           type="button"
           onClick={onBack}
-          className={`inline-flex min-h-12 items-center gap-2 rounded-full px-4 text-xs font-black ring-1 ${
-            currentScreen === "editor"
-              ? "bg-black/30 text-white ring-white/15 backdrop-blur-md"
-              : "bg-blue-50 text-[#0b63ce] ring-blue-100"
-          }`}
+          className="inline-flex min-h-12 items-center gap-2 rounded-full bg-blue-50 px-4 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
         >
           <ChevronLeft className="h-4 w-4" /> Back
         </button>
-        {currentScreen !== "editor" && (
-          <>
-            <h2 className="text-lg font-black text-[#062a57]">Creator Studio</h2>
-            <span className="w-16" />
-          </>
-        )}
-        {currentScreen === "editor" && <span className="w-16" />}
+        <h2 className="text-lg font-black text-[#062a57]">Creator Studio</h2>
+        <span className="w-16" />
       </header>
+      )}
 
       <div
         className={`${
-          currentScreen === "editor"
+          flowScreen
             ? "p-0"
             : currentScreen === "thinking"
               ? "min-h-0 flex flex-col p-3 sm:p-5"
@@ -559,25 +645,17 @@ export default function CreatorStudio({
             {homeStep === "welcome" ? (
               <section className="overflow-hidden rounded-[2rem] bg-white p-6 text-center ring-1 ring-blue-100 sm:p-10">
                 <h3 className="text-3xl font-black leading-tight text-[#062a57] sm:text-4xl">
-                  What has God done?
+                  Share Your Story
                 </h3>
                 <p className="mx-auto mt-3 max-w-sm text-sm font-medium leading-7 text-slate-500">
-                  Share your testimony in a beautiful way.
+                  Photo, video, or words only — your media becomes the canvas.
                 </p>
 
                 <div className="mt-8 grid gap-3">
                   <button
                     type="button"
-                    onClick={() => setHomeStep("write")}
-                    className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[1.25rem] bg-[#062a57] px-5 text-base font-black text-white transition hover:bg-[#0b63ce]"
-                  >
-                    <PenLine className="h-5 w-5" />
-                    Write
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => photoInputRef.current?.click()}
-                    className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[1.25rem] bg-white px-5 text-base font-black text-[#062a57] ring-1 ring-blue-100 transition hover:bg-blue-50"
+                    className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[1.25rem] bg-[#062a57] px-5 text-base font-black text-white transition hover:bg-[#0b63ce]"
                   >
                     <ImagePlus className="h-5 w-5" />
                     Photo
@@ -589,6 +667,14 @@ export default function CreatorStudio({
                   >
                     <Video className="h-5 w-5" />
                     Video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHomeStep("write")}
+                    className="inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-[1.25rem] bg-white px-5 text-base font-black text-[#062a57] ring-1 ring-blue-100 transition hover:bg-blue-50"
+                  >
+                    <PenLine className="h-5 w-5" />
+                    Write Only
                   </button>
                 </div>
               </section>
@@ -677,90 +763,62 @@ export default function CreatorStudio({
             onRemoveVideo={onRemoveVideo}
             onRemovePhoto={onRemovePhoto}
             showChangeConcept={designs.length > 0}
-            showGenerateConcepts={designs.length === 0 && Boolean(prompt.trim() || toolbarContextDesign.caption.trim())}
+            showGenerateConcepts={
+              designs.length === 0 &&
+              Boolean(prompt.trim() || toolbarContextDesign.caption.trim())
+            }
+            conceptsLoading={loading}
+            designs={designs}
+            selectedDesignId={selectedDesignId}
+            onSelectDesign={(concept) => {
+              setSelectedDesignId(concept.id);
+              setImageEnhancedDesign(null);
+              setEditableDesign(prepareCreatorStudioForEditing(concept));
+            }}
             onGenerateConcepts={generateDesigns}
             onChangeConcept={() => setScreen("choose")}
-            onContinueToPublish={() => {
-              const readyDesign = prepareCreatorStudioForEditing(toolbarContextDesign);
-              setEditableDesign(readyDesign);
-              setScreen("publish");
-            }}
-            aiControls={
-              <>
-                <button
-                  type="button"
-                  onClick={generateDesigns}
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white"
-                >
-                  <Sparkles className="h-4 w-4" /> Regenerate 6 Concepts
-                </button>
-                <div className="flex min-w-0 gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                  {creatorStudioQuickActions.map((action) => (
-                    <button
-                      key={action}
-                      type="button"
-                      onClick={() => requestQuickAiAction(action)}
-                      disabled={
-                        action === "New Background" &&
-                        Boolean(imageGeneratingAction)
-                      }
-                      className="min-h-11 shrink-0 rounded-full bg-blue-50 px-4 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
-                    >
-                      {action}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void requestGeneratedVisual("AI Background")}
-                  disabled={Boolean(imageGeneratingAction)}
-                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#062a57] px-4 text-sm font-black text-white"
-                >
-                  {imageGeneratingAction === "AI Background"
-                    ? "Creating background..."
-                    : "Generate AI Background"}
-                </button>
-              </>
+            onContinueToPublish={continueToPreview}
+            onStartOver={resetStudioForAnother}
+            aiControls={null}
+          />
+        )}
+
+        {currentScreen === "preview" && toolbarContextDesign && (
+          <CreatorStudioPublishPreview
+            design={toolbarContextDesign}
+            videoPreviewUrl={videoPreviewUrl}
+            photoPreviewUrl={photoPreviewUrl}
+            onBackToEdit={() => setScreen("editor")}
+            onShare={() => void shareTestimony()}
+            sharing={isPublishing}
+          />
+        )}
+
+        {currentScreen === "publishing" && (
+          <CreatorStudioPublishing
+            activeStep={publishStep}
+            error={publishError}
+            onRetry={
+              publishError && toolbarContextDesign
+                ? () => void shareTestimony()
+                : undefined
+            }
+            onBackToEdit={
+              publishError ? () => setScreen("editor") : undefined
             }
           />
         )}
 
-        {currentScreen === "publish" && toolbarContextDesign && (
-          <div className="mx-auto grid min-w-0 max-w-lg gap-5 py-4">
-            <p className="px-1 text-center text-sm font-medium text-slate-500">
-              This is exactly how your testimony will appear in the feed.
-            </p>
-            <CreatorStudioStoryRenderer
-              design={toolbarContextDesign}
-              videoPreviewUrl={videoPreviewUrl}
-              photoPreviewUrl={photoPreviewUrl}
-              variant="publish"
-            />
-            <textarea
-              value={toolbarContextDesign.caption}
-              onChange={(event) =>
-                setEditableDesign((current) => ({
-                  ...(current ?? toolbarContextDesign),
-                  caption: event.target.value,
-                }))
-              }
-              rows={4}
-              placeholder="A few words about what God has done..."
-              className="w-full resize-none rounded-[1.25rem] border-0 bg-white px-4 py-3 text-sm font-medium leading-7 text-[#062a57] outline-none ring-1 ring-blue-100 focus:ring-2 focus:ring-[#0b63ce]"
-            />
-            <button
-              type="submit"
-              onClick={() => {
-                const preparedDesign =
-                  prepareCreatorStudioForEditing(toolbarContextDesign);
-                onUseDesign(preparedDesign);
-              }}
-              className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-base font-black text-white shadow-lg shadow-blue-900/15"
-            >
-              Share Testimony
-              <Upload className="h-4 w-4" />
-            </button>
-          </div>
+        {currentScreen === "success" && publishSnapshot && publishResult?.success && (
+          <CreatorStudioPublishSuccess
+            design={publishSnapshot.design}
+            videoPreviewUrl={publishSnapshot.videoPreviewUrl}
+            photoPreviewUrl={publishSnapshot.photoPreviewUrl}
+            wentLiveInstantly={Boolean(publishResult.wentLiveInstantly)}
+            onViewFeed={onViewFeed}
+            onCreateAnother={resetStudioForAnother}
+            onDone={onExitStudio}
+          />
         )}
 
         {(hasRequested && !loading && designs.length === 0 && message) ||
