@@ -28,6 +28,15 @@ export type CreatorStudioEditorPanel =
   | "scripture"
   | "templates";
 
+export type CreatorStudioEditorPanel =
+  | "style"
+  | "layout"
+  | "colors"
+  | "media"
+  | "scripture"
+  | "ai"
+  | "templates";
+
 type CreatorStudioLayoutEditorProps = {
   design: CreatorStudioDesign;
   onChange: (updates: Partial<CreatorStudioDesign>) => void;
@@ -52,6 +61,7 @@ const editorPanels: { value: CreatorStudioEditorPanel; label: string }[] = [
   { value: "ai", label: "AI Rewrite" },
   { value: "advanced", label: "Advanced" },
   { value: "layout", label: "Layout" },
+  { value: "colors", label: "Colors" },
   { value: "media", label: "Media" },
   { value: "scripture", label: "Scripture" },
   { value: "templates", label: "Templates" },

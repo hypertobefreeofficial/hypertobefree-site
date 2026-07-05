@@ -60,6 +60,8 @@ type StudioScreen =
   | "success";
 type HomeStep = "welcome" | "write";
 
+type StudioScreen = "home" | "thinking" | "choose" | "editor" | "publish";
+
 type CreatorStudioProps = {
   designs: CreatorStudioDesign[];
   loading: boolean;
@@ -830,6 +832,7 @@ export default function CreatorStudio({
           </div>
         ) : null}
       </div>
+      )}
     </section>
   );
 }
