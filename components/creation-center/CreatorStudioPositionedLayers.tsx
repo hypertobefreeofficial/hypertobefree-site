@@ -45,6 +45,7 @@ import {
   resolveCreatorStudioLayerMaxWidthStyle,
 } from "../../lib/creatorStudioLayerLayout";
 import { clampCreatorStudioFontScale } from "../../lib/creatorStudioTypography";
+import { CreatorStudioPresetTextShell } from "../../lib/creatorStudioPresetTextShell";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
 import CreatorStudioFloatingToolbar from "./CreatorStudioFloatingToolbar";
 
@@ -174,7 +175,7 @@ function LayerContent({
   if (layer === "callToAction" && !isEditing) {
     return (
       <span
-        className={`inline-flex rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-[0.12em] ${typography.alignClass}`}
+        className={`inline-flex rounded-full px-4 py-2 text-[11px] font-heading font-semibold uppercase tracking-[0.12em] ${typography.alignClass}`}
         style={{
           ...typography.inlineStyle,
           backgroundColor: accentColor,
@@ -188,23 +189,25 @@ function LayerContent({
 
   if (layer === "scripture" && !isEditing) {
     return (
-      <div
-        style={typography.inlineStyle}
-        className={`${layerSurfaceClass(layer)} ${textClassName}`}
+      <CreatorStudioPresetTextShell
+        decoration={typography.presetDecoration}
+        inlineStyle={typography.inlineStyle}
+        textClassName={`${layerSurfaceClass(layer)} ${textClassName}`}
       >
         {text.trim() || placeholder}
-      </div>
+      </CreatorStudioPresetTextShell>
     );
   }
 
   if (layer === "caption" && !isEditing) {
     return (
-      <div
-        style={typography.inlineStyle}
-        className={`${layerSurfaceClass(layer)} ${textClassName}`}
+      <CreatorStudioPresetTextShell
+        decoration={typography.presetDecoration}
+        inlineStyle={typography.inlineStyle}
+        textClassName={`${layerSurfaceClass(layer)} ${textClassName}`}
       >
         {text.trim() || placeholder}
-      </div>
+      </CreatorStudioPresetTextShell>
     );
   }
 
@@ -251,9 +254,13 @@ function LayerContent({
   }
 
   return (
-    <div style={typography.inlineStyle} className={textClassName}>
+    <CreatorStudioPresetTextShell
+      decoration={typography.presetDecoration}
+      inlineStyle={typography.inlineStyle}
+      textClassName={textClassName}
+    >
       {text.trim() || <span className="text-white/45">{placeholder}</span>}
-    </div>
+    </CreatorStudioPresetTextShell>
   );
 }
 
@@ -717,11 +724,16 @@ export default function CreatorStudioPositionedLayers({
             style={typography.inlineStyle}
           />
         ) : (
-          <div style={typography.inlineStyle} className={textClassName}>
+          <CreatorStudioPresetTextShell
+            decoration={typography.presetDecoration}
+            inlineStyle={typography.inlineStyle}
+            textClassName={textClassName}
+            compact={compact}
+          >
             {text.trim() || (
               <span className="text-white/45">Tap to add text</span>
             )}
-          </div>
+          </CreatorStudioPresetTextShell>
         )}
       </div>
     );
