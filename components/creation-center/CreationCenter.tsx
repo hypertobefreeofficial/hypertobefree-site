@@ -94,16 +94,15 @@ export default function CreationCenter({
   onCreatorStudioActiveChange,
 }: CreationCenterProps) {
   const router = useRouter();
-  const { setActive: setWorkspaceActive } = useCreatorStudioWorkspace();
 
-  useEffect(() => {
-    onCreatorStudioActiveChange(true);
-    setWorkspaceActive(true);
-    return () => {
-      onCreatorStudioActiveChange(false);
-      setWorkspaceActive(false);
-    };
-  }, [onCreatorStudioActiveChange, setWorkspaceActive]);
+
+ useEffect(() => {
+  onCreatorStudioActiveChange(true);
+
+  return () => {
+    onCreatorStudioActiveChange(false);
+  };
+}, [onCreatorStudioActiveChange]);
 
   return (
     <div className="w-full min-w-0 overflow-hidden lg:overflow-visible">
