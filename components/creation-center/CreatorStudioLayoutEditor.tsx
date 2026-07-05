@@ -14,6 +14,7 @@ import {
 import CreatorStudioAdvancedControls from "./CreatorStudioAdvancedControls";
 import CreatorStudioLayerAiRewrite from "./CreatorStudioLayerAiRewrite";
 import CreatorStudioStoryCoach from "./CreatorStudioStoryCoach";
+import CreatorStudioTextStylePresetPicker from "./CreatorStudioTextStylePresetPicker";
 import { creatorStudioFontPresets } from "../../lib/creatorStudioTypography";
 
 export type CreatorStudioEditorPanel =
@@ -26,15 +27,6 @@ export type CreatorStudioEditorPanel =
   | "layout"
   | "media"
   | "scripture"
-  | "templates";
-
-export type CreatorStudioEditorPanel =
-  | "style"
-  | "layout"
-  | "colors"
-  | "media"
-  | "scripture"
-  | "ai"
   | "templates";
 
 type CreatorStudioLayoutEditorProps = {
@@ -52,6 +44,7 @@ type CreatorStudioLayoutEditorProps = {
   aiControls?: ReactNode;
   compact?: boolean;
   selectedLayer?: CreatorStudioTextLayer;
+  showTextStyleLibrary?: boolean;
 };
 
 const editorPanels: { value: CreatorStudioEditorPanel; label: string }[] = [
@@ -61,7 +54,6 @@ const editorPanels: { value: CreatorStudioEditorPanel; label: string }[] = [
   { value: "ai", label: "AI Rewrite" },
   { value: "advanced", label: "Advanced" },
   { value: "layout", label: "Layout" },
-  { value: "colors", label: "Colors" },
   { value: "media", label: "Media" },
   { value: "scripture", label: "Scripture" },
   { value: "templates", label: "Templates" },
@@ -125,6 +117,7 @@ export default function CreatorStudioLayoutEditor({
   aiControls,
   compact = false,
   selectedLayer = "title",
+  showTextStyleLibrary = true,
 }: CreatorStudioLayoutEditorProps) {
   const textStyle = getTextStyle(design);
   const layerStyle = getCreatorStudioLayerStyle(design, selectedLayer);
@@ -368,6 +361,17 @@ export default function CreatorStudioLayoutEditor({
 
             {resolvedPanel === "fonts" && compact && (
               <div className="grid gap-4 sm:grid-cols-2">
+                {showTextStyleLibrary && (
+                  <div className="sm:col-span-2">
+                    <CreatorStudioTextStylePresetPicker
+                      layerStyle={layerStyle}
+                      selectedLayer={selectedLayer}
+                      onApply={(updates) => updateLayerStyle(updates)}
+                      compact
+                    />
+                  </div>
+                )}
+
                 <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce] sm:col-span-2">
                   Font size
                   <div className="mt-3 flex items-center gap-4">
@@ -400,6 +404,7 @@ export default function CreatorStudioLayoutEditor({
                           .value as NonNullable<
                           CreatorStudioLayerStyle["fontPreset"]
                         >,
+                        stylePresetId: undefined,
                       })
                     }
                     className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
