@@ -3,34 +3,16 @@
 import { Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import {
-  buildCreatorStudioLayerDisplayTextUpdate,
-  getCreatorStudioLayerDisplayText,
-  type CreatorStudioDesign,
-  type CreatorStudioTextLayer,
+  applyLayerRewriteText,
+  creatorStudioLayerRewriteActions,
+  requestCreatorStudioLayerRewrite,
+  type CreatorStudioLayerRewriteAction,
+} from "../../lib/creatorStudioLayerAiRewriteClient";
+import type {
+  CreatorStudioDesign,
+  CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import { supabase } from "../../lib/supabaseClient";
-
-export type CreatorStudioLayerRewriteAction =
-  | "stronger"
-  | "softer"
-  | "hopeful"
-  | "personal"
-  | "biblical"
-  | "shorten"
-  | "alternatives";
-
-const rewriteActions: {
-  value: CreatorStudioLayerRewriteAction;
-  label: string;
-}[] = [
-  { value: "stronger", label: "Make stronger" },
-  { value: "softer", label: "Make softer" },
-  { value: "hopeful", label: "Make more hopeful" },
-  { value: "personal", label: "Make more personal" },
-  { value: "biblical", label: "Make more biblical" },
-  { value: "shorten", label: "Shorten" },
-  { value: "alternatives", label: "Try 5 alternatives" },
-];
 
 type CreatorStudioLayerAiRewriteProps = {
   design: CreatorStudioDesign;
@@ -47,6 +29,7 @@ export default function CreatorStudioLayerAiRewrite({
     useState<CreatorStudioLayerRewriteAction | null>(null);
   const [message, setMessage] = useState("");
   const [alternatives, setAlternatives] = useState<string[]>([]);
+  const [suggestedText, setSuggestedText] = useState<string | null>(null);
 
   const layerLabel =
     selectedLayer === "title"
@@ -59,62 +42,36 @@ export default function CreatorStudioLayerAiRewrite({
             ? "scripture"
             : "closing line";
 
-  const currentText = getCreatorStudioLayerDisplayText(design, selectedLayer);
-
   async function requestRewrite(action: CreatorStudioLayerRewriteAction) {
     setLoadingAction(action);
     setMessage("");
     setAlternatives([]);
+    setSuggestedText(null);
 
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const response = await fetch("/api/creator-studio-rewrite-layer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {}),
-        },
-        body: JSON.stringify({
-          layer: selectedLayer,
-          action,
-          currentText,
-          storyContext: {
-            title: design.title,
-            overlayText: design.overlayText,
-            caption: design.caption,
-            category: design.category,
-            topic: design.topic,
-            visualTheme: design.visualTheme,
-            typographyStyle: design.typographyStyle,
-          },
-        }),
+      const result = await requestCreatorStudioLayerRewrite({
+        layer: selectedLayer,
+        action,
+        design,
+        accessToken: session?.access_token,
       });
 
-      const payload = (await response.json()) as {
-        error?: string;
-        text?: string;
-        alternatives?: string[];
-      };
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not rewrite this text right now.");
+      if (result.kind === "error") {
+        throw new Error(result.message);
       }
 
-      if (action === "alternatives" && payload.alternatives?.length) {
-        setAlternatives(payload.alternatives);
+      if (result.kind === "alternatives") {
+        setAlternatives(result.alternatives);
         setMessage("Pick an option below — nothing changes until you choose one.");
         return;
       }
 
-      if (payload.text?.trim()) {
-        onChange(buildCreatorStudioLayerDisplayTextUpdate(selectedLayer, payload.text));
-        setMessage("Updated. You can keep editing freely.");
-      }
+      setSuggestedText(result.text);
+      setMessage("Review the suggestion below. Nothing changes until you apply it.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not rewrite this text right now."
@@ -128,31 +85,67 @@ export default function CreatorStudioLayerAiRewrite({
     <div className="grid gap-3">
       <div className="rounded-2xl bg-blue-50/70 px-4 py-3 ring-1 ring-blue-100">
         <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#0b63ce]">
-          AI rewrite · {layerLabel}
+          AI assist · {layerLabel}
         </p>
-        <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-          {currentText.trim() || "Add a little text first, then ask AI for help."}
+        <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
+          Light polish by default. Your meaning stays yours unless you choose a
+          stronger rewrite.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {rewriteActions.map((action) => (
+        {creatorStudioLayerRewriteActions.map((action) => (
           <button
             key={action.value}
             type="button"
-            disabled={Boolean(loadingAction) || !currentText.trim()}
+            disabled={Boolean(loadingAction)}
             onClick={() => void requestRewrite(action.value)}
+            title={action.description}
             className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-white px-3.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loadingAction === action.value ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Sparkles className="h-3.5 w-3.5" />
+              <span>{action.emoji}</span>
             )}
             {action.label}
           </button>
         ))}
       </div>
+
+      {suggestedText && (
+        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-blue-100">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#0b63ce]">
+            Suggested wording
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#062a57]">
+            {suggestedText}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onChange(applyLayerRewriteText(selectedLayer, suggestedText));
+                setSuggestedText(null);
+                setMessage("Applied. You can keep editing freely.");
+              }}
+              className="inline-flex min-h-10 items-center rounded-full bg-[#0b63ce] px-4 text-xs font-black text-white"
+            >
+              Use this wording
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSuggestedText(null);
+                setMessage("Kept your original words.");
+              }}
+              className="inline-flex min-h-10 items-center rounded-full bg-white px-4 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+            >
+              Keep my words
+            </button>
+          </div>
+        </div>
+      )}
 
       {alternatives.length > 0 && (
         <div className="grid gap-2">
@@ -161,9 +154,7 @@ export default function CreatorStudioLayerAiRewrite({
               key={option}
               type="button"
               onClick={() => {
-                onChange(
-                  buildCreatorStudioLayerDisplayTextUpdate(selectedLayer, option)
-                );
+                onChange(applyLayerRewriteText(selectedLayer, option));
                 setAlternatives([]);
                 setMessage("Applied. You can keep refining it.");
               }}
@@ -177,6 +168,13 @@ export default function CreatorStudioLayerAiRewrite({
 
       {message && (
         <p className="text-xs font-medium leading-5 text-slate-500">{message}</p>
+      )}
+
+      {!message && !suggestedText && alternatives.length === 0 && (
+        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400">
+          <Sparkles className="h-3.5 w-3.5" />
+          Suggestions appear here for you to review before applying.
+        </p>
       )}
     </div>
   );
