@@ -2,13 +2,16 @@
 
 import { Loader2, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
-import type {
-  CreatorStudioDesign,
-  CreatorStudioTextLayer,
+import {
+  buildCreatorStudioLayerStyleUpdate,
+  getCreatorStudioLayerStyle,
+  type CreatorStudioDesign,
+  type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
 import CreatorStudioLayoutEditor from "./CreatorStudioLayoutEditor";
 import CreatorStudioPreview from "./CreatorStudioPreview";
+import CreatorStudioTextStylePresetPicker from "./CreatorStudioTextStylePresetPicker";
 import type { CreatorStudioRailTool } from "./CreatorStudioToolRail";
 import { mapRailToolToEditorPanel } from "./CreatorStudioToolRail";
 
@@ -39,7 +42,7 @@ function getPanelTitle(activeTool: CreatorStudioRailTool) {
   if (activeTool === "design") return "AI Design Assistant";
   if (activeTool === "scripture") return "Scripture";
   if (activeTool === "filters") return "Filters & Effects";
-  return "Text Settings";
+  return "Text Styles";
 }
 
 function getPanelDescription(
@@ -55,7 +58,7 @@ function getPanelDescription(
   if (activeTool === "filters") {
     return "Adjust color, contrast, and advanced visual settings.";
   }
-  return `Edit the ${selectedLayer} layer — fonts, size, alignment, and story coach.`;
+  return `Choose from 110+ presets for the ${selectedLayer} layer, then fine-tune below.`;
 }
 
 export default function CreatorStudioSidePanel({
@@ -82,6 +85,7 @@ export default function CreatorStudioSidePanel({
 }: CreatorStudioSidePanelProps) {
   const resolvedPanel =
     activePanel === "style" ? mapRailToolToEditorPanel(activeTool) : activePanel;
+  const layerStyle = getCreatorStudioLayerStyle(design, selectedLayer);
 
   const editorPanel: CreatorStudioEditorPanel =
     activeTool === "scripture"
@@ -93,6 +97,13 @@ export default function CreatorStudioSidePanel({
         : activeTool === "text"
           ? "fonts"
           : "ai";
+
+  const showTextStyleLibrary =
+    activeTool === "text" || activeTool === "filters" || activeTool === "scripture";
+
+  function updateLayerStyle(updates: Partial<typeof layerStyle>) {
+    onChange(buildCreatorStudioLayerStyleUpdate(design, selectedLayer, updates));
+  }
 
   return (
     <aside
@@ -174,7 +185,15 @@ export default function CreatorStudioSidePanel({
         )}
 
         {activeTool !== "design" && (
-          <section>
+          <section className="space-y-4">
+            {showTextStyleLibrary && (
+              <CreatorStudioTextStylePresetPicker
+                layerStyle={layerStyle}
+                selectedLayer={selectedLayer}
+                onApply={(updates) => updateLayerStyle(updates)}
+              />
+            )}
+
             <div className="rounded-2xl bg-white p-3 ring-1 ring-blue-100">
               <CreatorStudioLayoutEditor
                 compact
@@ -194,6 +213,7 @@ export default function CreatorStudioSidePanel({
                       : editorPanel
                 }
                 selectedLayer={selectedLayer}
+                showTextStyleLibrary={false}
               />
             </div>
           </section>
