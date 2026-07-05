@@ -246,26 +246,21 @@ export type CreatorStudioLayerStyle = {
   fontSize?: "small" | "medium" | "large" | "hero";
   fontScale?: number;
   fontPreset?:
-    | "modern-bold"
+    | "clean-modern"
+    | "bold-testimony"
+    | "elegant-scripture"
+    | "soft-encouragement"
+    | "worship-praise"
+    | "minimal-caption"
+    | "prayer-card"
+    | "breakthrough-glow"
+    | "handwritten-faith"
+    | "typewriter-reflection"
+    | "bold-all-caps"
     | "elegant-serif"
-    | "handwritten-journal"
-    | "worship-script"
-    | "typewriter-testimony"
-    | "minimal-uppercase"
-    | "cinematic-poster"
-    | "magazine-editorial"
-    | "neon-glow"
-    | "vintage-church"
-    | "chalkboard"
-    | "brush-stroke"
-    | "luxury-gold"
-    | "clean-modern-sans"
-    | "faith-journal"
-    | "newspaper"
-    | "storybook"
-    | "hero-title"
-    | "social-creator"
-    | "scripture-card";
+    | "modern-label"
+    | "soft-script"
+    | "grunge-impact";
   weight?: "regular" | "bold";
   italic?: boolean;
   align?: "left" | "center" | "right";
@@ -506,73 +501,73 @@ function defaultFontPresetForLayer(
     `${design.typographyPairing ?? ""} ${design.typographyStyle ?? ""} ${design.visualTheme ?? ""}`.toLowerCase();
 
   if (design.layoutType === "magazine-style") {
-    if (layer === "title") return "magazine-editorial";
-    if (layer === "overlay") return "minimal-uppercase";
-    if (layer === "scripture") return "scripture-card";
+    if (layer === "title") return "elegant-serif";
+    if (layer === "overlay") return "minimal-caption";
+    if (layer === "scripture") return "elegant-scripture";
   }
   if (design.layoutType === "full-image-poster") {
-    if (layer === "title") return "cinematic-poster";
-    if (layer === "caption") return "clean-modern-sans";
+    if (layer === "title") return "bold-all-caps";
+    if (layer === "caption") return "clean-modern";
   }
   if (design.layoutType === "quote-card") {
     if (layer === "title") return "elegant-serif";
-    if (layer === "scripture") return "scripture-card";
-    return "faith-journal";
+    if (layer === "scripture") return "elegant-scripture";
+    return "soft-encouragement";
   }
   if (design.layoutType === "praise-report-card") {
-    if (layer === "title") return "worship-script";
-    if (layer === "overlay") return "modern-bold";
+    if (layer === "title") return "soft-script";
+    if (layer === "overlay") return "bold-testimony";
   }
   if (design.layoutType === "journal-style") {
-    if (layer === "title") return "handwritten-journal";
-    if (layer === "overlay" || layer === "caption") return "faith-journal";
+    if (layer === "title") return "handwritten-faith";
+    if (layer === "overlay" || layer === "caption") return "soft-encouragement";
   }
   if (design.layoutType === "scripture-card") {
-    if (layer === "scripture" || layer === "title") return "scripture-card";
-    return "faith-journal";
+    if (layer === "scripture" || layer === "title") return "prayer-card";
+    return "soft-encouragement";
   }
   if (design.layoutType === "split-layout" && layer === "title") {
-    return "magazine-editorial";
+    return "elegant-serif";
   }
   if (design.layoutType === "prayer-request-card") {
-    return "faith-journal";
+    return "prayer-card";
   }
   if (design.layoutType === "timeline-story") {
-    if (layer === "caption") return "clean-modern-sans";
-    if (layer === "title") return "magazine-editorial";
+    if (layer === "caption") return "minimal-caption";
+    if (layer === "title") return "elegant-serif";
   }
   if (design.layoutType === "before-after-testimony" && layer === "title") {
-    return "hero-title";
+    return "grunge-impact";
   }
-  if (layer === "scripture") return "scripture-card";
+  if (layer === "scripture") return "elegant-scripture";
   if (
     hint.includes("handwritten") ||
     hint.includes("journal") ||
     design.layoutType === "journal-style"
   ) {
-    return layer === "title" ? "handwritten-journal" : "faith-journal";
+    return layer === "title" ? "handwritten-faith" : "soft-encouragement";
   }
-  if (hint.includes("worship") || hint.includes("praise")) return "worship-script";
+  if (hint.includes("worship") || hint.includes("praise")) return "worship-praise";
   if (hint.includes("cinematic") || hint.includes("documentary")) {
-    return "cinematic-poster";
+    return "bold-all-caps";
   }
   if (hint.includes("editorial") || hint.includes("magazine")) {
-    return "magazine-editorial";
+    return "elegant-serif";
   }
   if (
     hint.includes("minimal") ||
     hint.includes("peaceful") ||
     hint.includes("reflect")
   ) {
-    return "faith-journal";
+    return "soft-encouragement";
   }
   if (hint.includes("serif") || hint.includes("elegant")) {
     return "elegant-serif";
   }
-  if (hint.includes("caption")) return "clean-modern-sans";
-  if (hint.includes("aptos") || hint.includes("clean")) return "clean-modern-sans";
+  if (hint.includes("caption")) return "minimal-caption";
+  if (hint.includes("aptos") || hint.includes("clean")) return "clean-modern";
 
-  return "modern-bold";
+  return "bold-testimony";
 }
 
 function withFontPreset(
@@ -1295,7 +1290,7 @@ export function addCreatorStudioCustomTextLayer(
     style: {
       fontSize: "medium",
       fontScale: 1,
-      fontPreset: "clean-modern-sans",
+      fontPreset: "clean-modern",
       weight: "bold",
       align: "center",
       color: accent,
