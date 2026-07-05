@@ -1,9 +1,10 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Layers, Sparkles, Upload } from "lucide-react";
+import { ChevronRight, Layers, Sparkles } from "lucide-react";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
 } from "react";
 import {
   buildCreatorStudioLayerStyleUpdate,
+  clampCreatorStudioLayerCoordinates,
   getCreationCenterTemplate,
   getCreatorStudioLayerStyle,
   type CreationCenterTemplateId,
@@ -37,6 +39,8 @@ type CreatorStudioInteractiveCanvasProps = {
   showChangeConcept?: boolean;
   showGenerateConcepts?: boolean;
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
+  hideTopActionsOnDesktop?: boolean;
+  fillAvailableSpace?: boolean;
 };
 
 type DragState = {
@@ -116,6 +120,8 @@ export default function CreatorStudioInteractiveCanvas({
   showChangeConcept = false,
   showGenerateConcepts = false,
   onOpenOverflow,
+  hideTopActionsOnDesktop = false,
+  fillAvailableSpace = false,
 }: CreatorStudioInteractiveCanvasProps) {
   const reducedMotion = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -123,6 +129,15 @@ export default function CreatorStudioInteractiveCanvas({
   const dragStateRef = useRef<DragState | null>(null);
   const [editingLayer, setEditingLayer] =
     useState<CreatorStudioTextLayer | null>(null);
+  const [reserveMobileBottom, setReserveMobileBottom] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setReserveMobileBottom(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   const paletteSwatches = useMemo(
     () =>
@@ -152,7 +167,12 @@ export default function CreatorStudioInteractiveCanvas({
     }
 
     const style = getCreatorStudioLayerStyle(design, layer);
-    const { x, y } = buildCreatorStudioLayerTypography(design, layer).coordinates;
+    const { x, y } = buildCreatorStudioLayerTypography(
+      design,
+      layer,
+      false,
+      { reserveMobileBottom }
+    ).coordinates;
 
     dragStateRef.current = {
       layer,
@@ -188,10 +208,13 @@ export default function CreatorStudioInteractiveCanvas({
       return;
     }
 
-    updateLayerStyle(drag.layer, {
-      x: Math.min(98, Math.max(2, drag.originX + deltaX)),
-      y: Math.min(98, Math.max(2, drag.originY + deltaY)),
-    });
+    const next = clampCreatorStudioLayerCoordinates(
+      drag.originX + deltaX,
+      drag.originY + deltaY,
+      { reserveMobileBottom }
+    );
+
+    updateLayerStyle(drag.layer, next);
   }
 
   function endLayerInteraction(
@@ -214,17 +237,27 @@ export default function CreatorStudioInteractiveCanvas({
     dragStateRef.current = null;
   }
 
+  const showEditorialHints = !selectedLayer && !editingLayer;
+
   return (
-    <div className="mx-auto min-w-0 w-full max-w-none">
+    <div className="mx-auto flex h-full min-h-0 min-w-0 w-full max-w-none items-center justify-center">
       <motion.div
         initial={reducedMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="relative min-w-0 overflow-hidden rounded-none bg-[#031d3d] sm:rounded-[1.75rem] sm:shadow-2xl sm:shadow-blue-950/20 sm:ring-1 sm:ring-white/10"
+        className={`relative min-h-0 min-w-0 overflow-hidden bg-[#031d3d] ${
+          fillAvailableSpace
+            ? "aspect-[9/16] h-full max-h-full w-auto max-w-full"
+            : "w-full rounded-none sm:rounded-[1.75rem] sm:shadow-2xl sm:shadow-blue-950/20 sm:ring-1 sm:ring-white/10"
+        }`}
       >
         <div
           ref={canvasRef}
-          className="relative isolate min-h-[min(100dvh,52rem)] w-full sm:min-h-[42rem]"
+          className={`relative isolate h-full w-full overflow-hidden ${
+            fillAvailableSpace
+              ? ""
+              : "min-h-[min(100dvh-6rem,52rem)] sm:min-h-[42rem]"
+          }`}
         >
           <CanvasBackground
             templateId={design.templateId}
@@ -234,7 +267,11 @@ export default function CreatorStudioInteractiveCanvas({
             backgroundColor={design.colorPalette?.[0]?.trim() || "#062a57"}
           />
 
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-2 p-3 sm:p-4">
+          <div
+            className={`pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-2 p-3 sm:p-4 ${
+              hideTopActionsOnDesktop ? "lg:hidden" : ""
+            }`}
+          >
             <div className="pointer-events-auto flex flex-wrap gap-2">
               {showGenerateConcepts && onGenerateConcepts && (
                 <button
@@ -262,13 +299,13 @@ export default function CreatorStudioInteractiveCanvas({
               onClick={onContinueToPublish}
               className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full bg-white/95 px-5 text-sm font-black text-[#062a57] shadow-lg shadow-black/15 backdrop-blur-md transition hover:bg-white"
             >
-              Share Testimony
-              <Upload className="h-4 w-4" />
+              Continue
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
           <div
-            className="absolute inset-0 z-10"
+            className="absolute inset-0 z-10 overflow-hidden"
             onPointerDown={() => setEditingLayer(null)}
           >
             <CreatorStudioPositionedLayers
@@ -279,6 +316,8 @@ export default function CreatorStudioInteractiveCanvas({
               editingLayer={editingLayer}
               editRef={editRef}
               paletteSwatches={paletteSwatches}
+              canvasRef={canvasRef}
+              reserveMobileBottom={reserveMobileBottom}
               onChange={onChange}
               onEditingLayerChange={setEditingLayer}
               onUpdateLayerStyle={updateLayerStyle}
@@ -289,12 +328,14 @@ export default function CreatorStudioInteractiveCanvas({
             />
           </div>
 
-          <CreatorStudioEditorialHints
-            design={design}
-            onApplyTitle={(title) => onChange({ title })}
-            onApplyCaption={(caption) => onChange({ caption })}
-            onFocusScripture={() => onSelectLayer("scripture")}
-          />
+          {showEditorialHints && (
+            <CreatorStudioEditorialHints
+              design={design}
+              onApplyTitle={(title) => onChange({ title })}
+              onApplyCaption={(caption) => onChange({ caption })}
+              onFocusScripture={() => onSelectLayer("scripture")}
+            />
+          )}
         </div>
       </motion.div>
     </div>
