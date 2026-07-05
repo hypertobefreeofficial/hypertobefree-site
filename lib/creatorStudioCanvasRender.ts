@@ -78,7 +78,7 @@ export function buildCreatorStudioLayerTypographyFromStyle(
   const fontClassName = getCreatorStudioFontClassName(design, layerStyle, layer);
   const baseFontRem = getBaseFontSizeRem(layerStyle.fontSize, compact);
   const weightClass =
-    layerStyle.weight === "regular" ? "font-semibold" : "font-black";
+    layerStyle.weight === "regular" ? "font-normal" : "font-extrabold";
   const italicClass = layerStyle.italic ? "italic" : "";
   const alignClass =
     layerStyle.align === "center"
