@@ -11,7 +11,6 @@ import {
   creatorStudioTextStylePresets,
   getCreatorStudioTextStylePreset,
 } from "../../lib/creatorStudioTextStylePresets";
-import { getCreatorStudioFontPresetClassName } from "../../lib/creatorStudioTypography";
 
 type CreatorStudioTextStylePresetPickerProps = {
   layerStyle: CreatorStudioLayerStyle;
@@ -95,9 +94,6 @@ export default function CreatorStudioTextStylePresetPicker({
       >
         {filteredPresets.map((preset) => {
           const selected = layerStyle.stylePresetId === preset.id;
-          const previewClassName = getCreatorStudioFontPresetClassName(
-            preset.fontPreset
-          );
 
           return (
             <button
@@ -111,7 +107,7 @@ export default function CreatorStudioTextStylePresetPicker({
               }`}
             >
               <div
-                className={`truncate text-lg text-[#062a57] ${previewClassName} ${
+                className={`truncate text-lg text-[#062a57] ${preset.previewClassName} ${
                   preset.weight === "bold" ? "font-black" : "font-semibold"
                 } ${preset.italic ? "italic" : ""}`}
                 style={{
