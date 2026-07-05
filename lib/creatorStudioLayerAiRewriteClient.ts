@@ -6,31 +6,55 @@ import {
 } from "./creationCenter";
 
 export type CreatorStudioLayerRewriteAction =
+  | "keep-words"
+  | "clearer"
+  | "worshipful"
+  | "shorter"
   | "stronger"
-  | "softer"
-  | "hopeful"
-  | "personal"
-  | "biblical"
-  | "shorten"
-  | "alternatives"
-  | "peaceful"
-  | "encouraging"
-  | "powerful"
-  | "joyful";
+  | "alternatives";
 
 export const creatorStudioLayerRewriteActions: {
   value: CreatorStudioLayerRewriteAction;
   label: string;
   emoji: string;
+  description: string;
 }[] = [
-  { value: "stronger", label: "Make stronger", emoji: "✨" },
-  { value: "peaceful", label: "More peaceful", emoji: "🕊" },
-  { value: "personal", label: "More personal", emoji: "❤️" },
-  { value: "biblical", label: "Add scripture tone", emoji: "📖" },
-  { value: "encouraging", label: "More encouraging", emoji: "🙏" },
-  { value: "shorten", label: "Make shorter", emoji: "✂" },
-  { value: "powerful", label: "More powerful", emoji: "🔥" },
-  { value: "joyful", label: "More joyful", emoji: "😊" },
+  {
+    value: "keep-words",
+    label: "Keep my words",
+    emoji: "✓",
+    description: "Light punctuation and capitalization only.",
+  },
+  {
+    value: "clearer",
+    label: "Make slightly clearer",
+    emoji: "✎",
+    description: "Light polish while preserving your meaning.",
+  },
+  {
+    value: "worshipful",
+    label: "Make more worshipful",
+    emoji: "🙏",
+    description: "Gentle worship tone without changing your story.",
+  },
+  {
+    value: "shorter",
+    label: "Make shorter",
+    emoji: "✂",
+    description: "Trim words while keeping the same message.",
+  },
+  {
+    value: "stronger",
+    label: "Make stronger",
+    emoji: "✨",
+    description: "Rewrite strongly — only when you want bolder wording.",
+  },
+  {
+    value: "alternatives",
+    label: "Try alternatives",
+    emoji: "💡",
+    description: "See options and choose one yourself.",
+  },
 ];
 
 export type LayerRewriteResult =
@@ -106,4 +130,35 @@ export function applyLayerRewriteText(
   text: string
 ): Partial<CreatorStudioDesign> {
   return buildCreatorStudioLayerDisplayTextUpdate(layer, text);
+}
+
+export function polishTextLocally(
+  text: string,
+  action: CreatorStudioLayerRewriteAction
+): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+
+  if (action === "keep-words") {
+    const normalized = trimmed.replace(/\s+/g, " ");
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+
+  if (action === "shorter") {
+    const words = trimmed.split(/\s+/);
+    return words.slice(0, Math.max(3, Math.ceil(words.length * 0.7))).join(" ");
+  }
+
+  if (action === "worshipful") {
+    if (/^thank you/i.test(trimmed)) {
+      return trimmed.replace(/^thank you/i, "Thank You");
+    }
+    return trimmed.endsWith(".") ? trimmed : `${trimmed}.`;
+  }
+
+  if (action === "clearer") {
+    return trimmed.endsWith(".") ? trimmed : `${trimmed}.`;
+  }
+
+  return trimmed;
 }
