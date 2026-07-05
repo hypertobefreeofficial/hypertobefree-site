@@ -454,7 +454,7 @@ function LayerToolbar({
       
       onChange={onChange}
      
-      onOpenOverflow={onOpenOverflow}
+      
       onBeginEdit={onBeginEdit}
       onSelectLayer={onSelectLayer}
       onLayoutChange={repositionToolbar}
