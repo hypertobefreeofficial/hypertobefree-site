@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { resolveCreatorStudioLayerMaxWidthStyle } from "./creatorStudioLayerLayout";
 import {
   getCreatorStudioLayerCoordinates,
   getCreatorStudioLayerStyle,
@@ -10,6 +11,8 @@ import {
 import {
   clampCreatorStudioFontScale,
   getCreatorStudioFontClassName,
+  getCreatorStudioFontPresetDefinition,
+  normalizeCreatorStudioFontPreset,
 } from "./creatorStudioTypography";
 
 function isHexColor(value: string | undefined): value is string {
@@ -55,6 +58,22 @@ export function buildCreatorStudioLayerTypography(
   options?: { reserveMobileBottom?: boolean }
 ): CreatorStudioLayerTypography {
   const layerStyle = getCreatorStudioLayerStyle(design, layer);
+  return buildCreatorStudioLayerTypographyFromStyle(
+    design,
+    layerStyle,
+    layer,
+    compact,
+    options
+  );
+}
+
+export function buildCreatorStudioLayerTypographyFromStyle(
+  design: CreatorStudioDesign,
+  layerStyle: CreatorStudioLayerStyle,
+  layer: CreatorStudioTextLayer,
+  compact = false,
+  options?: { reserveMobileBottom?: boolean }
+): CreatorStudioLayerTypography {
   const fontScale = clampCreatorStudioFontScale(layerStyle.fontScale);
   const fontClassName = getCreatorStudioFontClassName(design, layerStyle, layer);
   const baseFontRem = getBaseFontSizeRem(layerStyle.fontSize, compact);
@@ -71,9 +90,23 @@ export function buildCreatorStudioLayerTypography(
   const opacity = layerStyle.opacity ?? 1;
   const shadowStrength = layerStyle.shadowStrength ?? 0.35;
   const outlineWidth = layerStyle.outlineWidth ?? 0;
+  const presetDefinition = normalizeCreatorStudioFontPreset(layerStyle.fontPreset)
+    ? getCreatorStudioFontPresetDefinition(layerStyle.fontPreset)
+    : null;
+  const textShadow =
+    presetDefinition?.glowColor
+      ? `0 0 12px ${presetDefinition.glowColor}, 0 0 28px ${presetDefinition.glowColor}88, 0 2px 8px rgba(0,0,0,0.45)`
+      : shadowStrength > 0
+        ? `0 2px ${Math.round(shadowStrength * 18)}px rgba(0,0,0,${Math.min(0.85, shadowStrength)})`
+        : undefined;
+  const resolvedMaxWidth = resolveCreatorStudioLayerMaxWidthStyle(layerStyle, {
+    reserveMobileBottom: options?.reserveMobileBottom,
+    constrainToSafeArea: true,
+  });
   const inlineStyle: CSSProperties = {
     color:
       layerStyle.color ||
+      presetDefinition?.defaultColor ||
       getPaletteColor(design.colorPalette, 1, "#FFFFFF"),
     textAlign: layerStyle.align,
     opacity,
@@ -83,14 +116,13 @@ export function buildCreatorStudioLayerTypography(
         ? `${layerStyle.letterSpacing}em`
         : undefined,
     lineHeight: layerStyle.lineHeight ?? 1.15,
-    textShadow:
-      shadowStrength > 0
-        ? `0 2px ${Math.round(shadowStrength * 18)}px rgba(0,0,0,${Math.min(0.85, shadowStrength)})`
-        : undefined,
+    textTransform: layerStyle.textTransform ?? presetDefinition?.textTransform,
+    textShadow,
     WebkitTextStroke:
       outlineWidth > 0
         ? `${outlineWidth}px rgba(0,0,0,${Math.min(0.75, 0.25 + outlineWidth * 0.15)})`
         : undefined,
+    ...(resolvedMaxWidth ? { maxWidth: resolvedMaxWidth } : {}),
   };
 
   return {
@@ -107,6 +139,21 @@ export function buildCreatorStudioLayerTypography(
     ),
     inlineStyle,
   };
+}
+
+export function buildCreatorStudioCustomLayerTypography(
+  design: CreatorStudioDesign,
+  layerStyle: CreatorStudioLayerStyle,
+  compact = false,
+  options?: { reserveMobileBottom?: boolean }
+): CreatorStudioLayerTypography {
+  return buildCreatorStudioLayerTypographyFromStyle(
+    design,
+    layerStyle,
+    "overlay",
+    compact,
+    options
+  );
 }
 
 export function getCreatorStudioAccentColor(design: CreatorStudioDesign) {
