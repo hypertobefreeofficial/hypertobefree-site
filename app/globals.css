@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Fredoka:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Nunito:wght@500;700&family=Oswald:wght@500;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Source+Sans+3:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@500;700&family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Courier+Prime:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=EB+Garamond:ital,wght@0,500;0,700;1,500&family=Fredoka:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@600;700;800&family=Nunito:wght@500;700&family=Oswald:wght@500;700&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Quicksand:wght@500;600;700&family=Roboto+Slab:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -8,20 +8,25 @@
   --background: #f8fbff;
   --foreground: #0f172a;
   --font-creator-modern-bold: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-creator-aptos-clean: Aptos, "Segoe UI Variable", "Segoe UI", Calibri, sans-serif;
-  --font-creator-classic-serif: "Times New Roman", Times, Georgia, serif;
-  --font-creator-script-elegant: "Great Vibes", "Segoe Script", cursive;
-  --font-creator-handwritten: "Caveat", "Segoe Script", cursive;
-  --font-creator-worship-serif: "Cormorant Garamond", Georgia, serif;
-  --font-creator-scripture-classic: "Merriweather", Georgia, serif;
-  --font-creator-cinematic: "Oswald", "Arial Narrow", sans-serif;
-  --font-creator-minimal: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-creator-editorial: "Playfair Display", Georgia, serif;
-  --font-creator-soft-rounded: "Nunito", "Segoe UI", sans-serif;
-  --font-creator-strong-impact: "Bebas Neue", Oswald, "Arial Narrow", sans-serif;
-  --font-creator-peaceful: "Lora", Georgia, serif;
-  --font-creator-joyful: "Fredoka", "Trebuchet MS", sans-serif;
-  --font-creator-caption-clean: "Source Sans 3", "Segoe UI", sans-serif;
+  --font-creator-elegant-serif: "Libre Baskerville", Georgia, serif;
+  --font-creator-handwritten-journal: "Caveat", "Segoe Script", cursive;
+  --font-creator-worship-script: "Great Vibes", "Segoe Script", cursive;
+  --font-creator-typewriter-testimony: "Courier Prime", Courier, monospace;
+  --font-creator-minimal-uppercase: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-creator-cinematic-poster: "Bebas Neue", Oswald, "Arial Narrow", sans-serif;
+  --font-creator-magazine-editorial: "Playfair Display", Georgia, serif;
+  --font-creator-neon-glow: "Montserrat", "Segoe UI", sans-serif;
+  --font-creator-vintage-church: "Cinzel", Georgia, serif;
+  --font-creator-chalkboard: "Patrick Hand", "Comic Sans MS", cursive;
+  --font-creator-brush-stroke: "Permanent Marker", "Segoe Print", cursive;
+  --font-creator-luxury-gold: "Cormorant Garamond", Georgia, serif;
+  --font-creator-clean-modern-sans: "Source Sans 3", "Segoe UI", sans-serif;
+  --font-creator-faith-journal: "Lora", Georgia, serif;
+  --font-creator-newspaper: "Roboto Slab", Georgia, serif;
+  --font-creator-storybook: "Fredoka", "Trebuchet MS", sans-serif;
+  --font-creator-hero-title: "Oswald", "Arial Narrow", sans-serif;
+  --font-creator-social-creator: "Quicksand", "Trebuchet MS", sans-serif;
+  --font-creator-scripture-card: "EB Garamond", Georgia, serif;
 }
 
 * {
