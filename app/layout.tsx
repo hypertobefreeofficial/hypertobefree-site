@@ -3,6 +3,8 @@ import type { Metadata, Viewport } from "next";
 import RegisterServiceWorker from "../components/RegisterServiceWorker";
 import MobileSplashScreen from "../components/MobileSplashScreen";
 import AppBottomNav from "../components/AppBottomNav";
+import { CreatorStudioWorkspaceProvider } from "../components/CreatorStudioWorkspaceProvider";
+import { fontVariables, inter } from "../lib/fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,14 +20,20 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
-    <html lang="en">
-      <body>
-        <MobileSplashScreen />
-        <RegisterServiceWorker />
-        {children}
-        <AppBottomNav />
+    <html lang="en" className={fontVariables}>
+      <body className={`${inter.className} font-sans antialiased`}>
+        <CreatorStudioWorkspaceProvider>
+          <MobileSplashScreen />
+          <RegisterServiceWorker />
+          {children}
+          <AppBottomNav />
+        </CreatorStudioWorkspaceProvider>
       </body>
     </html>
   );
