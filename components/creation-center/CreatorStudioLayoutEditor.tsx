@@ -15,7 +15,6 @@ import CreatorStudioAdvancedControls from "./CreatorStudioAdvancedControls";
 import CreatorStudioLayerAiRewrite from "./CreatorStudioLayerAiRewrite";
 import CreatorStudioStoryCoach from "./CreatorStudioStoryCoach";
 import CreatorStudioTextStylePresetPicker from "./CreatorStudioTextStylePresetPicker";
-import { creatorStudioFontPresets } from "../../lib/creatorStudioTypography";
 
 export type CreatorStudioEditorPanel =
   | "text"
@@ -392,29 +391,6 @@ export default function CreatorStudioLayoutEditor({
                       {Math.round((layerStyle.fontScale ?? 1) * 100)}%
                     </span>
                   </div>
-                </label>
-
-                <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce] sm:col-span-2">
-                  Font personality
-                  <select
-                    value={layerStyle.fontPreset ?? "modern-bold"}
-                    onChange={(event) =>
-                      updateLayerStyle({
-                        fontPreset: event.target
-                          .value as NonNullable<
-                          CreatorStudioLayerStyle["fontPreset"]
-                        >,
-                      
-                      })
-                    }
-                    className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
-                  >
-                    {creatorStudioFontPresets.map((preset) => (
-                      <option key={preset.value} value={preset.value}>
-                        {preset.label}
-                      </option>
-                    ))}
-                  </select>
                 </label>
 
                 <label className="block text-xs font-black uppercase tracking-[0.12em] text-[#0b63ce]">
