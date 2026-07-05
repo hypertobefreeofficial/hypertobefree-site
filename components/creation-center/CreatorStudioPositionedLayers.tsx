@@ -447,7 +447,6 @@ function LayerToolbar({
 
   return (
     <CreatorStudioFloatingToolbar
-      ref={toolbarRef}
       style={toolbarStyle}
       layer={layer}
       layerStyle={layerStyle}
