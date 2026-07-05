@@ -6,7 +6,6 @@ import type {
   CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import {
-  applyCreatorStudioFontPreset,
   buildCreatorStudioFontPresetPreviewStyle,
   getCreatorStudioFontPresetDefinition,
   getCreatorStudioFontPresetLabel,
@@ -60,7 +59,9 @@ export default function CreatorStudioTextStylePresetPicker({
                     type="button"
                     title={preset.label}
                     onClick={() =>
-                      onApply(applyCreatorStudioFontPreset(preset.value))
+                    onApply({
+  fontPreset: preset,
+});
                     }
                     className={`relative min-h-[5.25rem] rounded-xl px-2 py-2 text-left transition duration-200 hover:scale-[1.03] ${
                       selected
