@@ -1836,14 +1836,15 @@ export default function FreedomFeed({
                       >
                         {(() => {
                           console.log(
-                            "[CreatorStudio/pipeline] payload received by FeedCard",
+                            "[CreatorStudio/pipeline] feed render design JSON",
                             {
                               storyId: story.id,
                               creation_mode: story.creation_mode,
+                              selectedDesignId: creatorStudioDesign.id,
+                              templateId: creatorStudioDesign.templateId,
+                              layoutType: creatorStudioDesign.layoutType,
                               layerStyles: creatorStudioDesign.layerStyles,
-                              title: creatorStudioDesign.title,
-                              overlayText: creatorStudioDesign.overlayText,
-                              caption: creatorStudioDesign.caption,
+                              feedRenderDesignJson: creatorStudioDesign,
                             }
                           );
                           return null;
@@ -2886,13 +2887,13 @@ function ComposedFeedPostVisual({
   const creatorStudioDesign = readStoredCreatorStudioDesignFromStory(story);
 
   if (creatorStudioDesign) {
-    console.log("[CreatorStudio/pipeline] payload received by Story Detail", {
+    console.log("[CreatorStudio/pipeline] feed render design JSON", {
       storyId: story.id,
       creation_mode: story.creation_mode,
-      layerStyles: creatorStudioDesign.layerStyles,
-      title: creatorStudioDesign.title,
-      overlayText: creatorStudioDesign.overlayText,
-      caption: creatorStudioDesign.caption,
+      selectedDesignId: creatorStudioDesign.id,
+      templateId: creatorStudioDesign.templateId,
+      layoutType: creatorStudioDesign.layoutType,
+      feedRenderDesignJson: creatorStudioDesign,
     });
 
     return (
