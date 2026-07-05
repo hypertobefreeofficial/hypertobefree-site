@@ -4,23 +4,25 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, Layers, Sparkles } from "lucide-react";
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
-  buildCreatorStudioLayerStyleUpdate,
+  buildCreatorStudioSelectableLayerStyleUpdate,
   clampCreatorStudioLayerCoordinates,
   getCreationCenterTemplate,
-  getCreatorStudioLayerStyle,
+  getCreatorStudioLayerCoordinates,
+  getCreatorStudioLayerStyleForSelection,
+  isCreatorStudioBuiltinLayer,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
   type CreatorStudioLayerStyle,
-  type CreatorStudioTextLayer,
+  type CreatorStudioSelectableLayer,
 } from "../../lib/creationCenter";
 import { buildCreatorStudioLayerTypography } from "../../lib/creatorStudioCanvasRender";
+import { resolveCreatorStudioDesignForRender } from "../../lib/creatorStudioRenderPipeline";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
 import CreatorStudioEditorialHints from "./CreatorStudioEditorialHints";
 import CreatorStudioPositionedLayers from "./CreatorStudioPositionedLayers";
@@ -31,8 +33,8 @@ type CreatorStudioInteractiveCanvasProps = {
   onChange: (updates: Partial<CreatorStudioDesign>) => void;
   videoPreviewUrl: string | null;
   photoPreviewUrl: string | null;
-  selectedLayer: CreatorStudioTextLayer;
-  onSelectLayer: (layer: CreatorStudioTextLayer) => void;
+  selectedLayer: CreatorStudioSelectableLayer;
+  onSelectLayer: (layer: CreatorStudioSelectableLayer) => void;
   onContinueToPublish?: () => void;
   onChangeConcept?: () => void;
   onGenerateConcepts?: () => void;
@@ -45,7 +47,7 @@ type CreatorStudioInteractiveCanvasProps = {
 };
 
 type DragState = {
-  layer: CreatorStudioTextLayer;
+  layer: CreatorStudioSelectableLayer;
   pointerId: number;
   startX: number;
   startY: number;
@@ -130,16 +132,8 @@ export default function CreatorStudioInteractiveCanvas({
   const editRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const [editingLayer, setEditingLayer] =
-    useState<CreatorStudioTextLayer | null>(null);
-  const [reserveMobileBottom, setReserveMobileBottom] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 1023px)");
-    const sync = () => setReserveMobileBottom(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
+    useState<CreatorStudioSelectableLayer | null>(null);
+  const reserveMobileBottom = false;
 
   const paletteSwatches = useMemo(
     () =>
@@ -152,29 +146,37 @@ export default function CreatorStudioInteractiveCanvas({
       ].filter((color): color is string => Boolean(color)),
     [design.colorPalette, design.textStyle?.color]
   );
+  const renderDesign = useMemo(
+    () => resolveCreatorStudioDesignForRender(design),
+    [design]
+  );
 
   const updateLayerStyle = useCallback(
-    (layer: CreatorStudioTextLayer, updates: Partial<CreatorStudioLayerStyle>) => {
-      onChange(buildCreatorStudioLayerStyleUpdate(design, layer, updates));
+    (
+      layer: CreatorStudioSelectableLayer,
+      updates: Partial<CreatorStudioLayerStyle>
+    ) => {
+      onChange(
+        buildCreatorStudioSelectableLayerStyleUpdate(design, layer, updates)
+      );
     },
     [design, onChange]
   );
 
   function beginLayerInteraction(
-    layer: CreatorStudioTextLayer,
+    layer: CreatorStudioSelectableLayer,
     event: ReactPointerEvent<HTMLDivElement>
   ) {
-    if (getCreatorStudioLayerStyle(design, layer).hidden) {
+    const style = getCreatorStudioLayerStyleForSelection(design, layer);
+    if (style.hidden) {
       return;
     }
 
-    const style = getCreatorStudioLayerStyle(design, layer);
-    const { x, y } = buildCreatorStudioLayerTypography(
-      design,
-      layer,
-      false,
-      { reserveMobileBottom }
-    ).coordinates;
+    const { x, y } = isCreatorStudioBuiltinLayer(layer)
+      ? buildCreatorStudioLayerTypography(renderDesign, layer, false, {
+          reserveMobileBottom,
+        }).coordinates
+      : getCreatorStudioLayerCoordinates(style, { reserveMobileBottom });
 
     dragStateRef.current = {
       layer,
@@ -220,7 +222,7 @@ export default function CreatorStudioInteractiveCanvas({
   }
 
   function endLayerInteraction(
-    layer: CreatorStudioTextLayer,
+    layer: CreatorStudioSelectableLayer,
     event: ReactPointerEvent<HTMLDivElement>
   ) {
     const drag = dragStateRef.current;
@@ -233,7 +235,6 @@ export default function CreatorStudioInteractiveCanvas({
 
     if (!drag.moved) {
       onSelectLayer(layer);
-      setEditingLayer(layer);
     }
 
     dragStateRef.current = null;
@@ -319,7 +320,7 @@ export default function CreatorStudioInteractiveCanvas({
             onPointerDown={() => setEditingLayer(null)}
           >
             <CreatorStudioPositionedLayers
-              design={design}
+              design={renderDesign}
               interactive
               hideCallToAction={false}
               selectedLayer={selectedLayer}
@@ -335,6 +336,7 @@ export default function CreatorStudioInteractiveCanvas({
               onLayerPointerMove={moveLayerInteraction}
               onLayerPointerUp={endLayerInteraction}
               onOpenOverflow={onOpenOverflow}
+              onSelectLayer={onSelectLayer}
             />
           </div>
 
