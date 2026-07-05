@@ -44,6 +44,7 @@ body {
 }
 
 @layer base {
+  h1,
   h2,
   h3,
   h4,
@@ -52,7 +53,9 @@ body {
     @apply font-heading;
   }
 
-  button {
+  button,
+  [role="tab"],
+  label {
     @apply font-heading;
   }
 }
