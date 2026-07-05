@@ -38,7 +38,7 @@ export default function CreatorStudioToolRail({
 }: CreatorStudioToolRailProps) {
   return (
     <aside
-      className={`flex w-16 shrink-0 flex-col items-center gap-2 border-r border-white/10 bg-[#031d3d] py-4 ${className}`}
+      className={`flex w-[4.5rem] shrink-0 flex-col items-center gap-1 border-r border-white/10 bg-[#031d3d] py-5 xl:w-20 ${className}`}
       aria-label="Creator Studio tools"
     >
       {railTools.map((tool) => {
@@ -53,7 +53,7 @@ export default function CreatorStudioToolRail({
             aria-label={tool.label}
             aria-pressed={active}
             title={tool.label}
-            className={`flex w-12 flex-col items-center gap-1 rounded-2xl px-1 py-2 text-[9px] font-bold transition ${
+            className={`flex w-full max-w-[4rem] flex-col items-center gap-1 rounded-2xl px-1 py-2.5 text-[9px] font-bold transition xl:max-w-none ${
               active
                 ? "bg-white/15 text-white ring-1 ring-white/20"
                 : "text-white/60 hover:bg-white/10 hover:text-white"
