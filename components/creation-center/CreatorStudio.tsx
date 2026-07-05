@@ -37,6 +37,7 @@ import CreatorStudioLayoutEditor, {
 import CreatorStudioPublishPreview from "./CreatorStudioPublishPreview";
 import CreatorStudioPublishing from "./CreatorStudioPublishing";
 import CreatorStudioPublishSuccess from "./CreatorStudioPublishSuccess";
+import { freezeCreatorStudioDesignForPublish } from "../../lib/creatorStudioMetadata";
 
 export type CreatorStudioPublishResult = {
   success: boolean;
@@ -59,8 +60,6 @@ type StudioScreen =
   | "publishing"
   | "success";
 type HomeStep = "welcome" | "write";
-
-type StudioScreen = "home" | "thinking" | "choose" | "editor" | "publish";
 
 type CreatorStudioProps = {
   designs: CreatorStudioDesign[];
@@ -260,6 +259,8 @@ export default function CreatorStudio({
   const [publishSnapshot, setPublishSnapshot] = useState<PublishSnapshot | null>(
     null
   );
+  const [frozenPublishDesign, setFrozenPublishDesign] =
+    useState<CreatorStudioDesign | null>(null);
   const [publishStep, setPublishStep] = useState("Publishing your testimony...");
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishResult, setPublishResult] =
@@ -322,6 +323,26 @@ export default function CreatorStudio({
   };
 
   const toolbarContextDesign = editableDesign ?? activeResultDesign ?? canvasDesign;
+  const previewDesign = frozenPublishDesign ?? toolbarContextDesign;
+
+  useEffect(() => {
+    if (currentScreen !== "editor" || !toolbarContextDesign) return;
+
+    console.log("[CreatorStudio/pipeline] selectedDesignId at editor", {
+      selectedDesignId,
+      designId: toolbarContextDesign.id,
+      templateId: toolbarContextDesign.templateId,
+      layoutType: toolbarContextDesign.layoutType,
+      layerStyleCount: Object.keys(toolbarContextDesign.layerStyles ?? {}).length,
+    });
+  }, [
+    currentScreen,
+    selectedDesignId,
+    toolbarContextDesign?.id,
+    toolbarContextDesign?.templateId,
+    toolbarContextDesign?.layoutType,
+    toolbarContextDesign?.layerStyles,
+  ]);
   const currentPathLabel = creatorStudioPathOptions.find((o) => o.value === studioPath)?.title ?? "Creator Studio";
   const currentLayoutLabel =
     creatorStudioLayoutOptions.find((o) => o.value === toolbarContextDesign.layoutType)?.label ?? "Creative direction";
@@ -349,10 +370,7 @@ export default function CreatorStudio({
         canvasDesign.overlayText ||
         "Share what God is doing",
     };
-    const nextDesign = prepareCreatorStudioForEditing({
-      ...base,
-      layerStyles: undefined,
-    });
+    const nextDesign = prepareCreatorStudioForEditing(base);
     setEditableDesign(nextDesign);
     setScreen("editor");
   }
@@ -518,18 +536,42 @@ export default function CreatorStudio({
 
   function continueToPreview() {
     if (!toolbarContextDesign) return;
-    const readyDesign = prepareCreatorStudioForEditing(toolbarContextDesign);
-    setEditableDesign(readyDesign);
+
+    const frozen = freezeCreatorStudioDesignForPublish(
+      toolbarContextDesign,
+      selectedDesignId
+    );
+
+    console.log("[CreatorStudio/pipeline] selectedDesignId at preview", {
+      selectedDesignId,
+      frozenDesignId: frozen.id,
+      templateId: frozen.templateId,
+      layoutType: frozen.layoutType,
+      layerStyleCount: Object.keys(frozen.layerStyles ?? {}).length,
+      savedDesignJson: frozen,
+    });
+
+    setFrozenPublishDesign(frozen);
+    setEditableDesign(frozen);
     setPublishError(null);
     setScreen("preview");
   }
 
   async function shareTestimony() {
-    if (!toolbarContextDesign || isPublishing) return;
+    const designToPublish = frozenPublishDesign;
+    if (!designToPublish || isPublishing) return;
 
-    const preparedDesign = prepareCreatorStudioForEditing(toolbarContextDesign);
+    console.log("[CreatorStudio/pipeline] selectedDesignId at publish", {
+      selectedDesignId,
+      frozenDesignId: designToPublish.id,
+      templateId: designToPublish.templateId,
+      layoutType: designToPublish.layoutType,
+      layerStyleCount: Object.keys(designToPublish.layerStyles ?? {}).length,
+      savedDesignJson: designToPublish,
+    });
+
     setPublishSnapshot({
-      design: preparedDesign,
+      design: designToPublish,
       photoPreviewUrl,
       videoPreviewUrl,
     });
@@ -538,7 +580,7 @@ export default function CreatorStudio({
     setScreen("publishing");
     setIsPublishing(true);
 
-    const result = await onPublishTestimony(preparedDesign, (step) => {
+    const result = await onPublishTestimony(designToPublish, (step) => {
       setPublishStep(step);
     });
 
@@ -561,6 +603,7 @@ export default function CreatorStudio({
     setSelectedDesignId(null);
     setImageEnhancedDesign(null);
     setPublishSnapshot(null);
+    setFrozenPublishDesign(null);
     setPublishResult(null);
     setPublishError(null);
     setPublishStep("Publishing your testimony...");
@@ -741,7 +784,7 @@ export default function CreatorStudio({
               onSelect={(design) => {
                 setSelectedDesignId(design.id);
                 setImageEnhancedDesign(null);
-                openEditor({ ...design, layerStyles: undefined });
+                openEditor(design);
               }}
             />
           </div>
@@ -785,31 +828,42 @@ export default function CreatorStudio({
           />
         )}
 
-        {currentScreen === "preview" && toolbarContextDesign && (
+        {currentScreen === "preview" && previewDesign ? (
           <CreatorStudioPublishPreview
-            design={toolbarContextDesign}
+            design={previewDesign}
             videoPreviewUrl={videoPreviewUrl}
             photoPreviewUrl={photoPreviewUrl}
-            onBackToEdit={() => setScreen("editor")}
-            onShare={() => void shareTestimony()}
+            onBackToEdit={() => {
+              setFrozenPublishDesign(null);
+              setScreen("editor");
+            }}
+            onShare={() => {
+              void shareTestimony();
+            }}
             sharing={isPublishing}
           />
-        )}
+        ) : null}
 
-        {currentScreen === "publishing" && (
+        {currentScreen === "publishing" ? (
           <CreatorStudioPublishing
             activeStep={publishStep}
             error={publishError}
             onRetry={
-              publishError && toolbarContextDesign
-                ? () => void shareTestimony()
+              publishError && frozenPublishDesign
+                ? () => {
+                    void shareTestimony();
+                  }
                 : undefined
             }
             onBackToEdit={
-              publishError ? () => setScreen("editor") : undefined
+              publishError
+                ? () => {
+                    setScreen("editor");
+                  }
+                : undefined
             }
           />
-        )}
+        ) : null}
 
         {currentScreen === "success" && publishSnapshot && publishResult?.success && (
           <CreatorStudioPublishSuccess
@@ -832,7 +886,6 @@ export default function CreatorStudio({
           </div>
         ) : null}
       </div>
-      )}
     </section>
   );
 }
