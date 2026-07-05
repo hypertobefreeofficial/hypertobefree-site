@@ -18,11 +18,7 @@ type CreatorStudioPreviewVariant =
   | "detail"
   | "publish";
 
-type CreatorStudioPreviewVariant =
-  | "preview"
-  | "feed"
-  | "detail"
-  | "publish";
+
 
 type CreatorStudioPreviewProps = {
   design?: CreatorStudioDesign | null;
