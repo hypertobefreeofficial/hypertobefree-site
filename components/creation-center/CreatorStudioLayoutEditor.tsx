@@ -404,7 +404,7 @@ export default function CreatorStudioLayoutEditor({
                           .value as NonNullable<
                           CreatorStudioLayerStyle["fontPreset"]
                         >,
-                        stylePresetId: undefined,
+                      
                       })
                     }
                     className="mt-2 w-full rounded-2xl border border-blue-100 bg-white px-4 py-3 text-base font-bold normal-case tracking-normal text-[#062a57] outline-none focus:border-[#0b63ce] focus:ring-4 focus:ring-blue-100"
