@@ -207,7 +207,7 @@ export function applyCreatorStudioTextStylePreset(
   if (!preset) return {};
 
   return {
-    stylePresetId: preset.id,
+  
     fontPreset: preset.fontPreset,
     weight: preset.weight,
     italic: preset.italic,
