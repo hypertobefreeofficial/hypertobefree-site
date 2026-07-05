@@ -54,15 +54,18 @@ function readLayoutType(value: unknown): CreatorStudioLayoutType {
 }
 
 function readTemplateId(value: unknown): CreationCenterTemplateId {
-  if (typeof value !== "string") return "scripture-woods";
+  if (typeof value !== "string") return "none";
 
-  const template = getCreationCenterTemplate(value as CreationCenterTemplateId);
+  const trimmed = value.trim();
+  if (trimmed === "none") return "none";
 
-  if (template?.id && template.id !== "none") {
+  const template = getCreationCenterTemplate(trimmed as CreationCenterTemplateId);
+
+  if (template?.id) {
     return template.id;
   }
 
-  return "scripture-woods";
+  return "none";
 }
 
 const creatorStudioTextLayerKeys: CreatorStudioTextLayer[] = [
@@ -85,6 +88,17 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
   const align = readString(value.align);
   const position = readString(value.position);
   const color = readString(value.color);
+  const fontPreset = readString(value.fontPreset);
+  const fontPresetValues = [
+    "modern-bold",
+    "elegant-serif",
+    "warm-rounded",
+    "editorial",
+    "cinematic",
+    "reflective",
+    "worshipful",
+    "handwritten-accent",
+  ] as const;
 
   return {
     fontSize:
@@ -95,6 +109,10 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
         ? fontSize
         : undefined,
     fontScale: readNumber(value.fontScale),
+    fontPreset: fontPresetValues.includes(fontPreset as (typeof fontPresetValues)[number])
+      ? (fontPreset as CreatorStudioLayerStyle["fontPreset"])
+      : undefined,
+    stylePresetId: readString(value.stylePresetId) || undefined,
     weight: weight === "regular" || weight === "bold" ? weight : undefined,
     italic: typeof value.italic === "boolean" ? value.italic : undefined,
     align:
@@ -161,7 +179,7 @@ function readTextStyle(
   const fontScaleRaw = style.fontScale;
   const fontScale =
     typeof fontScaleRaw === "number" && Number.isFinite(fontScaleRaw)
-      ? Math.min(1.5, Math.max(0.75, fontScaleRaw))
+      ? Math.min(2.2, Math.max(0.55, fontScaleRaw))
       : undefined;
 
   return {
@@ -203,9 +221,24 @@ export function parseAiSuggestionsRecord(value: unknown): Record<string, unknown
 export function serializeCreatorStudioDesignForStorage(
   design: CreatorStudioDesign
 ): CreatorStudioDesign {
-  const prepared = prepareCreatorStudioForEditing(design);
+  const prepared =
+    design.layerStyles && Object.keys(design.layerStyles).length > 0
+      ? design
+      : prepareCreatorStudioForEditing(design);
 
   return JSON.parse(JSON.stringify(prepared)) as CreatorStudioDesign;
+}
+
+export function freezeCreatorStudioDesignForPublish(
+  design: CreatorStudioDesign,
+  selectedDesignId?: string | null
+): CreatorStudioDesign {
+  const frozen = serializeCreatorStudioDesignForStorage(design);
+
+  return {
+    ...frozen,
+    id: selectedDesignId?.trim() || frozen.id,
+  };
 }
 
 export function buildCreatorStudioAiSuggestionsPayload(options: {
@@ -377,6 +410,10 @@ export function readStoredCreatorStudioDesignFromStory(story: {
     return null;
   }
 
+  if (design.layerStyles && Object.keys(design.layerStyles).length > 0) {
+    return design;
+  }
+
   return prepareCreatorStudioForEditing(design);
 }
 
@@ -399,9 +436,13 @@ export function verifyCreatorStudioDesignPersisted(
   }
 
   console.log("[CreatorStudio/pipeline] verified persisted design", {
+    selectedDesignId: stored.id,
+    savedDesignJson: stored,
     title: stored.title,
     overlayText: stored.overlayText,
     caption: stored.caption,
+    templateId: stored.templateId,
+    layoutType: stored.layoutType,
     layerStyles: stored.layerStyles,
     textStyle: stored.textStyle,
     expectedLayerCount: Object.keys(expectedDesign.layerStyles ?? {}).length,
