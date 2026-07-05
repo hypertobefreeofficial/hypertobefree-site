@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {
   type CreationCenterFormat,
@@ -12,7 +13,9 @@ import {
   type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
-import CreatorStudio from "./CreatorStudio";
+import CreatorStudio, {
+  type CreatorStudioPublishResult,
+} from "./CreatorStudio";
 
 type CreationCenterProps = {
   format: CreationCenterFormat;
@@ -53,6 +56,10 @@ type CreationCenterProps = {
     request: CreatorStudioImageRequest
   ) => Promise<CreatorStudioImageResult | null>;
   onUseCreatorStudioDesign: (design: CreatorStudioDesign) => void;
+  onPublishCreatorStudioTestimony: (
+    design: CreatorStudioDesign,
+    onProgress: (step: string) => void
+  ) => Promise<CreatorStudioPublishResult>;
   onCreatorStudioActiveChange: (active: boolean) => void;
   onUseSuggestedStoryType: (storyType: string) => void;
   onUseSuggestedTitle: (title: string) => void;
@@ -82,16 +89,19 @@ export default function CreationCenter({
   onRequestCreatorStudioDesigns,
   onRequestCreatorStudioImage,
   onUseCreatorStudioDesign,
+  onPublishCreatorStudioTestimony,
   onCreatorStudioActiveChange,
 }: CreationCenterProps) {
+  const router = useRouter();
+
   useEffect(() => {
     onCreatorStudioActiveChange(true);
     return () => onCreatorStudioActiveChange(false);
   }, [onCreatorStudioActiveChange]);
 
   return (
-    <div className="w-full min-w-0 overflow-hidden">
-      <div className="mb-3 flex items-center justify-end px-1 lg:px-0">
+    <div className="w-full min-w-0 overflow-hidden lg:overflow-visible">
+      <div className="mb-3 flex items-center justify-end px-1 lg:hidden">
         <button
           type="button"
           onClick={onSwitchToQuickShare}
@@ -118,6 +128,9 @@ export default function CreationCenter({
         onRequestDesigns={onRequestCreatorStudioDesigns}
         onRequestImage={onRequestCreatorStudioImage}
         onUseDesign={onUseCreatorStudioDesign}
+        onPublishTestimony={onPublishCreatorStudioTestimony}
+        onViewFeed={() => router.push("/feed")}
+        onExitStudio={onExitStudio ?? onSwitchToQuickShare}
       />
     </div>
   );
