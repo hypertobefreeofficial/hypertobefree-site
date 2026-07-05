@@ -1,5 +1,3 @@
-Share your story backup
-
 "use client";
 
 import Link from "next/link";
