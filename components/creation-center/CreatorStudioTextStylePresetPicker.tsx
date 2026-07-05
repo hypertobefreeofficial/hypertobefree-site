@@ -93,7 +93,7 @@ const activePreset = getCreatorStudioTextStylePreset(layerStyle.fontPreset);
         } sm:grid-cols-2 xl:grid-cols-2`}
       >
         {filteredPresets.map((preset) => {
-          const selected = layerStyle.stylePresetId === preset.id;
+       const selected = layerStyle.fontPreset === preset.id;
 
           return (
             <button
