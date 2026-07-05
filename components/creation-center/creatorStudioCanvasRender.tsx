@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { resolveCreatorStudioLayerMaxWidthStyle } from "./creatorStudioLayerLayout";
+import { resolveCreatorStudioLayerMaxWidthStyle } from "../../lib/creatorStudioLayerLayout";
 import {
   getCreatorStudioLayerCoordinates,
   getCreatorStudioLayerStyle,
