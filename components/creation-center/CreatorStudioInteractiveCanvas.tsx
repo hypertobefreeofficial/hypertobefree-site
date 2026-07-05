@@ -41,6 +41,7 @@ type CreatorStudioInteractiveCanvasProps = {
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
   hideTopActionsOnDesktop?: boolean;
   fillAvailableSpace?: boolean;
+  desktopEditor?: boolean;
 };
 
 type DragState = {
@@ -122,6 +123,7 @@ export default function CreatorStudioInteractiveCanvas({
   onOpenOverflow,
   hideTopActionsOnDesktop = false,
   fillAvailableSpace = false,
+  desktopEditor = false,
 }: CreatorStudioInteractiveCanvasProps) {
   const reducedMotion = useReducedMotion();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -240,14 +242,20 @@ export default function CreatorStudioInteractiveCanvas({
   const showEditorialHints = !selectedLayer && !editingLayer;
 
   return (
-    <div className="mx-auto flex h-full min-h-0 min-w-0 w-full max-w-none items-center justify-center">
+    <div
+      className={`flex min-h-0 min-w-0 w-full items-center justify-center ${
+        desktopEditor ? "h-full lg:px-0" : "mx-auto h-full max-w-none"
+      }`}
+    >
       <motion.div
         initial={reducedMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         className={`relative min-h-0 min-w-0 overflow-hidden bg-[#031d3d] ${
           fillAvailableSpace
-            ? "aspect-[9/16] h-full max-h-full w-auto max-w-full"
+            ? desktopEditor
+              ? "aspect-[9/16] w-full max-h-[calc(100dvh-14rem-env(safe-area-inset-bottom))] lg:aspect-[9/16] lg:h-[min(calc(100dvh-7.5rem),840px)] lg:w-auto lg:max-h-none lg:max-w-[min(100%,calc(min(calc(100dvh-7.5rem),840px)*9/16))] lg:rounded-2xl lg:shadow-2xl lg:shadow-black/40 lg:ring-1 lg:ring-white/10"
+              : "aspect-[9/16] h-full max-h-full w-auto max-w-full"
             : "w-full rounded-none sm:rounded-[1.75rem] sm:shadow-2xl sm:shadow-blue-950/20 sm:ring-1 sm:ring-white/10"
         }`}
       >
@@ -331,12 +339,14 @@ export default function CreatorStudioInteractiveCanvas({
           </div>
 
           {showEditorialHints && (
-            <CreatorStudioEditorialHints
-              design={design}
-              onApplyTitle={(title) => onChange({ title })}
-              onApplyCaption={(caption) => onChange({ caption })}
-              onFocusScripture={() => onSelectLayer("scripture")}
-            />
+            <div className={hideTopActionsOnDesktop ? "lg:hidden" : undefined}>
+              <CreatorStudioEditorialHints
+                design={design}
+                onApplyTitle={(title) => onChange({ title })}
+                onApplyCaption={(caption) => onChange({ caption })}
+                onFocusScripture={() => onSelectLayer("scripture")}
+              />
+            </div>
           )}
         </div>
       </motion.div>
