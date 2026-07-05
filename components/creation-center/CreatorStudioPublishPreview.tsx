@@ -46,7 +46,7 @@ export default function CreatorStudioPublishPreview({
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-white/10 bg-[#031d3d]/95 px-4 py-4 sm:px-6">
+      <footer className="shrink-0 border-t border-white/10 bg-[#031d3d]/95 px-4 py-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
