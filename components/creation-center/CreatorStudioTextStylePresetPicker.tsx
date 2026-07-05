@@ -62,11 +62,11 @@ export default function CreatorStudioTextStylePresetPicker({
                     key={preset.value}
                     type="button"
                     title={preset.label}
-                    onClick={() => {
-                      onApply({
-                        fontPreset: preset.value,
-                      });
-                    }}
+                  onClick={() => {
+  onApply({
+    fontPreset: preset.value as CreatorStudioLayerStyle["fontPreset"],
+  });
+}}
                     className={`relative min-h-[5.25rem] rounded-xl px-2 py-2 text-left transition duration-200 hover:scale-[1.03] ${
                       selected
                         ? "border-2 border-[#0b63ce] bg-blue-50 shadow-[0_0_0_1px_rgba(11,99,206,0.15)]"
