@@ -43,6 +43,7 @@ import {
 import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
 import {
   buildCreatorStudioAiSuggestionsPayload,
+  freezeCreatorStudioDesignForPublish,
   verifyCreatorStudioDesignPersisted,
 } from "../../lib/creatorStudioMetadata";
 
@@ -1674,13 +1675,15 @@ export default function ShareYourStoryPage() {
   }
 
   function stageCreatorStudioDesign(design: CreatorStudioDesign) {
-    const preparedDesign = prepareCreatorStudioForEditing(design);
+    const preparedDesign =
+      design.layerStyles && Object.keys(design.layerStyles).length > 0
+        ? design
+        : prepareCreatorStudioForEditing(design);
     const cleanTitle = preparedDesign.title.trim();
     const cleanOverlayText = preparedDesign.overlayText.trim() || cleanTitle;
     const cleanCaption = preparedDesign.caption.trim();
     const cleanCategory = preparedDesign.category.trim() || "Testimony";
     const cleanTopic = preparedDesign.topic.trim() || cleanCategory;
-    const selectedTemplate = getCreationCenterTemplate(preparedDesign.templateId);
 
     pendingCreatorStudioDesignRef.current = {
       ...preparedDesign,
@@ -1689,13 +1692,7 @@ export default function ShareYourStoryPage() {
       caption: cleanCaption,
       category: cleanCategory,
       topic: cleanTopic,
-      templateId:
-        selectedTemplate && selectedTemplate.id !== "none"
-          ? selectedTemplate.id
-          : preparedDesign.sourceMode === "upload-video" ||
-              preparedDesign.sourceMode === "upload-photo"
-            ? "none"
-            : "scripture-woods",
+      templateId: preparedDesign.templateId,
     };
 
     if (preparedDesign.sourceMode === "upload-video") {
@@ -1753,11 +1750,17 @@ export default function ShareYourStoryPage() {
       return { success: false, error: "Please sign in before sharing." };
     }
 
-    stageCreatorStudioDesign(design);
+    const frozenDesign = freezeCreatorStudioDesignForPublish(design);
+    stageCreatorStudioDesign(frozenDesign);
 
-    const creatorStudioDesign = pendingCreatorStudioDesignRef.current
-      ? prepareCreatorStudioForEditing(pendingCreatorStudioDesignRef.current)
-      : null;
+    const creatorStudioDesign = pendingCreatorStudioDesignRef.current ?? frozenDesign;
+
+    console.log("[CreatorStudio/pipeline] selectedDesignId at publish", {
+      selectedDesignId: frozenDesign.id,
+      templateId: creatorStudioDesign.templateId,
+      layoutType: creatorStudioDesign.layoutType,
+      savedDesignJson: creatorStudioDesign,
+    });
 
     if (!creatorStudioDesign) {
       return { success: false, error: "Could not prepare your design." };
