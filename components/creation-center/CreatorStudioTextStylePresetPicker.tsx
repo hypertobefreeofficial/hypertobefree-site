@@ -7,10 +7,8 @@ import type {
 } from "../../lib/creationCenter";
 import {
   applyCreatorStudioFontPreset,
-  creatorStudioTextStylePresets,
-} from "../../lib/creatorStudioTextStylePresets";
-import {
   buildCreatorStudioFontPresetPreviewStyle,
+  creatorStudioTextStylePresets,
   getCreatorStudioFontPresetDefinition,
   getCreatorStudioFontPresetLabel,
   groupCreatorStudioFontPresetsByCategory,
