@@ -575,9 +575,9 @@ export default function CreatorStudio({
 
   return (
     <section
-      className={`relative w-full min-w-0 overflow-hidden ${
+      className={`relative w-full min-w-0 max-w-none overflow-hidden ${
         flowScreen
-          ? "bg-[#020617] rounded-none shadow-none ring-0"
+          ? "bg-[#020617] rounded-none shadow-none ring-0 lg:min-h-[calc(100dvh-4.75rem-env(safe-area-inset-bottom))]"
           : "rounded-[2rem] bg-[#f8fafc] shadow-2xl shadow-blue-950/10 ring-1 ring-blue-100"
       }`}
     >
