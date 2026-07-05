@@ -4,6 +4,8 @@ import { ChevronRight, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
+  buildCreatorStudioLayerStyleUpdate,
+  getCreatorStudioLayerStyle,
   type CreatorStudioDesign,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
@@ -13,6 +15,7 @@ import CreatorStudioLayoutEditor, {
 } from "./CreatorStudioLayoutEditor";
 import CreatorStudioPreview from "./CreatorStudioPreview";
 import CreatorStudioSidePanel from "./CreatorStudioSidePanel";
+import CreatorStudioTextStylePresetPicker from "./CreatorStudioTextStylePresetPicker";
 import CreatorStudioToolRail, {
   CreatorStudioMobileToolbar,
   mapRailToolToEditorPanel,
@@ -73,6 +76,9 @@ export default function CreatorStudioCanvasEditor({
     useState<CreatorStudioEditorPanel | null>(null);
 
   const desktopPanel = mapRailToolToEditorPanel(activeTool);
+  const showMobileTextStyleLibrary =
+    activeTool === "text" || activeTool === "filters" || activeTool === "scripture";
+  const mobileLayerStyle = getCreatorStudioLayerStyle(design, selectedLayer);
 
   useEffect(() => {
     if (activeTool === "text") {
@@ -275,21 +281,40 @@ export default function CreatorStudioCanvasEditor({
                 {aiControls}
               </div>
             ) : (
-              <CreatorStudioLayoutEditor
-                compact
-                design={design}
-                onChange={onChange}
-                videoFileName={videoFileName}
-                photoFileName={photoFileName}
-                onVideoSelect={onVideoSelect}
-                onPhotoSelect={onPhotoSelect}
-                onRemoveVideo={onRemoveVideo}
-                onRemovePhoto={onRemovePhoto}
-                activePanel={mobilePanel}
-                onPanelChange={setMobilePanel}
-                aiControls={aiControls}
-                selectedLayer={selectedLayer}
-              />
+              <div className="space-y-4">
+                {showMobileTextStyleLibrary && (
+                  <CreatorStudioTextStylePresetPicker
+                    layerStyle={mobileLayerStyle}
+                    selectedLayer={selectedLayer}
+                    onApply={(updates) =>
+                      onChange(
+                        buildCreatorStudioLayerStyleUpdate(
+                          design,
+                          selectedLayer,
+                          updates
+                        )
+                      )
+                    }
+                    compact
+                  />
+                )}
+                <CreatorStudioLayoutEditor
+                  compact
+                  design={design}
+                  onChange={onChange}
+                  videoFileName={videoFileName}
+                  photoFileName={photoFileName}
+                  onVideoSelect={onVideoSelect}
+                  onPhotoSelect={onPhotoSelect}
+                  onRemoveVideo={onRemoveVideo}
+                  onRemovePhoto={onRemovePhoto}
+                  activePanel={mobilePanel}
+                  onPanelChange={setMobilePanel}
+                  aiControls={aiControls}
+                  selectedLayer={selectedLayer}
+                  showTextStyleLibrary={false}
+                />
+              </div>
             )}
           </div>
         </div>
