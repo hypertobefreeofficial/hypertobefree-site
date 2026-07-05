@@ -90,10 +90,12 @@ export default function CreatorStudioCanvasEditor({
   }
 
   return (
-    <div className="relative flex min-h-[min(100dvh,56rem)] min-w-0 flex-col bg-[#020617] lg:min-h-[calc(100dvh-5rem)]">
-      <div className="relative z-[60] hidden shrink-0 items-center justify-between border-b border-white/10 bg-[#031d3d] px-4 py-3 lg:flex">
-        <div className="flex items-center gap-3">
-          <div className="text-sm font-black text-white">Creator Studio</div>
+    <div className="relative flex w-full min-h-[100dvh] min-w-0 flex-col bg-[#020617] lg:h-[calc(100dvh-4.75rem-env(safe-area-inset-bottom))] lg:min-h-0 lg:max-h-[calc(100dvh-4.75rem-env(safe-area-inset-bottom))]">
+      <header className="relative z-[60] hidden shrink-0 items-center justify-between border-b border-white/10 bg-[#031d3d] px-6 py-3 lg:flex xl:px-8">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="text-sm font-black tracking-tight text-white">
+            Creator Studio
+          </div>
           {onStartOver && (
             <button
               type="button"
@@ -104,7 +106,7 @@ export default function CreatorStudioCanvasEditor({
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {showChangeConcept && onChangeConcept && (
             <button
               type="button"
@@ -133,31 +135,34 @@ export default function CreatorStudioCanvasEditor({
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row lg:overflow-hidden">
         <CreatorStudioToolRail
           activeTool={activeTool}
           onToolChange={handleToolChange}
           className="hidden lg:flex"
         />
 
-        <div className="relative min-h-0 min-w-0 flex-1 pb-[calc(11.5rem+4.75rem+env(safe-area-inset-bottom))] lg:pb-0">
-          <CreatorStudioInteractiveCanvas
-            design={design}
-            onChange={onChange}
-            videoPreviewUrl={videoPreviewUrl}
-            photoPreviewUrl={photoPreviewUrl}
-            selectedLayer={selectedLayer}
-            onSelectLayer={setSelectedLayer}
-            onChangeConcept={onChangeConcept}
-            showChangeConcept={showChangeConcept}
-            onGenerateConcepts={onGenerateConcepts}
-            showGenerateConcepts={showGenerateConcepts}
-            onOpenOverflow={handleOpenOverflow}
-            hideTopActionsOnDesktop
-            fillAvailableSpace
-          />
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#01050f] lg:min-h-0">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-2 pb-[calc(11.5rem+4.75rem+env(safe-area-inset-bottom))] lg:p-6 lg:pb-6 xl:p-8">
+            <CreatorStudioInteractiveCanvas
+              design={design}
+              onChange={onChange}
+              videoPreviewUrl={videoPreviewUrl}
+              photoPreviewUrl={photoPreviewUrl}
+              selectedLayer={selectedLayer}
+              onSelectLayer={setSelectedLayer}
+              onChangeConcept={onChangeConcept}
+              showChangeConcept={showChangeConcept}
+              onGenerateConcepts={onGenerateConcepts}
+              showGenerateConcepts={showGenerateConcepts}
+              onOpenOverflow={handleOpenOverflow}
+              hideTopActionsOnDesktop
+              fillAvailableSpace
+              desktopEditor
+            />
+          </div>
         </div>
 
         <CreatorStudioSidePanel
