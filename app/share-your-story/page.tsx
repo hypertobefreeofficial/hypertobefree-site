@@ -24,6 +24,7 @@ import {
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
 import CreationCenter from "../../components/creation-center/CreationCenter";
+import type { CreatorStudioPublishResult } from "../../components/creation-center/CreatorStudio";
 import {
   CREATION_CENTER_V2_ENABLED,
   MAX_FAITH_STREAMS,
@@ -1672,7 +1673,7 @@ export default function ShareYourStoryPage() {
     return matchedType?.value ?? "testimony";
   }
 
-  function useCreatorStudioDesign(design: CreatorStudioDesign) {
+  function stageCreatorStudioDesign(design: CreatorStudioDesign) {
     const preparedDesign = prepareCreatorStudioForEditing(design);
     const cleanTitle = preparedDesign.title.trim();
     const cleanOverlayText = preparedDesign.overlayText.trim() || cleanTitle;
@@ -1680,16 +1681,6 @@ export default function ShareYourStoryPage() {
     const cleanCategory = preparedDesign.category.trim() || "Testimony";
     const cleanTopic = preparedDesign.topic.trim() || cleanCategory;
     const selectedTemplate = getCreationCenterTemplate(preparedDesign.templateId);
-
-    console.log("[CreatorStudio/pipeline] selectedDesign", preparedDesign);
-    console.log("[CreatorStudio/pipeline] creatorStudioDesign", {
-      title: preparedDesign.title,
-      overlayText: preparedDesign.overlayText,
-      caption: preparedDesign.caption,
-      scriptureSuggestion: preparedDesign.scriptureSuggestion,
-      textStyle: preparedDesign.textStyle,
-      layerStyles: preparedDesign.layerStyles,
-    });
 
     pendingCreatorStudioDesignRef.current = {
       ...preparedDesign,
@@ -1733,10 +1724,291 @@ export default function ShareYourStoryPage() {
         Boolean
       )
     );
+  }
+
+  function useCreatorStudioDesign(design: CreatorStudioDesign) {
+    stageCreatorStudioDesign(design);
+
+    console.log("[CreatorStudio/pipeline] selectedDesign", design);
+    console.log("[CreatorStudio/pipeline] creatorStudioDesign", {
+      title: design.title,
+      overlayText: design.overlayText,
+      caption: design.caption,
+      scriptureSuggestion: design.scriptureSuggestion,
+      textStyle: design.textStyle,
+      layerStyles: design.layerStyles,
+    });
+
     setCreationCenterSuggestionMessage(
       "Creator Studio design is ready to submit. You can still edit before review."
     );
     setMessage("Creator Studio design prepared for review.");
+  }
+
+  async function publishCreatorStudioTestimony(
+    design: CreatorStudioDesign,
+    onProgress: (step: string) => void
+  ): Promise<CreatorStudioPublishResult> {
+    if (!userId || !profile) {
+      return { success: false, error: "Please sign in before sharing." };
+    }
+
+    stageCreatorStudioDesign(design);
+
+    const creatorStudioDesign = pendingCreatorStudioDesignRef.current
+      ? prepareCreatorStudioForEditing(pendingCreatorStudioDesignRef.current)
+      : null;
+
+    if (!creatorStudioDesign) {
+      return { success: false, error: "Could not prepare your design." };
+    }
+
+    const creatorStudioSourceMode = creatorStudioDesign.sourceMode;
+    const isCreatorStudioMediaPost =
+      creatorStudioSourceMode === "upload-video" ||
+      creatorStudioSourceMode === "upload-photo";
+    const cleanStoryText = isCreatorStudioMediaPost
+      ? (
+          creatorStudioDesign.caption ||
+          creatorStudioDesign.title ||
+          creatorStudioDesign.overlayText
+        ).trim()
+      : (
+          creatorStudioDesign.overlayText ||
+          creatorStudioDesign.title ||
+          creatorStudioDesign.caption
+        ).trim();
+    const cleanOverlayText = creatorStudioDesign.overlayText.trim();
+    const moderationText = [
+      cleanStoryText,
+      cleanOverlayText,
+      creatorStudioDesign.caption,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    const effectiveMediaMode: MediaMode =
+      creatorStudioSourceMode === "upload-video"
+        ? "video"
+        : creatorStudioSourceMode === "upload-photo"
+          ? "photo"
+          : "text";
+    const hasPhoto = effectiveMediaMode === "photo" && Boolean(photoFile);
+    const hasVideo = effectiveMediaMode === "video" && Boolean(videoFile);
+
+    if (!cleanStoryText && !cleanOverlayText && !hasPhoto && !hasVideo) {
+      return {
+        success: false,
+        error: "Add a little text or media before sharing.",
+      };
+    }
+
+    setSubmitting(true);
+    setMessage("");
+
+    try {
+      onProgress("Publishing your testimony...");
+
+      const finalStoryType = creatorStudioDesign.category;
+      const finalContentType =
+        creatorStudioSourceMode === "upload-video"
+          ? "video"
+          : creatorStudioSourceMode === "upload-photo"
+            ? "photo"
+            : "testimony-card";
+      const finalTopics = Array.from(
+        new Set(
+          [creatorStudioDesign.category, creatorStudioDesign.topic]
+            .map((topic) => normalizeTopic(topic))
+            .filter(Boolean)
+        )
+      );
+      const selectedCreationTemplate = !isCreatorStudioMediaPost
+        ? getCreationCenterTemplate(creatorStudioDesign.templateId)
+        : null;
+      const generatedCreationTemplatePayload =
+        creatorStudioDesign.generatedImageUrl && !isCreatorStudioMediaPost
+          ? {
+              id: "generated-creator-studio",
+              label: "Creator Studio visual design",
+              imagePath: creatorStudioDesign.generatedImageUrl,
+              generatedImagePath: creatorStudioDesign.generatedImagePath,
+              generatedImageBucket: creatorStudioDesign.generatedImageBucket,
+            }
+          : null;
+      const creationTemplatePayload =
+        generatedCreationTemplatePayload ??
+        (selectedCreationTemplate && selectedCreationTemplate.id !== "none"
+          ? {
+              id: selectedCreationTemplate.id,
+              label: selectedCreationTemplate.label,
+              imagePath: selectedCreationTemplate.imagePath,
+            }
+          : null);
+      const suggestionPayload = buildCreatorStudioAiSuggestionsPayload({
+        design: creatorStudioDesign,
+        prompts: guidedPromptAnswers,
+        suggestions: storyShapeSuggestion,
+        selectedTemplate: creationTemplatePayload,
+      });
+
+      console.log("[CreatorStudio/pipeline] selectedDesign", creatorStudioDesign);
+      console.log(
+        "[CreatorStudio/pipeline] payload inserted into Supabase (ai_suggestions)",
+        suggestionPayload
+      );
+
+      onProgress("Reviewing safety...");
+
+      const moderationDecision = await moderateStoryText({
+        finalStoryType,
+        cleanStoryText: moderationText,
+        hasVideo,
+        hasPhoto,
+      });
+
+      onProgress("Uploading media...");
+
+      const imagePath = hasPhoto ? await uploadPhotoIfNeeded(userId) : null;
+      const { videoUrl, thumbnailUrl } = hasVideo
+        ? await uploadVideoIfNeeded(userId)
+        : { videoUrl: null, thumbnailUrl: null };
+
+      onProgress("Preparing design...");
+
+      const storyPayload = {
+        user_id: userId,
+        name: getPostingName(),
+        location: getPostingLocation(),
+        story_type: finalStoryType,
+        story_text: cleanStoryText || null,
+        overlay_text: hasVideo ? cleanOverlayText || null : null,
+        overlay_x: hasVideo ? mobileCaptionPositionPercent.x : null,
+        overlay_y: hasVideo ? mobileCaptionPositionPercent.y : null,
+        image_url: imagePath,
+        video_url: videoUrl,
+        thumbnail_url: thumbnailUrl,
+        video_template:
+          effectiveMediaMode === "photo" || hasVideo ? videoTemplate : null,
+        htbf_watermark_enabled:
+          effectiveMediaMode === "photo" || hasVideo
+            ? videoTemplate === "htbf-logo"
+            : null,
+        silhouette_watermark_enabled:
+          effectiveMediaMode === "photo" || hasVideo
+            ? videoTemplate === "freedom-silhouette"
+            : null,
+        shared_htbf_intro_enabled:
+          effectiveMediaMode === "photo" || hasVideo
+            ? videoTemplate === "shared-through-htbf"
+            : null,
+        caption_style:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionStyle
+            : null,
+        caption_font:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionFont
+            : null,
+        caption_background:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionBackground
+            : null,
+        caption_template:
+          effectiveMediaMode === "photo" ? captionTemplate : null,
+        caption_color:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionColor
+            : null,
+        caption_size:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionSize
+            : null,
+        caption_align:
+          effectiveMediaMode === "photo" || effectiveMediaMode === "video"
+            ? captionAlign
+            : null,
+        text_size: "text-medium",
+        text_style: "style-clean",
+        text_position: "position-bottom-left",
+        text_background: "background-dark",
+        status: moderationDecision.statusToUse,
+        ai_review_status: moderationDecision.aiReviewStatus,
+        ai_reviewed_at: new Date().toISOString(),
+        ai_risk_level: moderationDecision.aiRiskLevel,
+        ai_suggested_action: moderationDecision.aiSuggestedAction,
+        ai_flags: moderationDecision.aiFlags,
+        ai_summary: moderationDecision.aiSummary,
+      };
+
+      const storyPayloadWithCreationMetadata = {
+        ...storyPayload,
+        content_type: finalContentType,
+        topics: finalTopics,
+        creation_mode: "creator-studio" as const,
+        ai_suggestions: suggestionPayload,
+      };
+
+      onProgress("Almost finished...");
+
+      const { data: insertedStory, error } = await supabase
+        .from("stories")
+        .insert(storyPayloadWithCreationMetadata)
+        .select("id, ai_suggestions, creation_mode")
+        .single();
+
+      console.log("[CreatorStudio/pipeline] payload returned from Supabase", {
+        id: insertedStory?.id ?? null,
+        error: error?.message ?? null,
+        creation_mode: insertedStory?.creation_mode ?? null,
+        ai_suggestions: insertedStory?.ai_suggestions ?? null,
+      });
+
+      if (error) {
+        if (isCreationMetadataColumnError(error.message)) {
+          throw new Error(
+            "Creator Studio metadata could not be saved. Your database may be missing creation columns (content_type, topics, creation_mode, ai_suggestions). The post was not submitted."
+          );
+        }
+
+        throw new Error(error.message);
+      }
+
+      verifyCreatorStudioDesignPersisted(
+        insertedStory?.ai_suggestions,
+        creatorStudioDesign
+      );
+
+      const wentLiveInstantly = moderationDecision.statusToUse === "approved";
+
+      setStoryText("");
+      setOverlayText("");
+      setSelectedTopics([]);
+      setSelectedFaithStreams([]);
+      setCreationTemplateId("none");
+      setGuidedPromptAnswers({});
+      setStoryShapeSuggestion(null);
+      setSuggestionMessage("");
+      setCreationCenterSuggestion(null);
+      setCreationCenterSuggestionMessage("");
+      setCreatorStudioDesigns([]);
+      setCreatorStudioMessage("");
+      pendingCreatorStudioDesignRef.current = null;
+      removePhoto();
+      removeVideo();
+      setMediaMode("text");
+      setQuickShareCategory("testimony");
+      setCaptionInputExpanded(false);
+      setStoryType("Testimony");
+
+      return { success: true, wentLiveInstantly };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Something went wrong.";
+
+      return { success: false, error: errorMessage };
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function useCreationCenterSuggestedStoryType(value: string) {
@@ -2875,57 +3147,37 @@ export default function ShareYourStoryPage() {
     return (
       <div className="space-y-5">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-            Choose how you want to share
-          </div>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-[#062a57]">
-            Fast upload or guided story?
+          <h2 className="text-2xl font-black tracking-tight text-[#062a57]">
+            Share Your Story
           </h2>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-            Quick Share keeps the current working upload flow. Create a Story
-            helps shape a more searchable, meaningful HTBF post.
+            Photo, video, or write only. Your media becomes the canvas — AI
+            helps with typography and placement.
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => selectSharePath("quick")}
-            className="group rounded-[1.75rem] bg-blue-50 p-5 text-left ring-1 ring-blue-100 transition hover:bg-blue-100"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0b63ce] text-white">
-              <Upload className="h-6 w-6" />
-            </div>
-            <div className="mt-4 text-xl font-black text-[#062a57]">
-              Quick Share
-            </div>
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-              Jump straight into the current HTBF video upload and editing
-              flow.
-            </p>
-            <div className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100">
-              Start video upload
-            </div>
-          </button>
+        <button
+          type="button"
+          onClick={() => selectSharePath("guided")}
+          className="group w-full rounded-[1.75rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-5 text-left text-white shadow-lg shadow-blue-950/10 transition hover:scale-[1.01]"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/20">
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <div className="mt-4 text-xl font-black">Open Creator Studio</div>
+          <p className="mt-2 text-sm font-semibold leading-6 text-blue-100">
+            Stories-style editing with AI text and design assistance.
+          </p>
+        </button>
 
-          <button
-            type="button"
-            onClick={() => selectSharePath("guided")}
-            className="group rounded-[1.75rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-5 text-left text-white shadow-lg shadow-blue-950/10 transition hover:scale-[1.01]"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-white ring-1 ring-white/20">
-              <Sparkles className="h-6 w-6" />
-            </div>
-            <div className="mt-4 text-xl font-black">Create a Story</div>
-            <p className="mt-2 text-sm font-semibold leading-6 text-blue-100">
-              Choose a format, name what God is doing, and get gentle help
-              shaping the post.
-            </p>
-            <div className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce]">
-              Open Creation Center
-            </div>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => selectSharePath("quick")}
+          className="inline-flex items-center gap-2 text-sm font-black text-slate-500 transition hover:text-[#0b63ce]"
+        >
+          <Upload className="h-4 w-4" />
+          Quick Share instead (video upload)
+        </button>
       </div>
     );
   }
@@ -3274,61 +3526,85 @@ export default function ShareYourStoryPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f8fbff] pb-24 text-slate-900">
-      <div className="mx-auto w-full max-w-3xl overflow-x-hidden px-4 py-6">
-        <div className="mb-5 flex items-center justify-between">
-          <Link
-            href="/journey"
-            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Cancel
-          </Link>
+    <main
+      className={`min-h-screen overflow-x-hidden text-slate-900 ${
+        creatorStudioActive
+          ? "bg-[#020617] pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:overflow-hidden lg:pb-0"
+          : "bg-[#f8fbff] pb-24"
+      }`}
+    >
+      <div
+        className={`mx-auto w-full overflow-x-hidden ${
+          creatorStudioActive
+            ? "max-w-none px-0 py-0 lg:min-h-[calc(100dvh-4.75rem-env(safe-area-inset-bottom))]"
+            : "max-w-3xl px-4 py-6"
+        }`}
+      >
+        {!creatorStudioActive && (
+          <div className="mb-5 flex items-center justify-between px-4">
+            <Link
+              href="/journey"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Cancel
+            </Link>
 
-          <div className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-            SHARE YOUR STORY
+            <div className="rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+              SHARE YOUR STORY
+            </div>
           </div>
-        </div>
+        )}
 
-        <section className="w-full max-w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
-            <Sparkles className="h-4 w-4" />
-            SHARE YOUR STORY
-          </div>
+        {!creatorStudioActive && (
+          <section className="mx-4 w-auto overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
+              <Sparkles className="h-4 w-4" />
+              SHARE YOUR STORY
+            </div>
 
-          <h1 className="mt-4 text-4xl font-black tracking-tight">
-            What has God done?
-          </h1>
+            <h1 className="mt-4 text-4xl font-black tracking-tight">
+              What has God done?
+            </h1>
 
-          <p className="mt-3 max-w-2xl leading-7 text-blue-100">
-            Share a testimony, praise report, prayer request, photo, or video
-            with the HTBF community.
-          </p>
-        </section>
+            <p className="mt-3 max-w-2xl leading-7 text-blue-100">
+              Share a testimony with photo, video, or words — styled like a
+              story, not a design tool.
+            </p>
+          </section>
+        )}
 
-        <section className="mt-5 w-full max-w-full overflow-hidden rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <section
+          className={`overflow-hidden ${
+            creatorStudioActive
+              ? "mt-0 rounded-none bg-transparent p-0 shadow-none ring-0"
+              : "mx-4 mt-5 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200"
+          }`}
+        >
           {!sharePath ? (
             renderShareEntryScreen()
           ) : (
             <>
-          <div className="mb-5 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-              Posting as
-            </div>
+          {!creatorStudioActive && (
+            <div className="mb-5 rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                Posting as
+              </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#062a57] ring-1 ring-slate-200">
-                {getPostingName()}
-              </span>
-
-              {getPostingLocation() && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-600 ring-1 ring-slate-200">
-                  <Globe2 className="h-4 w-4" />
-                  {getPostingLocation()}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#062a57] ring-1 ring-slate-200">
+                  {getPostingName()}
                 </span>
-              )}
+
+                {getPostingLocation() && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-600 ring-1 ring-slate-200">
+                    <Globe2 className="h-4 w-4" />
+                    {getPostingLocation()}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <form onSubmit={submitStory} className="space-y-5">
             {sharePath === "quick" && (
@@ -3381,10 +3657,12 @@ export default function ShareYourStoryPage() {
                 onPromptAnswerChange={updateGuidedPromptAnswer}
                 onUsePromptAnswers={useGuidedPromptsAsCaption}
                 onSwitchToQuickShare={() => selectSharePath("quick")}
+                onExitStudio={() => setSharePath(null)}
                 onRequestSuggestions={requestCreationCenterSuggestion}
                 onRequestCreatorStudioDesigns={requestCreatorStudioDesigns}
                 onRequestCreatorStudioImage={requestCreatorStudioImage}
             onUseCreatorStudioDesign={useCreatorStudioDesign}
+            onPublishCreatorStudioTestimony={publishCreatorStudioTestimony}
             onCreatorStudioActiveChange={setCreatorStudioActive}
                 onUseSuggestedStoryType={
                   useCreationCenterSuggestedStoryType
