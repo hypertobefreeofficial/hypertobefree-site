@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import RegisterServiceWorker from "../components/RegisterServiceWorker";
 import MobileSplashScreen from "../components/MobileSplashScreen";
 import AppBottomNav from "../components/AppBottomNav";
+import { CreatorStudioWorkspaceProvider } from "../components/CreatorStudioWorkspaceProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,10 +27,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <MobileSplashScreen />
-        <RegisterServiceWorker />
-        {children}
-        <AppBottomNav />
+        <CreatorStudioWorkspaceProvider>
+          <MobileSplashScreen />
+          <RegisterServiceWorker />
+          {children}
+          <AppBottomNav />
+        </CreatorStudioWorkspaceProvider>
       </body>
     </html>
   );
