@@ -112,7 +112,7 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
     fontPreset: fontPresetValues.includes(fontPreset as (typeof fontPresetValues)[number])
       ? (fontPreset as CreatorStudioLayerStyle["fontPreset"])
       : undefined,
-    stylePresetId: readString(value.stylePresetId) || undefined,
+   
     weight: weight === "regular" || weight === "bold" ? weight : undefined,
     italic: typeof value.italic === "boolean" ? value.italic : undefined,
     align:
