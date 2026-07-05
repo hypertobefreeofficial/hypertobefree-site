@@ -3,17 +3,22 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   getCreationCenterTemplate,
+  getCreatorStudioLayerStyle,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioLayerPosition,
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
+import HTBFWatermark from "./HTBFWatermark";
 
 type CreatorStudioPreviewVariant =
   | "preview"
   | "feed"
   | "detail"
   | "publish";
+
+
 
 type CreatorStudioPreviewProps = {
   design?: CreatorStudioDesign | null;
@@ -115,15 +120,6 @@ function MediaLayer({
   );
 }
 
-function Watermark() {
-  return (
-    <img
-      src="/images/htbf-logo.png"
-      alt=""
-      className="pointer-events-none absolute right-4 top-4 z-20 h-8 w-auto opacity-80"
-    />
-  );
-}
 
 function PlaceholderTile({ label }: { label: string }) {
   return (
@@ -178,6 +174,64 @@ function scaleFontSize(base: string, scale = 1) {
     );
 }
 
+function getLayerPositionClass(position: CreatorStudioLayerPosition | undefined) {
+  switch (position) {
+    case "top-left":
+      return "left-4 top-4 max-w-[88%]";
+    case "top-center":
+      return "left-1/2 top-4 max-w-[88%] -translate-x-1/2";
+    case "top-right":
+      return "right-4 top-4 max-w-[88%]";
+    case "center":
+      return "left-1/2 top-1/2 max-w-[88%] -translate-x-1/2 -translate-y-1/2";
+    case "bottom-left":
+      return "left-4 bottom-4 max-w-[88%]";
+    case "bottom-center":
+      return "left-1/2 bottom-4 max-w-[88%] -translate-x-1/2";
+    case "bottom-right":
+      return "right-4 bottom-4 max-w-[88%]";
+    default:
+      return "left-4 top-4 max-w-[88%]";
+  }
+}
+
+function buildLayerTypography(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioTextLayer,
+  gallery: boolean,
+  isFeed: boolean
+) {
+  const layerStyle = getCreatorStudioLayerStyle(design, layer);
+  const fontScale = layerStyle.fontScale ?? 1;
+  const styledSizeClass = scaleFontSize(
+    getStyledSizeClass(layerStyle.fontSize, gallery || isFeed),
+    fontScale
+  );
+  const weightClass =
+    layerStyle.weight === "regular" ? "font-semibold" : "font-black";
+  const italicClass = layerStyle.italic ? "italic" : "";
+  const alignClass =
+    layerStyle.align === "center"
+      ? "text-center"
+      : layerStyle.align === "right"
+        ? "text-right"
+        : "text-left";
+
+  return {
+    layerStyle,
+    styledSizeClass,
+    weightClass,
+    italicClass,
+    alignClass,
+    inlineStyle: {
+      color:
+        layerStyle.color ||
+        getPaletteColor(design.colorPalette, 1, "#FFFFFF"),
+      textAlign: layerStyle.align,
+    } as CSSProperties,
+  };
+}
+
 function SelectableLayer({
   layer,
   selectedTextLayer,
@@ -203,12 +257,17 @@ function SelectableLayer({
     <button
       type="button"
       onClick={() => onSelectTextLayer(layer)}
-      className={`rounded-2xl text-left transition ${className} ${
+      className={`rounded-xl text-left transition ${className} ${
         selected
-          ? "ring-2 ring-[#D4AF37] ring-offset-2 ring-offset-transparent"
-          : "hover:ring-1 hover:ring-white/40"
+          ? "ring-2 ring-[#0b63ce] ring-offset-2 ring-offset-[#031d3d]/40"
+          : "hover:ring-1 hover:ring-white/50"
       }`}
     >
+      {selected && (
+        <span className="mb-1 inline-flex rounded bg-[#0b63ce] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-white">
+          {layer === "callToAction" ? "CTA" : layer}
+        </span>
+      )}
       {children}
     </button>
   );
@@ -248,9 +307,6 @@ export default function CreatorStudioPreview({
     design?.caption ?? caption,
     "Tell the story of what God is doing."
   );
-  const activeCategory = cleanText(design?.category ?? category, "Testimony");
-  const activeTopic = cleanText(design?.topic ?? topic, "Freedom");
-  const activeMood = cleanText(design?.styleMood ?? mood, "Hopeful");
   const activeScripture = cleanText(design?.scriptureSuggestion, "");
   const activeCallToAction = cleanText(design?.callToAction, "");
   const activeTextStyle = design?.textStyle ?? {};
@@ -336,11 +392,8 @@ export default function CreatorStudioPreview({
           <div className="bg-gradient-to-br from-[#031d3d] via-[#062a57] to-[#0b63ce]" />
         </div>
         <div className="absolute inset-0 bg-black/10" />
-        <Watermark />
+        <HTBFWatermark />
         <div className={`relative z-10 ml-auto flex ${contentFrame} w-1/2 min-w-0 flex-col justify-center ${innerPadding}`}>
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
-            {activeCategory} / {activeTopic}
-          </p>
           <h4
             style={styledTitleStyle}
             className={`mt-3 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || splitTitleClass}`}
@@ -365,12 +418,9 @@ export default function CreatorStudioPreview({
           generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-[#031d3d]/55" />
-        <Watermark />
+        <HTBFWatermark />
         <div className="relative z-10 grid h-full gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
-              Photo collage
-            </p>
             <h4
               style={styledTitleStyle}
               className={`mt-2 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
@@ -401,12 +451,9 @@ export default function CreatorStudioPreview({
           generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-[#031d3d]/60" />
-        <Watermark />
+        <HTBFWatermark />
         <div className="relative z-10 flex h-full flex-col justify-between gap-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
-              Video + photo mixed post
-            </p>
             <h4
               style={styledTitleStyle}
               className={`mt-2 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
@@ -457,7 +504,7 @@ export default function CreatorStudioPreview({
           generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/90 via-[#062a57]/45 to-[#0b63ce]/20" />
-        <Watermark />
+        <HTBFWatermark />
         <div className="relative z-10 flex h-full flex-col justify-between gap-4">
           <h4
             style={styledTitleStyle}
@@ -501,15 +548,12 @@ export default function CreatorStudioPreview({
           generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-[#031d3d]/70" />
-        <Watermark />
+        <HTBFWatermark />
         <div className="relative z-10 flex h-full flex-col justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
-              Timeline story
-            </p>
             <h4
               style={styledTitleStyle}
-              className={`mt-3 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
+              className={`max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || smallTitleClass}`}
             >
               {activeTitle}
             </h4>
@@ -546,23 +590,12 @@ export default function CreatorStudioPreview({
           generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-gradient-to-br from-[#031d3d]/90 via-[#062a57]/35 to-transparent" />
-        <Watermark />
-        <div className={`relative z-10 grid ${contentFrame} grid-rows-[auto_1fr_auto] ${innerPadding}`}>
-          <div className="flex items-center justify-between gap-3 border-b border-white/20 pb-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">
-              HTBF Journal
-            </p>
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-100">
-              {activeMood}
-            </p>
-          </div>
+        <HTBFWatermark />
+        <div className={`relative z-10 grid ${contentFrame} grid-rows-[1fr_auto] ${innerPadding}`}>
           <div className="flex flex-col justify-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-100">
-              {activeCategory} / {activeTopic}
-            </p>
             <h4
               style={styledTitleStyle}
-              className={`mt-4 max-w-full break-words leading-[0.9] ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || magazineTitleClass}`}
+              className={`max-w-full break-words leading-[0.9] ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || magazineTitleClass}`}
             >
               {activeTitle}
             </h4>
@@ -585,14 +618,11 @@ export default function CreatorStudioPreview({
           generatedImageUrl={activeGeneratedImageUrl}
         />
         <div className="absolute inset-0 bg-white/78" />
-        <Watermark />
+        <HTBFWatermark />
         <div className="relative z-10 flex h-full flex-col justify-center rounded-[1.5rem] border border-[#0b63ce]/15 bg-white/80 p-5 text-[#062a57] shadow-lg shadow-blue-950/10">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-            Journal style / {activeTopic}
-          </p>
           <h4
             style={styledTitleStyle}
-            className={`mt-4 max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || (gallery ? "text-2xl" : "text-3xl sm:text-4xl")}`}
+            className={`max-w-full break-words leading-none ${textWeightClass} ${textItalicClass} ${textAlignClass} ${styledTitleSizeClass || (gallery ? "text-2xl" : "text-3xl sm:text-4xl")}`}
           >
             {activeTitle}
           </h4>
@@ -619,19 +649,8 @@ export default function CreatorStudioPreview({
         generatedImageUrl={activeGeneratedImageUrl}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/88 via-[#062a57]/35 to-transparent" />
-      <Watermark />
+      <HTBFWatermark />
       <div className={`relative z-10 flex h-full flex-col ${textPositionClass}`}>
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1 ring-white/20 backdrop-blur-sm">
-            {activeCategory}
-          </span>
-          <span
-            className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#0B1D3A] ring-1 ring-white/15 backdrop-blur-sm"
-            style={accentStyle}
-          >
-            {activeMood}
-          </span>
-        </div>
         <div className={isQuote ? "mx-auto max-w-xl text-center" : "max-w-xl"}>
           <SelectableLayer
             layer="title"

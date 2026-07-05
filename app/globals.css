@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Fredoka:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Nunito:wght@500;700&family=Oswald:wght@500;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Source+Sans+3:wght@400;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,6 +7,21 @@
 :root {
   --background: #f8fbff;
   --foreground: #0f172a;
+  --font-creator-modern-bold: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-creator-aptos-clean: Aptos, "Segoe UI Variable", "Segoe UI", Calibri, sans-serif;
+  --font-creator-classic-serif: "Times New Roman", Times, Georgia, serif;
+  --font-creator-script-elegant: "Great Vibes", "Segoe Script", cursive;
+  --font-creator-handwritten: "Caveat", "Segoe Script", cursive;
+  --font-creator-worship-serif: "Cormorant Garamond", Georgia, serif;
+  --font-creator-scripture-classic: "Merriweather", Georgia, serif;
+  --font-creator-cinematic: "Oswald", "Arial Narrow", sans-serif;
+  --font-creator-minimal: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-creator-editorial: "Playfair Display", Georgia, serif;
+  --font-creator-soft-rounded: "Nunito", "Segoe UI", sans-serif;
+  --font-creator-strong-impact: "Bebas Neue", Oswald, "Arial Narrow", sans-serif;
+  --font-creator-peaceful: "Lora", Georgia, serif;
+  --font-creator-joyful: "Fredoka", "Trebuchet MS", sans-serif;
+  --font-creator-caption-clean: "Source Sans 3", "Segoe UI", sans-serif;
 }
 
 * {
@@ -34,4 +51,84 @@ body {
   border-color: rgb(191 219 254);
   background: white;
   box-shadow: 0 0 0 4px rgb(239 246 255);
+}
+
+@keyframes htbf-cinematic-zoom {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes htbf-pulse-ring {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes htbf-particle-drift {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.85);
+  }
+  20% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -120px, 0) scale(1.15);
+  }
+}
+
+@keyframes htbf-loader-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes htbf-loader-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.htbf-cinematic-zoom {
+  animation: htbf-cinematic-zoom 22s ease-in-out infinite alternate;
+}
+
+.htbf-pulse-ring {
+  animation: htbf-pulse-ring 2.8s ease-out infinite;
+}
+
+.htbf-pulse-ring-delayed {
+  animation: htbf-pulse-ring 2.8s ease-out 0.9s infinite;
+}
+
+.htbf-particle {
+  animation: htbf-particle-drift linear infinite;
+}
+
+.htbf-loader-enter {
+  animation: htbf-loader-fade-in 700ms ease-out forwards;
+}
+
+.htbf-loader-exit {
+  animation: htbf-loader-fade-out 650ms ease-in forwards;
 }

@@ -98,6 +98,49 @@ function readBearerToken(request: Request) {
     : "";
 }
 
+function readConfiguredEnv(name: string) {
+  return process.env[name]?.trim() ?? "";
+}
+
+function resolveShapeStoryAuthFailure(accessToken: string) {
+  const supabaseUrl = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseAnonKey = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (!supabaseUrl) {
+    console.error("[shape-story] Missing NEXT_PUBLIC_SUPABASE_URL");
+    return Response.json(
+      {
+        error:
+          "Server misconfiguration: NEXT_PUBLIC_SUPABASE_URL is not set.",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (!supabaseAnonKey) {
+    console.error("[shape-story] Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    return Response.json(
+      {
+        error:
+          "Server misconfiguration: NEXT_PUBLIC_SUPABASE_ANON_KEY is not set.",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (!accessToken) {
+    console.error("[shape-story] Missing Authorization Bearer token");
+    return Response.json(
+      {
+        error: "Unauthorized: missing session token. Please sign in again.",
+      },
+      { status: 401 }
+    );
+  }
+
+  return null;
+}
+
 function fallbackShape(body: Record<string, unknown>): StoryShapeResponse {
   const storyType =
     readString(body.storyType) || readString(body.story_type) || "testimony";
@@ -254,12 +297,12 @@ function fallbackCreatorStudioDesigns(
     ),
   ];
   const titleIdeas = [
-    `${category}: ${topic}`,
-    `God Is Moving in ${topic}`,
-    `A ${mood} Story`,
-    `What God Is Doing`,
-    `${topic} and Hope`,
-    `A Moment of Grace`,
+    "God met me in the middle of fear.",
+    "I thought I was stuck, but God was still moving.",
+    "Grace found me here.",
+    "The chains didn't win.",
+    "He turned fear into freedom.",
+    "This is what healing looked like for me.",
   ];
   const moods = [
     mood,
@@ -345,7 +388,7 @@ function fallbackCreatorStudioDesigns(
       fontHierarchy: "Strong praise line, short caption, clear CTA",
       backgroundTreatment: "Bright blue/gold overlay with high energy",
       overlayStyle: "Stacked uppercase praise text",
-      decorativeElements: "Gold rays, praise badge, soft light burst",
+      decorativeElements: "Gold light burst and soft glow accent",
       visualTheme: "Worship celebration",
       filterRecommendation: "Bright hopeful glow",
       cropRecommendation: "Use the most expressive light or movement",
@@ -413,7 +456,7 @@ function fallbackCreatorStudioDesigns(
         colorPalette: palettes[index % palettes.length],
         typographyStyle: typographyStyles[index % typographyStyles.length],
         designTreatment: designTreatments[index % designTreatments.length],
-        callToAction: "Share what God has done.",
+        callToAction: index === 2 ? "Still writing this story." : "",
         typographyPairing: direction.typographyPairing,
         fontHierarchy: direction.fontHierarchy,
         backgroundTreatment: direction.backgroundTreatment,
@@ -423,7 +466,13 @@ function fallbackCreatorStudioDesigns(
         visualTheme: direction.visualTheme,
         filterRecommendation: direction.filterRecommendation,
         cropRecommendation: direction.cropRecommendation,
-        alternateTitles: [title, `God Is Moving in ${topic}`],
+        alternateTitles: [
+          title,
+          titleIdeas[(index + 1) % titleIdeas.length],
+          titleIdeas[(index + 2) % titleIdeas.length],
+          titleIdeas[(index + 3) % titleIdeas.length],
+          titleIdeas[(index + 4) % titleIdeas.length],
+        ],
         alternateCaptions: [
           cleanPrompt,
           `${topic} is part of this testimony of God's faithfulness.`,
@@ -610,13 +659,15 @@ function cleanCreatorStudioResponse(
 }
 
 export async function POST(request: Request) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const accessToken = readBearerToken(request);
+  const authFailure = resolveShapeStoryAuthFailure(accessToken);
 
-  if (!supabaseUrl || !supabaseAnonKey || !accessToken) {
-    return Response.json({ error: "Unauthorized." }, { status: 401 });
+  if (authFailure) {
+    return authFailure;
   }
+
+  const supabaseUrl = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseAnonKey = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -626,7 +677,13 @@ export async function POST(request: Request) {
   } = await authClient.auth.getUser(accessToken);
 
   if (!user) {
-    return Response.json({ error: "Unauthorized." }, { status: 401 });
+    console.error("[shape-story] Supabase auth.getUser returned no user");
+    return Response.json(
+      {
+        error: "Unauthorized: session expired or invalid. Please sign in again.",
+      },
+      { status: 401 }
+    );
   }
 
   let body: unknown;
@@ -646,9 +703,19 @@ export async function POST(request: Request) {
     readString(body.mode) || readString(body.requestMode) || "";
 
   if (requestMode === "creator_studio") {
+    console.log("[shape-story/creator_studio] POST received", {
+      hasOpenAiKey: Boolean(apiKey),
+      hasSupabaseUrl: Boolean(supabaseUrl),
+      hasSupabaseAnonKey: Boolean(supabaseAnonKey),
+      userId: user.id,
+    });
+
     const fallback = fallbackCreatorStudioDesigns(body);
 
     if (!apiKey) {
+      console.warn(
+        "[shape-story/creator_studio] OPENAI_API_KEY missing; returning fallback designs"
+      );
       return Response.json({
         ...fallback,
         fallbackReason: "Creator Studio is not connected to OpenAI yet.",
@@ -670,14 +737,19 @@ export async function POST(request: Request) {
       "The user can upload a video, upload a photo, build with AI, or start from an HTBF template.",
       "Create exactly 6 completed design concepts using only the allowed template ids and layout types.",
       "The user's selected Creator Studio path, category, topic, mood, layout, chips, and source mode must visibly shape the concepts.",
-      "Make the concepts meaningfully different from each other: vary the title, overlay text, caption angle, layout type, mood, recommended background, color palette, typography style, design treatment, overlay style, crop recommendation, decorative elements, and scripture placement.",
-      "Do not simply reuse the same background with different words. Treat each concept as a distinct creative direction such as Cinematic, Magazine, Prayer Card, Timeline, Minimal, Documentary, or Editorial.",
-      "The six concepts should feel like these distinct directions: Elegant magazine, Modern cinematic, Minimal, Bold worship, Story/social style, and Journal/scrapbook.",
+      "Make the concepts meaningfully different from each other through TEXT PERSONALITY and LAYOUT — not just background swaps. Vary headline voice, which layers are emphasized, typography direction, caption angle, layout type, mood, palette, and scripture placement.",
+      "Each concept should feel like a distinct editorial/storytelling direction: Bold testimony, Quiet reflection, Scripture-centered, Magazine/editorial, Worshipful, Minimal and peaceful, Cinematic, or Handwritten accent.",
+      "Do not give every concept the same title + subtitle + caption + scripture + button structure. Some concepts should use only one powerful headline. Others should make scripture the hero. Others should use a short quote from the testimony with lots of breathing room.",
+      "Write headlines in first-person testimony voice — personal, specific, and emotionally honest. Avoid generic church-marketing phrases like 'God is good all the time', 'Blessed and highly favored', 'Walking in victory', or vague slogans.",
+      "Strong headline examples (adapt to the user's story, do not copy verbatim unless it fits): 'God met me in the middle of fear.' / 'I thought I was stuck, but God was still moving.' / 'Grace found me here.' / 'The chains didn't win.' / 'He turned fear into freedom.' / 'This is what healing looked like for me.'",
+      "Never use promotional CTA language like 'Read More', 'Learn More', 'Click Here', or 'Share Now'. If callToAction is included, keep it testimony-focused (e.g. 'Still writing this story.' or leave it empty).",
+      "Provide alternateTitles with 4-5 distinct headline options per concept — each with a different emotional angle.",
+      "The six concepts should feel like these distinct directions: Elegant magazine, Modern cinematic, Minimal, Bold worship, Story/social style, and Journal/scrapbook — but let layoutType and typographyStyle express that difference clearly.",
       "Do not repeat the same template for every option unless the user explicitly started from a template.",
       "If sourceMode is upload-video or upload-photo, treat the uploaded media as the main canvas and suggest styling, crop, palette, text, and overlay choices for that media.",
       "Do not quote full Bible verse text. References are okay only if naturally helpful.",
       "Each design must include studioPath, sourceMode, title, overlayText, caption, category, topic, templateId, styleMood, layoutType, scriptureSuggestion, suggestedPostFormat, colorPalette, typographyStyle, designTreatment, callToAction, typographyPairing, fontHierarchy, backgroundTreatment, layoutComposition, overlayStyle, decorativeElements, visualTheme, filterRecommendation, cropRecommendation, alternateTitles, alternateCaptions, hashtags, conceptReason, and textStyle.",
-      "textStyle must include fontSize, weight, italic, align, color, and position. Use these to make each concept visually distinct.",
+      "textStyle must include fontSize, weight, italic, align, color, and position. typographyStyle and typographyPairing must name a clear font personality (modern bold, elegant serif, warm rounded, editorial, cinematic, reflective, worshipful, handwritten accent).",
       "Use six-digit hex values for every colorPalette item and textStyle.color.",
       "For upload-video and upload-photo, templateId may be none because the user media is the primary visual.",
       `Creator Studio path: ${studioPath}`,
@@ -694,6 +766,8 @@ export async function POST(request: Request) {
     ].join("\n\n");
 
     try {
+      console.log("[shape-story/creator_studio] Calling OpenAI chat/completions");
+
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -706,7 +780,7 @@ export async function POST(request: Request) {
             {
               role: "system",
               content:
-                "You return structured JSON for faith-centered design concepts. Keep language warm, clear, and concise.",
+                "You return structured JSON for faith-centered design concepts. Write like an editorial storyteller — personal, vivid, and specific. Avoid generic marketing language and promotional CTAs.",
             },
             { role: "user", content: input },
           ],
@@ -806,8 +880,8 @@ export async function POST(request: Request) {
                         cropRecommendation: { type: "string" },
                         alternateTitles: {
                           type: "array",
-                          minItems: 2,
-                          maxItems: 4,
+                          minItems: 4,
+                          maxItems: 5,
                           items: { type: "string" },
                         },
                         alternateCaptions: {
@@ -867,7 +941,17 @@ export async function POST(request: Request) {
         cache: "no-store",
       });
 
+      console.log("[shape-story/creator_studio] OpenAI HTTP response", {
+        ok: response.ok,
+        status: response.status,
+      });
+
       if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        console.error(
+          "[shape-story/creator_studio] OpenAI error body:",
+          errorBody.slice(0, 500)
+        );
         return Response.json({
           ...fallback,
           fallbackReason: "Creator Studio could not reach OpenAI.",
@@ -884,17 +968,43 @@ export async function POST(request: Request) {
           : null;
 
       if (typeof content !== "string") {
+        console.error(
+          "[shape-story/creator_studio] OpenAI returned no string content:",
+          payload
+        );
         return Response.json({
           ...fallback,
           fallbackReason: "Creator Studio received an empty OpenAI response.",
         });
       }
 
-      return Response.json(
-        cleanCreatorStudioResponse(JSON.parse(content), fallback)
-      );
+      let parsedContent: unknown;
+
+      try {
+        parsedContent = JSON.parse(content);
+      } catch (parseError) {
+        console.error(
+          "[shape-story/creator_studio] OpenAI content JSON.parse failed:",
+          parseError
+        );
+        console.error(
+          "[shape-story/creator_studio] Raw content preview:",
+          content.slice(0, 400)
+        );
+        return Response.json({
+          ...fallback,
+          fallbackReason: "Creator Studio could not parse OpenAI JSON.",
+        });
+      }
+
+      const cleaned = cleanCreatorStudioResponse(parsedContent, fallback);
+      console.log("[shape-story/creator_studio] Returning designs", {
+        count: cleaned.designs.length,
+      });
+
+      return Response.json(cleaned);
     } catch (error) {
-      console.error("Creator Studio shaping failed:", error);
+      console.error("[shape-story/creator_studio] Unexpected failure:", error);
       return Response.json({
         ...fallback,
         fallbackReason: "Creator Studio could not generate with OpenAI.",

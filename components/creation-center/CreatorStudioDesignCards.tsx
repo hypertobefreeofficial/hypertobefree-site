@@ -1,28 +1,13 @@
 "use client";
 
 import { Check } from "lucide-react";
-import {
-  creatorStudioLayoutOptions,
-  type CreatorStudioDesign,
-} from "../../lib/creationCenter";
+import { getConceptPersonalityLabel } from "../../lib/creationCenter";
+import type { CreatorStudioDesignCardsProps } from "./creatorStudioComponentProps";
 import CreatorStudioPreview from "./CreatorStudioPreview";
 
-type CreatorStudioDesignCardsProps = {
-  designs: CreatorStudioDesign[];
-  selectedDesignId: string | null;
-  videoPreviewUrl: string | null;
-  photoPreviewUrl: string | null;
-  onSelect: (design: CreatorStudioDesign) => void;
-};
+export type { CreatorStudioDesignCardsProps };
 
-function getLayoutLabel(layoutType: CreatorStudioDesign["layoutType"]) {
-  return (
-    creatorStudioLayoutOptions.find((option) => option.value === layoutType)
-      ?.label ?? "Creative direction"
-  );
-}
-
-export default function CreatorStudioDesignCards({
+export function CreatorStudioDesignCards({
   designs,
   selectedDesignId,
   videoPreviewUrl,
@@ -37,8 +22,8 @@ export default function CreatorStudioDesignCards({
             Choose a creative direction
           </div>
           <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-            These are style directions, not final limits. Pick the one that
-            feels closest.
+            These are style directions, not final limits. Pick the one that feels
+            closest.
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-[#0b63ce] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">
@@ -49,25 +34,22 @@ export default function CreatorStudioDesignCards({
       <div className="flex w-full max-w-full snap-x snap-mandatory gap-5 overflow-x-auto px-1 pb-4 pt-1 [-webkit-overflow-scrolling:touch]">
         {designs.map((design) => {
           const selected = selectedDesignId === design.id;
-          const layoutLabel = getLayoutLabel(design.layoutType);
+          const personality = getConceptPersonalityLabel(design);
 
           return (
             <button
               key={design.id}
               type="button"
               onClick={() => onSelect(design)}
-              className={`group relative w-[min(82vw,22rem)] shrink-0 snap-start overflow-hidden rounded-[2rem] bg-white p-2 text-left ring-2 transition duration-200 sm:w-[20rem] lg:w-[21rem] xl:w-[22rem] ${
+              className={`group relative w-[min(82vw,22rem)] shrink-0 snap-start overflow-hidden rounded-[2rem] bg-white p-2 text-left ring-2 transition duration-300 sm:w-[20rem] lg:w-[21rem] xl:w-[22rem] ${
                 selected
-                  ? "scale-[1.015] ring-[#0b63ce] ring-offset-2 shadow-2xl shadow-blue-900/20"
+                  ? "scale-[1.02] ring-[#0b63ce] ring-offset-2 shadow-2xl shadow-blue-900/20"
                   : "ring-transparent shadow-sm shadow-blue-950/5 hover:-translate-y-1 hover:ring-blue-200 hover:shadow-xl hover:shadow-blue-950/10"
               }`}
             >
-              <div className="absolute inset-x-4 top-4 z-30 flex items-center justify-between gap-2">
-                <span className="rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#0b63ce] shadow-sm backdrop-blur">
-                  {layoutLabel}
-                </span>
-                <span className="max-w-[8rem] truncate rounded-full bg-[#062a57]/75 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-white backdrop-blur">
-                  {design.styleMood}
+              <div className="absolute inset-x-4 top-4 z-30">
+                <span className="inline-flex rounded-full bg-white/92 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#0b63ce] shadow-sm backdrop-blur">
+                  {personality}
                 </span>
               </div>
 
@@ -82,8 +64,8 @@ export default function CreatorStudioDesignCards({
                 <div className="line-clamp-1 text-sm font-black text-[#062a57]">
                   {design.title}
                 </div>
-                <p className="line-clamp-2 text-xs font-semibold leading-5 text-slate-500">
-                  {design.caption}
+                <p className="line-clamp-2 text-xs font-medium leading-5 text-slate-500">
+                  {design.conceptReason || design.overlayText || design.caption}
                 </p>
               </div>
 
@@ -99,3 +81,5 @@ export default function CreatorStudioDesignCards({
     </section>
   );
 }
+
+export default CreatorStudioDesignCards;

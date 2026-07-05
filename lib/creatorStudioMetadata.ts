@@ -1,8 +1,11 @@
 import {
   getCreationCenterTemplate,
+  prepareCreatorStudioForEditing,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
+  type CreatorStudioLayerStyle,
   type CreatorStudioLayoutType,
+  type CreatorStudioTextLayer,
 } from "./creationCenter";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -51,15 +54,117 @@ function readLayoutType(value: unknown): CreatorStudioLayoutType {
 }
 
 function readTemplateId(value: unknown): CreationCenterTemplateId {
-  if (typeof value !== "string") return "scripture-woods";
+  if (typeof value !== "string") return "none";
 
-  const template = getCreationCenterTemplate(value as CreationCenterTemplateId);
+  const trimmed = value.trim();
+  if (trimmed === "none") return "none";
 
-  if (template?.id && template.id !== "none") {
+  const template = getCreationCenterTemplate(trimmed as CreationCenterTemplateId);
+
+  if (template?.id) {
     return template.id;
   }
 
-  return "scripture-woods";
+  return "none";
+}
+
+const creatorStudioTextLayerKeys: CreatorStudioTextLayer[] = [
+  "title",
+  "overlay",
+  "caption",
+  "scripture",
+  "callToAction",
+];
+
+function readNumber(value: unknown, fallback?: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
+  if (!isRecord(value)) return null;
+
+  const fontSize = readString(value.fontSize);
+  const weight = readString(value.weight);
+  const align = readString(value.align);
+  const position = readString(value.position);
+  const color = readString(value.color);
+  const fontPreset = readString(value.fontPreset);
+  const fontPresetValues = [
+    "modern-bold",
+    "elegant-serif",
+    "warm-rounded",
+    "editorial",
+    "cinematic",
+    "reflective",
+    "worshipful",
+    "handwritten-accent",
+  ] as const;
+
+  return {
+    fontSize:
+      fontSize === "small" ||
+      fontSize === "medium" ||
+      fontSize === "large" ||
+      fontSize === "hero"
+        ? fontSize
+        : undefined,
+    fontScale: readNumber(value.fontScale),
+    fontPreset: fontPresetValues.includes(fontPreset as (typeof fontPresetValues)[number])
+      ? (fontPreset as CreatorStudioLayerStyle["fontPreset"])
+      : undefined,
+   
+    weight: weight === "regular" || weight === "bold" ? weight : undefined,
+    italic: typeof value.italic === "boolean" ? value.italic : undefined,
+    align:
+      align === "left" || align === "center" || align === "right"
+        ? align
+        : undefined,
+    color: isHexColor(color) ? color : undefined,
+    position:
+      position === "top-left" ||
+      position === "top-center" ||
+      position === "top-right" ||
+      position === "center" ||
+      position === "bottom-left" ||
+      position === "bottom-center" ||
+      position === "bottom-right"
+        ? position
+        : undefined,
+    x: readNumber(value.x),
+    y: readNumber(value.y),
+    hidden: typeof value.hidden === "boolean" ? value.hidden : undefined,
+    opacity: readNumber(value.opacity),
+    letterSpacing: readNumber(value.letterSpacing),
+    lineHeight: readNumber(value.lineHeight),
+    shadowStrength: readNumber(value.shadowStrength),
+    outlineWidth: readNumber(value.outlineWidth),
+    rotation: readNumber(value.rotation),
+    layerOrder: readNumber(value.layerOrder),
+  };
+}
+
+function readLayerStyles(
+  value: unknown
+): CreatorStudioDesign["layerStyles"] | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const layerStyles = Object.fromEntries(
+    creatorStudioTextLayerKeys
+      .map((layer) => {
+        const style = readLayerStyle(value[layer]);
+        return style ? [layer, style] : null;
+      })
+      .filter(
+        (
+          entry
+        ): entry is [CreatorStudioTextLayer, CreatorStudioLayerStyle] =>
+          Boolean(entry)
+      )
+  ) as CreatorStudioDesign["layerStyles"];
+
+  return layerStyles && Object.keys(layerStyles).length > 0
+    ? layerStyles
+    : undefined;
 }
 
 function readTextStyle(
@@ -74,7 +179,7 @@ function readTextStyle(
   const fontScaleRaw = style.fontScale;
   const fontScale =
     typeof fontScaleRaw === "number" && Number.isFinite(fontScaleRaw)
-      ? Math.min(1.5, Math.max(0.75, fontScaleRaw))
+      ? Math.min(2.2, Math.max(0.55, fontScaleRaw))
       : undefined;
 
   return {
@@ -97,6 +202,61 @@ function readTextStyle(
         ? position
         : "bottom",
     fontScale,
+  };
+}
+
+export function parseAiSuggestionsRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return isRecord(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return isRecord(value) ? value : null;
+}
+
+export function serializeCreatorStudioDesignForStorage(
+  design: CreatorStudioDesign
+): CreatorStudioDesign {
+  const prepared =
+    design.layerStyles && Object.keys(design.layerStyles).length > 0
+      ? design
+      : prepareCreatorStudioForEditing(design);
+
+  return JSON.parse(JSON.stringify(prepared)) as CreatorStudioDesign;
+}
+
+export function freezeCreatorStudioDesignForPublish(
+  design: CreatorStudioDesign,
+  selectedDesignId?: string | null
+): CreatorStudioDesign {
+  const frozen = serializeCreatorStudioDesignForStorage(design);
+
+  return {
+    ...frozen,
+    id: selectedDesignId?.trim() || frozen.id,
+  };
+}
+
+export function buildCreatorStudioAiSuggestionsPayload(options: {
+  design: CreatorStudioDesign;
+  prompts?: Record<string, string>;
+  suggestions?: unknown;
+  selectedTemplate?: unknown;
+}) {
+  const creatorStudioDesign = serializeCreatorStudioDesignForStorage(
+    options.design
+  );
+
+  return {
+    prompts: options.prompts ?? {},
+    suggestions: options.suggestions ?? null,
+    creatorStudioDesign,
+    selectedTemplate: options.selectedTemplate ?? null,
+    creation_mode: "creator-studio",
   };
 }
 
@@ -193,38 +353,103 @@ export function readCreatorStudioDesignRecord(
     conceptReason:
       readString(value.conceptReason) || readString(value.concept_reason),
     textStyle: readTextStyle(value.textStyle ?? value.text_style),
+    scriptureText: readString(value.scriptureText) || readString(value.scripture_text),
+    layerStyles: readLayerStyles(value.layerStyles ?? value.layer_styles),
   };
 }
 
 export function readCreatorStudioDesignFromSuggestions(
   value: unknown
 ): CreatorStudioDesign | null {
-  const metadata = isRecord(value) ? value : null;
+  const metadata = parseAiSuggestionsRecord(value);
   if (!metadata) return null;
 
   return readCreatorStudioDesignRecord(metadata.creatorStudioDesign);
 }
 
 export function readCreationModeFromSuggestions(value: unknown) {
-  const metadata = isRecord(value) ? value : null;
+  const metadata = parseAiSuggestionsRecord(value);
 
-  return readString(metadata?.creation_mode) || readString(metadata?.creationMode);
+  return (
+    readString(metadata?.creation_mode) || readString(metadata?.creationMode)
+  );
 }
 
 export function isCreatorStudioFeedPost({
   aiSuggestions,
-  hasVideoMedia,
-  hasImageMedia,
+  creationMode,
 }: {
   aiSuggestions: unknown;
-  hasVideoMedia: boolean;
-  hasImageMedia: boolean;
+  creationMode?: string | null;
+  hasVideoMedia?: boolean;
+  hasImageMedia?: boolean;
 }) {
-  if (hasVideoMedia || hasImageMedia) return false;
-
   const design = readCreatorStudioDesignFromSuggestions(aiSuggestions);
+  if (!design) return false;
 
-  return Boolean(design);
+  const mode =
+    readString(creationMode) ||
+    readCreationModeFromSuggestions(aiSuggestions);
+
+  return mode === "creator-studio" || Boolean(design.layerStyles);
+}
+
+export function readStoredCreatorStudioDesignFromStory(story: {
+  ai_suggestions: unknown;
+  creation_mode?: string | null;
+}) {
+  const design = readCreatorStudioDesignFromSuggestions(story.ai_suggestions);
+
+  if (
+    !design ||
+    !isCreatorStudioFeedPost({
+      aiSuggestions: story.ai_suggestions,
+      creationMode: story.creation_mode,
+    })
+  ) {
+    return null;
+  }
+
+  if (design.layerStyles && Object.keys(design.layerStyles).length > 0) {
+    return design;
+  }
+
+  return prepareCreatorStudioForEditing(design);
+}
+
+export function verifyCreatorStudioDesignPersisted(
+  aiSuggestions: unknown,
+  expectedDesign: CreatorStudioDesign
+) {
+  const stored = readCreatorStudioDesignFromSuggestions(aiSuggestions);
+
+  if (!stored) {
+    throw new Error(
+      "Creator Studio design JSON was not saved with this post. The published story cannot render overlay layers."
+    );
+  }
+
+  if (!stored.layerStyles || Object.keys(stored.layerStyles).length === 0) {
+    throw new Error(
+      "Creator Studio layerStyles were not saved with this post."
+    );
+  }
+
+  console.log("[CreatorStudio/pipeline] verified persisted design", {
+    selectedDesignId: stored.id,
+    savedDesignJson: stored,
+    title: stored.title,
+    overlayText: stored.overlayText,
+    caption: stored.caption,
+    templateId: stored.templateId,
+    layoutType: stored.layoutType,
+    layerStyles: stored.layerStyles,
+    textStyle: stored.textStyle,
+    expectedLayerCount: Object.keys(expectedDesign.layerStyles ?? {}).length,
+    storedLayerCount: Object.keys(stored.layerStyles ?? {}).length,
+  });
+
+  return stored;
 }
 
 export function resolveCreatorStudioBackgroundUrl(
