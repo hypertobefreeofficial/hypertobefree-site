@@ -7,6 +7,7 @@ export type CreatorStudioTextStylePreset = {
   category: string;
   recommendedUse: string;
   fontPreset: CreatorStudioFontPreset;
+  previewClassName: string;
   weight: "regular" | "bold";
   italic: boolean;
   fontSize: NonNullable<CreatorStudioLayerStyle["fontSize"]>;
@@ -15,6 +16,25 @@ export type CreatorStudioTextStylePreset = {
   lineHeight: number;
   shadowStrength: number;
   outlineWidth: number;
+};
+
+const fontPresetPreviewClassNames: Record<CreatorStudioFontPreset, string> = {
+  "modern-bold":
+    "font-[family-name:var(--font-creator-modern)] tracking-tight",
+  "elegant-serif":
+    "font-[family-name:var(--font-creator-serif)] tracking-[0.01em]",
+  "warm-rounded":
+    "font-[family-name:var(--font-creator-rounded)] tracking-normal",
+  editorial:
+    "font-[family-name:var(--font-creator-editorial)] tracking-[-0.02em]",
+  cinematic:
+    "font-[family-name:var(--font-creator-cinematic)] uppercase tracking-[0.08em]",
+  reflective:
+    "font-[family-name:var(--font-creator-reflective)] tracking-wide",
+  worshipful:
+    "font-[family-name:var(--font-creator-worship)] tracking-[0.04em]",
+  "handwritten-accent":
+    "font-[family-name:var(--font-creator-handwritten)] tracking-normal",
 };
 
 type CategorySeed = {
@@ -146,6 +166,9 @@ export const creatorStudioTextStylePresets: CreatorStudioTextStylePreset[] =
         category: seed.category,
         recommendedUse: `${seed.recommendedUse} · ${profile.suffix} treatment`,
         fontPreset: seed.fontPreset,
+        previewClassName:
+          fontPresetPreviewClassNames[seed.fontPreset] ??
+          fontPresetPreviewClassNames["modern-bold"],
         weight: resolveWeight(seed.baseWeight, profile.weightShift),
         italic: profile.italic,
         fontSize,
