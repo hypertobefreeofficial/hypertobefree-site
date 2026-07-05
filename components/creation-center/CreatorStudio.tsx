@@ -7,6 +7,7 @@ import {
   PenLine,
   Sparkles,
   Video,
+  X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -626,6 +627,39 @@ export default function CreatorStudio({
           : "rounded-[2rem] bg-[#f8fafc] shadow-2xl shadow-blue-950/10 ring-1 ring-blue-100"
       }`}
     >
+      {flowScreen && (
+        <header className="sticky top-0 z-[70] flex shrink-0 items-center justify-between border-b border-white/10 bg-[#031d3d] px-4 py-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => {
+              if (currentScreen === "editor") {
+                setScreen(designs.length > 0 ? "choose" : "home");
+                return;
+              }
+              if (currentScreen === "preview") {
+                setFrozenPublishDesign(null);
+                setScreen("editor");
+                return;
+              }
+              onExitStudio();
+            }}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-black text-white ring-1 ring-white/15"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </button>
+          <p className="text-sm font-black text-white">Creator Studio</p>
+          <button
+            type="button"
+            onClick={onExitStudio}
+            className="inline-flex min-h-10 items-center justify-center rounded-full bg-white/10 px-3 text-xs font-black text-white ring-1 ring-white/15"
+            aria-label="Close Creator Studio"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+      )}
+
       {!flowScreen && (
       <header className="flex items-center justify-between border-b border-blue-100 bg-white px-4 py-4 sm:px-6">
         <button
