@@ -237,20 +237,52 @@ export const creatorStudioLayerPositions: CreatorStudioLayerPosition[] = [
   "bottom-right",
 ];
 
+export const CREATOR_STUDIO_CANVAS_SAFE_INSET = {
+  top: 10,
+  right: 8,
+  bottom: 10,
+  left: 8,
+  bottomMobile: 24,
+} as const;
+
+export function getCreatorStudioCanvasSafeInset(reserveMobileBottom = false) {
+  return {
+    top: CREATOR_STUDIO_CANVAS_SAFE_INSET.top,
+    right: CREATOR_STUDIO_CANVAS_SAFE_INSET.right,
+    left: CREATOR_STUDIO_CANVAS_SAFE_INSET.left,
+    bottom: reserveMobileBottom
+      ? CREATOR_STUDIO_CANVAS_SAFE_INSET.bottomMobile
+      : CREATOR_STUDIO_CANVAS_SAFE_INSET.bottom,
+  };
+}
+
+export function clampCreatorStudioLayerCoordinates(
+  x: number,
+  y: number,
+  options?: { reserveMobileBottom?: boolean }
+): { x: number; y: number } {
+  const inset = getCreatorStudioCanvasSafeInset(options?.reserveMobileBottom);
+
+  return {
+    x: Math.min(100 - inset.right, Math.max(inset.left, x)),
+    y: Math.min(100 - inset.bottom, Math.max(inset.top, y)),
+  };
+}
+
 export function getCreatorStudioLayerCoordinates(
-  style: CreatorStudioLayerStyle
+  style: CreatorStudioLayerStyle,
+  options?: { reserveMobileBottom?: boolean }
 ): { x: number; y: number } {
   if (typeof style.x === "number" && typeof style.y === "number") {
-    return {
-      x: Math.min(98, Math.max(2, style.x)),
-      y: Math.min(98, Math.max(2, style.y)),
-    };
+    return clampCreatorStudioLayerCoordinates(style.x, style.y, options);
   }
 
-  return (
-    creatorStudioLayerPositionCoordinates[
-      style.position ?? "center"
-    ] ?? creatorStudioLayerPositionCoordinates.center
+  return clampCreatorStudioLayerCoordinates(
+    creatorStudioLayerPositionCoordinates[style.position ?? "center"]?.x ??
+      creatorStudioLayerPositionCoordinates.center.x,
+    creatorStudioLayerPositionCoordinates[style.position ?? "center"]?.y ??
+      creatorStudioLayerPositionCoordinates.center.y,
+    options
   );
 }
 
