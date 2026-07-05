@@ -116,7 +116,33 @@ export default function CreatorStudioStoryRenderer({
   variant = "preview",
   compact = false,
 }: CreatorStudioStoryRendererProps) {
-  const preparedDesign = prepareCreatorStudioForEditing(design);
+  const preparedDesign =
+    design.layerStyles && Object.keys(design.layerStyles).length > 0
+      ? design
+      : prepareCreatorStudioForEditing(design);
+
+  if (variant === "feed" || variant === "detail") {
+    console.log("[CreatorStudio/pipeline] feed render design JSON", {
+      variant,
+      selectedDesignId: preparedDesign.id,
+      templateId: preparedDesign.templateId,
+      layoutType: preparedDesign.layoutType,
+      layerStyleCount: Object.keys(preparedDesign.layerStyles ?? {}).length,
+      feedRenderDesignJson: preparedDesign,
+    });
+  }
+
+  if (variant === "preview" || variant === "publish") {
+    console.log("[CreatorStudio/pipeline] preview render design JSON", {
+      variant,
+      selectedDesignId: preparedDesign.id,
+      templateId: preparedDesign.templateId,
+      layoutType: preparedDesign.layoutType,
+      layerStyleCount: Object.keys(preparedDesign.layerStyles ?? {}).length,
+      previewRenderDesignJson: preparedDesign,
+    });
+  }
+
   const isFeed = variant === "feed";
   const isPublishedView = isFeed || variant === "detail";
   const frameHeight = getFrameHeight(variant, compact);
