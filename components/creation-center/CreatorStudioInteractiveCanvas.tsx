@@ -33,7 +33,7 @@ type CreatorStudioInteractiveCanvasProps = {
   photoPreviewUrl: string | null;
   selectedLayer: CreatorStudioTextLayer;
   onSelectLayer: (layer: CreatorStudioTextLayer) => void;
-  onContinueToPublish: () => void;
+  onContinueToPublish?: () => void;
   onChangeConcept?: () => void;
   onGenerateConcepts?: () => void;
   showChangeConcept?: boolean;
@@ -294,14 +294,16 @@ export default function CreatorStudioInteractiveCanvas({
                 </button>
               )}
             </div>
-            <button
-              type="button"
-              onClick={onContinueToPublish}
-              className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full bg-white/95 px-5 text-sm font-black text-[#062a57] shadow-lg shadow-black/15 backdrop-blur-md transition hover:bg-white"
-            >
-              Continue
-              <ChevronRight className="h-4 w-4" />
-            </button>
+            {onContinueToPublish && (
+              <button
+                type="button"
+                onClick={onContinueToPublish}
+                className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-full bg-white/95 px-5 text-sm font-black text-[#062a57] shadow-lg shadow-black/15 backdrop-blur-md transition hover:bg-white"
+              >
+                Continue
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           <div
