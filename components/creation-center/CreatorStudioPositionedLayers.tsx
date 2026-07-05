@@ -314,28 +314,29 @@ function LayerToolbar({
       const layerRect = anchor.getBoundingClientRect();
       const toolbarWidth = toolbar.offsetWidth;
       const toolbarHeight = toolbar.offsetHeight;
-      const padding = 8;
+      const paddingX = Math.max(8, canvasRect.width * 0.04);
+      const paddingY = Math.max(8, canvasRect.height * 0.04);
 
       const spaceAbove = layerRect.top - canvasRect.top;
       const spaceBelow = canvasRect.bottom - layerRect.bottom;
       const placeBelow =
         layerYPercent < 18 ||
-        (spaceAbove < toolbarHeight + padding && spaceBelow > spaceAbove);
+        (spaceAbove < toolbarHeight + paddingY && spaceBelow > spaceAbove);
 
       let top = placeBelow
-        ? layerRect.bottom - canvasRect.top + padding
-        : layerRect.top - canvasRect.top - toolbarHeight - padding;
+        ? layerRect.bottom - canvasRect.top + paddingY
+        : layerRect.top - canvasRect.top - toolbarHeight - paddingY;
 
       top = Math.max(
-        padding,
-        Math.min(top, canvasRect.height - toolbarHeight - padding)
+        paddingY,
+        Math.min(top, canvasRect.height - toolbarHeight - paddingY)
       );
 
       const centerX = layerRect.left + layerRect.width / 2 - canvasRect.left;
       let left = centerX - toolbarWidth / 2;
       left = Math.max(
-        padding,
-        Math.min(left, canvasRect.width - toolbarWidth - padding)
+        paddingX,
+        Math.min(left, canvasRect.width - toolbarWidth - paddingX)
       );
 
       setToolbarStyle({
@@ -343,7 +344,7 @@ function LayerToolbar({
         top,
         left,
         width: "max-content",
-        maxWidth: canvasRect.width - padding * 2,
+        maxWidth: canvasRect.width - paddingX * 2,
         opacity: 1,
         zIndex: 50,
       });
