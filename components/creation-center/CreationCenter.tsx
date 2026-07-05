@@ -13,7 +13,7 @@ import {
   type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
-import { useCreatorStudioWorkspace } from "../CreatorStudioWorkspaceProvider";
+
 import CreatorStudio, {
   type CreatorStudioPublishResult,
 } from "./CreatorStudio";
