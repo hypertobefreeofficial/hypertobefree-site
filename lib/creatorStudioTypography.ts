@@ -517,7 +517,7 @@ export function buildCreatorStudioFontPresetPreviewStyle(
 ): { className: string; style: CSSProperties } {
   return {
     className: `${preset.className} ${
-      preset.weight === "bold" ? "font-black" : "font-semibold"
+      preset.weight === "bold" ? "font-extrabold" : "font-semibold"
     } ${preset.italic ? "italic" : ""}`,
     style: {
       letterSpacing: `${preset.letterSpacing}em`,
