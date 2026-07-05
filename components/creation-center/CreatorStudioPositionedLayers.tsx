@@ -2,20 +2,11 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
-  Minus,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  Sparkles,
-  Type,
-} from "lucide-react";
-import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -40,6 +31,7 @@ import {
   clampCreatorStudioFontScale,
 } from "../../lib/creatorStudioTypography";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
+import CreatorStudioFloatingToolbar from "./CreatorStudioFloatingToolbar";
 
 type CreatorStudioPositionedLayersProps = {
   design: CreatorStudioDesign;
@@ -50,6 +42,8 @@ type CreatorStudioPositionedLayersProps = {
   editingLayer?: CreatorStudioTextLayer | null;
   editRef?: RefObject<HTMLTextAreaElement | HTMLInputElement | null>;
   paletteSwatches?: string[];
+  canvasRef?: RefObject<HTMLElement | null>;
+  reserveMobileBottom?: boolean;
   onChange?: (updates: Partial<CreatorStudioDesign>) => void;
   onSelectLayer?: (layer: CreatorStudioTextLayer) => void;
   onEditingLayerChange?: (layer: CreatorStudioTextLayer | null) => void;
@@ -73,7 +67,6 @@ function layerUsesMultiline(layer: CreatorStudioTextLayer) {
   return layer === "caption" || layer === "scripture";
 }
 
-
 function getLayerPlaceholder(layer: CreatorStudioTextLayer) {
   if (layer === "title") return "Tap to write your headline";
   if (layer === "overlay") return "Tap to add a subtitle";
@@ -84,7 +77,6 @@ function getLayerPlaceholder(layer: CreatorStudioTextLayer) {
 
 function LayerContent({
   layer,
-  design,
   typography,
   textClassName,
   accentColor,
@@ -96,7 +88,6 @@ function LayerContent({
   onEditingLayerChange,
 }: {
   layer: CreatorStudioTextLayer;
-  design: CreatorStudioDesign;
   typography: CreatorStudioLayerTypography;
   textClassName: string;
   accentColor: string;
@@ -268,147 +259,134 @@ function ScaleResizeHandle({
   );
 }
 
-function FloatingToolbar({
+function LayerToolbar({
   layer,
   layerStyle,
+  layerYPercent,
+  design,
   paletteSwatches,
+  canvasRef,
+  getAnchorElement,
+  onChange,
   onUpdateLayerStyle,
   onOpenOverflow,
   onBeginEdit,
-  reducedMotion,
 }: {
   layer: CreatorStudioTextLayer;
   layerStyle: CreatorStudioLayerStyle;
+  layerYPercent: number;
+  design: CreatorStudioDesign;
   paletteSwatches: string[];
+  canvasRef?: RefObject<HTMLElement | null>;
+  getAnchorElement: () => HTMLDivElement | null;
+  onChange?: (updates: Partial<CreatorStudioDesign>) => void;
   onUpdateLayerStyle?: (
     layer: CreatorStudioTextLayer,
     updates: Partial<CreatorStudioLayerStyle>
   ) => void;
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
   onBeginEdit?: (layer: CreatorStudioTextLayer) => void;
-  reducedMotion: boolean | null;
 }) {
-  const toolbarButtonClass =
-    "inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-[10px] font-bold text-white/90 hover:bg-white/10";
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarStyle, setToolbarStyle] = useState<CSSProperties>({
+    opacity: 0,
+  });
+  const [layoutTick, setLayoutTick] = useState(0);
+
+  const repositionToolbar = () => {
+    setLayoutTick((value) => value + 1);
+  };
+
+  useLayoutEffect(() => {
+    let frameId = 0;
+
+    const measure = () => {
+      const canvas = canvasRef?.current;
+      const anchor = getAnchorElement();
+      const toolbar = toolbarRef.current;
+
+      if (!canvas || !anchor || !toolbar) {
+        frameId = window.requestAnimationFrame(measure);
+        return;
+      }
+
+      const canvasRect = canvas.getBoundingClientRect();
+      const layerRect = anchor.getBoundingClientRect();
+      const toolbarWidth = toolbar.offsetWidth;
+      const toolbarHeight = toolbar.offsetHeight;
+      const padding = 8;
+
+      const spaceAbove = layerRect.top - canvasRect.top;
+      const spaceBelow = canvasRect.bottom - layerRect.bottom;
+      const placeBelow =
+        layerYPercent < 18 ||
+        (spaceAbove < toolbarHeight + padding && spaceBelow > spaceAbove);
+
+      let top = placeBelow
+        ? layerRect.bottom - canvasRect.top + padding
+        : layerRect.top - canvasRect.top - toolbarHeight - padding;
+
+      top = Math.max(
+        padding,
+        Math.min(top, canvasRect.height - toolbarHeight - padding)
+      );
+
+      const centerX = layerRect.left + layerRect.width / 2 - canvasRect.left;
+      let left = centerX - toolbarWidth / 2;
+      left = Math.max(
+        padding,
+        Math.min(left, canvasRect.width - toolbarWidth - padding)
+      );
+
+      setToolbarStyle({
+        position: "absolute",
+        top,
+        left,
+        width: "max-content",
+        maxWidth: canvasRect.width - padding * 2,
+        opacity: 1,
+        zIndex: 50,
+      });
+    };
+
+    measure();
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    canvasRef,
+    design,
+    layer,
+    layerStyle.align,
+    layerStyle.color,
+    layerStyle.fontScale,
+    layerYPercent,
+    layoutTick,
+    paletteSwatches.length,
+  ]);
+
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+
+    const observer = new ResizeObserver(() => repositionToolbar());
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, [layer, repositionToolbar]);
 
   return (
-    <motion.div
-      initial={reducedMotion ? false : { opacity: 0, y: 6, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto absolute -top-14 left-1/2 z-30 max-w-[min(96vw,28rem)] -translate-x-1/2 rounded-[1.25rem] bg-[#031d3d]/94 px-2 py-1.5 shadow-xl shadow-black/25 ring-1 ring-white/15 backdrop-blur-md"
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <div className="flex items-center gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
-        <button
-          type="button"
-          aria-label="Edit text"
-          onClick={() => onBeginEdit?.(layer)}
-          className={toolbarButtonClass}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Font"
-          onClick={() => onOpenOverflow?.("fonts")}
-          className={toolbarButtonClass}
-        >
-          <Type className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Smaller"
-          onClick={() =>
-            onUpdateLayerStyle?.(layer, {
-              fontScale: clampCreatorStudioFontScale(
-                (layerStyle.fontScale ?? 1) - 0.06
-              ),
-            })
-          }
-          className={toolbarButtonClass}
-        >
-          <Minus className="h-3.5 w-3.5" />
-        </button>
-        <span className="min-w-[2.5rem] text-center text-[10px] font-black text-white/80">
-          {Math.round((layerStyle.fontScale ?? 1) * 100)}%
-        </span>
-        <button
-          type="button"
-          aria-label="Larger"
-          onClick={() =>
-            onUpdateLayerStyle?.(layer, {
-              fontScale: clampCreatorStudioFontScale(
-                (layerStyle.fontScale ?? 1) + 0.06
-              ),
-            })
-          }
-          className={toolbarButtonClass}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-        <span className="mx-0.5 h-5 w-px shrink-0 bg-white/15" />
-        {paletteSwatches.slice(0, 4).map((color) => (
-          <button
-            key={color}
-            type="button"
-            aria-label={`Color ${color}`}
-            onClick={() => onUpdateLayerStyle?.(layer, { color })}
-            className={`h-6 w-6 shrink-0 rounded-full ring-2 ${
-              layerStyle.color === color ? "ring-white" : "ring-transparent"
-            }`}
-            style={{ backgroundColor: color }}
-          />
-        ))}
-        <span className="mx-0.5 h-5 w-px shrink-0 bg-white/15" />
-        <button
-          type="button"
-          aria-label="Align left"
-          onClick={() => onUpdateLayerStyle?.(layer, { align: "left" })}
-          className={`${toolbarButtonClass} ${
-            layerStyle.align === "left" ? "bg-[#0b63ce] text-white" : ""
-          }`}
-        >
-          <AlignLeft className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Align center"
-          onClick={() => onUpdateLayerStyle?.(layer, { align: "center" })}
-          className={`${toolbarButtonClass} ${
-            layerStyle.align === "center" ? "bg-[#0b63ce] text-white" : ""
-          }`}
-        >
-          <AlignCenter className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="Align right"
-          onClick={() => onUpdateLayerStyle?.(layer, { align: "right" })}
-          className={`${toolbarButtonClass} ${
-            layerStyle.align === "right" ? "bg-[#0b63ce] text-white" : ""
-          }`}
-        >
-          <AlignRight className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="AI rewrite"
-          onClick={() => onOpenOverflow?.("ai")}
-          className={toolbarButtonClass}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          aria-label="More options"
-          onClick={() => onOpenOverflow?.("advanced")}
-          className={toolbarButtonClass}
-        >
-          <MoreHorizontal className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    </motion.div>
+    <CreatorStudioFloatingToolbar
+      ref={toolbarRef}
+      style={toolbarStyle}
+      layer={layer}
+      layerStyle={layerStyle}
+      design={design}
+      paletteSwatches={paletteSwatches}
+      onChange={onChange}
+      onUpdateLayerStyle={onUpdateLayerStyle}
+      onOpenOverflow={onOpenOverflow}
+      onBeginEdit={onBeginEdit}
+      onLayoutChange={repositionToolbar}
+    />
   );
 }
 
@@ -421,6 +399,8 @@ export default function CreatorStudioPositionedLayers({
   editingLayer = null,
   editRef,
   paletteSwatches = [],
+  canvasRef,
+  reserveMobileBottom = false,
   onChange,
   onEditingLayerChange,
   onUpdateLayerStyle,
@@ -436,6 +416,9 @@ export default function CreatorStudioPositionedLayers({
     distance: number;
     scale: number;
   } | null>(null);
+  const layerAnchorRefs = useRef<
+    Partial<Record<CreatorStudioTextLayer, HTMLDivElement | null>>
+  >({});
 
   const sortedLayers = useMemo(
     () =>
@@ -462,7 +445,9 @@ export default function CreatorStudioPositionedLayers({
   }, [editRef, editingLayer, interactive, selectedLayer]);
 
   function renderLayer(layer: CreatorStudioTextLayer): ReactNode {
-    const typography = buildCreatorStudioLayerTypography(design, layer, compact);
+    const typography = buildCreatorStudioLayerTypography(design, layer, compact, {
+      reserveMobileBottom,
+    });
     const layerStyle = typography.layerStyle;
 
     if (layerStyle.hidden) {
@@ -483,14 +468,17 @@ export default function CreatorStudioPositionedLayers({
       left: `${typography.coordinates.x}%`,
       top: `${typography.coordinates.y}%`,
       transform: typography.transform,
-      maxWidth: "min(88%, 22rem)",
+      maxWidth: "min(84%, 20rem)",
       touchAction: isEditing ? "auto" : "none",
       zIndex:
         10 + (layerStyle.layerOrder ?? 0) + (isSelected && interactive ? 20 : 0),
     };
-    const textClassName = `w-full whitespace-pre-wrap break-words leading-snug ${typography.fontClassName} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass} ${typography.styledSizeClass}`;
+    const textClassName = `w-full whitespace-pre-wrap break-words leading-snug ${typography.fontClassName} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass}`;
     const layerBody = (
       <div
+        ref={(node) => {
+          layerAnchorRefs.current[layer] = node;
+        }}
         className={`relative rounded-xl px-1 py-0.5 transition-shadow duration-300 ${
           isSelected
             ? "ring-2 ring-[#93c5fd] ring-offset-2 ring-offset-[#031d3d]/40 shadow-[0_0_0_1px_rgba(147,197,253,0.35)]"
@@ -500,17 +488,6 @@ export default function CreatorStudioPositionedLayers({
         }`}
       >
         {isSelected && !isEditing && interactive && (
-          <FloatingToolbar
-            layer={layer}
-            layerStyle={layerStyle}
-            paletteSwatches={paletteSwatches}
-            onUpdateLayerStyle={onUpdateLayerStyle}
-            onOpenOverflow={onOpenOverflow}
-            onBeginEdit={(activeLayer) => onEditingLayerChange?.(activeLayer)}
-            reducedMotion={reducedMotion}
-          />
-        )}
-        {isSelected && !isEditing && interactive && (
           <ScaleResizeHandle
             layer={layer}
             layerStyle={layerStyle}
@@ -519,7 +496,6 @@ export default function CreatorStudioPositionedLayers({
         )}
         <LayerContent
           layer={layer}
-          design={design}
           typography={typography}
           textClassName={textClassName}
           accentColor={accentColor}
@@ -555,6 +531,7 @@ export default function CreatorStudioPositionedLayers({
         onPointerMove={onLayerPointerMove}
         onPointerUp={(event) => onLayerPointerUp?.(layer, event)}
         onPointerCancel={(event) => onLayerPointerUp?.(layer, event)}
+        onDoubleClick={() => onEditingLayerChange?.(layer)}
         onTouchStart={(event) => {
           if (!isSelected || event.touches.length !== 2) return;
 
@@ -591,5 +568,36 @@ export default function CreatorStudioPositionedLayers({
     );
   }
 
-  return <>{sortedLayers.map((entry) => renderLayer(entry.value))}</>;
+  const activeToolbarLayer =
+    interactive && selectedLayer && editingLayer !== selectedLayer
+      ? selectedLayer
+      : null;
+
+  return (
+    <>
+      {sortedLayers.map((entry) => renderLayer(entry.value))}
+      {activeToolbarLayer && (
+        <LayerToolbar
+          layer={activeToolbarLayer}
+          layerStyle={getCreatorStudioLayerStyle(design, activeToolbarLayer)}
+          layerYPercent={
+            buildCreatorStudioLayerTypography(
+              design,
+              activeToolbarLayer,
+              compact,
+              { reserveMobileBottom }
+            ).coordinates.y
+          }
+          design={design}
+          paletteSwatches={paletteSwatches}
+          canvasRef={canvasRef}
+          getAnchorElement={() => layerAnchorRefs.current[activeToolbarLayer] ?? null}
+          onChange={onChange}
+          onUpdateLayerStyle={onUpdateLayerStyle}
+          onOpenOverflow={onOpenOverflow}
+          onBeginEdit={(activeLayer) => onEditingLayerChange?.(activeLayer)}
+        />
+      )}
+    </>
+  );
 }
