@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   useEffect,
   useLayoutEffect,
@@ -75,6 +75,16 @@ function getLayerPlaceholder(layer: CreatorStudioTextLayer) {
   return "Call to action";
 }
 
+function layerSurfaceClass(layer: CreatorStudioTextLayer) {
+  if (layer === "scripture") {
+    return "rounded-2xl bg-black/45 px-3 py-2 backdrop-blur-sm";
+  }
+  if (layer === "caption") {
+    return "rounded-2xl bg-white/10 px-3 py-2 backdrop-blur-sm";
+  }
+  return "";
+}
+
 function LayerContent({
   layer,
   typography,
@@ -98,7 +108,7 @@ function LayerContent({
   onChange?: (updates: Partial<CreatorStudioDesign>) => void;
   onEditingLayerChange?: (layer: CreatorStudioTextLayer | null) => void;
 }) {
-  const inputClassName = `${textClassName} resize-none overflow-hidden border-0 bg-transparent p-0 outline-none ring-0`;
+  const inputClassName = `${textClassName} m-0 block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-0 outline-none ring-0 appearance-none`;
 
   if (layer === "callToAction" && !isEditing) {
     return (
@@ -119,7 +129,7 @@ function LayerContent({
     return (
       <div
         style={typography.inlineStyle}
-        className={`rounded-2xl bg-black/45 px-3 py-2 backdrop-blur-sm ${textClassName}`}
+        className={`${layerSurfaceClass(layer)} ${textClassName}`}
       >
         {text.trim() || placeholder}
       </div>
@@ -130,7 +140,7 @@ function LayerContent({
     return (
       <div
         style={typography.inlineStyle}
-        className={`rounded-2xl bg-white/10 px-3 py-2 backdrop-blur-sm ${textClassName}`}
+        className={`${layerSurfaceClass(layer)} ${textClassName}`}
       >
         {text.trim() || placeholder}
       </div>
@@ -138,27 +148,23 @@ function LayerContent({
   }
 
   if (isEditing && onChange) {
-    if (layerUsesMultiline(layer)) {
-      return (
-        <textarea
-          ref={editRef as RefObject<HTMLTextAreaElement>}
-          value={text}
-          rows={layer === "scripture" ? 3 : 4}
-          placeholder={placeholder}
-          onChange={(event) =>
-            onChange(
-              buildCreatorStudioLayerDisplayTextUpdate(layer, event.target.value)
-            )
-          }
-          onBlur={() => onEditingLayerChange?.(null)}
-          onPointerDown={(event) => event.stopPropagation()}
-          className={`${inputClassName} min-w-[10rem] rounded-xl bg-black/25 px-3 py-2 backdrop-blur-md`}
-          style={typography.inlineStyle}
-        />
-      );
-    }
-
-    return (
+    const field = layerUsesMultiline(layer) ? (
+      <textarea
+        ref={editRef as RefObject<HTMLTextAreaElement>}
+        value={text}
+        rows={layer === "scripture" ? 3 : 4}
+        placeholder={placeholder}
+        onChange={(event) =>
+          onChange(
+            buildCreatorStudioLayerDisplayTextUpdate(layer, event.target.value)
+          )
+        }
+        onBlur={() => onEditingLayerChange?.(null)}
+        onPointerDown={(event) => event.stopPropagation()}
+        className={inputClassName}
+        style={typography.inlineStyle}
+      />
+    ) : (
       <input
         ref={editRef as RefObject<HTMLInputElement>}
         value={text}
@@ -170,10 +176,17 @@ function LayerContent({
         }
         onBlur={() => onEditingLayerChange?.(null)}
         onPointerDown={(event) => event.stopPropagation()}
-        className={`${inputClassName} min-w-[8rem] rounded-xl bg-black/25 px-3 py-2 backdrop-blur-md`}
+        className={inputClassName}
         style={typography.inlineStyle}
       />
     );
+
+    const surfaceClass = layerSurfaceClass(layer);
+    if (surfaceClass) {
+      return <div className={surfaceClass}>{field}</div>;
+    }
+
+    return field;
   }
 
   return (
@@ -410,7 +423,6 @@ export default function CreatorStudioPositionedLayers({
   onLayerPointerUp,
   onOpenOverflow,
 }: CreatorStudioPositionedLayersProps) {
-  const reducedMotion = useReducedMotion();
   const accentColor = getCreatorStudioAccentColor(design);
   const pinchStateRef = useRef<{
     layer: CreatorStudioTextLayer;
@@ -440,10 +452,11 @@ export default function CreatorStudioPositionedLayers({
     if (!interactive || !editingLayer || !editRef?.current) return;
 
     editRef.current.focus();
-    if ("select" in editRef.current) {
-      editRef.current.select();
+    const length = editRef.current.value.length;
+    if ("setSelectionRange" in editRef.current) {
+      editRef.current.setSelectionRange(length, length);
     }
-  }, [editRef, editingLayer, interactive, selectedLayer]);
+  }, [editRef, editingLayer, interactive]);
 
   function renderLayer(layer: CreatorStudioTextLayer): ReactNode {
     const typography = buildCreatorStudioLayerTypography(design, layer, compact, {
@@ -474,17 +487,17 @@ export default function CreatorStudioPositionedLayers({
       zIndex:
         10 + (layerStyle.layerOrder ?? 0) + (isSelected && interactive ? 20 : 0),
     };
-    const textClassName = `w-full whitespace-pre-wrap break-words leading-snug ${typography.fontClassName} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass}`;
+    const textClassName = `block w-full min-w-0 whitespace-pre-wrap break-words ${typography.fontClassName} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass}`;
     const layerBody = (
       <div
         ref={(node) => {
           layerAnchorRefs.current[layer] = node;
         }}
-        className={`relative rounded-xl px-1 py-0.5 transition-shadow duration-300 ${
+        className={`relative min-w-0 max-w-full transition-[box-shadow] duration-200 ${
           isSelected
-            ? "ring-2 ring-[#93c5fd] ring-offset-2 ring-offset-[#031d3d]/40 shadow-[0_0_0_1px_rgba(147,197,253,0.35)]"
+            ? "shadow-[0_0_0_2px_#93c5fd,0_0_0_4px_rgba(3,29,61,0.35)]"
             : interactive
-              ? "ring-1 ring-transparent hover:ring-white/25"
+              ? "shadow-[0_0_0_1px_transparent]"
               : ""
         }`}
       >
@@ -525,7 +538,7 @@ export default function CreatorStudioPositionedLayers({
     return (
       <motion.div
         key={layer}
-        layout={!reducedMotion}
+        layout={false}
         className="absolute"
         style={layerPositionStyle}
         onPointerDown={(event) => onLayerPointerDown?.(layer, event)}
