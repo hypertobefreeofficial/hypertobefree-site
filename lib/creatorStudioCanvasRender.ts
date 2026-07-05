@@ -25,48 +25,21 @@ function getPaletteColor(
   return isHexColor(value) ? value.trim() : fallback;
 }
 
-function getStyledSizeClass(
+function getBaseFontSizeRem(
   size: CreatorStudioLayerStyle["fontSize"] | undefined,
   compact: boolean
 ) {
-  if (size === "small") return compact ? "text-lg" : "text-2xl";
-  if (size === "medium") return compact ? "text-2xl" : "text-3xl sm:text-4xl";
-  if (size === "large")
-    return compact ? "text-[2rem]" : "text-[clamp(1.75rem,6vw,4.5rem)]";
-  if (size === "hero")
-    return compact ? "text-[2.5rem]" : "text-[clamp(2rem,8vw,5.5rem)]";
+  if (size === "small") return compact ? 1.125 : 1.5;
+  if (size === "medium") return compact ? 1.5 : 1.875;
+  if (size === "large") return compact ? 2 : 2.75;
+  if (size === "hero") return compact ? 2.5 : 3.5;
 
-  return compact ? "text-2xl" : "text-[clamp(1.75rem,6vw,4.5rem)]";
-}
-
-function scaleFontSize(base: string, scale = 1) {
-  if (scale === 1) return base;
-
-  return base
-    .replace(/clamp\(([^)]+)\)/g, (_match, inner: string) => {
-      const parts = inner.split(",").map((part: string) => part.trim());
-
-      return `clamp(${parts
-        .map((part: string, index: number) =>
-          index === 0
-            ? part
-            : part.replace(
-                /([\d.]+)(rem|vw|px)/g,
-                (_m, num: string, unit: string) =>
-                  `${Math.max(0.75, Number(num) * scale).toFixed(2)}${unit}`
-              )
-        )
-        .join(", ")})`;
-    })
-    .replace(/text-\[([\d.]+)rem\]/g, (_m, num: string) =>
-      `text-[${Math.max(0.75, Number(num) * scale).toFixed(2)}rem]`
-    );
+  return compact ? 1.5 : 2.75;
 }
 
 export type CreatorStudioLayerTypography = {
   layerStyle: CreatorStudioLayerStyle;
   fontClassName: string;
-  styledSizeClass: string;
   weightClass: string;
   italicClass: string;
   alignClass: string;
@@ -78,15 +51,13 @@ export type CreatorStudioLayerTypography = {
 export function buildCreatorStudioLayerTypography(
   design: CreatorStudioDesign,
   layer: CreatorStudioTextLayer,
-  compact = false
+  compact = false,
+  options?: { reserveMobileBottom?: boolean }
 ): CreatorStudioLayerTypography {
   const layerStyle = getCreatorStudioLayerStyle(design, layer);
   const fontScale = clampCreatorStudioFontScale(layerStyle.fontScale);
   const fontClassName = getCreatorStudioFontClassName(design, layerStyle, layer);
-  const styledSizeClass = scaleFontSize(
-    getStyledSizeClass(layerStyle.fontSize, compact),
-    fontScale
-  );
+  const baseFontRem = getBaseFontSizeRem(layerStyle.fontSize, compact);
   const weightClass =
     layerStyle.weight === "regular" ? "font-semibold" : "font-black";
   const italicClass = layerStyle.italic ? "italic" : "";
@@ -96,7 +67,7 @@ export function buildCreatorStudioLayerTypography(
       : layerStyle.align === "right"
         ? "text-right"
         : "text-left";
-  const coordinates = getCreatorStudioLayerCoordinates(layerStyle);
+  const coordinates = getCreatorStudioLayerCoordinates(layerStyle, options);
   const opacity = layerStyle.opacity ?? 1;
   const shadowStrength = layerStyle.shadowStrength ?? 0.35;
   const outlineWidth = layerStyle.outlineWidth ?? 0;
@@ -106,11 +77,12 @@ export function buildCreatorStudioLayerTypography(
       getPaletteColor(design.colorPalette, 1, "#FFFFFF"),
     textAlign: layerStyle.align,
     opacity,
+    fontSize: `${(baseFontRem * fontScale).toFixed(3)}rem`,
     letterSpacing:
       layerStyle.letterSpacing !== undefined
         ? `${layerStyle.letterSpacing}em`
         : undefined,
-    lineHeight: layerStyle.lineHeight,
+    lineHeight: layerStyle.lineHeight ?? 1.15,
     textShadow:
       shadowStrength > 0
         ? `0 2px ${Math.round(shadowStrength * 18)}px rgba(0,0,0,${Math.min(0.85, shadowStrength)})`
@@ -124,7 +96,6 @@ export function buildCreatorStudioLayerTypography(
   return {
     layerStyle,
     fontClassName,
-    styledSizeClass,
     weightClass,
     italicClass,
     alignClass,
