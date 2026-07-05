@@ -8,7 +8,6 @@ import type {
 import {
   applyCreatorStudioFontPreset,
   buildCreatorStudioFontPresetPreviewStyle,
-  creatorStudioTextStylePresets,
   getCreatorStudioFontPresetDefinition,
   getCreatorStudioFontPresetLabel,
   groupCreatorStudioFontPresetsByCategory,
