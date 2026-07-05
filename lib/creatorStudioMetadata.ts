@@ -7,6 +7,8 @@ import {
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "./creationCenter";
+import { normalizeCreatorStudioFontPreset } from "./creatorStudioTypography";
+import { resolveCreatorStudioDesignForRender } from "./creatorStudioRenderPipeline";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -89,16 +91,6 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
   const position = readString(value.position);
   const color = readString(value.color);
   const fontPreset = readString(value.fontPreset);
-  const fontPresetValues = [
-    "modern-bold",
-    "elegant-serif",
-    "warm-rounded",
-    "editorial",
-    "cinematic",
-    "reflective",
-    "worshipful",
-    "handwritten-accent",
-  ] as const;
 
   return {
     fontSize:
@@ -109,10 +101,7 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
         ? fontSize
         : undefined,
     fontScale: readNumber(value.fontScale),
-    fontPreset: fontPresetValues.includes(fontPreset as (typeof fontPresetValues)[number])
-      ? (fontPreset as CreatorStudioLayerStyle["fontPreset"])
-      : undefined,
-   
+    fontPreset: normalizeCreatorStudioFontPreset(fontPreset),
     weight: weight === "regular" || weight === "bold" ? weight : undefined,
     italic: typeof value.italic === "boolean" ? value.italic : undefined,
     align:
@@ -140,7 +129,63 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
     outlineWidth: readNumber(value.outlineWidth),
     rotation: readNumber(value.rotation),
     layerOrder: readNumber(value.layerOrder),
+    maxWidth: readNumber(value.maxWidth),
+    width: readNumber(value.width),
+    textTransform:
+      readString(value.textTransform) === "uppercase" ||
+      readString(value.textTransform) === "lowercase" ||
+      readString(value.textTransform) === "capitalize" ||
+      readString(value.textTransform) === "none"
+        ? (readString(value.textTransform) as CreatorStudioLayerStyle["textTransform"])
+        : undefined,
   };
+}
+
+function readCustomTextLayers(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+
+  const layers = value
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const id = readString(entry.id);
+      const text = readString(entry.text);
+      const style = readLayerStyle(entry.style);
+      if (!id || !style) return null;
+      return { id, text, style };
+    })
+    .filter(Boolean);
+
+  return layers.length > 0 ? layers : undefined;
+}
+
+function readStickerLayers(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+
+  const layers = value
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const id = readString(entry.id);
+      const emoji = readString(entry.emoji);
+      const label = readString(entry.label);
+      const x = readNumber(entry.x);
+      const y = readNumber(entry.y);
+      if (!id || !emoji || x === undefined || y === undefined) return null;
+
+      return {
+        id,
+        emoji,
+        label: label || emoji,
+        x,
+        y,
+        scale: readNumber(entry.scale),
+        rotation: readNumber(entry.rotation),
+        opacity: readNumber(entry.opacity),
+        layerOrder: readNumber(entry.layerOrder),
+      };
+    })
+    .filter(Boolean);
+
+  return layers.length > 0 ? layers : undefined;
 }
 
 function readLayerStyles(
@@ -355,6 +400,10 @@ export function readCreatorStudioDesignRecord(
     textStyle: readTextStyle(value.textStyle ?? value.text_style),
     scriptureText: readString(value.scriptureText) || readString(value.scripture_text),
     layerStyles: readLayerStyles(value.layerStyles ?? value.layer_styles),
+    customTextLayers: readCustomTextLayers(
+      value.customTextLayers ?? value.custom_text_layers
+    ),
+    stickerLayers: readStickerLayers(value.stickerLayers ?? value.sticker_layers),
   };
 }
 
@@ -414,7 +463,7 @@ export function readStoredCreatorStudioDesignFromStory(story: {
     return design;
   }
 
-  return prepareCreatorStudioForEditing(design);
+  return resolveCreatorStudioDesignForRender(design);
 }
 
 export function verifyCreatorStudioDesignPersisted(
@@ -444,6 +493,12 @@ export function verifyCreatorStudioDesignPersisted(
     templateId: stored.templateId,
     layoutType: stored.layoutType,
     layerStyles: stored.layerStyles,
+    layerFontPresets: Object.fromEntries(
+      Object.entries(stored.layerStyles ?? {}).map(([layer, style]) => [
+        layer,
+        style.fontPreset ?? null,
+      ])
+    ),
     textStyle: stored.textStyle,
     expectedLayerCount: Object.keys(expectedDesign.layerStyles ?? {}).length,
     storedLayerCount: Object.keys(stored.layerStyles ?? {}).length,
