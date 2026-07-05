@@ -451,7 +451,7 @@ function LayerToolbar({
   
     
       design={design}
-      paletteSwatches={paletteSwatches}
+      
       onChange={onChange}
       onUpdateLayerStyle={onUpdateLayerStyle}
       onOpenOverflow={onOpenOverflow}
