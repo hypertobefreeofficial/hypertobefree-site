@@ -35,6 +35,29 @@ type CreatorStudioSidePanelProps = {
   className?: string;
 };
 
+function getPanelTitle(activeTool: CreatorStudioRailTool) {
+  if (activeTool === "design") return "AI Design Assistant";
+  if (activeTool === "scripture") return "Scripture";
+  if (activeTool === "filters") return "Filters & Effects";
+  return "Text Settings";
+}
+
+function getPanelDescription(
+  activeTool: CreatorStudioRailTool,
+  selectedLayer: CreatorStudioTextLayer
+) {
+  if (activeTool === "design") {
+    return "Style options from your media and words — typography, placement, and color only.";
+  }
+  if (activeTool === "scripture") {
+    return "Add a reference that supports your testimony.";
+  }
+  if (activeTool === "filters") {
+    return "Adjust color, contrast, and advanced visual settings.";
+  }
+  return `Edit the ${selectedLayer} layer — fonts, size, alignment, and story coach.`;
+}
+
 export default function CreatorStudioSidePanel({
   design,
   onChange,
@@ -73,25 +96,28 @@ export default function CreatorStudioSidePanel({
 
   return (
     <aside
-      className={`flex w-[min(100%,22rem)] shrink-0 flex-col border-l border-white/10 bg-[#041527] text-white lg:w-80 xl:w-[22rem] ${className}`}
+      className={`flex w-80 shrink-0 flex-col border-l border-white/10 bg-[#041527] text-white xl:w-96 2xl:w-[26rem] ${className}`}
       aria-label="Creator Studio panels"
     >
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {(activeTool === "design" || designs.length > 0) && (
-          <section className="mb-5">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-[#69b7ff]" />
-              <h3 className="text-sm font-black text-white">
-                AI Design Assistant
-              </h3>
-            </div>
-            <p className="mt-1 text-xs font-medium leading-5 text-blue-100/70">
-              Style options from your media and words — typography, placement,
-              and color only.
-            </p>
+      <div className="shrink-0 border-b border-white/10 px-5 py-4">
+        <div className="flex items-center gap-2">
+          {activeTool === "design" && (
+            <Sparkles className="h-4 w-4 text-[#69b7ff]" />
+          )}
+          <h3 className="text-sm font-black text-white">
+            {getPanelTitle(activeTool)}
+          </h3>
+        </div>
+        <p className="mt-1 text-xs font-medium leading-5 text-blue-100/70">
+          {getPanelDescription(activeTool, selectedLayer)}
+        </p>
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        {activeTool === "design" && (
+          <section className="space-y-4">
             {designs.length > 0 && onSelectDesign && (
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {designs.slice(0, 6).map((concept) => {
                   const selected = selectedDesignId === concept.id;
 
@@ -118,48 +144,38 @@ export default function CreatorStudioSidePanel({
               </div>
             )}
 
-            <div className="mt-4 space-y-3">
-              {onGenerateConcepts && (
-                <button
-                  type="button"
-                  onClick={onGenerateConcepts}
-                  disabled={conceptsLoading}
-                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {conceptsLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Styling...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      {designs.length > 0
-                        ? "Generate more styles"
-                        : "Style my testimony"}
-                    </>
-                  )}
-                </button>
-              )}
-              {aiControls ? (
-                <div className="space-y-2 [&_*]:text-[#062a57]">{aiControls}</div>
-              ) : null}
-            </div>
+            {onGenerateConcepts && (
+              <button
+                type="button"
+                onClick={onGenerateConcepts}
+                disabled={conceptsLoading}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-4 text-sm font-black text-white transition hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {conceptsLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Styling...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    {designs.length > 0
+                      ? "Generate more styles"
+                      : "Style my testimony"}
+                  </>
+                )}
+              </button>
+            )}
+
+            {aiControls ? (
+              <div className="space-y-2 [&_*]:text-[#062a57]">{aiControls}</div>
+            ) : null}
           </section>
         )}
 
         {activeTool !== "design" && (
           <section>
-            <h3 className="text-sm font-black text-white">
-              {activeTool === "scripture" ? "Scripture" : "Text Settings"}
-            </h3>
-            <p className="mt-1 text-xs font-medium leading-5 text-blue-100/70">
-              {activeTool === "scripture"
-                ? "Add a reference that supports your testimony."
-                : `Editing the ${selectedLayer} layer on your canvas.`}
-            </p>
-
-            <div className="mt-4 rounded-2xl bg-white p-3 ring-1 ring-blue-100">
+            <div className="rounded-2xl bg-white p-3 ring-1 ring-blue-100">
               <CreatorStudioLayoutEditor
                 compact
                 design={design}
