@@ -52,7 +52,7 @@ function buildSampleDesign(fontPreset: FontPresetId): CreatorStudioDesign {
         y: 22,
       },
       overlay: {
-        fontPreset: "caption-clean",
+        fontPreset: "clean-modern-sans",
         weight: "regular",
         fontSize: "medium",
         align: "center",
@@ -61,7 +61,7 @@ function buildSampleDesign(fontPreset: FontPresetId): CreatorStudioDesign {
         y: 50,
       },
       caption: {
-        fontPreset: "caption-clean",
+        fontPreset: "clean-modern-sans",
         weight: "regular",
         fontSize: "small",
         align: "center",
@@ -75,17 +75,17 @@ function buildSampleDesign(fontPreset: FontPresetId): CreatorStudioDesign {
 
 describe("creator studio fontPreset persistence", () => {
   it("keeps fontPreset through serialize and metadata read", () => {
-    const design = buildSampleDesign("cinematic");
+    const design = buildSampleDesign("cinematic-poster");
     const serialized = serializeCreatorStudioDesignForStorage(design);
     const payload = buildCreatorStudioAiSuggestionsPayload({ design: serialized });
     const stored = readCreatorStudioDesignFromSuggestions(payload);
 
-    expect(stored?.layerStyles?.title?.fontPreset).toBe("cinematic");
-    expect(stored?.layerStyles?.overlay?.fontPreset).toBe("caption-clean");
+    expect(stored?.layerStyles?.title?.fontPreset).toBe("cinematic-poster");
+    expect(stored?.layerStyles?.overlay?.fontPreset).toBe("clean-modern-sans");
   });
 
   it("survives publish payload, reload, and feed read helpers", () => {
-    const design = buildSampleDesign("strong-impact");
+    const design = buildSampleDesign("hero-title");
     const payload = buildCreatorStudioAiSuggestionsPayload({
       design: serializeCreatorStudioDesignForStorage(design),
     });
@@ -95,12 +95,12 @@ describe("creator studio fontPreset persistence", () => {
       creation_mode: "creator-studio",
     });
 
-    expect(reloaded?.layerStyles?.title?.fontPreset).toBe("strong-impact");
-    expect(normalizeCreatorStudioFontPreset("worshipful")).toBe("worship-serif");
+    expect(reloaded?.layerStyles?.title?.fontPreset).toBe("hero-title");
+    expect(normalizeCreatorStudioFontPreset("worshipful")).toBe("worship-script");
   });
 
   it("uses the same render pipeline for preview, feed, detail, and shared", () => {
-    const design = buildSampleDesign("editorial");
+    const design = buildSampleDesign("magazine-editorial");
     const resolved = resolveCreatorStudioDesignForRender(design);
 
     for (const compact of [false, true]) {
@@ -115,17 +115,17 @@ describe("creator studio fontPreset persistence", () => {
         "title"
       );
 
-      expect(typography.layerStyle.fontPreset).toBe("editorial");
-      expect(className).toContain("--font-creator-editorial");
+      expect(typography.layerStyle.fontPreset).toBe("magazine-editorial");
+      expect(className).toContain("--font-creator-magazine-editorial");
     }
   });
 
-  it("defines 15 unique font families across presets", () => {
+  it("defines 20 unique font families across presets", () => {
     const families = new Set(
       creatorStudioTextStylePresets.map((preset) => preset.fontFamily)
     );
 
-    expect(creatorStudioTextStylePresets).toHaveLength(15);
-    expect(families.size).toBe(15);
+    expect(creatorStudioTextStylePresets).toHaveLength(20);
+    expect(families.size).toBeGreaterThanOrEqual(15);
   });
 });

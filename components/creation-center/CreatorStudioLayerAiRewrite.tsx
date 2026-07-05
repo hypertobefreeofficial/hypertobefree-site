@@ -10,13 +10,14 @@ import {
 } from "../../lib/creatorStudioLayerAiRewriteClient";
 import type {
   CreatorStudioDesign,
-  CreatorStudioTextLayer,
+  CreatorStudioSelectableLayer,
 } from "../../lib/creationCenter";
+import { isCreatorStudioBuiltinLayer } from "../../lib/creationCenter";
 import { supabase } from "../../lib/supabaseClient";
 
 type CreatorStudioLayerAiRewriteProps = {
   design: CreatorStudioDesign;
-  selectedLayer: CreatorStudioTextLayer;
+  selectedLayer: CreatorStudioSelectableLayer;
   onChange: (updates: Partial<CreatorStudioDesign>) => void;
 };
 
@@ -31,8 +32,8 @@ export default function CreatorStudioLayerAiRewrite({
   const [alternatives, setAlternatives] = useState<string[]>([]);
   const [suggestedText, setSuggestedText] = useState<string | null>(null);
 
-  const layerLabel =
-    selectedLayer === "title"
+  const layerLabel = isCreatorStudioBuiltinLayer(selectedLayer)
+    ? selectedLayer === "title"
       ? "headline"
       : selectedLayer === "overlay"
         ? "subtitle"
@@ -40,7 +41,8 @@ export default function CreatorStudioLayerAiRewrite({
           ? "caption"
           : selectedLayer === "scripture"
             ? "scripture"
-            : "closing line";
+            : "closing line"
+    : "text box";
 
   async function requestRewrite(action: CreatorStudioLayerRewriteAction) {
     setLoadingAction(action);
@@ -125,7 +127,7 @@ export default function CreatorStudioLayerAiRewrite({
             <button
               type="button"
               onClick={() => {
-                onChange(applyLayerRewriteText(selectedLayer, suggestedText));
+                onChange(applyLayerRewriteText(selectedLayer, suggestedText, design));
                 setSuggestedText(null);
                 setMessage("Applied. You can keep editing freely.");
               }}
@@ -154,7 +156,7 @@ export default function CreatorStudioLayerAiRewrite({
               key={option}
               type="button"
               onClick={() => {
-                onChange(applyLayerRewriteText(selectedLayer, option));
+                onChange(applyLayerRewriteText(selectedLayer, option, design));
                 setAlternatives([]);
                 setMessage("Applied. You can keep refining it.");
               }}

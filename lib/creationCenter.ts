@@ -152,9 +152,9 @@ export type CreatorStudioDesign = {
     color?: string;
     position?: "top" | "center" | "bottom";
   };
-  layerStyles?: Partial<
-    Record<CreatorStudioTextLayer, CreatorStudioLayerStyle>
-  >;
+  layerStyles?: Partial<Record<CreatorStudioTextLayer, CreatorStudioLayerStyle>>;
+  customTextLayers?: CreatorStudioCustomTextLayer[];
+  stickerLayers?: CreatorStudioStickerLayer[];
 };
 
 export type CreatorStudioTextLayer =
@@ -173,18 +173,99 @@ export type CreatorStudioLayerPosition =
   | "bottom-center"
   | "bottom-right";
 
+export type CreatorStudioCustomTextLayer = {
+  id: string;
+  text: string;
+  style: CreatorStudioLayerStyle;
+};
+
+export type CreatorStudioStickerLayer = {
+  id: string;
+  emoji: string;
+  label: string;
+  x: number;
+  y: number;
+  scale?: number;
+  rotation?: number;
+  opacity?: number;
+  layerOrder?: number;
+};
+
+export type CreatorStudioSelectableLayer =
+  | CreatorStudioTextLayer
+  | `custom:${string}`
+  | `sticker:${string}`;
+
+export function isCreatorStudioBuiltinLayer(
+  layer: CreatorStudioSelectableLayer
+): layer is CreatorStudioTextLayer {
+  return (
+    layer === "title" ||
+    layer === "overlay" ||
+    layer === "caption" ||
+    layer === "scripture" ||
+    layer === "callToAction"
+  );
+}
+
+export function isCreatorStudioCustomLayerKey(
+  layer: CreatorStudioSelectableLayer
+): layer is `custom:${string}` {
+  return typeof layer === "string" && layer.startsWith("custom:");
+}
+
+export function isCreatorStudioStickerLayerKey(
+  layer: CreatorStudioSelectableLayer
+): layer is `sticker:${string}` {
+  return typeof layer === "string" && layer.startsWith("sticker:");
+}
+
+export function getCreatorStudioCustomLayerId(
+  layer: `custom:${string}`
+): string {
+  return layer.slice("custom:".length);
+}
+
+export function getCreatorStudioStickerLayerId(
+  layer: `sticker:${string}`
+): string {
+  return layer.slice("sticker:".length);
+}
+
+export function toCreatorStudioCustomLayerKey(id: string): `custom:${string}` {
+  return `custom:${id}`;
+}
+
+export function toCreatorStudioStickerLayerKey(
+  id: string
+): `sticker:${string}` {
+  return `sticker:${id}`;
+}
+
 export type CreatorStudioLayerStyle = {
   fontSize?: "small" | "medium" | "large" | "hero";
   fontScale?: number;
   fontPreset?:
     | "modern-bold"
     | "elegant-serif"
-    | "warm-rounded"
-    | "editorial"
-    | "cinematic"
-    | "reflective"
-    | "worshipful"
-    | "handwritten-accent";
+    | "handwritten-journal"
+    | "worship-script"
+    | "typewriter-testimony"
+    | "minimal-uppercase"
+    | "cinematic-poster"
+    | "magazine-editorial"
+    | "neon-glow"
+    | "vintage-church"
+    | "chalkboard"
+    | "brush-stroke"
+    | "luxury-gold"
+    | "clean-modern-sans"
+    | "faith-journal"
+    | "newspaper"
+    | "storybook"
+    | "hero-title"
+    | "social-creator"
+    | "scripture-card";
   weight?: "regular" | "bold";
   italic?: boolean;
   align?: "left" | "center" | "right";
@@ -192,6 +273,8 @@ export type CreatorStudioLayerStyle = {
   position?: CreatorStudioLayerPosition;
   x?: number;
   y?: number;
+  width?: number;
+  maxWidth?: number;
   hidden?: boolean;
   opacity?: number;
   letterSpacing?: number;
@@ -200,6 +283,7 @@ export type CreatorStudioLayerStyle = {
   outlineWidth?: number;
   rotation?: number;
   layerOrder?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
 };
 
 export const creatorStudioLayerPositionCoordinates: Record<
@@ -422,69 +506,71 @@ function defaultFontPresetForLayer(
     `${design.typographyPairing ?? ""} ${design.typographyStyle ?? ""} ${design.visualTheme ?? ""}`.toLowerCase();
 
   if (design.layoutType === "magazine-style") {
-    if (layer === "title") return "editorial";
-    if (layer === "overlay") return "reflective";
-    if (layer === "scripture") return "worshipful";
+    if (layer === "title") return "magazine-editorial";
+    if (layer === "overlay") return "minimal-uppercase";
+    if (layer === "scripture") return "scripture-card";
   }
   if (design.layoutType === "full-image-poster") {
-    if (layer === "title") return "cinematic";
-    if (layer === "caption") return "modern-bold";
+    if (layer === "title") return "cinematic-poster";
+    if (layer === "caption") return "clean-modern-sans";
   }
   if (design.layoutType === "quote-card") {
     if (layer === "title") return "elegant-serif";
-    if (layer === "scripture") return "worshipful";
-    return "reflective";
+    if (layer === "scripture") return "scripture-card";
+    return "faith-journal";
   }
   if (design.layoutType === "praise-report-card") {
-    if (layer === "title") return "worshipful";
+    if (layer === "title") return "worship-script";
     if (layer === "overlay") return "modern-bold";
   }
   if (design.layoutType === "journal-style") {
-    if (layer === "title") return "handwritten-accent";
-    if (layer === "overlay" || layer === "caption") return "reflective";
+    if (layer === "title") return "handwritten-journal";
+    if (layer === "overlay" || layer === "caption") return "faith-journal";
   }
   if (design.layoutType === "scripture-card") {
-    if (layer === "scripture" || layer === "title") return "worshipful";
-    return "reflective";
+    if (layer === "scripture" || layer === "title") return "scripture-card";
+    return "faith-journal";
   }
   if (design.layoutType === "split-layout" && layer === "title") {
-    return "editorial";
+    return "magazine-editorial";
   }
   if (design.layoutType === "prayer-request-card") {
-    return "reflective";
+    return "faith-journal";
   }
   if (design.layoutType === "timeline-story") {
-    if (layer === "caption") return "warm-rounded";
-    if (layer === "title") return "editorial";
+    if (layer === "caption") return "clean-modern-sans";
+    if (layer === "title") return "magazine-editorial";
   }
   if (design.layoutType === "before-after-testimony" && layer === "title") {
-    return "cinematic";
+    return "hero-title";
   }
-  if (layer === "scripture") return "worshipful";
+  if (layer === "scripture") return "scripture-card";
   if (
     hint.includes("handwritten") ||
     hint.includes("journal") ||
     design.layoutType === "journal-style"
   ) {
-    return layer === "title" ? "handwritten-accent" : "reflective";
+    return layer === "title" ? "handwritten-journal" : "faith-journal";
   }
-  if (hint.includes("worship") || hint.includes("praise")) return "worshipful";
+  if (hint.includes("worship") || hint.includes("praise")) return "worship-script";
   if (hint.includes("cinematic") || hint.includes("documentary")) {
-    return "cinematic";
+    return "cinematic-poster";
   }
   if (hint.includes("editorial") || hint.includes("magazine")) {
-    return "editorial";
+    return "magazine-editorial";
   }
   if (
     hint.includes("minimal") ||
     hint.includes("peaceful") ||
     hint.includes("reflect")
   ) {
-    return "reflective";
+    return "faith-journal";
   }
   if (hint.includes("serif") || hint.includes("elegant")) {
     return "elegant-serif";
   }
+  if (hint.includes("caption")) return "clean-modern-sans";
+  if (hint.includes("aptos") || hint.includes("clean")) return "clean-modern-sans";
 
   return "modern-bold";
 }
@@ -510,9 +596,7 @@ function buildConceptLayerStyles(
   const baseScale = design.textStyle?.fontScale ?? 1;
   const layout = design.layoutType;
 
-  const personalities: Partial<
-    Record<CreatorStudioLayoutType, Partial<Record<CreatorStudioTextLayer, CreatorStudioLayerStyle>>>
-  > = {
+  const personalities: Partial<Record<CreatorStudioLayoutType, Partial<Record<CreatorStudioTextLayer, CreatorStudioLayerStyle>>>> = {
     "magazine-style": {
       title: layerStyleFromPosition("top-left", {
         fontSize: "hero",
@@ -1017,6 +1101,407 @@ export function buildCreatorStudioLayerStyleUpdate(
       },
     },
   };
+}
+
+function createCreatorStudioLayerId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function getCreatorStudioCustomTextLayer(
+  design: CreatorStudioDesign,
+  id: string
+): CreatorStudioCustomTextLayer | null {
+  return design.customTextLayers?.find((layer) => layer.id === id) ?? null;
+}
+
+export function getCreatorStudioStickerLayer(
+  design: CreatorStudioDesign,
+  id: string
+): CreatorStudioStickerLayer | null {
+  return design.stickerLayers?.find((layer) => layer.id === id) ?? null;
+}
+
+export function getCreatorStudioCustomLayerStyle(
+  design: CreatorStudioDesign,
+  id: string
+): CreatorStudioLayerStyle {
+  const layer = getCreatorStudioCustomTextLayer(design, id);
+  const accent = design.textStyle?.color ?? "#FFFFFF";
+
+  return {
+    fontSize: "medium",
+    fontScale: 1,
+    weight: "bold",
+    italic: false,
+    align: "center",
+    color: accent,
+    position: "center",
+    x: 50,
+    y: 58,
+    layerOrder: 6,
+    ...layer?.style,
+  };
+}
+
+export function getCreatorStudioLayerStyleForSelection(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioSelectableLayer
+): CreatorStudioLayerStyle {
+  if (isCreatorStudioBuiltinLayer(layer)) {
+    return getCreatorStudioLayerStyle(design, layer);
+  }
+
+  if (isCreatorStudioCustomLayerKey(layer)) {
+    return getCreatorStudioCustomLayerStyle(
+      design,
+      getCreatorStudioCustomLayerId(layer)
+    );
+  }
+
+  const sticker = getCreatorStudioStickerLayer(
+    design,
+    getCreatorStudioStickerLayerId(layer)
+  );
+
+  return {
+    x: sticker?.x ?? 50,
+    y: sticker?.y ?? 50,
+    fontScale: sticker?.scale ?? 1,
+    opacity: sticker?.opacity ?? 1,
+    rotation: sticker?.rotation ?? 0,
+    layerOrder: sticker?.layerOrder ?? 8,
+  };
+}
+
+export function getCreatorStudioLayerTextForSelection(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioSelectableLayer
+): string {
+  if (isCreatorStudioBuiltinLayer(layer)) {
+    return getCreatorStudioLayerDisplayText(design, layer);
+  }
+
+  if (isCreatorStudioCustomLayerKey(layer)) {
+    return (
+      getCreatorStudioCustomTextLayer(
+        design,
+        getCreatorStudioCustomLayerId(layer)
+      )?.text ?? ""
+    );
+  }
+
+  const sticker = getCreatorStudioStickerLayer(
+    design,
+    getCreatorStudioStickerLayerId(layer)
+  );
+
+  return sticker?.emoji ?? "";
+}
+
+export function buildCreatorStudioSelectableLayerStyleUpdate(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioSelectableLayer,
+  updates: Partial<CreatorStudioLayerStyle>
+): Partial<CreatorStudioDesign> {
+  if (isCreatorStudioBuiltinLayer(layer)) {
+    return buildCreatorStudioLayerStyleUpdate(design, layer, updates);
+  }
+
+  if (isCreatorStudioCustomLayerKey(layer)) {
+    const id = getCreatorStudioCustomLayerId(layer);
+    const existing = getCreatorStudioCustomTextLayer(design, id);
+
+    if (!existing) return {};
+
+    return {
+      customTextLayers: (design.customTextLayers ?? []).map((entry) =>
+        entry.id === id
+          ? {
+              ...entry,
+              style: {
+                ...getCreatorStudioCustomLayerStyle(design, id),
+                ...updates,
+              },
+            }
+          : entry
+      ),
+    };
+  }
+
+  const id = getCreatorStudioStickerLayerId(layer);
+
+  return {
+    stickerLayers: (design.stickerLayers ?? []).map((entry) =>
+      entry.id === id
+        ? {
+            ...entry,
+            x: updates.x ?? entry.x,
+            y: updates.y ?? entry.y,
+            scale: updates.fontScale ?? entry.scale,
+            rotation: updates.rotation ?? entry.rotation,
+            opacity: updates.opacity ?? entry.opacity,
+            layerOrder: updates.layerOrder ?? entry.layerOrder,
+          }
+        : entry
+    ),
+  };
+}
+
+export function buildCreatorStudioSelectableLayerTextUpdate(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioSelectableLayer,
+  value: string
+): Partial<CreatorStudioDesign> {
+  if (isCreatorStudioBuiltinLayer(layer)) {
+    return buildCreatorStudioLayerDisplayTextUpdate(layer, value);
+  }
+
+  if (isCreatorStudioCustomLayerKey(layer)) {
+    const id = getCreatorStudioCustomLayerId(layer);
+
+    return {
+      customTextLayers: (design.customTextLayers ?? []).map((entry) =>
+        entry.id === id ? { ...entry, text: value } : entry
+      ),
+    };
+  }
+
+  return {};
+}
+
+export function addCreatorStudioCustomTextLayer(
+  design: CreatorStudioDesign
+): Partial<CreatorStudioDesign> {
+  const id = createCreatorStudioLayerId("text");
+  const accent = design.textStyle?.color ?? "#FFFFFF";
+  const nextOrder =
+    Math.max(
+      0,
+      ...(design.customTextLayers ?? []).map(
+        (layer) => layer.style.layerOrder ?? 0
+      ),
+      ...creatorStudioTextLayers.map(
+        (entry) => getCreatorStudioLayerStyle(design, entry.value).layerOrder ?? 0
+      )
+    ) + 1;
+
+  const nextLayer: CreatorStudioCustomTextLayer = {
+    id,
+    text: "New text",
+    style: {
+      fontSize: "medium",
+      fontScale: 1,
+      fontPreset: "clean-modern-sans",
+      weight: "bold",
+      align: "center",
+      color: accent,
+      x: 50,
+      y: 58,
+      layerOrder: nextOrder,
+    },
+  };
+
+  return {
+    customTextLayers: [...(design.customTextLayers ?? []), nextLayer],
+  };
+}
+
+export function removeCreatorStudioCustomTextLayer(
+  design: CreatorStudioDesign,
+  layerKey: CreatorStudioSelectableLayer
+): Partial<CreatorStudioDesign> {
+  if (!isCreatorStudioCustomLayerKey(layerKey)) {
+    return {};
+  }
+
+  const id = getCreatorStudioCustomLayerId(layerKey);
+
+  return {
+    customTextLayers: (design.customTextLayers ?? []).filter(
+      (entry) => entry.id !== id
+    ),
+  };
+}
+
+export function removeCreatorStudioBuiltinTextLayer(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioTextLayer
+): Partial<CreatorStudioDesign> {
+  return buildCreatorStudioLayerStyleUpdate(design, layer, { hidden: true });
+}
+
+export function addCreatorStudioStickerLayer(
+  design: CreatorStudioDesign,
+  option: { id: string; emoji: string; label: string }
+): Partial<CreatorStudioDesign> {
+  const stickerId = createCreatorStudioLayerId(option.id);
+  const nextOrder =
+    Math.max(
+      0,
+      ...(design.stickerLayers ?? []).map((layer) => layer.layerOrder ?? 0),
+      ...(design.customTextLayers ?? []).map(
+        (layer) => layer.style.layerOrder ?? 0
+      )
+    ) + 1;
+
+  const nextSticker: CreatorStudioStickerLayer = {
+    id: stickerId,
+    emoji: option.emoji,
+    label: option.label,
+    x: 50,
+    y: 42,
+    scale: 1,
+    rotation: 0,
+    opacity: 1,
+    layerOrder: nextOrder,
+  };
+
+  return {
+    stickerLayers: [...(design.stickerLayers ?? []), nextSticker],
+  };
+}
+
+export function removeCreatorStudioStickerLayer(
+  design: CreatorStudioDesign,
+  layerKey: CreatorStudioSelectableLayer
+): Partial<CreatorStudioDesign> {
+  if (!isCreatorStudioStickerLayerKey(layerKey)) {
+    return {};
+  }
+
+  const id = getCreatorStudioStickerLayerId(layerKey);
+
+  return {
+    stickerLayers: (design.stickerLayers ?? []).filter(
+      (entry) => entry.id !== id
+    ),
+  };
+}
+
+export function duplicateCreatorStudioCustomTextLayer(
+  design: CreatorStudioDesign,
+  layerKey: CreatorStudioSelectableLayer
+): Partial<CreatorStudioDesign> {
+  if (!isCreatorStudioCustomLayerKey(layerKey)) {
+    return {};
+  }
+
+  const sourceId = getCreatorStudioCustomLayerId(layerKey);
+  const source = getCreatorStudioCustomTextLayer(design, sourceId);
+  if (!source) return {};
+
+  const newId = createCreatorStudioLayerId("text");
+  const style = getCreatorStudioCustomLayerStyle(design, sourceId);
+
+  return {
+    customTextLayers: [
+      ...(design.customTextLayers ?? []),
+      {
+        id: newId,
+        text: source.text,
+        style: {
+          ...style,
+          x: Math.min(92, (style.x ?? 50) + 4),
+          y: Math.min(92, (style.y ?? 50) + 4),
+          layerOrder: (style.layerOrder ?? 0) + 1,
+        },
+      },
+    ],
+  };
+}
+
+export function duplicateCreatorStudioBuiltinTextLayer(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioTextLayer
+): Partial<CreatorStudioDesign> {
+  const style = getCreatorStudioLayerStyle(design, layer);
+  const text = getCreatorStudioLayerDisplayText(design, layer);
+  const newId = createCreatorStudioLayerId("text");
+
+  return {
+    customTextLayers: [
+      ...(design.customTextLayers ?? []),
+      {
+        id: newId,
+        text,
+        style: {
+          ...style,
+          hidden: false,
+          x: Math.min(92, (style.x ?? 50) + 4),
+          y: Math.min(92, (style.y ?? 50) + 4),
+          layerOrder: (style.layerOrder ?? 0) + 1,
+        },
+      },
+    ],
+  };
+}
+
+export function duplicateCreatorStudioStickerLayer(
+  design: CreatorStudioDesign,
+  layerKey: CreatorStudioSelectableLayer
+): Partial<CreatorStudioDesign> {
+  if (!isCreatorStudioStickerLayerKey(layerKey)) {
+    return {};
+  }
+
+  const sourceId = getCreatorStudioStickerLayerId(layerKey);
+  const source = getCreatorStudioStickerLayer(design, sourceId);
+  if (!source) return {};
+
+  const newId = createCreatorStudioLayerId("sticker");
+
+  return {
+    stickerLayers: [
+      ...(design.stickerLayers ?? []),
+      {
+        ...source,
+        id: newId,
+        x: Math.min(92, source.x + 4),
+        y: Math.min(92, source.y + 4),
+        layerOrder: (source.layerOrder ?? 0) + 1,
+      },
+    ],
+  };
+}
+
+export function duplicateCreatorStudioSelectableLayer(
+  design: CreatorStudioDesign,
+  layer: CreatorStudioSelectableLayer
+): Partial<CreatorStudioDesign> {
+  if (isCreatorStudioCustomLayerKey(layer)) {
+    return duplicateCreatorStudioCustomTextLayer(design, layer);
+  }
+
+  if (isCreatorStudioStickerLayerKey(layer)) {
+    return duplicateCreatorStudioStickerLayer(design, layer);
+  }
+
+  if (isCreatorStudioBuiltinLayer(layer)) {
+    return duplicateCreatorStudioBuiltinTextLayer(design, layer);
+  }
+
+  return {};
+}
+
+export function getDuplicatedCreatorStudioLayerKey(
+  design: CreatorStudioDesign,
+  updates: Partial<CreatorStudioDesign>
+): CreatorStudioSelectableLayer | null {
+  const customLayer = updates.customTextLayers?.at(-1);
+  if (customLayer) {
+    return toCreatorStudioCustomLayerKey(customLayer.id);
+  }
+
+  const stickerLayer = updates.stickerLayers?.at(-1);
+  if (stickerLayer) {
+    return toCreatorStudioStickerLayerKey(stickerLayer.id);
+  }
+
+  return null;
 }
 
 export type CreatorStudioTool =

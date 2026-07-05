@@ -9,17 +9,19 @@ import {
   EyeOff,
 } from "lucide-react";
 import {
-  buildCreatorStudioLayerStyleUpdate,
+  buildCreatorStudioSelectableLayerStyleUpdate,
   creatorStudioTextLayers,
   getCreatorStudioLayerStyle,
+  getCreatorStudioLayerStyleForSelection,
+  isCreatorStudioBuiltinLayer,
   type CreatorStudioDesign,
   type CreatorStudioLayerStyle,
-  type CreatorStudioTextLayer,
+  type CreatorStudioSelectableLayer,
 } from "../../lib/creationCenter";
 
 type CreatorStudioAdvancedControlsProps = {
   design: CreatorStudioDesign;
-  selectedLayer: CreatorStudioTextLayer;
+  selectedLayer: CreatorStudioSelectableLayer;
   onChange: (updates: Partial<CreatorStudioDesign>) => void;
 };
 
@@ -28,10 +30,18 @@ export default function CreatorStudioAdvancedControls({
   selectedLayer,
   onChange,
 }: CreatorStudioAdvancedControlsProps) {
-  const layerStyle = getCreatorStudioLayerStyle(design, selectedLayer);
+  const layerStyle = isCreatorStudioBuiltinLayer(selectedLayer)
+    ? getCreatorStudioLayerStyle(design, selectedLayer)
+    : getCreatorStudioLayerStyleForSelection(design, selectedLayer);
 
   function updateLayer(updates: Partial<CreatorStudioLayerStyle>) {
-    onChange(buildCreatorStudioLayerStyleUpdate(design, selectedLayer, updates));
+    onChange(
+      buildCreatorStudioSelectableLayerStyleUpdate(
+        design,
+        selectedLayer,
+        updates
+      )
+    );
   }
 
   function nudgeLayerOrder(direction: "up" | "down") {

@@ -1,7 +1,11 @@
 import {
   buildCreatorStudioLayerDisplayTextUpdate,
+  buildCreatorStudioSelectableLayerTextUpdate,
   getCreatorStudioLayerDisplayText,
+  getCreatorStudioLayerTextForSelection,
+  isCreatorStudioBuiltinLayer,
   type CreatorStudioDesign,
+  type CreatorStudioSelectableLayer,
   type CreatorStudioTextLayer,
 } from "./creationCenter";
 
@@ -68,12 +72,14 @@ export async function requestCreatorStudioLayerRewrite({
   design,
   accessToken,
 }: {
-  layer: CreatorStudioTextLayer;
+  layer: CreatorStudioTextLayer | CreatorStudioSelectableLayer;
   action: CreatorStudioLayerRewriteAction;
   design: CreatorStudioDesign;
   accessToken?: string;
 }): Promise<LayerRewriteResult> {
-  const currentText = getCreatorStudioLayerDisplayText(design, layer);
+  const currentText = isCreatorStudioBuiltinLayer(layer)
+    ? getCreatorStudioLayerDisplayText(design, layer)
+    : getCreatorStudioLayerTextForSelection(design, layer);
 
   if (!currentText.trim()) {
     return { kind: "error", message: "Add a little text first." };
@@ -126,10 +132,15 @@ export async function requestCreatorStudioLayerRewrite({
 }
 
 export function applyLayerRewriteText(
-  layer: CreatorStudioTextLayer,
-  text: string
+  layer: CreatorStudioTextLayer | CreatorStudioSelectableLayer,
+  text: string,
+  design: CreatorStudioDesign
 ): Partial<CreatorStudioDesign> {
-  return buildCreatorStudioLayerDisplayTextUpdate(layer, text);
+  if (isCreatorStudioBuiltinLayer(layer)) {
+    return buildCreatorStudioLayerDisplayTextUpdate(layer, text);
+  }
+
+  return buildCreatorStudioSelectableLayerTextUpdate(design, layer, text);
 }
 
 export function polishTextLocally(

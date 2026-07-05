@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { resolveCreatorStudioLayerMaxWidthStyle } from "./creatorStudioLayerLayout";
+import { resolveCreatorStudioLayerMaxWidthStyle } from "../../lib/creatorStudioLayerLayout";
 import {
   getCreatorStudioLayerCoordinates,
   getCreatorStudioLayerStyle,
@@ -7,13 +7,13 @@ import {
   type CreatorStudioDesign,
   type CreatorStudioLayerStyle,
   type CreatorStudioTextLayer,
-} from "./creationCenter";
+} from "../../lib/creationCenter";
 import {
   clampCreatorStudioFontScale,
   getCreatorStudioFontClassName,
   getCreatorStudioFontPresetDefinition,
   normalizeCreatorStudioFontPreset,
-} from "./creatorStudioTypography";
+} from "../../lib/creatorStudioTypography";
 
 function isHexColor(value: string | undefined): value is string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim());

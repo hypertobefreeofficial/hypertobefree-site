@@ -50,7 +50,7 @@ export default function CreatorStudioPublishSuccess({
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-white/10 bg-[#031d3d]/95 px-4 py-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-4">
+      <footer className="shrink-0 border-t border-white/10 bg-[#031d3d]/95 px-4 py-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 lg:pb-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <button
             type="button"

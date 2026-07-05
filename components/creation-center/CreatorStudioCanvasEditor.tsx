@@ -5,8 +5,12 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
   buildCreatorStudioLayerStyleUpdate,
+  buildCreatorStudioSelectableLayerStyleUpdate,
   getCreatorStudioLayerStyle,
+  getCreatorStudioLayerStyleForSelection,
+  isCreatorStudioBuiltinLayer,
   type CreatorStudioDesign,
+  type CreatorStudioSelectableLayer,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import CreatorStudioInteractiveCanvas from "./CreatorStudioInteractiveCanvas";
@@ -15,6 +19,7 @@ import CreatorStudioLayoutEditor, {
 } from "./CreatorStudioLayoutEditor";
 import CreatorStudioPreview from "./CreatorStudioPreview";
 import CreatorStudioSidePanel from "./CreatorStudioSidePanel";
+import CreatorStudioStickerPicker from "./CreatorStudioStickerPicker";
 import CreatorStudioTextStylePresetPicker from "./CreatorStudioTextStylePresetPicker";
 import CreatorStudioToolRail, {
   CreatorStudioMobileToolbar,
@@ -70,7 +75,7 @@ export default function CreatorStudioCanvasEditor({
   aiControls,
 }: CreatorStudioCanvasEditorProps) {
   const [selectedLayer, setSelectedLayer] =
-    useState<CreatorStudioTextLayer>("title");
+    useState<CreatorStudioSelectableLayer>("title");
   const [activeTool, setActiveTool] = useState<CreatorStudioRailTool>("text");
   const [mobilePanel, setMobilePanel] =
     useState<CreatorStudioEditorPanel | null>(null);
@@ -78,7 +83,9 @@ export default function CreatorStudioCanvasEditor({
   const desktopPanel = mapRailToolToEditorPanel(activeTool);
   const showMobileTextStyleLibrary =
     activeTool === "text" || activeTool === "filters" || activeTool === "scripture";
-  const mobileLayerStyle = getCreatorStudioLayerStyle(design, selectedLayer);
+  const mobileLayerStyle = isCreatorStudioBuiltinLayer(selectedLayer)
+    ? getCreatorStudioLayerStyle(design, selectedLayer)
+    : getCreatorStudioLayerStyleForSelection(design, selectedLayer);
 
   useEffect(() => {
     if (activeTool === "text") {
@@ -151,7 +158,7 @@ export default function CreatorStudioCanvasEditor({
         />
 
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#01050f] lg:min-h-0">
-          <div className="flex min-h-0 flex-1 items-center justify-center p-2 pb-[calc(11.5rem+4.75rem+env(safe-area-inset-bottom))] lg:p-6 lg:pb-6 xl:p-8">
+          <div className="flex min-h-0 flex-1 items-center justify-center p-2 pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:p-6 lg:pb-6 xl:p-8">
             <CreatorStudioInteractiveCanvas
               design={design}
               onChange={onChange}
@@ -195,7 +202,7 @@ export default function CreatorStudioCanvasEditor({
         />
       </div>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[45] lg:hidden">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[45] lg:hidden">
         <div className="pointer-events-auto border-t border-white/10 bg-[#031d3d]/98 px-4 pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
           {onStartOver && (
             <div className="mb-2 text-center">
@@ -225,7 +232,7 @@ export default function CreatorStudioCanvasEditor({
       </div>
 
       {mobilePanel && (
-        <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[80] max-h-[min(58dvh,26rem)] overflow-hidden rounded-t-[1.5rem] bg-white/98 shadow-2xl ring-1 ring-blue-100 backdrop-blur-xl lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-[80] max-h-[min(58dvh,26rem)] overflow-hidden rounded-t-[1.5rem] bg-white/98 shadow-2xl ring-1 ring-blue-100 backdrop-blur-xl lg:hidden">
           <div className="flex items-center justify-between border-b border-blue-100 px-4 py-3">
             <p className="text-sm font-black capitalize text-[#062a57]">
               {mobilePanel === "ai" ? "AI Design" : mobilePanel}
@@ -285,10 +292,14 @@ export default function CreatorStudioCanvasEditor({
                 {showMobileTextStyleLibrary && (
                   <CreatorStudioTextStylePresetPicker
                     layerStyle={mobileLayerStyle}
-                    selectedLayer={selectedLayer}
+                    selectedLayer={
+                      isCreatorStudioBuiltinLayer(selectedLayer)
+                        ? selectedLayer
+                        : "overlay"
+                    }
                     onApply={(updates) =>
                       onChange(
-                        buildCreatorStudioLayerStyleUpdate(
+                        buildCreatorStudioSelectableLayerStyleUpdate(
                           design,
                           selectedLayer,
                           updates
@@ -298,6 +309,11 @@ export default function CreatorStudioCanvasEditor({
                     compact
                   />
                 )}
+                <CreatorStudioStickerPicker
+                  compact
+                  design={design}
+                  onChange={onChange}
+                />
                 <CreatorStudioLayoutEditor
                   compact
                   design={design}

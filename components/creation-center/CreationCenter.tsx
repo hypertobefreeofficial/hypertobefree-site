@@ -13,6 +13,7 @@ import {
   type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
+
 import CreatorStudio, {
   type CreatorStudioPublishResult,
 } from "./CreatorStudio";
@@ -94,10 +95,14 @@ export default function CreationCenter({
 }: CreationCenterProps) {
   const router = useRouter();
 
-  useEffect(() => {
-    onCreatorStudioActiveChange(true);
-    return () => onCreatorStudioActiveChange(false);
-  }, [onCreatorStudioActiveChange]);
+
+ useEffect(() => {
+  onCreatorStudioActiveChange(true);
+
+  return () => {
+    onCreatorStudioActiveChange(false);
+  };
+}, [onCreatorStudioActiveChange]);
 
   return (
     <div className="w-full min-w-0 overflow-hidden lg:overflow-visible">

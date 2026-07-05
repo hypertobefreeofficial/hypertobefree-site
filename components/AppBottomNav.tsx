@@ -16,11 +16,11 @@ const publicRoutesWithoutBottomNav = [
 export default function AppBottomNav() {
   const pathname = usePathname();
 
-  const shouldHideBottomNav = publicRoutesWithoutBottomNav.includes(pathname);
+  const shouldHideBottomNav =
+    publicRoutesWithoutBottomNav.includes(pathname) ||
+    pathname === "/share-your-story";
 
-  if (shouldHideBottomNav) {
-    return null;
-  }
+  if (shouldHideBottomNav) return null;
 
   return <LoggedInBottomNav />;
 }

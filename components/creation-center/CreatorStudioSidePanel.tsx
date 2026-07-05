@@ -3,14 +3,17 @@
 import { Loader2, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import {
-  buildCreatorStudioLayerStyleUpdate,
+  buildCreatorStudioSelectableLayerStyleUpdate,
   getCreatorStudioLayerStyle,
+  getCreatorStudioLayerStyleForSelection,
+  isCreatorStudioBuiltinLayer,
   type CreatorStudioDesign,
-  type CreatorStudioTextLayer,
+  type CreatorStudioSelectableLayer,
 } from "../../lib/creationCenter";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
 import CreatorStudioLayoutEditor from "./CreatorStudioLayoutEditor";
 import CreatorStudioPreview from "./CreatorStudioPreview";
+import CreatorStudioStickerPicker from "./CreatorStudioStickerPicker";
 import CreatorStudioTextStylePresetPicker from "./CreatorStudioTextStylePresetPicker";
 import type { CreatorStudioRailTool } from "./CreatorStudioToolRail";
 import { mapRailToolToEditorPanel } from "./CreatorStudioToolRail";
@@ -20,7 +23,7 @@ type CreatorStudioSidePanelProps = {
   onChange: (updates: Partial<CreatorStudioDesign>) => void;
   activeTool: CreatorStudioRailTool;
   activePanel: CreatorStudioEditorPanel;
-  selectedLayer: CreatorStudioTextLayer;
+  selectedLayer: CreatorStudioSelectableLayer;
   videoPreviewUrl: string | null;
   photoPreviewUrl: string | null;
   videoFileName: string | null;
@@ -47,7 +50,7 @@ function getPanelTitle(activeTool: CreatorStudioRailTool) {
 
 function getPanelDescription(
   activeTool: CreatorStudioRailTool,
-  selectedLayer: CreatorStudioTextLayer
+  selectedLayer: CreatorStudioSelectableLayer
 ) {
   if (activeTool === "design") {
     return "Style options from your media and words — typography, placement, and color only.";
@@ -58,7 +61,10 @@ function getPanelDescription(
   if (activeTool === "filters") {
     return "Adjust color, contrast, and advanced visual settings.";
   }
-  return `Choose from 110+ presets for the ${selectedLayer} layer, then fine-tune below.`;
+  const layerLabel = isCreatorStudioBuiltinLayer(selectedLayer)
+    ? selectedLayer
+    : "text";
+  return `Choose from 20 text styles for the ${layerLabel} layer, then fine-tune below.`;
 }
 
 export default function CreatorStudioSidePanel({
@@ -85,7 +91,9 @@ export default function CreatorStudioSidePanel({
 }: CreatorStudioSidePanelProps) {
   const resolvedPanel =
     activePanel === "style" ? mapRailToolToEditorPanel(activeTool) : activePanel;
-  const layerStyle = getCreatorStudioLayerStyle(design, selectedLayer);
+  const layerStyle = isCreatorStudioBuiltinLayer(selectedLayer)
+    ? getCreatorStudioLayerStyle(design, selectedLayer)
+    : getCreatorStudioLayerStyleForSelection(design, selectedLayer);
 
   const editorPanel: CreatorStudioEditorPanel =
     activeTool === "scripture"
@@ -102,7 +110,13 @@ export default function CreatorStudioSidePanel({
     activeTool === "text" || activeTool === "filters" || activeTool === "scripture";
 
   function updateLayerStyle(updates: Partial<typeof layerStyle>) {
-    onChange(buildCreatorStudioLayerStyleUpdate(design, selectedLayer, updates));
+    onChange(
+      buildCreatorStudioSelectableLayerStyleUpdate(
+        design,
+        selectedLayer,
+        updates
+      )
+    );
   }
 
   return (
@@ -189,10 +203,16 @@ export default function CreatorStudioSidePanel({
             {showTextStyleLibrary && (
               <CreatorStudioTextStylePresetPicker
                 layerStyle={layerStyle}
-                selectedLayer={selectedLayer}
+                selectedLayer={
+                  isCreatorStudioBuiltinLayer(selectedLayer)
+                    ? selectedLayer
+                    : "overlay"
+                }
                 onApply={(updates) => updateLayerStyle(updates)}
               />
             )}
+
+            <CreatorStudioStickerPicker design={design} onChange={onChange} />
 
             <div className="rounded-2xl bg-white p-3 ring-1 ring-blue-100">
               <CreatorStudioLayoutEditor
