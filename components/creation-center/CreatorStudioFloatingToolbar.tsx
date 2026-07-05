@@ -14,7 +14,11 @@ import {
   Type,
   Wand2,
 } from "lucide-react";
-import { useState } from "react";
+import {
+  forwardRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   applyLayerRewriteText,
   creatorStudioLayerRewriteActions,
@@ -35,6 +39,7 @@ type CreatorStudioFloatingToolbarProps = {
   layerStyle: CreatorStudioLayerStyle;
   design: CreatorStudioDesign;
   paletteSwatches: string[];
+  style?: CSSProperties;
   onChange?: (updates: Partial<CreatorStudioDesign>) => void;
   onUpdateLayerStyle?: (
     layer: CreatorStudioTextLayer,
@@ -42,18 +47,27 @@ type CreatorStudioFloatingToolbarProps = {
   ) => void;
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
   onBeginEdit?: (layer: CreatorStudioTextLayer) => void;
+  onLayoutChange?: () => void;
 };
 
-export default function CreatorStudioFloatingToolbar({
-  layer,
-  layerStyle,
-  design,
-  paletteSwatches,
-  onChange,
-  onUpdateLayerStyle,
-  onOpenOverflow,
-  onBeginEdit,
-}: CreatorStudioFloatingToolbarProps) {
+const CreatorStudioFloatingToolbar = forwardRef<
+  HTMLDivElement,
+  CreatorStudioFloatingToolbarProps
+>(function CreatorStudioFloatingToolbar(
+  {
+    layer,
+    layerStyle,
+    design,
+    paletteSwatches,
+    style,
+    onChange,
+    onUpdateLayerStyle,
+    onOpenOverflow,
+    onBeginEdit,
+    onLayoutChange,
+  },
+  ref
+) {
   const reducedMotion = useReducedMotion();
   const [showAiStrip, setShowAiStrip] = useState(false);
   const [loadingAction, setLoadingAction] =
@@ -83,6 +97,7 @@ export default function CreatorStudioFloatingToolbar({
       if (result.kind === "text") {
         onChange(applyLayerRewriteText(layer, result.text));
         setShowAiStrip(false);
+        onLayoutChange?.();
       }
     } finally {
       setLoadingAction(null);
@@ -91,10 +106,12 @@ export default function CreatorStudioFloatingToolbar({
 
   return (
     <motion.div
+      ref={ref}
       initial={reducedMotion ? false : { opacity: 0, y: 8, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-auto absolute -top-14 left-1/2 z-30 w-[min(96vw,30rem)] -translate-x-1/2 rounded-[1.25rem] bg-[#031d3d]/94 px-2 py-1.5 shadow-xl shadow-black/25 ring-1 ring-white/15 backdrop-blur-md"
+      style={style}
+      className="pointer-events-auto rounded-[1.25rem] bg-[#031d3d]/94 px-2 py-1.5 shadow-xl shadow-black/25 ring-1 ring-white/15 backdrop-blur-md"
       onPointerDown={(event) => event.stopPropagation()}
     >
       <div className="flex items-center gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch]">
@@ -200,7 +217,13 @@ export default function CreatorStudioFloatingToolbar({
         <button
           type="button"
           aria-label="AI rewrite"
-          onClick={() => setShowAiStrip((current) => !current)}
+          onClick={() => {
+            setShowAiStrip((current) => {
+              const next = !current;
+              queueMicrotask(() => onLayoutChange?.());
+              return next;
+            });
+          }}
           className={`${toolbarButtonClass} ${
             showAiStrip ? "bg-[#0b63ce] text-white" : ""
           }`}
@@ -243,4 +266,6 @@ export default function CreatorStudioFloatingToolbar({
       )}
     </motion.div>
   );
-}
+});
+
+export default CreatorStudioFloatingToolbar;
