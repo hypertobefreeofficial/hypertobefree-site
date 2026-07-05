@@ -15,21 +15,36 @@ import {
 } from "react";
 import {
   buildCreatorStudioLayerDisplayTextUpdate,
+  buildCreatorStudioSelectableLayerStyleUpdate,
+  buildCreatorStudioSelectableLayerTextUpdate,
   creatorStudioTextLayers,
+  getCreatorStudioCustomLayerStyle,
   getCreatorStudioLayerDisplayText,
   getCreatorStudioLayerStyle,
+  getCreatorStudioLayerStyleForSelection,
+  getCreatorStudioLayerTextForSelection,
+  getCreatorStudioLayerTransform,
+  getCreatorStudioStickerLayer,
+  isCreatorStudioBuiltinLayer,
+  isCreatorStudioCustomLayerKey,
+  toCreatorStudioCustomLayerKey,
+  toCreatorStudioStickerLayerKey,
   type CreatorStudioDesign,
   type CreatorStudioLayerStyle,
+  type CreatorStudioSelectableLayer,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import {
+  buildCreatorStudioCustomLayerTypography,
   buildCreatorStudioLayerTypography,
   getCreatorStudioAccentColor,
   type CreatorStudioLayerTypography,
 } from "../../lib/creatorStudioCanvasRender";
 import {
-  clampCreatorStudioFontScale,
-} from "../../lib/creatorStudioTypography";
+  computeCreatorStudioToolbarPlacement,
+  resolveCreatorStudioLayerMaxWidthStyle,
+} from "../../lib/creatorStudioLayerLayout";
+import { clampCreatorStudioFontScale } from "../../lib/creatorStudioTypography";
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
 import CreatorStudioFloatingToolbar from "./CreatorStudioFloatingToolbar";
 
@@ -38,26 +53,26 @@ type CreatorStudioPositionedLayersProps = {
   compact?: boolean;
   hideCallToAction?: boolean;
   interactive?: boolean;
-  selectedLayer?: CreatorStudioTextLayer | null;
-  editingLayer?: CreatorStudioTextLayer | null;
+  selectedLayer?: CreatorStudioSelectableLayer | null;
+  editingLayer?: CreatorStudioSelectableLayer | null;
   editRef?: RefObject<HTMLTextAreaElement | HTMLInputElement | null>;
   paletteSwatches?: string[];
   canvasRef?: RefObject<HTMLElement | null>;
   reserveMobileBottom?: boolean;
   onChange?: (updates: Partial<CreatorStudioDesign>) => void;
-  onSelectLayer?: (layer: CreatorStudioTextLayer) => void;
-  onEditingLayerChange?: (layer: CreatorStudioTextLayer | null) => void;
+  onSelectLayer?: (layer: CreatorStudioSelectableLayer) => void;
+  onEditingLayerChange?: (layer: CreatorStudioSelectableLayer | null) => void;
   onUpdateLayerStyle?: (
-    layer: CreatorStudioTextLayer,
+    layer: CreatorStudioSelectableLayer,
     updates: Partial<CreatorStudioLayerStyle>
   ) => void;
   onLayerPointerDown?: (
-    layer: CreatorStudioTextLayer,
+    layer: CreatorStudioSelectableLayer,
     event: ReactPointerEvent<HTMLDivElement>
   ) => void;
   onLayerPointerMove?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onLayerPointerUp?: (
-    layer: CreatorStudioTextLayer,
+    layer: CreatorStudioSelectableLayer,
     event: ReactPointerEvent<HTMLDivElement>
   ) => void;
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
@@ -73,6 +88,52 @@ function getLayerPlaceholder(layer: CreatorStudioTextLayer) {
   if (layer === "caption") return "Tap to add your story";
   if (layer === "scripture") return "Scripture reference";
   return "Call to action";
+}
+
+function getLayerMaxWidthStyle(
+  layerStyle: CreatorStudioLayerStyle,
+  options?: { reserveMobileBottom?: boolean }
+): string | undefined {
+  return resolveCreatorStudioLayerMaxWidthStyle(layerStyle, {
+    reserveMobileBottom: options?.reserveMobileBottom,
+    constrainToSafeArea: true,
+  });
+}
+
+function getSelectedLayerOutlineClass(isSelected: boolean, interactive: boolean) {
+  if (!isSelected || !interactive) {
+    return interactive ? "outline outline-1 outline-transparent" : "";
+  }
+
+  return "outline outline-2 outline-[#93c5fd] outline-offset-[3px]";
+}
+
+function buildLayerPositionStyle(options: {
+  x: number;
+  y: number;
+  transform: string;
+  layerStyle: CreatorStudioLayerStyle;
+  layerOrder: number;
+  isSelected: boolean;
+  interactive: boolean;
+  isEditing: boolean;
+  reserveMobileBottom?: boolean;
+}): CSSProperties {
+  const maxWidth = getLayerMaxWidthStyle(options.layerStyle, {
+    reserveMobileBottom: options.reserveMobileBottom,
+  });
+
+  return {
+    left: `${options.x}%`,
+    top: `${options.y}%`,
+    transform: options.transform,
+    ...(maxWidth ? { maxWidth } : {}),
+    touchAction: options.isEditing ? "auto" : "none",
+    zIndex:
+      10 +
+      options.layerOrder +
+      (options.isSelected && options.interactive ? 20 : 0),
+  };
 }
 
 function layerSurfaceClass(layer: CreatorStudioTextLayer) {
@@ -214,10 +275,10 @@ function ScaleResizeHandle({
   layerStyle,
   onUpdateLayerStyle,
 }: {
-  layer: CreatorStudioTextLayer;
+  layer: CreatorStudioSelectableLayer;
   layerStyle: CreatorStudioLayerStyle;
   onUpdateLayerStyle?: (
-    layer: CreatorStudioTextLayer,
+    layer: CreatorStudioSelectableLayer,
     updates: Partial<CreatorStudioLayerStyle>
   ) => void;
 }) {
@@ -284,8 +345,9 @@ function LayerToolbar({
   onUpdateLayerStyle,
   onOpenOverflow,
   onBeginEdit,
+  onSelectLayer,
 }: {
-  layer: CreatorStudioTextLayer;
+  layer: CreatorStudioSelectableLayer;
   layerStyle: CreatorStudioLayerStyle;
   layerYPercent: number;
   design: CreatorStudioDesign;
@@ -294,11 +356,12 @@ function LayerToolbar({
   getAnchorElement: () => HTMLDivElement | null;
   onChange?: (updates: Partial<CreatorStudioDesign>) => void;
   onUpdateLayerStyle?: (
-    layer: CreatorStudioTextLayer,
+    layer: CreatorStudioSelectableLayer,
     updates: Partial<CreatorStudioLayerStyle>
   ) => void;
   onOpenOverflow?: (panel: CreatorStudioEditorPanel) => void;
-  onBeginEdit?: (layer: CreatorStudioTextLayer) => void;
+  onBeginEdit?: (layer: CreatorStudioSelectableLayer) => void;
+  onSelectLayer?: (layer: CreatorStudioSelectableLayer) => void;
 }) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [toolbarStyle, setToolbarStyle] = useState<CSSProperties>({
@@ -330,32 +393,27 @@ function LayerToolbar({
       const paddingX = Math.max(8, canvasRect.width * 0.04);
       const paddingY = Math.max(8, canvasRect.height * 0.04);
 
-      const spaceAbove = layerRect.top - canvasRect.top;
-      const spaceBelow = canvasRect.bottom - layerRect.bottom;
-      const placeBelow =
-        layerYPercent < 18 ||
-        (spaceAbove < toolbarHeight + paddingY && spaceBelow > spaceAbove);
+      const layerInCanvas = {
+        left: layerRect.left - canvasRect.left,
+        top: layerRect.top - canvasRect.top,
+        width: layerRect.width,
+        height: layerRect.height,
+      };
 
-      let top = placeBelow
-        ? layerRect.bottom - canvasRect.top + paddingY
-        : layerRect.top - canvasRect.top - toolbarHeight - paddingY;
-
-      top = Math.max(
-        paddingY,
-        Math.min(top, canvasRect.height - toolbarHeight - paddingY)
-      );
-
-      const centerX = layerRect.left + layerRect.width / 2 - canvasRect.left;
-      let left = centerX - toolbarWidth / 2;
-      left = Math.max(
+      const placement = computeCreatorStudioToolbarPlacement({
+        canvasWidth: canvasRect.width,
+        canvasHeight: canvasRect.height,
+        layerRect: layerInCanvas,
+        toolbarWidth,
+        toolbarHeight,
         paddingX,
-        Math.min(left, canvasRect.width - toolbarWidth - paddingX)
-      );
+        paddingY,
+      });
 
       setToolbarStyle({
         position: "absolute",
-        top,
-        left,
+        top: placement.top,
+        left: placement.left,
         width: "max-content",
         maxWidth: canvasRect.width - paddingX * 2,
         opacity: 1,
@@ -399,6 +457,7 @@ function LayerToolbar({
       onUpdateLayerStyle={onUpdateLayerStyle}
       onOpenOverflow={onOpenOverflow}
       onBeginEdit={onBeginEdit}
+      onSelectLayer={onSelectLayer}
       onLayoutChange={repositionToolbar}
     />
   );
@@ -422,31 +481,40 @@ export default function CreatorStudioPositionedLayers({
   onLayerPointerMove,
   onLayerPointerUp,
   onOpenOverflow,
+  onSelectLayer,
 }: CreatorStudioPositionedLayersProps) {
   const accentColor = getCreatorStudioAccentColor(design);
   const pinchStateRef = useRef<{
-    layer: CreatorStudioTextLayer;
+    layer: CreatorStudioSelectableLayer;
     distance: number;
     scale: number;
   } | null>(null);
-  const layerAnchorRefs = useRef<
-    Partial<Record<CreatorStudioTextLayer, HTMLDivElement | null>>
-  >({});
-
-  const sortedLayers = useMemo(
-    () =>
-      [...creatorStudioTextLayers]
-        .filter((entry) => !(hideCallToAction && entry.value === "callToAction"))
-        .sort((left, right) => {
-          const leftOrder =
-            getCreatorStudioLayerStyle(design, left.value).layerOrder ?? 0;
-          const rightOrder =
-            getCreatorStudioLayerStyle(design, right.value).layerOrder ?? 0;
-
-          return leftOrder - rightOrder;
-        }),
-    [design, hideCallToAction]
+  const layerAnchorRefs = useRef<Partial<Record<string, HTMLDivElement | null>>>(
+    {}
   );
+
+  const sortedLayers = useMemo(() => {
+    const builtin = [...creatorStudioTextLayers]
+      .filter((entry) => !(hideCallToAction && entry.value === "callToAction"))
+      .map((entry) => ({
+        key: entry.value as CreatorStudioSelectableLayer,
+        order: getCreatorStudioLayerStyle(design, entry.value).layerOrder ?? 0,
+      }));
+
+    const custom = (design.customTextLayers ?? []).map((entry) => ({
+      key: toCreatorStudioCustomLayerKey(entry.id),
+      order: getCreatorStudioCustomLayerStyle(design, entry.id).layerOrder ?? 0,
+    }));
+
+    const stickers = (design.stickerLayers ?? []).map((entry) => ({
+      key: toCreatorStudioStickerLayerKey(entry.id),
+      order: entry.layerOrder ?? 0,
+    }));
+
+    return [...builtin, ...custom, ...stickers].sort(
+      (left, right) => left.order - right.order
+    );
+  }, [design, hideCallToAction]);
 
   useEffect(() => {
     if (!interactive || !editingLayer || !editRef?.current) return;
@@ -478,28 +546,27 @@ export default function CreatorStudioPositionedLayers({
     const isSelected = interactive && selectedLayer === layer;
     const isEditing = interactive && editingLayer === layer;
     const placeholder = getLayerPlaceholder(layer);
-    const layerPositionStyle: CSSProperties = {
-      left: `${typography.coordinates.x}%`,
-      top: `${typography.coordinates.y}%`,
+    const layerPositionStyle = buildLayerPositionStyle({
+      x: typography.coordinates.x,
+      y: typography.coordinates.y,
       transform: typography.transform,
-      maxWidth: "min(84%, 20rem)",
-      touchAction: isEditing ? "auto" : "none",
-      zIndex:
-        10 + (layerStyle.layerOrder ?? 0) + (isSelected && interactive ? 20 : 0),
-    };
+      layerStyle,
+      layerOrder: layerStyle.layerOrder ?? 0,
+      isSelected,
+      interactive,
+      isEditing,
+      reserveMobileBottom,
+    });
     const textClassName = `block w-full min-w-0 whitespace-pre-wrap break-words ${typography.fontClassName} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass}`;
     const layerBody = (
       <div
         ref={(node) => {
           layerAnchorRefs.current[layer] = node;
         }}
-        className={`relative min-w-0 max-w-full transition-[box-shadow] duration-200 ${
-          isSelected
-            ? "shadow-[0_0_0_2px_#93c5fd,0_0_0_4px_rgba(3,29,61,0.35)]"
-            : interactive
-              ? "shadow-[0_0_0_1px_transparent]"
-              : ""
-        }`}
+        className={`relative min-w-0 max-w-full ${getSelectedLayerOutlineClass(
+          isSelected,
+          interactive
+        )}`}
       >
         {isSelected && !isEditing && interactive && (
           <ScaleResizeHandle
@@ -582,6 +649,203 @@ export default function CreatorStudioPositionedLayers({
     );
   }
 
+  function renderCustomLayer(layerKey: `custom:${string}`): ReactNode {
+    const customId = layerKey.slice("custom:".length);
+    const layerStyle = getCreatorStudioCustomLayerStyle(design, customId);
+    if (layerStyle.hidden) return null;
+
+    const typography = buildCreatorStudioCustomLayerTypography(
+      design,
+      layerStyle,
+      compact,
+      { reserveMobileBottom }
+    );
+    const text = getCreatorStudioLayerTextForSelection(design, layerKey);
+    const trimmedText = text.trim();
+    if (!interactive && !trimmedText) return null;
+
+    const isSelected = interactive && selectedLayer === layerKey;
+    const isEditing = interactive && editingLayer === layerKey;
+    const layerPositionStyle = buildLayerPositionStyle({
+      x: typography.coordinates.x,
+      y: typography.coordinates.y,
+      transform: typography.transform,
+      layerStyle,
+      layerOrder: layerStyle.layerOrder ?? 0,
+      isSelected,
+      interactive,
+      isEditing,
+      reserveMobileBottom,
+    });
+    const textClassName = `block w-full min-w-0 whitespace-pre-wrap break-words ${typography.fontClassName} ${typography.weightClass} ${typography.italicClass} ${typography.alignClass}`;
+
+    const layerBody = (
+      <div
+        ref={(node) => {
+          layerAnchorRefs.current[layerKey] = node;
+        }}
+        className={`relative min-w-0 max-w-full ${getSelectedLayerOutlineClass(
+          isSelected,
+          interactive
+        )}`}
+      >
+        {isSelected && !isEditing && interactive && (
+          <ScaleResizeHandle
+            layer={layerKey}
+            layerStyle={layerStyle}
+            onUpdateLayerStyle={onUpdateLayerStyle}
+          />
+        )}
+        {isEditing && onChange ? (
+          <textarea
+            ref={editRef as RefObject<HTMLTextAreaElement>}
+            value={text}
+            rows={3}
+            placeholder="Tap to add text"
+            onChange={(event) =>
+              onChange(
+                buildCreatorStudioSelectableLayerTextUpdate(
+                  design,
+                  layerKey,
+                  event.target.value
+                )
+              )
+            }
+            onBlur={() => onEditingLayerChange?.(null)}
+            onPointerDown={(event) => event.stopPropagation()}
+            className={`${textClassName} m-0 block w-full min-w-0 resize-none overflow-hidden border-0 bg-transparent p-0 outline-none ring-0 appearance-none`}
+            style={typography.inlineStyle}
+          />
+        ) : (
+          <div style={typography.inlineStyle} className={textClassName}>
+            {text.trim() || (
+              <span className="text-white/45">Tap to add text</span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+
+    if (!interactive) {
+      return (
+        <div
+          key={layerKey}
+          className="pointer-events-none absolute"
+          style={layerPositionStyle}
+        >
+          {layerBody}
+        </div>
+      );
+    }
+
+    return (
+      <motion.div
+        key={layerKey}
+        layout={false}
+        className="absolute"
+        style={layerPositionStyle}
+        onPointerDown={(event) => onLayerPointerDown?.(layerKey, event)}
+        onPointerMove={onLayerPointerMove}
+        onPointerUp={(event) => onLayerPointerUp?.(layerKey, event)}
+        onPointerCancel={(event) => onLayerPointerUp?.(layerKey, event)}
+        onDoubleClick={() => onEditingLayerChange?.(layerKey)}
+      >
+        {layerBody}
+      </motion.div>
+    );
+  }
+
+  function renderStickerLayer(layerKey: `sticker:${string}`): ReactNode {
+    const stickerId = layerKey.slice("sticker:".length);
+    const sticker = getCreatorStudioStickerLayer(design, stickerId);
+    if (!sticker) return null;
+
+    const layerStyle = getCreatorStudioLayerStyleForSelection(design, layerKey);
+    const scale = sticker.scale ?? 1;
+    const isSelected = interactive && selectedLayer === layerKey;
+    const layerPositionStyle = buildLayerPositionStyle({
+      x: sticker.x,
+      y: sticker.y,
+      transform: getCreatorStudioLayerTransform(
+        "center",
+        sticker.x,
+        sticker.rotation ?? 0
+      ),
+      layerStyle,
+      layerOrder: sticker.layerOrder ?? 0,
+      isSelected,
+      interactive,
+      isEditing: false,
+      reserveMobileBottom,
+    });
+
+    const layerBody = (
+      <div
+        ref={(node) => {
+          layerAnchorRefs.current[layerKey] = node;
+        }}
+        className={`relative select-none ${getSelectedLayerOutlineClass(
+          isSelected,
+          interactive
+        )}`}
+        style={{
+          fontSize: `${(compact ? 2.2 : 2.8) * scale}rem`,
+          lineHeight: 1,
+          opacity: sticker.opacity ?? 1,
+        }}
+        aria-label={sticker.label}
+      >
+        {sticker.emoji}
+        {isSelected && interactive && (
+          <ScaleResizeHandle
+            layer={layerKey}
+            layerStyle={layerStyle}
+            onUpdateLayerStyle={onUpdateLayerStyle}
+          />
+        )}
+      </div>
+    );
+
+    if (!interactive) {
+      return (
+        <div
+          key={layerKey}
+          className="pointer-events-none absolute"
+          style={layerPositionStyle}
+        >
+          {layerBody}
+        </div>
+      );
+    }
+
+    return (
+      <motion.div
+        key={layerKey}
+        layout={false}
+        className="absolute"
+        style={layerPositionStyle}
+        onPointerDown={(event) => onLayerPointerDown?.(layerKey, event)}
+        onPointerMove={onLayerPointerMove}
+        onPointerUp={(event) => onLayerPointerUp?.(layerKey, event)}
+        onPointerCancel={(event) => onLayerPointerUp?.(layerKey, event)}
+      >
+        {layerBody}
+      </motion.div>
+    );
+  }
+
+  function renderSelectableLayer(layerKey: CreatorStudioSelectableLayer): ReactNode {
+    if (isCreatorStudioBuiltinLayer(layerKey)) {
+      return renderLayer(layerKey);
+    }
+
+    if (isCreatorStudioCustomLayerKey(layerKey)) {
+      return renderCustomLayer(layerKey);
+    }
+
+    return renderStickerLayer(layerKey);
+  }
+
   const activeToolbarLayer =
     interactive && selectedLayer && editingLayer !== selectedLayer
       ? selectedLayer
@@ -589,27 +853,36 @@ export default function CreatorStudioPositionedLayers({
 
   return (
     <>
-      {sortedLayers.map((entry) => renderLayer(entry.value))}
+      {sortedLayers.map((entry) => renderSelectableLayer(entry.key))}
       {activeToolbarLayer && (
         <LayerToolbar
           layer={activeToolbarLayer}
-          layerStyle={getCreatorStudioLayerStyle(design, activeToolbarLayer)}
+          layerStyle={getCreatorStudioLayerStyleForSelection(
+            design,
+            activeToolbarLayer
+          )}
           layerYPercent={
-            buildCreatorStudioLayerTypography(
-              design,
-              activeToolbarLayer,
-              compact,
-              { reserveMobileBottom }
-            ).coordinates.y
+            isCreatorStudioBuiltinLayer(activeToolbarLayer)
+              ? buildCreatorStudioLayerTypography(
+                  design,
+                  activeToolbarLayer,
+                  compact,
+                  { reserveMobileBottom }
+                ).coordinates.y
+              : getCreatorStudioLayerStyleForSelection(design, activeToolbarLayer)
+                  .y ?? 50
           }
           design={design}
           paletteSwatches={paletteSwatches}
           canvasRef={canvasRef}
-          getAnchorElement={() => layerAnchorRefs.current[activeToolbarLayer] ?? null}
+          getAnchorElement={() =>
+            layerAnchorRefs.current[String(activeToolbarLayer)] ?? null
+          }
           onChange={onChange}
           onUpdateLayerStyle={onUpdateLayerStyle}
           onOpenOverflow={onOpenOverflow}
           onBeginEdit={(activeLayer) => onEditingLayerChange?.(activeLayer)}
+          onSelectLayer={onSelectLayer}
         />
       )}
     </>
