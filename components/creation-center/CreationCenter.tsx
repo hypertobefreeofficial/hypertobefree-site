@@ -13,6 +13,7 @@ import {
   type CreatorStudioRequestOptions,
   type FaithStream,
 } from "../../lib/creationCenter";
+import { useCreatorStudioWorkspace } from "../CreatorStudioWorkspaceProvider";
 import CreatorStudio, {
   type CreatorStudioPublishResult,
 } from "./CreatorStudio";
@@ -93,11 +94,16 @@ export default function CreationCenter({
   onCreatorStudioActiveChange,
 }: CreationCenterProps) {
   const router = useRouter();
+  const { setActive: setWorkspaceActive } = useCreatorStudioWorkspace();
 
   useEffect(() => {
     onCreatorStudioActiveChange(true);
-    return () => onCreatorStudioActiveChange(false);
-  }, [onCreatorStudioActiveChange]);
+    setWorkspaceActive(true);
+    return () => {
+      onCreatorStudioActiveChange(false);
+      setWorkspaceActive(false);
+    };
+  }, [onCreatorStudioActiveChange, setWorkspaceActive]);
 
   return (
     <div className="w-full min-w-0 overflow-hidden lg:overflow-visible">
