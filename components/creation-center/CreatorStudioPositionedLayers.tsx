@@ -445,21 +445,22 @@ function LayerToolbar({
     return () => observer.disconnect();
   }, [layer, repositionToolbar]);
 
-  return (
-    <CreatorStudioFloatingToolbar
-  
-  
-    
-      design={design}
-      
-      onChange={onChange}
-     
-      
-      onBeginEdit={onBeginEdit}
-      onSelectLayer={onSelectLayer}
-      onLayoutChange={repositionToolbar}
-    />
-  );
+return (
+  <CreatorStudioFloatingToolbar
+    ref={toolbarRef}
+    style={toolbarStyle}
+    layer={layer}
+    layerStyle={layerStyle}
+    design={design}
+    paletteSwatches={paletteSwatches}
+    onChange={onChange}
+    onUpdateLayerStyle={onUpdateLayerStyle}
+    onOpenOverflow={onOpenOverflow}
+    onBeginEdit={onBeginEdit}
+    onSelectLayer={onSelectLayer}
+    onLayoutChange={repositionToolbar}
+  />
+);
 }
 
 export default function CreatorStudioPositionedLayers({
