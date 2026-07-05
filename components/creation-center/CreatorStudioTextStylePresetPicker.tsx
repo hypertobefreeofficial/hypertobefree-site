@@ -26,7 +26,7 @@ export default function CreatorStudioTextStylePresetPicker({
   compact = false,
 }: CreatorStudioTextStylePresetPickerProps) {
   const [activeCategory, setActiveCategory] = useState<string>("All");
-  const activePreset = getCreatorStudioTextStylePreset(layerStyle.stylePresetId);
+const activePreset = getCreatorStudioTextStylePreset(layerStyle.fontPreset);
 
   const filteredPresets = useMemo(() => {
     if (activeCategory === "All") {
