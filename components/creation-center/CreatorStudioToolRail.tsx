@@ -71,12 +71,20 @@ export default function CreatorStudioToolRail({
 export function CreatorStudioMobileToolbar({
   activeTool,
   onToolChange,
+  embedded = false,
 }: {
   activeTool: CreatorStudioRailTool;
   onToolChange: (tool: CreatorStudioRailTool) => void;
+  embedded?: boolean;
 }) {
   return (
-    <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#031d3d]/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
+    <div
+      className={
+        embedded
+          ? "px-1 pt-2"
+          : "pointer-events-auto fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#031d3d]/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden"
+      }
+    >
       <div className="mx-auto flex max-w-lg items-center justify-around gap-1">
         {railTools.map((tool) => {
           const Icon = tool.icon;
