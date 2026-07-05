@@ -83,7 +83,7 @@ export default function CreatorStudioEditorialHints({
       initial={reducedMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className="pointer-events-none absolute inset-x-0 bottom-5 z-30 px-4"
+      className="pointer-events-none absolute inset-x-0 top-16 z-30 px-4 lg:top-4"
     >
       <div className="pointer-events-auto mx-auto flex max-w-md items-center justify-between gap-3 rounded-full bg-black/45 px-4 py-2.5 text-white backdrop-blur-md ring-1 ring-white/15">
         <p className="text-xs font-medium leading-5 text-white/90">
