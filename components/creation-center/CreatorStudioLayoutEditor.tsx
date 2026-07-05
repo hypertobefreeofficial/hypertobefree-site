@@ -3,12 +3,16 @@
 import type { ReactNode } from "react";
 import {
   buildCreatorStudioLayerStyleUpdate,
+  buildCreatorStudioSelectableLayerStyleUpdate,
   creationCenterStoryTemplates,
   creatorStudioLayoutOptions,
   getCreatorStudioLayerStyle,
+  getCreatorStudioLayerStyleForSelection,
+  isCreatorStudioBuiltinLayer,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
   type CreatorStudioLayerStyle,
+  type CreatorStudioSelectableLayer,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import CreatorStudioAdvancedControls from "./CreatorStudioAdvancedControls";
@@ -42,7 +46,7 @@ type CreatorStudioLayoutEditorProps = {
   onContinueToPublish?: () => void;
   aiControls?: ReactNode;
   compact?: boolean;
-  selectedLayer?: CreatorStudioTextLayer;
+  selectedLayer?: CreatorStudioSelectableLayer;
   showTextStyleLibrary?: boolean;
 };
 
@@ -119,7 +123,9 @@ export default function CreatorStudioLayoutEditor({
   showTextStyleLibrary = true,
 }: CreatorStudioLayoutEditorProps) {
   const textStyle = getTextStyle(design);
-  const layerStyle = getCreatorStudioLayerStyle(design, selectedLayer);
+  const layerStyle = isCreatorStudioBuiltinLayer(selectedLayer)
+    ? getCreatorStudioLayerStyle(design, selectedLayer)
+    : getCreatorStudioLayerStyleForSelection(design, selectedLayer);
   const safePalette = design.colorPalette?.filter(isHexColor) ?? [];
   const palette = safePalette.length
     ? safePalette
@@ -145,7 +151,13 @@ export default function CreatorStudioLayoutEditor({
   function updateLayerStyle(
     updates: Partial<typeof layerStyle>
   ) {
-    onChange(buildCreatorStudioLayerStyleUpdate(design, selectedLayer, updates));
+    onChange(
+      buildCreatorStudioSelectableLayerStyleUpdate(
+        design,
+        selectedLayer,
+        updates
+      )
+    );
   }
 
   function suggestScriptureReference() {
@@ -364,7 +376,11 @@ export default function CreatorStudioLayoutEditor({
                   <div className="sm:col-span-2">
                     <CreatorStudioTextStylePresetPicker
                       layerStyle={layerStyle}
-                      selectedLayer={selectedLayer}
+                      selectedLayer={
+                        isCreatorStudioBuiltinLayer(selectedLayer)
+                          ? selectedLayer
+                          : "overlay"
+                      }
                       onApply={(updates) => updateLayerStyle(updates)}
                       compact
                     />
@@ -729,7 +745,11 @@ export default function CreatorStudioLayoutEditor({
                 </p>
                 <CreatorStudioLayerAiRewrite
                   design={design}
-                  selectedLayer={selectedLayer ?? "title"}
+                  selectedLayer={
+                    isCreatorStudioBuiltinLayer(selectedLayer)
+                      ? selectedLayer
+                      : "title"
+                  }
                   onChange={onChange}
                 />
                 {aiControls}
