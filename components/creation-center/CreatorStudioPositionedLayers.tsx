@@ -453,7 +453,7 @@ function LayerToolbar({
       design={design}
       
       onChange={onChange}
-      onUpdateLayerStyle={onUpdateLayerStyle}
+     
       onOpenOverflow={onOpenOverflow}
       onBeginEdit={onBeginEdit}
       onSelectLayer={onSelectLayer}
