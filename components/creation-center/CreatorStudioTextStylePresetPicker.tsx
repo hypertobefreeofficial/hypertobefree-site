@@ -28,7 +28,7 @@ export default function CreatorStudioTextStylePresetPicker({
   onApply,
 }: CreatorStudioTextStylePresetPickerProps) {
   const activePreset = getCreatorStudioFontPresetDefinition(layerStyle.fontPreset);
-  const activeFontPreset = normalizeCreatorStudioFontPreset(layerStyle.fontPreset);
+  const activeFontPreset = layerStyle.fontPreset;
   const groupedPresets = groupCreatorStudioFontPresetsByCategory();
   const presetCount = groupedPresets.reduce(
     (count, group) => count + group.presets.length,
