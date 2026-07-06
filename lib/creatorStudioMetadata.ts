@@ -7,7 +7,7 @@ import {
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "./creationCenter";
-import { normalizeCreatorStudioFontPreset } from "./creatorStudioTypography";
+
 import { resolveCreatorStudioDesignForRender } from "./creatorStudioRenderPipeline";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
