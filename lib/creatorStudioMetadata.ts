@@ -101,7 +101,7 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
         ? fontSize
         : undefined,
     fontScale: readNumber(value.fontScale),
-    fontPreset: normalizeCreatorStudioFontPreset(fontPreset),
+    fontPreset: getCreatorStudioFontPresetDefinition(fontPreset),
     weight: weight === "regular" || weight === "bold" ? weight : undefined,
     italic: typeof value.italic === "boolean" ? value.italic : undefined,
     align:
