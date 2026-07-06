@@ -6,14 +6,13 @@ import type {
   CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import { CreatorStudioPresetTextShell } from "../../lib/creatorStudioPresetTextShell";
-import { applyCreatorStudioFontPreset } from "../../lib/creatorStudioTextStylePresets";
 import {
+  applyCreatorStudioFontPreset,
   buildCreatorStudioFontPresetPreviewStyle,
   getCreatorStudioFontPresetDefinition,
   getCreatorStudioFontPresetLabel,
   groupCreatorStudioFontPresetsByCategory,
-
-} from "../../lib/creatorStudioTypography";
+} from "../../lib/creatorStudioTextStylePresets";
 
 type CreatorStudioTextStylePresetPickerProps = {
   layerStyle: CreatorStudioLayerStyle;
