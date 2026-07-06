@@ -12,7 +12,7 @@ import {
   getCreatorStudioFontPresetDefinition,
   getCreatorStudioFontPresetLabel,
   groupCreatorStudioFontPresetsByCategory,
-  normalizeCreatorStudioFontPreset,
+
 } from "../../lib/creatorStudioTypography";
 
 type CreatorStudioTextStylePresetPickerProps = {
