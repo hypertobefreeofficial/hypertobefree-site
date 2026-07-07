@@ -9,7 +9,7 @@ import {
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import type { CreatorStudioPresetDecoration } from "../../lib/creatorStudioFontPresetCatalog";
-import { buildPresetTextShadow } from "../../lib/creatorStudioFontPresetCatalog";
+
 import {
   clampCreatorStudioFontScale,
   getCreatorStudioFontClassName,
@@ -97,11 +97,11 @@ const presetDefinition = layerStyle.fontPreset
   : undefined;
   const effectiveShadowStrength =
     presetDefinition?.shadowStrength ?? shadowStrength;
-  const textShadow = presetDefinition?.glowColor
-    ? buildPresetTextShadow(presetDefinition)
-    : effectiveShadowStrength > 0
-      ? `0 2px ${Math.round(effectiveShadowStrength * 20)}px rgba(0,0,0,${Math.min(0.85, effectiveShadowStrength)})`
-      : undefined;
+const textShadow = presetDefinition?.glowColor
+  ? `0 0 18px ${presetDefinition.glowColor}`
+  : effectiveShadowStrength > 0
+    ? `0 2px ${Math.round(effectiveShadowStrength * 20)}px rgba(0,0,0,${Math.min(0.85, effectiveShadowStrength)})`
+    : undefined;
   const resolvedMaxWidth = resolveCreatorStudioLayerMaxWidthStyle(layerStyle, {
     reserveMobileBottom: options?.reserveMobileBottom,
     constrainToSafeArea: true,
