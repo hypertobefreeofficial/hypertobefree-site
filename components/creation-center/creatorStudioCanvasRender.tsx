@@ -9,12 +9,14 @@ import {
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import type { CreatorStudioPresetDecoration } from "../../lib/creatorStudioFontPresetCatalog";
-
+import { buildPresetTextShadow } from "../../lib/creatorStudioFontPresetCatalog";
 import {
   clampCreatorStudioFontScale,
   getCreatorStudioFontClassName,
   getCreatorStudioFontPresetDefinition,
-
+  getCreatorStudioPresetDecoration,
+  getCreatorStudioPresetWeightClass,
+  normalizeCreatorStudioFontPreset,
 } from "../../lib/creatorStudioTypography";
 
 function isHexColor(value: string | undefined): value is string {
@@ -80,7 +82,7 @@ export function buildCreatorStudioLayerTypographyFromStyle(
   const fontScale = clampCreatorStudioFontScale(layerStyle.fontScale);
   const fontClassName = getCreatorStudioFontClassName(design, layerStyle, layer);
   const baseFontRem = getBaseFontSizeRem(layerStyle.fontSize, compact);
- const weightClass = layerStyle.weight ?? "font-bold";
+  const weightClass = getCreatorStudioPresetWeightClass(layerStyle);
   const italicClass = layerStyle.italic ? "italic" : "";
   const alignClass =
     layerStyle.align === "center"
@@ -92,16 +94,16 @@ export function buildCreatorStudioLayerTypographyFromStyle(
   const opacity = layerStyle.opacity ?? 1;
   const shadowStrength = layerStyle.shadowStrength ?? 0.35;
   const outlineWidth = layerStyle.outlineWidth ?? 0;
-const presetDefinition = layerStyle.fontPreset
-  ? getCreatorStudioFontPresetDefinition(layerStyle.fontPreset) ?? undefined
-  : undefined;
+  const presetDefinition = normalizeCreatorStudioFontPreset(layerStyle.fontPreset)
+    ? getCreatorStudioFontPresetDefinition(layerStyle.fontPreset)
+    : null;
   const effectiveShadowStrength =
     presetDefinition?.shadowStrength ?? shadowStrength;
-const textShadow = presetDefinition?.glowColor
-  ? `0 0 18px ${presetDefinition.glowColor}`
-  : effectiveShadowStrength > 0
-    ? `0 2px ${Math.round(effectiveShadowStrength * 20)}px rgba(0,0,0,${Math.min(0.85, effectiveShadowStrength)})`
-    : undefined;
+  const textShadow = presetDefinition?.glowColor
+    ? buildPresetTextShadow(presetDefinition)
+    : effectiveShadowStrength > 0
+      ? `0 2px ${Math.round(effectiveShadowStrength * 20)}px rgba(0,0,0,${Math.min(0.85, effectiveShadowStrength)})`
+      : undefined;
   const resolvedMaxWidth = resolveCreatorStudioLayerMaxWidthStyle(layerStyle, {
     reserveMobileBottom: options?.reserveMobileBottom,
     constrainToSafeArea: true,
@@ -144,7 +146,7 @@ const textShadow = presetDefinition?.glowColor
       layerStyle.rotation ?? 0
     ),
     inlineStyle,
-  presetDecoration: presetDefinition?.decoration,
+    presetDecoration: getCreatorStudioPresetDecoration(presetDefinition),
   };
 }
 
