@@ -6,13 +6,14 @@ import type {
   CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
 import { CreatorStudioPresetTextShell } from "../../lib/creatorStudioPresetTextShell";
+import { applyCreatorStudioFontPreset } from "../../lib/creatorStudioTextStylePresets";
 import {
-  applyCreatorStudioFontPreset,
   buildCreatorStudioFontPresetPreviewStyle,
   getCreatorStudioFontPresetDefinition,
   getCreatorStudioFontPresetLabel,
   groupCreatorStudioFontPresetsByCategory,
-} from "../../lib/creatorStudioTextStylePresets";
+  normalizeCreatorStudioFontPreset,
+} from "../../lib/creatorStudioTypography";
 
 type CreatorStudioTextStylePresetPickerProps = {
   layerStyle: CreatorStudioLayerStyle;
@@ -27,7 +28,7 @@ export default function CreatorStudioTextStylePresetPicker({
   onApply,
 }: CreatorStudioTextStylePresetPickerProps) {
   const activePreset = getCreatorStudioFontPresetDefinition(layerStyle.fontPreset);
-  const activeFontPreset = layerStyle.fontPreset;
+  const activeFontPreset = normalizeCreatorStudioFontPreset(layerStyle.fontPreset);
   const groupedPresets = groupCreatorStudioFontPresetsByCategory();
   const presetCount = groupedPresets.reduce(
     (count, group) => count + group.presets.length,
