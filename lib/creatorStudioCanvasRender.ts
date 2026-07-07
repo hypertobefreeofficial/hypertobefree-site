@@ -144,7 +144,7 @@ const presetDefinition = layerStyle.fontPreset
       layerStyle.rotation ?? 0
     ),
     inlineStyle,
-    presetDecoration: getCreatorStudioPresetDecoration(presetDefinition),
+presetDecoration: presetDefinition?.decoration,
   };
 }
 
