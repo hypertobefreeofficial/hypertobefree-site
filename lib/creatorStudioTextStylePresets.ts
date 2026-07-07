@@ -1,9 +1,7 @@
 import type { CreatorStudioLayerStyle } from "./creationCenter";
 import {
-  buildCreatorStudioFontPresetPreviewStyle,
   creatorStudioFontPresets,
   getCreatorStudioFontPresetDefinition,
-  getCreatorStudioFontPresetLabel,
   type CreatorStudioFontPreset,
   type CreatorStudioFontPresetDefinition,
 } from "./creatorStudioTypography";
@@ -17,7 +15,6 @@ export function applyCreatorStudioFontPreset(
   fontPreset: CreatorStudioFontPreset
 ): Partial<CreatorStudioLayerStyle> {
   const preset = getCreatorStudioFontPresetDefinition(fontPreset);
-
   if (!preset) {
     return { fontPreset };
   }
@@ -40,24 +37,6 @@ export function applyCreatorStudioFontPreset(
 /** @deprecated Use applyCreatorStudioFontPreset */
 export function applyCreatorStudioTextStylePreset(
   fontPreset: CreatorStudioFontPreset
-): Partial<CreatorStudioLayerStyle> {
+) {
   return applyCreatorStudioFontPreset(fontPreset);
 }
-
-export function groupCreatorStudioFontPresetsByCategory(): {
-  category: string;
-  presets: CreatorStudioTextStylePreset[];
-}[] {
-  return [
-    {
-      category: "Text styles",
-      presets: creatorStudioTextStylePresets,
-    },
-  ];
-}
-
-export {
-  buildCreatorStudioFontPresetPreviewStyle,
-  getCreatorStudioFontPresetDefinition,
-  getCreatorStudioFontPresetLabel,
-};
