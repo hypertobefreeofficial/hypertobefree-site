@@ -7,6 +7,7 @@ import {
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "./creationCenter";
+import { getCreatorStudioFontPresetDefinition } from "./creatorStudioTypography";
 
 import { resolveCreatorStudioDesignForRender } from "./creatorStudioRenderPipeline";
 
