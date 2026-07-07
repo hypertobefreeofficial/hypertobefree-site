@@ -144,7 +144,7 @@ const textShadow = presetDefinition?.glowColor
       layerStyle.rotation ?? 0
     ),
     inlineStyle,
-    presetDecoration: getCreatorStudioPresetDecoration(presetDefinition),
+  presetDecoration: presetDefinition?.decoration,
   };
 }
 
