@@ -14,9 +14,7 @@ import {
   clampCreatorStudioFontScale,
   getCreatorStudioFontClassName,
   getCreatorStudioFontPresetDefinition,
-  getCreatorStudioPresetDecoration,
-  getCreatorStudioPresetWeightClass,
-  normalizeCreatorStudioFontPreset,
+
 } from "../../lib/creatorStudioTypography";
 
 function isHexColor(value: string | undefined): value is string {
