@@ -7,7 +7,7 @@ import {
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "./creationCenter";
-import { getCreatorStudioFontPresetDefinition } from "./creatorStudioTypography";
+import { normalizeCreatorStudioFontPreset } from "./creatorStudioTypography";
 
 import { resolveCreatorStudioDesignForRender } from "./creatorStudioRenderPipeline";
 
@@ -102,7 +102,7 @@ function readLayerStyle(value: unknown): CreatorStudioLayerStyle | null {
         ? fontSize
         : undefined,
     fontScale: readNumber(value.fontScale),
-    fontPreset: getCreatorStudioFontPresetDefinition(fontPreset),
+    fontPreset: normalizeCreatorStudioFontPreset(fontPreset),
     weight: weight === "regular" || weight === "bold" ? weight : undefined,
     italic: typeof value.italic === "boolean" ? value.italic : undefined,
     align:
