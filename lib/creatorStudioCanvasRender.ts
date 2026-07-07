@@ -14,7 +14,7 @@ import {
   getCreatorStudioFontClassName,
   getCreatorStudioFontPresetDefinition,
   getCreatorStudioPresetDecoration,
-  getCreatorStudioPresetWeightClass,
+
 } from "./creatorStudioTypography";
 import { buildPresetTextShadow } from "./creatorStudioFontPresetCatalog";
 
@@ -81,7 +81,7 @@ export function buildCreatorStudioLayerTypographyFromStyle(
   const fontScale = clampCreatorStudioFontScale(layerStyle.fontScale);
   const fontClassName = getCreatorStudioFontClassName(design, layerStyle, layer);
   const baseFontRem = getBaseFontSizeRem(layerStyle.fontSize, compact);
-  const weightClass = getCreatorStudioPresetWeightClass(layerStyle);
+  const weightClass = layerStyle.weight ?? "font-bold"(layerStyle);
   const italicClass = layerStyle.italic ? "italic" : "";
   const alignClass =
     layerStyle.align === "center"
