@@ -13,7 +13,6 @@ import {
   clampCreatorStudioFontScale,
   getCreatorStudioFontClassName,
   getCreatorStudioFontPresetDefinition,
-undefined
 
 } from "./creatorStudioTypography";
 import { buildPresetTextShadow } from "./creatorStudioFontPresetCatalog";
