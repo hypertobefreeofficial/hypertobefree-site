@@ -15,7 +15,7 @@ import {
   getCreatorStudioFontPresetDefinition,
 
 } from "./creatorStudioTypography";
-import { buildPresetTextShadow } from "./creatorStudioFontPresetCatalog";
+
 
 function isHexColor(value: string | undefined): value is string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value.trim());
@@ -98,10 +98,10 @@ const presetDefinition = layerStyle.fontPreset
   const effectiveShadowStrength =
     presetDefinition?.shadowStrength ?? shadowStrength;
   const textShadow = presetDefinition?.glowColor
-    ? buildPresetTextShadow(presetDefinition)
-    : effectiveShadowStrength > 0
-      ? `0 2px ${Math.round(effectiveShadowStrength * 20)}px rgba(0,0,0,${Math.min(0.85, effectiveShadowStrength)})`
-      : undefined;
+  ? `0 0 18px ${presetDefinition.glowColor}`
+  : effectiveShadowStrength > 0
+    ? `0 2px ${Math.round(effectiveShadowStrength * 20)}px rgba(0,0,0,${Math.min(0.85, effectiveShadowStrength)})`
+    : undefined;
   const resolvedMaxWidth = resolveCreatorStudioLayerMaxWidthStyle(layerStyle, {
     reserveMobileBottom: options?.reserveMobileBottom,
     constrainToSafeArea: true,
