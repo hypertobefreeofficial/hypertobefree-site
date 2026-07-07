@@ -93,8 +93,8 @@ export function buildCreatorStudioLayerTypographyFromStyle(
   const shadowStrength = layerStyle.shadowStrength ?? 0.35;
   const outlineWidth = layerStyle.outlineWidth ?? 0;
 const presetDefinition = layerStyle.fontPreset
-  ? getCreatorStudioFontPresetDefinition(layerStyle.fontPreset)
-  : null;
+  ? getCreatorStudioFontPresetDefinition(layerStyle.fontPreset) ?? undefined
+  : undefined;
   const effectiveShadowStrength =
     presetDefinition?.shadowStrength ?? shadowStrength;
   const textShadow = presetDefinition?.glowColor
