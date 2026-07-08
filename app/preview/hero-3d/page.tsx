@@ -1,45 +1,93 @@
-1:"$Sreact.fragment"
-2:I[48706,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"default"]
-3:I[74972,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"default"]
-4:I[39756,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"default"]
-5:I[37457,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"default"]
-6:I[85717,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"default"]
-7:I[22016,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js","/_next/static/chunks/0pm6j0inp9_k2.js"],""]
-8:I[86594,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js","/_next/static/chunks/0pm6j0inp9_k2.js"],"default"]
-f:I[68027,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"default",1]
-:HL["/_next/static/chunks/36oi2g90x7ys0.css","style"]
-:HL["/_next/static/chunks/0d7mrfq4-ap19.css","style"]
-:HL["/_next/static/media/2a65768255d6b625-s.p.3u4lli0-axodc.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/4ee71d90e0f663bd-s.p.33jraz4m6n5g3.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/6ad1cda2f16975ee-s.p.2j22bd4n1tlhh.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/70e3db2de7f94926-s.p.39pl-v7c3qrze.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/748b8b5301d2bdb2-s.p.1zvx97hkh1y6p.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/83afe278b6a6bb3c-s.p.2bn3s6zvc0dyp.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/a343f882a40d2cc9-s.p.1sj6eobyi31rd.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/a85fe84266768609-s.p.0h6ig86gwutp4.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/d3f3f01dfc015e12-s.p.0xa2imhn0fp5k.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/d99bdaafc74f43dc-s.p.3pbn4y-3_un3d.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/e4505858a30c79c2-s.p.0tlhhw_qyyfys.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/f48d461c03e0a8ec-s.p.3rqg0w444aekk.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/media/fabcf92ba1ccea36-s.p.1w_qz2ahumqmz.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-:HL["/_next/static/chunks/1re2flo_2y25h.css","style"]
-0:{"P":null,"c":["","preview","hero-3d"],"q":"","i":false,"f":[[["",{"children":["preview",{"children":["hero-3d",{"children":["__PAGE__",{}]}]}]},"$undefined","$undefined",16],[["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/36oi2g90x7ys0.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","link","1",{"rel":"stylesheet","href":"/_next/static/chunks/0d7mrfq4-ap19.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","script","script-0",{"src":"/_next/static/chunks/1wr71wf8uuyne.js","async":true,"nonce":"$undefined"}],["$","script","script-1",{"src":"/_next/static/chunks/14mrh2-p_w84d.js","async":true,"nonce":"$undefined"}]],["$","html",null,{"lang":"en","className":"inter_10adb31e-module__S0HP7W__variable manrope_47c4386a-module__95LxTW__variable funnel_display_fc1e68a4-module__ptHPKW__variable eb_garamond_fc6a5885-module__WU-q4q__variable playfair_display_cf52fb1e-module__1Cy3_G__variable bebas_neue_8fa2fc0a-module__tKcZsG__variable oswald_90562be0-module__CzFwfW__variable caveat_9441aa7a-module__U8NdmW__variable caveat_brush_e0aebace-module__bxQrBq__variable great_vibes_56b0a13a-module__13PQVG__variable special_elite_4c280e56-module__EBlkVW__variable","children":["$","body",null,{"className":"inter_10adb31e-module__S0HP7W__className font-sans font-normal antialiased","children":[["$","$L2",null,{}],["$","$L3",null,{}],["$","$L4",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]],"forbidden":"$undefined","unauthorized":"$undefined"}],["$","$L6",null,{}]]}]}]]}],{"children":[["$","$1","c",{"children":[null,["$","$L4",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":[["$","$1","c",{"children":[null,["$","$L4",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":[["$","$1","c",{"children":[["$","div",null,{"className":"min-h-screen bg-[#f8fbff] text-slate-900","children":[["$","header",null,{"className":"border-b border-slate-200/80 bg-white/90 backdrop-blur-xl","children":["$","div",null,{"className":"mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6","children":[["$","div",null,{"children":[["$","p",null,{"className":"text-[11px] font-heading font-bold uppercase tracking-[0.2em] text-[#0b63ce]","children":"Experimental preview"}],["$","h1",null,{"className":"font-heading text-xl font-black text-[#062a57] sm:text-2xl","children":"Hero3D V2 · Cinematic depth"}]]}],["$","$L7",null,{"href":"/","className":"rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-heading font-bold text-[#082f63] shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b63ce]/35 focus-visible:ring-offset-2","children":"← Back to home"}]]}]}],["$","main",null,{"className":"mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12","children":[["$","$L8",null,{"showMotionBadge":true,"showFloatingCards":true,"showTiltPrompt":true}],"$L9"]}]]}],["$La","$Lb"],"$Lc"]}],{},null,false,null]},null,false,"$@d"]},null,false,"$@d"]},null,false,null],"$Le",false]],"m":"$undefined","G":["$f",["$L10","$L11"]],"S":true,"h":null,"s":"$undefined","l":"$undefined","p":"$undefined","d":"$undefined","b":"IINZf6SFbSRgO-R8ua1Ic"}
-15:I[97367,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"OutletBoundary"]
-16:"$Sreact.suspense"
-19:I[97367,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"ViewportBoundary"]
-1b:I[97367,["/_next/static/chunks/1wr71wf8uuyne.js","/_next/static/chunks/14mrh2-p_w84d.js"],"MetadataBoundary"]
-9:["$","section",null,{"className":"mt-10 grid gap-6 md:grid-cols-2","children":[["$","div",null,{"className":"rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm","children":[["$","h2",null,{"className":"font-heading text-lg font-black text-[#062a57]","children":"Layer architecture"}],["$","p",null,{"className":"mt-2 text-sm leading-6 text-slate-600","children":"Twelve independent planes with absolute parallax ranges (px at full deflection). Closer layers move more — Apple-style depth."}],["$","ol",null,{"className":"mt-4 space-y-2 text-sm text-slate-700","children":[["$","li","sky",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Deep blue gradient sky"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[4,"px"]}]]}],["$","li","sunrise-glow",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Warm sunrise core + bloom"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[8,"px"]}]]}],["$","li","cloud-far",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Distant cloud plane"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[6,"px"]}]]}],["$","li","cloud-near",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Near cloud plane"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[6,"px"]}]]}],["$","li","sun-rays",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Volumetric sun rays"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[8,"px"]}]]}],["$","li","landscape",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Horizon + landscape warmth"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[12,"px"]}]]}],["$","li","foreground-haze",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Atmospheric foreground haze"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[18,"px"]}]]}],["$","li","subject",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"HTBF freedom silhouette (focal)"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[24,"px"]}]]}],["$","li","rim-light",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Rim light + color grade on subject"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[24,"px"]}]]}],["$","li","glass-card-video",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Floating testimony card"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[32,"px"]}]]}],["$","li","glass-card-world",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":[["$","span",null,{"className":"font-medium","children":"Stories around the world card"}],["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[32,"px"]}]]}],["$","li","particles",{"className":"flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2","children":["$L12","$L13"]}]]}]]}],"$L14"]}]
-a:["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/1re2flo_2y25h.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]
-b:["$","script","script-0",{"src":"/_next/static/chunks/0pm6j0inp9_k2.js","async":true,"nonce":"$undefined"}]
-c:["$","$L15",null,{"children":["$","$16",null,{"name":"Next.MetadataOutlet","children":"$@17"}]}]
-18:[]
-d:"$W18"
-e:["$","$1","h",{"children":[null,["$","$L19",null,{"children":"$L1a"}],["$","div",null,{"hidden":true,"children":["$","$L1b",null,{"children":["$","$16",null,{"name":"Next.Metadata","children":"$L1c"}]}]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}]
-10:["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/36oi2g90x7ys0.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]
-11:["$","link","1",{"rel":"stylesheet","href":"/_next/static/chunks/0d7mrfq4-ap19.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]
-12:["$","span",null,{"className":"font-medium","children":"Foreground dust + light specks"}]
-13:["$","span",null,{"className":"shrink-0 font-mono text-xs text-slate-500","children":[40,"px"]}]
-14:["$","div",null,{"className":"rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm","children":[["$","h2",null,{"className":"font-heading text-lg font-black text-[#062a57]","children":"Performance & accessibility"}],["$","ul",null,{"className":"mt-4 space-y-3 text-sm leading-6 text-slate-600","children":[["$","li",null,{"children":["rAF loop writes"," ",["$","code",null,{"className":"rounded bg-slate-100 px-1.5 py-0.5 text-xs","children":"translate3d"}]," ","directly to layer nodes — zero React re-renders per frame."]}],["$","li",null,{"children":"Low-power devices receive 55% parallax intensity and fewer particles."}],["$","li",null,{"children":"Ambient cloud/sun/particle motion uses CSS on child elements, separate from parallax transforms."}],["$","li",null,{"children":["Honors"," ",["$","code",null,{"className":"rounded bg-slate-100 px-1.5 py-0.5 text-xs","children":"prefers-reduced-motion"}],"."]}]]}]]}]
-1a:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"}]]
-17:null
-1c:[["$","title","0",{"children":"Hero3D Preview · Hyper to Be Free"}],["$","meta","1",{"name":"description","content":"Experimental layered sunrise hero with CSS transform parallax for HTBF."}],["$","link","2",{"rel":"manifest","href":"/manifest.webmanifest","crossOrigin":"$undefined"}]]
+import Link from "next/link";
+import Hero3DScene from "../../../components/hero3d/Hero3DScene";
+import { HERO3D_LAYERS } from "../../../lib/hero3d/hero3dLayers";
+
+export const metadata = {
+  title: "Hero3D Preview · Hyper to Be Free",
+  description:
+    "Experimental layered sunrise hero with CSS transform parallax for HTBF.",
+};
+
+export default function Hero3DPreviewPage() {
+  return (
+    <div className="min-h-screen bg-[#f8fbff] text-slate-900">
+      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <div>
+            <p className="text-[11px] font-heading font-bold uppercase tracking-[0.2em] text-[#0b63ce]">
+              Experimental preview
+            </p>
+            <h1 className="font-heading text-xl font-black text-[#062a57] sm:text-2xl">
+              Hero3D V2 · Cinematic depth
+            </h1>
+          </div>
+          <Link
+            href="/"
+            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-heading font-bold text-[#082f63] shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b63ce]/35 focus-visible:ring-offset-2"
+          >
+            ← Back to home
+          </Link>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+        <Hero3DScene showMotionBadge showFloatingCards showTiltPrompt />
+
+        <section className="mt-10 grid gap-6 md:grid-cols-2">
+          <div className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm">
+            <h2 className="font-heading text-lg font-black text-[#062a57]">
+              Layer architecture
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Twelve independent planes with absolute parallax ranges (px at full
+              deflection). Closer layers move more — Apple-style depth.
+            </p>
+            <ol className="mt-4 space-y-2 text-sm text-slate-700">
+              {HERO3D_LAYERS.map((layer) => (
+                <li
+                  key={layer.id}
+                  className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2"
+                >
+                  <span className="font-medium">{layer.label}</span>
+                  <span className="shrink-0 font-mono text-xs text-slate-500">
+                    {layer.parallaxPx}px
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm">
+            <h2 className="font-heading text-lg font-black text-[#062a57]">
+              Performance & accessibility
+            </h2>
+            <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+              <li>
+                rAF loop writes{" "}
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+                  translate3d
+                </code>{" "}
+                directly to layer nodes — zero React re-renders per frame.
+              </li>
+              <li>
+                Low-power devices receive 55% parallax intensity and fewer
+                particles.
+              </li>
+              <li>
+                Ambient cloud/sun/particle motion uses CSS on child elements,
+                separate from parallax transforms.
+              </li>
+              <li>
+                Honors{" "}
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+                  prefers-reduced-motion
+                </code>
+                .
+              </li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
