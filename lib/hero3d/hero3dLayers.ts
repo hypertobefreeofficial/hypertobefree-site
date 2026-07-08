@@ -1,112 +1,44 @@
 /**
- * Hero3D V2 — cinematic depth stack (back → front).
+ * Hero3D V3 — cinematic depth stack (back → front).
  *
- * Each layer declares an absolute parallax range in pixels at full pointer
- * deflection (offset ±1). Closer layers receive higher values so the scene
- * feels like Apple's layered wallpapers — you look *into* the sunrise, not
- * at a sliding photograph.
- *
- * Replace artwork by swapping `HERO3D_ASSETS` paths or layer JSX in
- * `Hero3DLayerStack.tsx` without touching the parallax engine.
+ * Parallax uses absolute pixel ranges at full pointer deflection (±1).
+ * Background layers move subtly; cards and particles move most, creating
+ * Apple-style layered depth. Replace artwork via `HERO3D_ASSETS` or layer JSX.
  */
 export type Hero3DLayerId =
   | "sky"
-  | "sunrise-glow"
+  | "sun"
   | "cloud-far"
   | "cloud-near"
-  | "sun-rays"
-  | "landscape"
+  | "mountains"
   | "foreground-haze"
+  | "foreground-flora"
   | "subject"
-  | "rim-light"
   | "glass-card-video"
   | "glass-card-world"
   | "particles";
 
 export type Hero3DLayerDefinition = {
   id: Hero3DLayerId;
-  /** Max translate3d displacement in px when parallax offset is ±1. */
   parallaxPx: number;
   zIndex: number;
   label: string;
 };
 
-/** Upper bound used for low-end scaling; individual layers use `parallaxPx`. */
 export const HERO3D_MAX_PARALLAX_PX = 40;
 
 export const HERO3D_LAYERS: Hero3DLayerDefinition[] = [
-  {
-    id: "sky",
-    parallaxPx: 4,
-    zIndex: 1,
-    label: "Deep blue gradient sky",
-  },
-  {
-    id: "sunrise-glow",
-    parallaxPx: 8,
-    zIndex: 2,
-    label: "Warm sunrise core + bloom",
-  },
-  {
-    id: "cloud-far",
-    parallaxPx: 6,
-    zIndex: 3,
-    label: "Distant cloud plane",
-  },
-  {
-    id: "cloud-near",
-    parallaxPx: 6,
-    zIndex: 4,
-    label: "Near cloud plane",
-  },
-  {
-    id: "sun-rays",
-    parallaxPx: 8,
-    zIndex: 5,
-    label: "Volumetric sun rays",
-  },
-  {
-    id: "landscape",
-    parallaxPx: 12,
-    zIndex: 6,
-    label: "Horizon + landscape warmth",
-  },
-  {
-    id: "foreground-haze",
-    parallaxPx: 18,
-    zIndex: 7,
-    label: "Atmospheric foreground haze",
-  },
-  {
-    id: "subject",
-    parallaxPx: 24,
-    zIndex: 8,
-    label: "HTBF freedom silhouette (focal)",
-  },
-  {
-    id: "rim-light",
-    parallaxPx: 24,
-    zIndex: 9,
-    label: "Rim light + color grade on subject",
-  },
-  {
-    id: "glass-card-video",
-    parallaxPx: 32,
-    zIndex: 10,
-    label: "Floating testimony card",
-  },
-  {
-    id: "glass-card-world",
-    parallaxPx: 32,
-    zIndex: 11,
-    label: "Stories around the world card",
-  },
-  {
-    id: "particles",
-    parallaxPx: 40,
-    zIndex: 12,
-    label: "Foreground dust + light specks",
-  },
+  { id: "sky", parallaxPx: 4, zIndex: 1, label: "Film-graded royal sky" },
+  { id: "sun", parallaxPx: 5, zIndex: 2, label: "Volumetric sunrise + rays" },
+  { id: "cloud-far", parallaxPx: 6, zIndex: 3, label: "Far cloud plane" },
+  { id: "cloud-near", parallaxPx: 9, zIndex: 4, label: "Near cloud plane" },
+  { id: "mountains", parallaxPx: 12, zIndex: 5, label: "Mountain horizon" },
+  { id: "foreground-haze", parallaxPx: 15, zIndex: 6, label: "Depth haze" },
+  { id: "foreground-flora", parallaxPx: 17, zIndex: 7, label: "Grass + flora" },
+  { id: "subject", parallaxPx: 20, zIndex: 8, label: "Silhouette (anchored focal)" },
+  { id: "glass-card-video", parallaxPx: 28, zIndex: 9, label: "Video testimony card" },
+  { id: "glass-card-world", parallaxPx: 30, zIndex: 10, label: "World stories card" },
+  { id: "particles", parallaxPx: 38, zIndex: 11, label: "Pollen + light dust" },
 ];
 
 export const HERO3D_ASSETS = {
@@ -136,7 +68,5 @@ export function buildParallaxTransform(
   intensity = 1
 ): string {
   const px = parallaxPx * intensity;
-  const x = offsetX * px;
-  const y = offsetY * px;
-  return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+  return `translate3d(${(offsetX * px).toFixed(2)}px, ${(offsetY * px).toFixed(2)}px, 0)`;
 }
