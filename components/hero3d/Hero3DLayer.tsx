@@ -8,6 +8,8 @@ import {
   HERO3D_ASSETS,
   type Hero3DLayerId,
 } from "../../lib/hero3d/hero3dLayers";
+import { Hero3DClouds } from "./Hero3DClouds";
+import { Hero3DForeground } from "./Hero3DForeground";
 import { Hero3DVideoCard, Hero3DWorldCard } from "./Hero3DGlassCards";
 import { Hero3DParticles } from "./Hero3DParticles";
 import "./hero3d.css";
@@ -57,162 +59,220 @@ export function Hero3DLayerStack({
   reducedMotion = false,
   lowPowerMode = false,
 }: Hero3DLayerStackProps) {
-  const ambient = reducedMotion ? "" : "htbf-hero3d-ambient";
+  const breathe = reducedMotion ? "" : "htbf-hero3d-sun-breathe";
+  const breatheOuter = reducedMotion ? "" : "htbf-hero3d-sun-breathe-outer";
+  const rayShift = reducedMotion ? "" : "htbf-hero3d-ray-shift";
+  const hazeDrift = reducedMotion ? "" : "htbf-hero3d-haze-drift";
 
   return (
     <>
-      {/* ── L1 · Deep sky ── replace with artwork: HERO3D_ASSETS.sky */}
+      {/* L1 · Film-graded sky */}
       <Hero3DLayer
         layerRef={layerRef(registerLayer, "sky")}
         zIndex={getHero3DZIndex("sky")}
-        className="bg-[linear-gradient(180deg,#030b18_0%,#0c2347_22%,#1e4a7a_48%,#c96b3a_72%,#f0c078_88%,#fff4e8_100%)]"
-      />
-
-      {/* ── L2 · Sunrise bloom ── */}
-      <Hero3DLayer
-        layerRef={layerRef(registerLayer, "sunrise-glow")}
-        zIndex={getHero3DZIndex("sunrise-glow")}
       >
         <div
-          className={cn(
-            "absolute left-[56%] top-[14%] h-48 w-48 -translate-x-1/2 rounded-full sm:h-60 sm:w-60",
-            !reducedMotion && "htbf-hero3d-sun-breathe"
-          )}
-          style={{
-            background:
-              "radial-gradient(circle, rgba(255,228,170,0.98) 0%, rgba(255,180,90,0.55) 32%, rgba(255,140,60,0.18) 52%, transparent 72%)",
-          }}
-        />
-        <div className="absolute inset-x-0 bottom-[30%] h-48 bg-[radial-gradient(ellipse_at_58%_50%,rgba(255,200,120,0.42),transparent_68%)]" />
-      </Hero3DLayer>
-
-      {/* ── L3 · Far clouds ── */}
-      <Hero3DLayer
-        layerRef={layerRef(registerLayer, "cloud-far")}
-        zIndex={getHero3DZIndex("cloud-far")}
-      >
-        <div
-          className={cn(
-            "absolute left-[4%] top-[20%] h-20 w-52 rounded-full bg-white/14 blur-3xl",
-            ambient,
-            "htbf-hero3d-cloud-drift-a"
-          )}
-        />
-        <div
-          className={cn(
-            "absolute right-[6%] top-[24%] h-24 w-60 rounded-full bg-amber-50/12 blur-3xl",
-            ambient,
-            "htbf-hero3d-cloud-drift-b"
-          )}
-        />
-        <div className="absolute left-[38%] top-[16%] h-16 w-44 rounded-full bg-white/10 blur-2xl" />
-      </Hero3DLayer>
-
-      {/* ── L4 · Near clouds ── */}
-      <Hero3DLayer
-        layerRef={layerRef(registerLayer, "cloud-near")}
-        zIndex={getHero3DZIndex("cloud-near")}
-      >
-        <div
-          className={cn(
-            "absolute -left-8 top-[36%] h-28 w-72 rounded-full bg-white/22 blur-2xl",
-            ambient,
-            "htbf-hero3d-cloud-drift-b"
-          )}
-        />
-        <div
-          className={cn(
-            "absolute -right-10 top-[40%] h-32 w-80 rounded-full bg-orange-100/18 blur-2xl",
-            ambient,
-            "htbf-hero3d-cloud-drift-a"
-          )}
-        />
-      </Hero3DLayer>
-
-      {/* ── L5 · Volumetric sun rays ── */}
-      <Hero3DLayer
-        layerRef={layerRef(registerLayer, "sun-rays")}
-        zIndex={getHero3DZIndex("sun-rays")}
-      >
-        <div
-          className={cn(
-            "absolute inset-0 opacity-50",
-            !reducedMotion && "htbf-hero3d-ray-shift"
-          )}
+          className="absolute inset-0"
           style={{
             background: `
-              conic-gradient(from 210deg at 58% 22%,
-                transparent 0deg,
-                rgba(255,220,160,0.14) 18deg,
-                transparent 36deg,
-                rgba(255,210,150,0.1) 52deg,
-                transparent 70deg,
-                rgba(255,200,140,0.12) 88deg,
-                transparent 110deg
+              linear-gradient(
+                180deg,
+                #0a1628 0%,
+                #0f2347 12%,
+                #1a3a6e 28%,
+                #2a5588 42%,
+                #5a7898 52%,
+                #c4a070 68%,
+                #e8c890 78%,
+                #f5e8d0 88%,
+                #fff8ee 100%
               )
             `,
           }}
         />
-        <div className="absolute left-[42%] top-0 h-full w-[28%] bg-gradient-to-b from-amber-200/20 via-amber-100/8 to-transparent blur-2xl" />
+        {/* Teal shadow grade */}
+        <div className="absolute inset-0 htbf-hero3d-grade-teal-shadow mix-blend-multiply opacity-80" />
+        {/* Atmospheric haze in upper sky */}
+        <div
+          className="absolute inset-0 opacity-60"
+          style={{
+            background:
+              "radial-gradient(ellipse at 50% 20%, rgba(180,210,230,0.18) 0%, transparent 55%)",
+          }}
+        />
       </Hero3DLayer>
 
-      {/* ── L6 · Landscape + horizon warmth ── */}
+      {/* L2 · Volumetric sun */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "landscape")}
-        zIndex={getHero3DZIndex("landscape")}
+        layerRef={layerRef(registerLayer, "sun")}
+        zIndex={getHero3DZIndex("sun")}
       >
-        <div className="absolute inset-x-0 bottom-0 h-[42%] bg-[linear-gradient(180deg,transparent_0%,rgba(6,42,87,0.15)_35%,rgba(4,18,36,0.62)_100%)]" />
-        <div className="absolute inset-x-[-10%] bottom-0 h-32 rounded-t-[100%] bg-[#041428]/40 blur-md" />
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-[radial-gradient(ellipse_at_50%_100%,rgba(255,180,100,0.22),transparent_70%)]" />
+        <div className={cn("absolute inset-0", !reducedMotion && "htbf-hero3d-enter-sun")}>
+          {/* Outer lens haze */}
+          <div
+            className={cn(
+              "absolute left-[54%] top-[10%] h-72 w-72 -translate-x-1/2 rounded-full sm:h-80 sm:w-80",
+              breatheOuter
+            )}
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,235,200,0.22) 0%, rgba(255,210,150,0.1) 35%, transparent 68%)",
+            }}
+          />
+          {/* Mid bloom layer */}
+          <div
+            className={cn(
+              "absolute left-[56%] top-[14%] h-52 w-52 -translate-x-1/2 rounded-full sm:h-64 sm:w-64",
+              breathe
+            )}
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,228,180,0.75) 0%, rgba(255,195,120,0.38) 28%, rgba(255,170,90,0.12) 48%, transparent 68%)",
+            }}
+          />
+          {/* Core disc */}
+          <div
+            className={cn(
+              "absolute left-[56%] top-[16%] h-24 w-24 -translate-x-1/2 rounded-full sm:h-28 sm:w-28",
+              breathe
+            )}
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,245,220,0.95) 0%, rgba(255,220,160,0.65) 42%, rgba(255,190,110,0.18) 62%, transparent 78%)",
+            }}
+          />
+          {/* Brighter horizon wash */}
+          <div className="absolute inset-x-0 bottom-[32%] h-40 bg-[radial-gradient(ellipse_at_58%_50%,rgba(255,215,160,0.38),transparent_68%)]" />
+          <div className="absolute inset-x-0 bottom-[28%] h-28 bg-[radial-gradient(ellipse_at_50%_80%,rgba(255,235,200,0.28),transparent_72%)]" />
+          {/* Light rays */}
+          <div
+            className={cn("absolute inset-0 opacity-40", rayShift)}
+            style={{
+              background: `
+                conic-gradient(from 205deg at 56% 18%,
+                  transparent 0deg,
+                  rgba(255,230,190,0.12) 14deg,
+                  transparent 28deg,
+                  rgba(255,220,175,0.09) 44deg,
+                  transparent 58deg,
+                  rgba(255,210,165,0.11) 74deg,
+                  transparent 92deg
+                )
+              `,
+            }}
+          />
+          <div className="absolute left-[40%] top-0 h-full w-[32%] bg-gradient-to-b from-[#f5e0c0]/18 via-[#f0d8b0]/6 to-transparent blur-2xl" />
+        </div>
       </Hero3DLayer>
 
-      {/* ── L7 · Foreground atmospheric haze ── */}
+      {/* L3 · Far clouds */}
+      <Hero3DLayer
+        layerRef={layerRef(registerLayer, "cloud-far")}
+        zIndex={getHero3DZIndex("cloud-far")}
+      >
+        <div className={cn(!reducedMotion && "htbf-hero3d-enter-clouds")}>
+          <Hero3DClouds variant="far" reducedMotion={reducedMotion} />
+        </div>
+      </Hero3DLayer>
+
+      {/* L4 · Near clouds */}
+      <Hero3DLayer
+        layerRef={layerRef(registerLayer, "cloud-near")}
+        zIndex={getHero3DZIndex("cloud-near")}
+      >
+        <div className={cn(!reducedMotion && "htbf-hero3d-enter-clouds")}>
+          <Hero3DClouds variant="near" reducedMotion={reducedMotion} />
+        </div>
+      </Hero3DLayer>
+
+      {/* L5 · Mountains + horizon */}
+      <Hero3DLayer
+        layerRef={layerRef(registerLayer, "mountains")}
+        zIndex={getHero3DZIndex("mountains")}
+      >
+        {/* Atmospheric perspective — distant peaks */}
+        <div
+          className="absolute inset-x-[-8%] bottom-[28%] h-24 rounded-t-[100%] opacity-50 blur-sm"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(30,55,80,0.35) 0%, rgba(15,35,55,0.55) 100%)",
+          }}
+        />
+        <div
+          className="absolute inset-x-[-5%] bottom-[24%] h-20 rounded-t-[90%] opacity-65"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(20,45,65,0.45) 0%, rgba(8,25,42,0.7) 100%)",
+          }}
+        />
+        {/* Ground + teal shadow grade */}
+        <div className="absolute inset-x-0 bottom-0 h-[42%] bg-[linear-gradient(180deg,transparent_0%,rgba(18,45,55,0.14)_30%,rgba(6,28,38,0.55)_100%)]" />
+        <div className="absolute inset-x-[-10%] bottom-0 h-32 rounded-t-[100%] bg-[#041428]/35 blur-md" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-[radial-gradient(ellipse_at_50%_100%,rgba(255,195,130,0.18),transparent_70%)]" />
+      </Hero3DLayer>
+
+      {/* L6 · Foreground depth haze */}
       <Hero3DLayer
         layerRef={layerRef(registerLayer, "foreground-haze")}
         zIndex={getHero3DZIndex("foreground-haze")}
       >
         <div
           className={cn(
-            "absolute inset-0 bg-[radial-gradient(circle_at_50%_78%,rgba(255,235,200,0.32),transparent_62%)]",
-            !reducedMotion && "htbf-hero3d-haze-drift"
+            "absolute inset-0 bg-[radial-gradient(circle_at_50%_78%,rgba(255,240,215,0.28),transparent_62%)]",
+            hazeDrift
           )}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#041428]/45 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#041428]/40 via-[#041428]/8 to-transparent" />
+        {/* Depth atmospheric perspective */}
+        <div
+          className="absolute inset-0 opacity-35"
+          style={{
+            background:
+              "linear-gradient(180deg, transparent 55%, rgba(20,50,60,0.15) 100%)",
+          }}
+        />
       </Hero3DLayer>
 
-      {/* ── L8 · Subject silhouette ── swap image via HERO3D_ASSETS.subject */}
+      {/* L7 · Foreground flora */}
+      <Hero3DLayer
+        layerRef={layerRef(registerLayer, "foreground-flora")}
+        zIndex={getHero3DZIndex("foreground-flora")}
+      >
+        <Hero3DForeground reducedMotion={reducedMotion} />
+      </Hero3DLayer>
+
+      {/* L8 · Subject silhouette + embedded lighting */}
       <Hero3DLayer
         layerRef={layerRef(registerLayer, "subject")}
         zIndex={getHero3DZIndex("subject")}
       >
-        <img
-          src={HERO3D_ASSETS.subject}
-          alt=""
-          draggable={false}
-          className="h-full w-full object-cover object-[center_40%]"
-        />
-      </Hero3DLayer>
-
-      {/* ── L9 · Rim light + color grade (locked to subject depth) ── */}
-      <Hero3DLayer
-        layerRef={layerRef(registerLayer, "rim-light")}
-        zIndex={getHero3DZIndex("rim-light")}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_38%,rgba(255,220,160,0.28),transparent_48%)] mix-blend-screen" />
-        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-amber-100/12 mix-blend-overlay" />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, transparent 42%, rgba(4,16,32,0.38) 100%)",
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#041428]/50 via-[#041428]/10 to-transparent" />
+        <div className={cn("relative h-full w-full", !reducedMotion && "htbf-hero3d-enter-subject")}>
+          <img
+            src={HERO3D_ASSETS.subject}
+            alt=""
+            draggable={false}
+            className="relative z-[1] h-full w-full object-cover object-[center_40%]"
+          />
+          {/* Gold rim light from sunrise */}
+          <div className="absolute inset-0 z-[2] bg-[radial-gradient(circle_at_72%_36%,rgba(255,220,160,0.22),transparent_46%)] mix-blend-screen" />
+          {/* Warm hair bloom */}
+          <div className="absolute inset-0 z-[2] bg-[radial-gradient(ellipse_at_68%_28%,rgba(255,235,200,0.18),transparent_38%)] mix-blend-soft-light" />
+          {/* Atmospheric edge lighting */}
+          <div className="absolute inset-0 z-[2] bg-gradient-to-tr from-transparent via-transparent to-[#f5e0c0]/10 mix-blend-overlay" />
+          {/* Shadow separation from background */}
+          <div
+            className="absolute inset-0 z-[2]"
+            style={{
+              background:
+                "radial-gradient(ellipse at 50% 85%, rgba(4,16,28,0.28) 0%, transparent 55%)",
+            }}
+          />
+        </div>
       </Hero3DLayer>
 
       {showFloatingCards ? (
         <>
-          {/* ── L10 · Testimony glass card ── */}
+          {/* L9 · Video testimony card */}
           <Hero3DLayer
             layerRef={layerRef(registerLayer, "glass-card-video")}
             zIndex={getHero3DZIndex("glass-card-video")}
@@ -220,7 +280,7 @@ export function Hero3DLayerStack({
             <Hero3DVideoCard reducedMotion={reducedMotion} />
           </Hero3DLayer>
 
-          {/* ── L11 · World stories glass card ── */}
+          {/* L10 · World stories card */}
           <Hero3DLayer
             layerRef={layerRef(registerLayer, "glass-card-world")}
             zIndex={getHero3DZIndex("glass-card-world")}
@@ -230,15 +290,17 @@ export function Hero3DLayerStack({
         </>
       ) : null}
 
-      {/* ── L12 · Foreground particles ── */}
+      {/* L11 · Pollen + light dust */}
       <Hero3DLayer
         layerRef={layerRef(registerLayer, "particles")}
         zIndex={getHero3DZIndex("particles")}
       >
-        <Hero3DParticles
-          reducedMotion={reducedMotion}
-          lowPowerMode={lowPowerMode}
-        />
+        <div className={cn(!reducedMotion && "htbf-hero3d-enter-particles")}>
+          <Hero3DParticles
+            reducedMotion={reducedMotion}
+            lowPowerMode={lowPowerMode}
+          />
+        </div>
       </Hero3DLayer>
     </>
   );
