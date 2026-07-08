@@ -8,10 +8,14 @@ import {
   type CreatorStudioLayerStyle,
   type CreatorStudioTextLayer,
 } from "./creationCenter";
+import type { CreatorStudioPresetDecoration } from "./creatorStudioFontPresetCatalog";
+import { buildPresetTextShadow } from "./creatorStudioFontPresetCatalog";
 import {
   clampCreatorStudioFontScale,
   getCreatorStudioFontClassName,
   getCreatorStudioFontPresetDefinition,
+  getCreatorStudioPresetDecoration,
+  getCreatorStudioPresetWeightClass,
   normalizeCreatorStudioFontPreset,
 } from "./creatorStudioTypography";
 
@@ -49,6 +53,7 @@ export type CreatorStudioLayerTypography = {
   coordinates: { x: number; y: number };
   transform: string;
   inlineStyle: CSSProperties;
+  presetDecoration?: CreatorStudioPresetDecoration;
 };
 
 export function buildCreatorStudioLayerTypography(
@@ -77,8 +82,7 @@ export function buildCreatorStudioLayerTypographyFromStyle(
   const fontScale = clampCreatorStudioFontScale(layerStyle.fontScale);
   const fontClassName = getCreatorStudioFontClassName(design, layerStyle, layer);
   const baseFontRem = getBaseFontSizeRem(layerStyle.fontSize, compact);
-  const weightClass =
-    layerStyle.weight === "regular" ? "font-semibold" : "font-black";
+  const weightClass = getCreatorStudioPresetWeightClass(layerStyle);
   const italicClass = layerStyle.italic ? "italic" : "";
   const alignClass =
     layerStyle.align === "center"
@@ -93,16 +97,18 @@ export function buildCreatorStudioLayerTypographyFromStyle(
   const presetDefinition = normalizeCreatorStudioFontPreset(layerStyle.fontPreset)
     ? getCreatorStudioFontPresetDefinition(layerStyle.fontPreset)
     : null;
-  const textShadow =
-    presetDefinition?.glowColor
-      ? `0 0 12px ${presetDefinition.glowColor}, 0 0 28px ${presetDefinition.glowColor}88, 0 2px 8px rgba(0,0,0,0.45)`
-      : shadowStrength > 0
-        ? `0 2px ${Math.round(shadowStrength * 18)}px rgba(0,0,0,${Math.min(0.85, shadowStrength)})`
-        : undefined;
+  const effectiveShadowStrength =
+    presetDefinition?.shadowStrength ?? shadowStrength;
+  const textShadow = presetDefinition?.glowColor
+    ? buildPresetTextShadow(presetDefinition)
+    : effectiveShadowStrength > 0
+      ? `0 2px ${Math.round(effectiveShadowStrength * 20)}px rgba(0,0,0,${Math.min(0.85, effectiveShadowStrength)})`
+      : undefined;
   const resolvedMaxWidth = resolveCreatorStudioLayerMaxWidthStyle(layerStyle, {
     reserveMobileBottom: options?.reserveMobileBottom,
     constrainToSafeArea: true,
   });
+  const effectiveOutlineWidth = presetDefinition?.outlineWidth ?? outlineWidth;
   const inlineStyle: CSSProperties = {
     color:
       layerStyle.color ||
@@ -114,13 +120,15 @@ export function buildCreatorStudioLayerTypographyFromStyle(
     letterSpacing:
       layerStyle.letterSpacing !== undefined
         ? `${layerStyle.letterSpacing}em`
-        : undefined,
-    lineHeight: layerStyle.lineHeight ?? 1.15,
+        : presetDefinition
+          ? `${presetDefinition.letterSpacing}em`
+          : undefined,
+    lineHeight: layerStyle.lineHeight ?? presetDefinition?.lineHeight ?? 1.15,
     textTransform: layerStyle.textTransform ?? presetDefinition?.textTransform,
     textShadow,
     WebkitTextStroke:
-      outlineWidth > 0
-        ? `${outlineWidth}px rgba(0,0,0,${Math.min(0.75, 0.25 + outlineWidth * 0.15)})`
+      effectiveOutlineWidth > 0
+        ? `${effectiveOutlineWidth}px rgba(0,0,0,${Math.min(0.75, 0.25 + effectiveOutlineWidth * 0.15)})`
         : undefined,
     ...(resolvedMaxWidth ? { maxWidth: resolvedMaxWidth } : {}),
   };
@@ -138,6 +146,7 @@ export function buildCreatorStudioLayerTypographyFromStyle(
       layerStyle.rotation ?? 0
     ),
     inlineStyle,
+    presetDecoration: getCreatorStudioPresetDecoration(presetDefinition),
   };
 }
 

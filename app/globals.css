@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@500;700&family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Courier+Prime:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=EB+Garamond:ital,wght@0,500;0,700;1,500&family=Fredoka:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@600;700;800&family=Nunito:wght@500;700&family=Oswald:wght@500;700&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Quicksand:wght@500;600;700&family=Roboto+Slab:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Courier+Prime:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,500;0,9..40,700;1,9..40,500&family=Fredoka:wght@500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@600;700;800&family=Nunito:wght@500;700&family=Patrick+Hand&family=Permanent+Marker&family=Quicksand:wght@500;600;700&family=Roboto+Slab:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -7,26 +7,40 @@
 :root {
   --background: #f8fbff;
   --foreground: #0f172a;
-  --font-creator-modern-bold: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-creator-elegant-serif: "Libre Baskerville", Georgia, serif;
-  --font-creator-handwritten-journal: "Caveat", "Segoe Script", cursive;
-  --font-creator-worship-script: "Great Vibes", "Segoe Script", cursive;
-  --font-creator-typewriter-testimony: "Courier Prime", Courier, monospace;
-  --font-creator-minimal-uppercase: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-creator-cinematic-poster: "Bebas Neue", Oswald, "Arial Narrow", sans-serif;
-  --font-creator-magazine-editorial: "Playfair Display", Georgia, serif;
-  --font-creator-neon-glow: "Montserrat", "Segoe UI", sans-serif;
-  --font-creator-vintage-church: "Cinzel", Georgia, serif;
-  --font-creator-chalkboard: "Patrick Hand", "Comic Sans MS", cursive;
-  --font-creator-brush-stroke: "Permanent Marker", "Segoe Print", cursive;
-  --font-creator-luxury-gold: "Cormorant Garamond", Georgia, serif;
-  --font-creator-clean-modern-sans: "Source Sans 3", "Segoe UI", sans-serif;
-  --font-creator-faith-journal: "Lora", Georgia, serif;
-  --font-creator-newspaper: "Roboto Slab", Georgia, serif;
-  --font-creator-storybook: "Fredoka", "Trebuchet MS", sans-serif;
-  --font-creator-hero-title: "Oswald", "Arial Narrow", sans-serif;
-  --font-creator-social-creator: "Quicksand", "Trebuchet MS", sans-serif;
-  --font-creator-scripture-card: "EB Garamond", Georgia, serif;
+  --font-creator-clean-modern: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-creator-bold-testimony: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-creator-elegant-scripture: var(--font-eb-garamond), Georgia, serif;
+  --font-creator-soft-encouragement: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-creator-worship-praise: var(--font-funnel-display), ui-sans-serif, system-ui, sans-serif;
+  --font-creator-minimal-caption: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-creator-prayer-card: var(--font-eb-garamond), Georgia, serif;
+  --font-creator-breakthrough-glow: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-creator-handwritten-faith: var(--font-caveat-brush), "Segoe Script", cursive;
+  --font-creator-typewriter-reflection: var(--font-special-elite), Courier, monospace;
+  --font-creator-bold-all-caps: var(--font-bebas-neue), Oswald, "Arial Narrow", sans-serif;
+  --font-creator-elegant-serif: var(--font-playfair-display), Georgia, serif;
+  --font-creator-modern-label: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-creator-soft-script: var(--font-great-vibes), "Segoe Script", cursive;
+  --font-creator-grunge-impact: var(--font-oswald), "Arial Narrow", sans-serif;
+  --font-creator-modern-bold: var(--font-creator-bold-testimony);
+  --font-creator-handwritten-journal: var(--font-creator-handwritten-faith);
+  --font-creator-worship-script: var(--font-creator-soft-script);
+  --font-creator-typewriter-testimony: var(--font-creator-typewriter-reflection);
+  --font-creator-minimal-uppercase: var(--font-creator-minimal-caption);
+  --font-creator-cinematic-poster: var(--font-creator-bold-all-caps);
+  --font-creator-magazine-editorial: var(--font-creator-elegant-serif);
+  --font-creator-neon-glow: var(--font-creator-breakthrough-glow);
+  --font-creator-vintage-church: var(--font-creator-grunge-impact);
+  --font-creator-chalkboard: var(--font-creator-soft-encouragement);
+  --font-creator-brush-stroke: var(--font-creator-bold-testimony);
+  --font-creator-luxury-gold: var(--font-creator-grunge-impact);
+  --font-creator-clean-modern-sans: var(--font-creator-clean-modern);
+  --font-creator-faith-journal: var(--font-creator-soft-encouragement);
+  --font-creator-newspaper: var(--font-creator-typewriter-reflection);
+  --font-creator-storybook: var(--font-creator-soft-encouragement);
+  --font-creator-hero-title: var(--font-creator-bold-all-caps);
+  --font-creator-social-creator: var(--font-creator-modern-label);
+  --font-creator-scripture-card: var(--font-creator-elegant-scripture);
 }
 
 * {
@@ -41,7 +55,23 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
+  }
+
+  button,
+  [role="tab"],
+  label {
+    @apply font-heading;
+  }
 }
 .input-style {
   width: 100%;
