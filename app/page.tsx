@@ -13,6 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import Hero3DScene from "../components/hero3d/Hero3DScene";
 
 const sectionClass = "mx-auto max-w-7xl px-4 sm:px-6 py-14 md:py-16";
 const btnPrimary =
@@ -23,8 +24,6 @@ const btnSecondary =
   "inline-flex items-center justify-center gap-2 rounded-full border border-slate-200/90 bg-white px-6 py-3.5 text-base font-heading font-bold text-[#082f63] shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 active:scale-[0.98]";
 const cardClass =
   "rounded-[2rem] border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300/80 hover:shadow-lg hover:shadow-blue-950/[0.04]";
-const glassCardClass =
-  "rounded-3xl border border-white/80 bg-white/92 p-4 shadow-xl shadow-blue-950/[0.06] backdrop-blur-xl transition-all duration-300";
 
 export default function HomePage() {
   const [checkingUser, setCheckingUser] = useState(true);
@@ -197,77 +196,12 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative">
-              <div className="relative mx-auto aspect-[4/5] max-h-[440px] w-full overflow-hidden rounded-[2.5rem] shadow-2xl shadow-blue-950/10 sm:max-h-[480px] md:absolute md:right-0 md:top-2 md:aspect-auto md:h-[440px] md:max-h-none md:w-[560px]">
-                <img
-                  src="/images/hero-freedom.png"
-                  alt="A person walking in freedom"
-                  className="h-full w-full object-cover object-center"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#082f63]/28 via-transparent to-white/10" />
-              </div>
-
-              <div
-                className={`${glassCardClass} mt-4 md:absolute md:left-0 md:top-12 md:mt-0 md:w-[330px]`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-                    <Play className="h-5 w-5 fill-[#0b63ce]" />
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-heading font-black text-slate-900">
-                      Latest Video Story
-                    </div>
-                    <div className="text-xs font-medium text-slate-500">
-                      Freedom • 1 min watch
-                    </div>
-                  </div>
-                </div>
-
-                <p className="mt-4 text-sm leading-6 text-slate-600">
-                  “I woke up with peace after weeks of anxiety.”
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 transition-colors duration-200">
-                    Amen
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 transition-colors duration-200">
-                    Praying
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 transition-colors duration-200">
-                    Encouraged
-                  </span>
-                </div>
-              </div>
-
-              <div
-                className={`${glassCardClass} mt-4 md:absolute md:bottom-2 md:left-10 md:mt-0 md:w-[300px]`}
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="text-sm font-heading font-black text-slate-900">
-                    From Around the World
-                  </div>
-                  <Globe2 className="h-4 w-4 text-[#0b63ce]" />
-                </div>
-
-                <div className="space-y-2 text-sm text-slate-600">
-                  <div className="flex justify-between rounded-2xl bg-slate-50/90 px-3 py-2">
-                    <span>USA</span>
-                    <span>Praise Report</span>
-                  </div>
-                  <div className="flex justify-between rounded-2xl bg-slate-50/90 px-3 py-2">
-                    <span>Nigeria</span>
-                    <span>Testimony</span>
-                  </div>
-                  <div className="flex justify-between rounded-2xl bg-slate-50/90 px-3 py-2">
-                    <span>Philippines</span>
-                    <span>Prayer</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Hero3DScene
+              className="relative mx-auto w-full max-w-[560px] md:max-w-none"
+              showFloatingCards
+              showTiltPrompt
+              ariaLabel="A person walking in freedom at sunrise"
+            />
           </div>
         </section>
 
