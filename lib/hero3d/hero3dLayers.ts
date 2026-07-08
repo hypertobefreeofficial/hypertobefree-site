@@ -1,86 +1,142 @@
 /**
- * Hero3D layer stack (back → front).
+ * Hero3D V2 — cinematic depth stack (back → front).
  *
- * Depth factors control parallax amplitude: farther layers move more on pointer
- * tilt; the subject layer moves least so the silhouette stays the focal point.
+ * Each layer declares an absolute parallax range in pixels at full pointer
+ * deflection (offset ±1). Closer layers receive higher values so the scene
+ * feels like Apple's layered wallpapers — you look *into* the sunrise, not
+ * at a sliding photograph.
  *
- * All motion is applied via GPU `translate3d` only — no layout-affecting props.
+ * Replace artwork by swapping `HERO3D_ASSETS` paths or layer JSX in
+ * `Hero3DLayerStack.tsx` without touching the parallax engine.
  */
 export type Hero3DLayerId =
   | "sky"
   | "sunrise-glow"
   | "cloud-far"
   | "cloud-near"
-  | "hill-silhouette"
+  | "sun-rays"
+  | "landscape"
+  | "foreground-haze"
   | "subject"
-  | "atmospheric-haze";
+  | "rim-light"
+  | "glass-card-video"
+  | "glass-card-world"
+  | "particles";
 
 export type Hero3DLayerDefinition = {
   id: Hero3DLayerId;
-  /** Parallax depth multiplier (0 = static, 1 = full range). */
-  depth: number;
+  /** Max translate3d displacement in px when parallax offset is ±1. */
+  parallaxPx: number;
   zIndex: number;
-  /** Max pointer displacement in px at depth 1. */
-  maxTranslatePx?: number;
   label: string;
 };
 
-export const HERO3D_MAX_TRANSLATE_PX = 28;
+/** Upper bound used for low-end scaling; individual layers use `parallaxPx`. */
+export const HERO3D_MAX_PARALLAX_PX = 40;
 
 export const HERO3D_LAYERS: Hero3DLayerDefinition[] = [
   {
     id: "sky",
-    depth: 0.22,
+    parallaxPx: 4,
     zIndex: 1,
-    label: "Deep sky gradient",
+    label: "Deep blue gradient sky",
   },
   {
     id: "sunrise-glow",
-    depth: 0.16,
+    parallaxPx: 8,
     zIndex: 2,
-    label: "Sun disc + warm bloom",
+    label: "Warm sunrise core + bloom",
   },
   {
     id: "cloud-far",
-    depth: 0.28,
+    parallaxPx: 6,
     zIndex: 3,
     label: "Distant cloud plane",
   },
   {
     id: "cloud-near",
-    depth: 0.36,
+    parallaxPx: 6,
     zIndex: 4,
     label: "Near cloud plane",
   },
   {
-    id: "hill-silhouette",
-    depth: 0.12,
+    id: "sun-rays",
+    parallaxPx: 8,
     zIndex: 5,
-    label: "Horizon silhouette",
+    label: "Volumetric sun rays",
+  },
+  {
+    id: "landscape",
+    parallaxPx: 12,
+    zIndex: 6,
+    label: "Horizon + landscape warmth",
+  },
+  {
+    id: "foreground-haze",
+    parallaxPx: 18,
+    zIndex: 7,
+    label: "Atmospheric foreground haze",
   },
   {
     id: "subject",
-    depth: 0.04,
-    zIndex: 6,
+    parallaxPx: 24,
+    zIndex: 8,
     label: "HTBF freedom silhouette (focal)",
   },
   {
-    id: "atmospheric-haze",
-    depth: 0.1,
-    zIndex: 7,
-    label: "Foreground haze + vignette",
+    id: "rim-light",
+    parallaxPx: 24,
+    zIndex: 9,
+    label: "Rim light + color grade on subject",
+  },
+  {
+    id: "glass-card-video",
+    parallaxPx: 32,
+    zIndex: 10,
+    label: "Floating testimony card",
+  },
+  {
+    id: "glass-card-world",
+    parallaxPx: 32,
+    zIndex: 11,
+    label: "Stories around the world card",
+  },
+  {
+    id: "particles",
+    parallaxPx: 40,
+    zIndex: 12,
+    label: "Foreground dust + light specks",
   },
 ];
 
-export const HERO3D_SUBJECT_IMAGE = "/images/hero-freedom.png";
+export const HERO3D_ASSETS = {
+  subject: "/images/hero-freedom.png",
+} as const;
+
+/** @deprecated Use HERO3D_ASSETS.subject */
+export const HERO3D_SUBJECT_IMAGE = HERO3D_ASSETS.subject;
+
+export function getHero3DLayer(id: Hero3DLayerId) {
+  return HERO3D_LAYERS.find((layer) => layer.id === id);
+}
+
+export function getHero3DParallaxPx(id: Hero3DLayerId, scale = 1) {
+  const layer = getHero3DLayer(id);
+  return (layer?.parallaxPx ?? 0) * scale;
+}
+
+export function getHero3DZIndex(id: Hero3DLayerId) {
+  return getHero3DLayer(id)?.zIndex ?? 1;
+}
 
 export function buildParallaxTransform(
   offsetX: number,
   offsetY: number,
-  depth: number,
-  maxTranslatePx = HERO3D_MAX_TRANSLATE_PX
+  parallaxPx: number,
+  intensity = 1
 ): string {
-  const x = offsetX * depth * maxTranslatePx;
-  const y = offsetY * depth * maxTranslatePx;
+  const px = parallaxPx * intensity;
+  const x = offsetX * px;
+  const y = offsetY * px;
   return `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
 }
