@@ -11,31 +11,28 @@ export type ParallaxOffset = {
 export type ParallaxMode = "static" | "mouse" | "orientation";
 
 export type UseParallaxOptions = {
-  /** 0–1 lerp toward target each frame (higher = snappier). */
   smoothing?: number;
-  /** Clamp for normalized offset magnitude. */
   maxOffset?: number;
-  /** Disable pointer tracking below this viewport width. */
   mobileBreakpointPx?: number;
+  /** Scale all layer movement (0–1). Reduced on low-end devices. */
+  intensity?: number;
 };
 
 export type UseParallaxReturn = {
   containerRef: (node: HTMLElement | null) => void;
   mode: ParallaxMode;
   reducedMotion: boolean;
+  lowPowerMode: boolean;
   orientationAvailable: boolean;
   orientationPermission: "granted" | "denied" | "prompt" | "unsupported";
   requestOrientationAccess: () => Promise<boolean>;
-  registerLayer: (
-    depth: number,
-    maxTranslatePx?: number
-  ) => (node: HTMLElement | null) => void;
+  registerLayer: (parallaxPx: number) => (node: HTMLElement | null) => void;
+  motionIntensity: number;
 };
 
 type LayerRegistration = {
   node: HTMLElement | null;
-  depth: number;
-  maxTranslatePx?: number;
+  parallaxPx: number;
 };
 
 type DeviceOrientationCtor = typeof DeviceOrientationEvent & {
@@ -56,6 +53,18 @@ function isCoarsePointer() {
   return window.matchMedia("(pointer: coarse)").matches;
 }
 
+function detectLowPowerMode() {
+  if (typeof window === "undefined") return false;
+
+  const cores = navigator.hardwareConcurrency ?? 8;
+  const saveData =
+    "connection" in navigator &&
+    (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+      ?.saveData;
+
+  return cores <= 4 || Boolean(saveData);
+}
+
 function getOrientationRequestPermission() {
   if (typeof DeviceOrientationEvent === "undefined") return undefined;
   return (DeviceOrientationEvent as DeviceOrientationCtor).requestPermission;
@@ -63,9 +72,10 @@ function getOrientationRequestPermission() {
 
 export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn {
   const {
-    smoothing = 0.08,
+    smoothing = 0.065,
     maxOffset = 1,
     mobileBreakpointPx = 768,
+    intensity: intensityOption = 1,
   } = options;
 
   const containerNodeRef = useRef<HTMLElement | null>(null);
@@ -76,22 +86,34 @@ export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn
   const orientationBaselineRef = useRef<{ beta: number; gamma: number } | null>(
     null
   );
+  const intensityRef = useRef(intensityOption);
 
   const [mode, setMode] = useState<ParallaxMode>("static");
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [lowPowerMode, setLowPowerMode] = useState(false);
   const [orientationAvailable, setOrientationAvailable] = useState(false);
   const [orientationPermission, setOrientationPermission] = useState<
     "granted" | "denied" | "prompt" | "unsupported"
   >("unsupported");
+  const [motionIntensity, setMotionIntensity] = useState(intensityOption);
+
+  useEffect(() => {
+    const lowPower = detectLowPowerMode();
+    setLowPowerMode(lowPower);
+    const nextIntensity = lowPower ? intensityOption * 0.55 : intensityOption;
+    intensityRef.current = nextIntensity;
+    setMotionIntensity(nextIntensity);
+  }, [intensityOption]);
 
   const applyLayerTransforms = useCallback((offset: ParallaxOffset) => {
-    layersRef.current.forEach(({ node, depth, maxTranslatePx }) => {
+    const intensity = intensityRef.current;
+    layersRef.current.forEach(({ node, parallaxPx }) => {
       if (!node) return;
       node.style.transform = buildParallaxTransform(
         offset.x,
         offset.y,
-        depth,
-        maxTranslatePx
+        parallaxPx,
+        intensity
       );
     });
   }, []);
@@ -114,8 +136,8 @@ export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn
       current.y += (target.y - current.y) * smoothing;
 
       if (
-        Math.abs(target.x - current.x) < 0.0004 &&
-        Math.abs(target.y - current.y) < 0.0004
+        Math.abs(target.x - current.x) < 0.0003 &&
+        Math.abs(target.y - current.y) < 0.0003
       ) {
         current.x = target.x;
         current.y = target.y;
@@ -135,13 +157,15 @@ export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn
 
   const setTarget = useCallback(
     (next: ParallaxOffset) => {
+      if (reducedMotion) return;
+
       targetRef.current = {
         x: clamp(next.x, -maxOffset, maxOffset),
         y: clamp(next.y, -maxOffset, maxOffset),
       };
       startLoop();
     },
-    [maxOffset, startLoop]
+    [maxOffset, reducedMotion, startLoop]
   );
 
   const resetMotion = useCallback(() => {
@@ -155,27 +179,24 @@ export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn
     containerNodeRef.current = node;
   }, []);
 
-  const registerLayer = useCallback(
-    (depth: number, maxTranslatePx?: number) => {
-      const key = Symbol(`hero3d-layer-${depth}`);
-      return (node: HTMLElement | null) => {
-        if (node) {
-          node.style.willChange = "transform";
-          node.style.backfaceVisibility = "hidden";
-          layersRef.current.set(key, { node, depth, maxTranslatePx });
-          node.style.transform = buildParallaxTransform(
-            currentRef.current.x,
-            currentRef.current.y,
-            depth,
-            maxTranslatePx
-          );
-        } else {
-          layersRef.current.delete(key);
-        }
-      };
-    },
-    []
-  );
+  const registerLayer = useCallback((parallaxPx: number) => {
+    const key = Symbol(`hero3d-${parallaxPx}`);
+    return (node: HTMLElement | null) => {
+      if (node) {
+        node.style.willChange = "transform";
+        node.style.backfaceVisibility = "hidden";
+        layersRef.current.set(key, { node, parallaxPx });
+        node.style.transform = buildParallaxTransform(
+          currentRef.current.x,
+          currentRef.current.y,
+          parallaxPx,
+          intensityRef.current
+        );
+      } else {
+        layersRef.current.delete(key);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const reduced = prefersReducedMotion();
@@ -217,7 +238,7 @@ export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn
       const ny = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
 
       setMode("mouse");
-      setTarget({ x: nx, y: ny });
+      setTarget({ x: nx, y: ny * 0.85 });
     };
 
     const handlePointerLeave = () => {
@@ -250,11 +271,11 @@ export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn
       }
 
       const base = orientationBaselineRef.current;
-      const gammaDelta = clamp((event.gamma - base.gamma) / 32, -1, 1);
-      const betaDelta = clamp((event.beta - base.beta) / 24, -1, 1);
+      const gammaDelta = clamp((event.gamma - base.gamma) / 28, -1, 1);
+      const betaDelta = clamp((event.beta - base.beta) / 22, -1, 1);
 
       setMode("orientation");
-      setTarget({ x: gammaDelta, y: betaDelta * 0.65 });
+      setTarget({ x: gammaDelta, y: betaDelta * 0.6 });
     };
 
     window.addEventListener("deviceorientation", handleOrientation, true);
@@ -318,9 +339,11 @@ export function useParallax(options: UseParallaxOptions = {}): UseParallaxReturn
     containerRef,
     mode,
     reducedMotion,
+    lowPowerMode,
     orientationAvailable,
     orientationPermission,
     requestOrientationAccess,
     registerLayer,
+    motionIntensity,
   };
 }
