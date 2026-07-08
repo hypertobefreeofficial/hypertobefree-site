@@ -1,0 +1,166 @@
+/**
+ * Hero3D ambient motion — CSS only, GPU-friendly (opacity/transform on children).
+ * Parallax layers keep transform for the engine; inner elements animate separately.
+ */
+
+.htbf-hero3d-ambient {
+  animation-duration: var(--htbf-hero-ambient-duration, 52s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.htbf-hero3d-cloud-drift-a {
+  animation-name: htbf-hero3d-cloud-drift-a;
+}
+
+.htbf-hero3d-cloud-drift-b {
+  animation-name: htbf-hero3d-cloud-drift-b;
+  animation-duration: 64s;
+}
+
+.htbf-hero3d-sun-breathe {
+  animation-name: htbf-hero3d-sun-breathe;
+  animation-duration: 9s;
+}
+
+.htbf-hero3d-ray-shift {
+  animation-name: htbf-hero3d-ray-shift;
+  animation-duration: 14s;
+}
+
+.htbf-hero3d-haze-drift {
+  animation-name: htbf-hero3d-haze-drift;
+  animation-duration: 22s;
+}
+
+.htbf-hero3d-particle-float {
+  animation-name: htbf-hero3d-particle-float;
+  animation-duration: var(--htbf-particle-duration, 18s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.htbf-hero3d-card-float {
+  animation-name: htbf-hero3d-card-float;
+  animation-duration: 7s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.htbf-hero3d-card-float-delayed {
+  animation-name: htbf-hero3d-card-float;
+  animation-duration: 8.5s;
+  animation-delay: -2s;
+}
+
+@keyframes htbf-hero3d-cloud-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(18px, -6px, 0);
+  }
+}
+
+@keyframes htbf-hero3d-cloud-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-14px, 4px, 0);
+  }
+}
+
+@keyframes htbf-hero3d-sun-breathe {
+  0%,
+  100% {
+    opacity: 0.88;
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale3d(1.04, 1.04, 1);
+  }
+}
+
+@keyframes htbf-hero3d-ray-shift {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 0.58;
+  }
+}
+
+@keyframes htbf-hero3d-haze-drift {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+@keyframes htbf-hero3d-particle-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: var(--htbf-particle-opacity, 0.5);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+    opacity: calc(var(--htbf-particle-opacity, 0.5) * 1.35);
+  }
+}
+
+@keyframes htbf-hero3d-card-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -5px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .htbf-hero3d-ambient,
+  .htbf-hero3d-particle-float,
+  .htbf-hero3d-card-float,
+  .htbf-hero3d-card-float-delayed {
+    animation: none !important;
+  }
+}
+
+.htbf-hero3d-glass {
+  position: relative;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.42) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 24px 48px -12px rgba(4, 20, 40, 0.28),
+    0 8px 20px -8px rgba(11, 99, 206, 0.12);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+}
+
+.htbf-hero3d-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    transparent 42%
+  );
+  pointer-events: none;
+}
