@@ -247,36 +247,52 @@ export default function HomePage() {
                   </div>
 
                   <div
-                    className={`htbf-thumb mb-5 flex h-48 items-center justify-center ${
+                    className={`htbf-thumb relative mb-6 h-48 ${
                       story.variant === "video" ? "" : "is-warm"
                     }`}
                   >
-                    {story.variant === "video" ? (
-                      <span className="htbf-play h-16 w-16">
-                        <Play className="h-6 w-6 fill-[#0b63ce] text-[#0b63ce]" />
-                      </span>
-                    ) : (
-                      <span className="htbf-media-glyph h-16 w-16">
-                        {story.type === "Testimony" ? (
-                          <Quote className="h-6 w-6" />
-                        ) : (
-                          <Sparkles className="h-6 w-6" />
-                        )}
-                      </span>
-                    )}
+                    <span className="htbf-scene-sun" aria-hidden />
+                    <span className="htbf-scene-horizon" aria-hidden />
 
-                    <span className="absolute bottom-3 left-3 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-heading font-bold text-[#082f63] shadow-sm backdrop-blur-sm">
+                    {story.type === "Testimony" ? (
+                      <Quote className="htbf-scene-watermark h-16 w-16 text-[#082f63]" aria-hidden />
+                    ) : null}
+                    {story.type === "Praise Report" ? (
+                      <Sparkles className="htbf-scene-watermark h-16 w-16 text-amber-500" aria-hidden />
+                    ) : null}
+
+                    <div className="absolute inset-0 z-[3] flex items-center justify-center">
+                      {story.variant === "video" ? (
+                        <span className="htbf-play h-16 w-16">
+                          <Play className="h-6 w-6 fill-[#0b63ce] text-[#0b63ce]" />
+                        </span>
+                      ) : (
+                        <span className="htbf-media-glyph h-16 w-16">
+                          {story.type === "Testimony" ? (
+                            <Quote className="h-6 w-6" />
+                          ) : (
+                            <Sparkles className="h-6 w-6" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+
+                    {story.variant === "video" ? (
+                      <span className="htbf-scene-scrubber" aria-hidden>
+                        <span />
+                      </span>
+                    ) : null}
+
+                    <span className="absolute bottom-3 left-3 z-[3] rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-heading font-bold text-[#082f63] shadow-sm backdrop-blur-sm">
                       {story.meta}
                     </span>
                   </div>
 
-                  <h3 className="font-heading text-xl font-black leading-snug tracking-tight text-slate-900">
+                  <h3 className="font-heading text-2xl font-black leading-snug tracking-tight text-slate-900">
                     {story.title}
                   </h3>
 
-                  <div className="htbf-divider mt-5" />
-
-                  <div className="mt-4 flex items-center gap-3">
+                  <div className="mt-5 flex items-center gap-3">
                     <span className="htbf-avatar h-9 w-9 text-sm">
                       {story.location.charAt(0)}
                     </span>
@@ -285,7 +301,9 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="mt-auto pt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                  <div className="htbf-divider mt-6" />
+
+                  <div className="mt-auto pt-6 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
                     <span className="rounded-full bg-slate-100/90 px-3 py-1.5">
                       Amen
                     </span>
@@ -338,14 +356,18 @@ export default function HomePage() {
                     ["Peace", "I woke up today with a calm heart."],
                   ].map(([title, body], i) => (
                     <Reveal key={title} delay={i * 80}>
-                      <div className="htbf-glass-dark h-full p-5">
-                        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 text-[#0b63ce] shadow-sm ring-1 ring-white/60">
-                          <Sparkles className="h-5 w-5" />
+                      <div className="htbf-glass-dark h-full p-6">
+                        <div className="relative z-[1]">
+                          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 text-[#0b63ce] shadow-sm ring-1 ring-white/60">
+                            <Sparkles className="h-5 w-5" />
+                          </div>
+                          <div className="font-heading text-lg font-black">
+                            {title}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-blue-100/90">
+                            {body}
+                          </p>
                         </div>
-                        <div className="font-heading font-black">{title}</div>
-                        <p className="mt-2 text-sm leading-6 text-blue-100/90">
-                          {body}
-                        </p>
                       </div>
                     </Reveal>
                   ))}
@@ -447,24 +469,26 @@ export default function HomePage() {
                 </div>
 
                 <div className="htbf-glass-panel p-6">
-                  <div className="mb-4 flex items-center gap-3">
-                    <LogoMark />
+                  <div className="relative z-[1]">
+                    <div className="mb-4 flex items-center gap-3">
+                      <LogoMark />
 
-                    <div>
-                      <div className="font-heading font-black text-[#062a57]">
-                        HTBF
-                      </div>
-                      <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                        HYPER TO BE FREE
+                      <div>
+                        <div className="font-heading font-black text-[#062a57]">
+                          HTBF
+                        </div>
+                        <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                          HYPER TO BE FREE
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <p className="leading-7 text-slate-600">
-                    Inspired by a dream of a place filled with people from all
-                    over the world sharing the good things God has done in their
-                    lives.
-                  </p>
+                    <p className="leading-7 text-slate-600">
+                      Inspired by a dream of a place filled with people from all
+                      over the world sharing the good things God has done in their
+                      lives.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
