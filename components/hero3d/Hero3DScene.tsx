@@ -51,6 +51,7 @@ export default function Hero3DScene({
       <section
         ref={setRootRef}
         className={cn(
+          "htbf-hero3d-scene",
           "relative isolate overflow-hidden rounded-[2.5rem] bg-[#030b18]",
           "shadow-[0_32px_64px_-24px_rgba(4,20,40,0.45),0_0_0_1px_rgba(255,255,255,0.06)_inset]",
           "touch-none select-none",
@@ -59,13 +60,29 @@ export default function Hero3DScene({
         aria-label={ariaLabel}
         role="img"
       >
-        <div className="relative aspect-[4/5] w-full sm:aspect-[5/6] md:aspect-[4/5] lg:aspect-[16/11]">
+        <div
+          className={cn(
+            "relative aspect-[4/5] w-full sm:aspect-[5/6] md:aspect-[4/5] lg:aspect-[5/6]",
+            !reducedMotion && "htbf-hero3d-entrance"
+          )}
+        >
           <Hero3DLayerStack
             registerLayer={registerLayer}
             showFloatingCards={showFloatingCards}
             reducedMotion={reducedMotion}
             lowPowerMode={lowPowerMode}
           />
+
+          {/* Static V4 cinematic grade — no parallax */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-[19]"
+          >
+            <div className="absolute inset-0 htbf-hero3d-grade-bloom-v4" />
+            <div className="absolute inset-0 htbf-hero3d-grade-filmic" />
+            <div className="absolute inset-0 htbf-hero3d-grade-vignette-v4" />
+            <div className="absolute inset-0 htbf-hero3d-grade-teal-v4 mix-blend-multiply opacity-40" />
+          </div>
 
           {children ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[20] bg-gradient-to-t from-[#041428]/80 via-[#041428]/25 to-transparent px-5 pb-6 pt-16 sm:px-8 sm:pb-8">

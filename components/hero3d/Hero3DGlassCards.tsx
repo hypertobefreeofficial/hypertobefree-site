@@ -37,8 +37,16 @@ export function Hero3DVideoCard({
         className
       )}
     >
-      <div className="htbf-hero3d-glass relative overflow-hidden rounded-3xl p-4 sm:p-[1.125rem]">
-        <div className="relative z-[1] flex items-center gap-3">
+      <div
+        className={cn(
+          "htbf-hero3d-glass relative overflow-hidden rounded-[1.25rem] p-4 sm:p-[1.125rem]",
+          !reducedMotion && "htbf-hero3d-enter-card"
+        )}
+      >
+        {!reducedMotion ? (
+          <span className="htbf-hero3d-glass-sheen" aria-hidden />
+        ) : null}
+        <div className="htbf-hero3d-glass-inner flex items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/75 shadow-sm ring-1 ring-white/60">
             <Play className="h-5 w-5 fill-[#0b63ce] text-[#0b63ce]" aria-hidden />
           </div>
@@ -52,11 +60,11 @@ export function Hero3DVideoCard({
           </div>
         </div>
 
-        <p className="relative z-[1] mt-3.5 text-sm leading-6 text-slate-700">
+        <p className="htbf-hero3d-glass-inner mt-3.5 text-sm leading-6 text-slate-700">
           “I woke up with peace after weeks of anxiety.”
         </p>
 
-        <div className="relative z-[1] mt-3.5 flex flex-wrap gap-1.5">
+        <div className="htbf-hero3d-glass-inner mt-3.5 flex flex-wrap gap-1.5">
           {["Amen", "Praying", "Encouraged"].map((label) => (
             <span
               key={label}
@@ -87,15 +95,23 @@ export function Hero3DWorldCard({
         className
       )}
     >
-      <div className="htbf-hero3d-glass relative overflow-hidden rounded-3xl p-4 sm:p-[1.125rem]">
-        <div className="relative z-[1] mb-3 flex items-center justify-between gap-2">
+      <div
+        className={cn(
+          "htbf-hero3d-glass relative overflow-hidden rounded-[1.25rem] p-4 sm:p-[1.125rem]",
+          !reducedMotion && "htbf-hero3d-enter-card-delayed"
+        )}
+      >
+        {!reducedMotion ? (
+          <span className="htbf-hero3d-glass-sheen" aria-hidden />
+        ) : null}
+        <div className="htbf-hero3d-glass-inner mb-3 flex items-center justify-between gap-2">
           <p className="text-sm font-heading font-black text-slate-900">
             From Around the World
           </p>
           <Globe2 className="h-4 w-4 shrink-0 text-[#0b63ce]" aria-hidden />
         </div>
 
-        <div className="relative z-[1] space-y-1.5 text-sm text-slate-700">
+        <div className="htbf-hero3d-glass-inner space-y-1.5 text-sm text-slate-700">
           {[
             ["USA", "Praise Report"],
             ["Nigeria", "Testimony"],

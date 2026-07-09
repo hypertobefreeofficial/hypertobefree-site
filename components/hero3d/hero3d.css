@@ -1,10 +1,61 @@
 /**
- * Hero3D ambient motion — CSS only, GPU-friendly (opacity/transform on children).
- * Parallax layers keep transform for the engine; inner elements animate separately.
+ * Hero3D V4 — cinematic polish (GPU transforms/opacity only on animated elements).
+ *
+ * ── One world, one light ──
+ * The whole scene reads from a single sun. Every warm highlight, ray, reflection,
+ * rim, and haze below is positioned and coloured from these variables, so the light
+ * that touches the girl is literally the same light that touches the clouds, the
+ * river, the mountains, and the glass. Move the sun here → the entire environment
+ * re-lights together. Do not hardcode a competing sun position or warm colour.
  */
+.htbf-hero3d-scene {
+  /* Where the sun sits in the frame — the origin of all light in this world. */
+  --htbf-sun-x: 52%;
+  --htbf-sun-y: 38%;
+
+  /* The sun's colour, from its blazing core out to its warm falloff. */
+  --htbf-sun-core: 255, 240, 210;
+  --htbf-sun-warm: 255, 220, 158;
+  --htbf-sun-deep: 255, 196, 120;
+
+  /* Atmosphere the light travels through — one haze colour for the whole depth field. */
+  --htbf-atmos: 255, 238, 214;
+  --htbf-atmos-cool: 206, 222, 236;
+
+  /* Deep royal blue of the upper sky and aerial perspective — the cool counterpart
+     to the warm sun. Used for atmospheric scattering and the film grade shadows. */
+  --htbf-royal: 22, 54, 110;
+
+  /* The single shadow/ambient colour that grounds everything away from the sun. */
+  --htbf-shadow: 8, 20, 36;
+
+  /* ── Cinematic scale ──
+     The world is pushed in so it reads as a large environment rather than a
+     small picture. The environment scales as one from its centre; the subject
+     scales a touch less from a high origin so she grows downward into the grass
+     and keeps her head well inside the frame. Tune these two values to dial the
+     whole composition in or out — everything scales together. */
+  --htbf-env-scale: 1.34;
+  --htbf-subject-scale: 1.3;
+}
+
+/* Environment push-in. Applied to layer *content* (never the parallax node), so
+   translate3d parallax and this scale compose instead of overwriting. */
+.htbf-hero3d-env-zoom {
+  transform: scale(var(--htbf-env-scale, 1.34));
+  transform-origin: 50% 50%;
+}
+
+/* The girl grows from a high origin: her head barely moves while her feet run
+   off the bottom edge, where the foreground grasses hide them — bigger subject,
+   full head, generous top padding, no awkward crop. */
+.htbf-hero3d-subject-zoom {
+  transform: scale(var(--htbf-subject-scale, 1.3));
+  transform-origin: 50% 30%;
+}
 
 .htbf-hero3d-ambient {
-  animation-duration: var(--htbf-hero-ambient-duration, 52s);
+  animation-duration: var(--htbf-hero-ambient-duration, 72s);
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
@@ -15,42 +66,75 @@
 
 .htbf-hero3d-cloud-drift-b {
   animation-name: htbf-hero3d-cloud-drift-b;
-  animation-duration: 64s;
+  animation-duration: 88s;
+}
+
+.htbf-hero3d-cloud-drift-c {
+  animation-name: htbf-hero3d-cloud-drift-c;
+  animation-duration: 96s;
 }
 
 .htbf-hero3d-sun-breathe {
   animation-name: htbf-hero3d-sun-breathe;
-  animation-duration: 9s;
+  animation-duration: 12s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.htbf-hero3d-sun-breathe-outer {
+  animation-name: htbf-hero3d-sun-breathe-outer;
+  animation-duration: 12s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* V4 — large glow pulse (scale up, not brighten) */
+.htbf-hero3d-glow-pulse {
+  animation-name: htbf-hero3d-glow-pulse;
+  animation-duration: 14s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
 .htbf-hero3d-ray-shift {
   animation-name: htbf-hero3d-ray-shift;
-  animation-duration: 14s;
+  animation-duration: 18s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
 .htbf-hero3d-haze-drift {
   animation-name: htbf-hero3d-haze-drift;
-  animation-duration: 22s;
+  animation-duration: 26s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.htbf-hero3d-flora-sway {
+  animation-name: htbf-hero3d-flora-sway;
+  animation-duration: 14s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
 .htbf-hero3d-particle-float {
   animation-name: htbf-hero3d-particle-float;
-  animation-duration: var(--htbf-particle-duration, 18s);
+  animation-duration: var(--htbf-particle-duration, 20s);
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
 
 .htbf-hero3d-card-float {
   animation-name: htbf-hero3d-card-float;
-  animation-duration: 7s;
+  animation-duration: 9s;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
 
 .htbf-hero3d-card-float-delayed {
   animation-name: htbf-hero3d-card-float;
-  animation-duration: 8.5s;
-  animation-delay: -2s;
+  animation-duration: 10.5s;
+  animation-delay: -2.5s;
 }
 
 @keyframes htbf-hero3d-cloud-drift-a {
@@ -59,7 +143,7 @@
     transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(18px, -6px, 0);
+    transform: translate3d(14px, -4px, 0);
   }
 }
 
@@ -69,39 +153,83 @@
     transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(-14px, 4px, 0);
+    transform: translate3d(-12px, 3px, 0);
+  }
+}
+
+@keyframes htbf-hero3d-cloud-drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(8px, 2px, 0);
   }
 }
 
 @keyframes htbf-hero3d-sun-breathe {
   0%,
   100% {
-    opacity: 0.88;
+    opacity: 0.82;
     transform: scale3d(1, 1, 1);
   }
   50% {
     opacity: 1;
-    transform: scale3d(1.04, 1.04, 1);
+    transform: scale3d(1.035, 1.035, 1);
+  }
+}
+
+@keyframes htbf-hero3d-sun-breathe-outer {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    opacity: 0.52;
+    transform: scale3d(1.1, 1.1, 1);
+  }
+}
+
+@keyframes htbf-hero3d-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    opacity: 0.82;
+    transform: scale3d(1.08, 1.08, 1);
   }
 }
 
 @keyframes htbf-hero3d-ray-shift {
   0%,
   100% {
-    opacity: 0.42;
+    opacity: 0.32;
   }
   50% {
-    opacity: 0.58;
+    opacity: 0.48;
   }
 }
 
 @keyframes htbf-hero3d-haze-drift {
   0%,
   100% {
-    opacity: 0.55;
+    opacity: 0.48;
   }
   50% {
-    opacity: 0.72;
+    opacity: 0.62;
+  }
+}
+
+@keyframes htbf-hero3d-flora-sway {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(2px, -3px, 0) rotate(0.4deg);
   }
 }
 
@@ -109,11 +237,11 @@
   0%,
   100% {
     transform: translate3d(0, 0, 0);
-    opacity: var(--htbf-particle-opacity, 0.5);
+    opacity: var(--htbf-particle-opacity, 0.4);
   }
   50% {
-    transform: translate3d(0, -12px, 0);
-    opacity: calc(var(--htbf-particle-opacity, 0.5) * 1.35);
+    transform: translate3d(0, -10px, 0);
+    opacity: calc(var(--htbf-particle-opacity, 0.4) * 1.25);
   }
 }
 
@@ -123,7 +251,66 @@
     transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(0, -5px, 0);
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+.htbf-hero3d-entrance .htbf-hero3d-enter-sun {
+  animation: htbf-hero3d-enter-sun 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+.htbf-hero3d-entrance .htbf-hero3d-enter-clouds {
+  animation: htbf-hero3d-enter-fade 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+  opacity: 0;
+}
+
+.htbf-hero3d-entrance .htbf-hero3d-enter-subject {
+  animation: htbf-hero3d-enter-subject 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+  opacity: 0;
+}
+
+.htbf-hero3d-entrance .htbf-hero3d-enter-card {
+  animation: htbf-hero3d-enter-fade 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
+  opacity: 0;
+}
+
+.htbf-hero3d-entrance .htbf-hero3d-enter-card-delayed {
+  animation: htbf-hero3d-enter-fade 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.45s forwards;
+  opacity: 0;
+}
+
+.htbf-hero3d-entrance .htbf-hero3d-enter-particles {
+  animation: htbf-hero3d-enter-fade 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.55s forwards;
+  opacity: 0;
+}
+
+@keyframes htbf-hero3d-enter-sun {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes htbf-hero3d-enter-subject {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes htbf-hero3d-enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -131,25 +318,60 @@
   .htbf-hero3d-ambient,
   .htbf-hero3d-particle-float,
   .htbf-hero3d-card-float,
-  .htbf-hero3d-card-float-delayed {
+  .htbf-hero3d-card-float-delayed,
+  .htbf-hero3d-flora-sway,
+  .htbf-hero3d-sun-breathe,
+  .htbf-hero3d-sun-breathe-outer,
+  .htbf-hero3d-glow-pulse,
+  .htbf-hero3d-ray-shift,
+  .htbf-hero3d-haze-drift,
+  .htbf-hero3d-fog-drift,
+  .htbf-hero3d-bokeh-drift,
+  .htbf-hero3d-rim-shimmer,
+  .htbf-hero3d-glass-sheen::after {
     animation: none !important;
+  }
+
+  .htbf-hero3d-entrance .htbf-hero3d-enter-sun,
+  .htbf-hero3d-entrance .htbf-hero3d-enter-clouds,
+  .htbf-hero3d-entrance .htbf-hero3d-enter-subject,
+  .htbf-hero3d-entrance .htbf-hero3d-enter-card,
+  .htbf-hero3d-entrance .htbf-hero3d-enter-card-delayed,
+  .htbf-hero3d-entrance .htbf-hero3d-enter-particles {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
 .htbf-hero3d-glass {
   position: relative;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.72) 0%,
-    rgba(255, 255, 255, 0.42) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  isolation: isolate;
+  border-radius: 1.25rem;
+  /* Glass in this world: bright specular at the top-left, warming toward the sun's
+     atmosphere at its base so it reflects the golden environment rather than a cool
+     studio. */
+  background:
+    linear-gradient(
+      152deg,
+      rgba(255, 255, 255, 0.54) 0%,
+      rgba(255, 250, 240, 0.22) 38%,
+      rgba(255, 255, 255, 0.14) 72%,
+      rgba(var(--htbf-atmos), 0.22) 100%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  /* The grounding shadow uses the scene's single shadow colour, so the card casts
+     into the same darkness as everything else — floating within the world. */
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.65) inset,
-    0 24px 48px -12px rgba(4, 20, 40, 0.28),
-    0 8px 20px -8px rgba(11, 99, 206, 0.12);
-  backdrop-filter: blur(20px) saturate(1.35);
-  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+    0 1.5px 0 rgba(255, 255, 255, 0.82) inset,
+    0 0 0 0.5px rgba(255, 255, 255, 0.4) inset,
+    0 -1px 0 rgba(var(--htbf-shadow), 0.06) inset,
+    0 0 32px -2px rgba(255, 255, 255, 0.16) inset,
+    0 28px 56px -20px rgba(var(--htbf-shadow), 0.34),
+    0 12px 26px -14px rgba(var(--htbf-shadow), 0.16),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(40px) saturate(1.8) brightness(1.05);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8) brightness(1.05);
 }
 
 .htbf-hero3d-glass::before {
@@ -157,10 +379,506 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  background:
+    /* Crisp internal specular streak running across the glass. */
+    linear-gradient(
+      168deg,
+      rgba(255, 255, 255, 0.64) 0%,
+      rgba(255, 255, 255, 0.14) 28%,
+      transparent 48%
+    ),
+    /* Top-left key highlight. */
+    radial-gradient(
+      ellipse 120% 60% at 20% 0%,
+      rgba(255, 255, 255, 0.3) 0%,
+      transparent 55%
+    ),
+    /* Warm sky reflected across the top — the environment above the glass. */
+    radial-gradient(
+      ellipse 140% 60% at var(--htbf-sun-x) -18%,
+      rgba(var(--htbf-sun-core), 0.34) 0%,
+      rgba(var(--htbf-sun-warm), 0.12) 32%,
+      transparent 56%
+    ),
+    /* The sunlit valley + grass reflected up onto the lower glass. */
+    radial-gradient(
+      ellipse 120% 46% at 50% 118%,
+      rgba(var(--htbf-atmos), 0.16) 0%,
+      rgba(var(--htbf-sun-deep), 0.05) 40%,
+      transparent 72%
+    ),
+    /* Cool sky reflected on the shadow side, away from the sun. */
+    radial-gradient(
+      ellipse 90% 70% at 100% 100%,
+      rgba(var(--htbf-atmos-cool), 0.14) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      225deg,
+      transparent 58%,
+      rgba(var(--htbf-atmos-cool), 0.1) 100%
+    );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.htbf-hero3d-glass::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(1.25rem - 1px);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  /* Edge refraction: the sun-facing top edge picks up a warm, brighter refractive
+     line; the sides carry a faint cool sky refraction; the base sinks into shadow.
+     This is what makes the rim read as a real bevel of glass catching the light. */
+  box-shadow:
+    inset 0 1.5px 0 rgba(var(--htbf-sun-core), 0.6),
+    inset 0 2.5px 1px rgba(var(--htbf-sun-warm), 0.18),
+    inset 1px 0 0 rgba(255, 255, 255, 0.24),
+    inset -1px 0 0 rgba(var(--htbf-atmos-cool), 0.14),
+    inset 0 -1px 0 rgba(var(--htbf-shadow), 0.06);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* A slow specular sweep — sunlight glancing across the glass as the world breathes.
+   Transform-only (skewed bar translated behind the card's overflow clip), so it is
+   GPU-cheap. Idle most of the cycle, a brief luxurious glint. */
+.htbf-hero3d-glass-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.htbf-hero3d-glass-sheen::after {
+  content: "";
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: 0;
+  width: 36%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 42%,
+    rgba(255, 255, 255, 0.24) 50%,
+    rgba(255, 255, 255, 0.1) 58%,
+    transparent 100%
+  );
+  mix-blend-mode: screen;
+  transform: translate3d(-160%, 0, 0) skewX(-14deg);
+  animation: htbf-hero3d-glass-sheen 13s ease-in-out infinite;
+}
+
+@keyframes htbf-hero3d-glass-sheen {
+  0%,
+  10% {
+    transform: translate3d(-160%, 0, 0) skewX(-14deg);
+    opacity: 0;
+  }
+  16% {
+    opacity: 0.9;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  38%,
+  100% {
+    transform: translate3d(430%, 0, 0) skewX(-14deg);
+    opacity: 0;
+  }
+}
+
+/* Blend modes per background layer above: the specular streak and the warm sky +
+   valley reflections screen in as light; the plain highlights and cool tints
+   composite normally. */
+.htbf-hero3d-glass::before {
+  background-blend-mode: screen, normal, screen, screen, normal, normal;
+}
+
+.htbf-hero3d-glass-inner {
+  position: relative;
+  z-index: 2;
+}
+
+.htbf-hero3d-grade-teal-shadow {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.35) 0%,
-    transparent 42%
+    transparent 0%,
+    rgba(var(--htbf-shadow), 0.12) 45%,
+    rgba(var(--htbf-shadow), 0.22) 100%
   );
-  pointer-events: none;
+}
+
+/* ── V4 cinematic grade helpers ── */
+
+.htbf-hero3d-grade-sky-v4 {
+  /* Atmospheric scattering: deep royal blue high in the sky rolling smoothly down
+     to warm haze at the horizon — the Rayleigh-to-Mie transition of a real sunrise. */
+  background: linear-gradient(
+    180deg,
+    rgba(var(--htbf-royal), 0.34) 0%,
+    rgba(var(--htbf-royal), 0.16) 20%,
+    rgba(var(--htbf-royal), 0.05) 34%,
+    transparent 48%,
+    rgba(var(--htbf-atmos), 0.05) 76%,
+    rgba(var(--htbf-atmos), 0.1) 100%
+  );
+  mix-blend-mode: multiply;
+}
+
+.htbf-hero3d-backlight-bloom {
+  /* Two-stage bloom: a broad warm atmospheric halo washing the whole upper scene,
+     over a tighter core glow. Alphas stay below clipping so highlights roll off
+     softly instead of blowing out. */
+  background:
+    radial-gradient(
+      ellipse 124% 94% at var(--htbf-sun-x) var(--htbf-sun-y),
+      rgba(var(--htbf-sun-warm), 0.32) 0%,
+      rgba(var(--htbf-sun-deep), 0.15) 30%,
+      rgba(var(--htbf-sun-deep), 0.06) 52%,
+      transparent 74%
+    ),
+    radial-gradient(
+      ellipse 52% 44% at var(--htbf-sun-x) var(--htbf-sun-y),
+      rgba(var(--htbf-sun-core), 0.44) 0%,
+      rgba(var(--htbf-sun-warm), 0.18) 42%,
+      transparent 72%
+    );
+  transform-origin: var(--htbf-sun-x) var(--htbf-sun-y);
+}
+
+/* The sun's diffused disc — a soft glowing core with clean falloff, screened over
+   the sky so it reads as real light diffusion rather than a hard sprite. Breathes. */
+.htbf-hero3d-sun-disc {
+  background: radial-gradient(
+    ellipse 16% 14% at var(--htbf-sun-x) var(--htbf-sun-y),
+    rgba(255, 252, 245, 0.72) 0%,
+    rgba(var(--htbf-sun-core), 0.34) 38%,
+    rgba(var(--htbf-sun-warm), 0.1) 64%,
+    transparent 82%
+  );
+  mix-blend-mode: screen;
+  transform-origin: var(--htbf-sun-x) var(--htbf-sun-y);
+}
+
+.htbf-hero3d-clouds-v4 {
+  filter: saturate(0.88) contrast(1.03);
+}
+
+/* The sun catching the clouds — warm on the side facing the sun, falling off with
+   distance. Screen-blended and masked to the cloud shape so only the clouds light
+   up, exactly as the same sun lights the girl below. */
+.htbf-hero3d-cloud-light {
+  background: radial-gradient(
+    ellipse 92% 80% at var(--htbf-sun-x) var(--htbf-sun-y),
+    rgba(var(--htbf-sun-core), 0.9) 0%,
+    rgba(var(--htbf-sun-warm), 0.42) 30%,
+    rgba(var(--htbf-sun-warm), 0.12) 52%,
+    transparent 66%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.62;
+  -webkit-mask-size: cover;
+  mask-size: cover;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* The shaded undersides of those same clouds — the shadow the one light implies.
+   Cooler and settling downward, masked to the cloud shape so the sky stays clear. */
+.htbf-hero3d-cloud-shade {
+  background: linear-gradient(
+    180deg,
+    transparent 40%,
+    rgba(var(--htbf-shadow), 0.24) 100%
+  );
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+  -webkit-mask-size: cover;
+  mask-size: cover;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* Volumetric god rays radiating from the sun — finer, softer wedges of varied
+   width plus a broad diffusion glow, so the light feels like it is travelling
+   through atmosphere. Masked to fade out before the frame edge. */
+.htbf-hero3d-sunbeams {
+  background:
+    conic-gradient(
+      from 196deg at var(--htbf-sun-x) var(--htbf-sun-y),
+      transparent 0deg,
+      rgba(var(--htbf-sun-core), 0.11) 6deg,
+      transparent 15deg,
+      rgba(var(--htbf-sun-warm), 0.06) 24deg,
+      transparent 33deg,
+      rgba(var(--htbf-sun-core), 0.1) 44deg,
+      transparent 52deg,
+      rgba(var(--htbf-sun-warm), 0.07) 63deg,
+      transparent 72deg,
+      rgba(var(--htbf-sun-core), 0.1) 84deg,
+      transparent 93deg,
+      rgba(var(--htbf-sun-warm), 0.06) 104deg,
+      transparent 114deg,
+      rgba(var(--htbf-sun-core), 0.08) 126deg,
+      transparent 140deg
+    ),
+    radial-gradient(
+      ellipse 66% 58% at var(--htbf-sun-x) var(--htbf-sun-y),
+      rgba(var(--htbf-sun-core), 0.09) 0%,
+      transparent 72%
+    );
+  mask-image: radial-gradient(
+    ellipse 100% 92% at var(--htbf-sun-x) var(--htbf-sun-y),
+    black 0%,
+    rgba(0, 0, 0, 0.4) 54%,
+    transparent 82%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 100% 92% at var(--htbf-sun-x) var(--htbf-sun-y),
+    black 0%,
+    rgba(0, 0, 0, 0.4) 54%,
+    transparent 82%
+  );
+  opacity: 0.5;
+}
+
+/* Soft indirect bounce light filling the valley floor — the warm light that has
+   scattered off the ground and hangs in the air below the sun. */
+.htbf-hero3d-soft-haze-v4 {
+  background:
+    radial-gradient(
+      ellipse 70% 40% at var(--htbf-sun-x) 70%,
+      rgba(var(--htbf-atmos), 0.1) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 120% 30% at 50% 88%,
+      rgba(var(--htbf-sun-deep), 0.05) 0%,
+      transparent 70%
+    );
+  mix-blend-mode: screen;
+}
+
+/* River reflection — the sun mirrored on the water, so it sits directly below
+   the same sun that lights the sky. Streaks toward the viewer down the sun axis. */
+.htbf-hero3d-river-sheen {
+  background:
+    radial-gradient(
+      ellipse 32% 9% at var(--htbf-sun-x) 62%,
+      rgba(var(--htbf-sun-core), 0.34) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 20% 6% at var(--htbf-sun-x) 55%,
+      rgba(var(--htbf-sun-warm), 0.24) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 12% 4% at var(--htbf-sun-x) 49%,
+      rgba(var(--htbf-sun-core), 0.16) 0%,
+      transparent 74%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 47%,
+      rgba(var(--htbf-atmos), 0.07) 62%,
+      transparent 78%
+    );
+  mix-blend-mode: screen;
+  opacity: 0.82;
+}
+
+/* Atmospheric haze softening distant mountains — same atmosphere as the valley,
+   cool where the sky light grazes it, warm as it settles toward the sunlit floor. */
+.htbf-hero3d-mountain-haze {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(var(--htbf-atmos-cool), 0.06) 45%,
+    rgba(var(--htbf-atmos), 0.12) 72%,
+    rgba(var(--htbf-atmos), 0.16) 100%
+  );
+}
+
+/* Aerial perspective — a soft band of luminous air hanging across the mid-distance
+   where the mountains meet the valley. Extremely subtle, drifts slowly sideways so
+   the air feels alive. Screen-blended so it only ever adds light, never grime. */
+.htbf-hero3d-aerial-fog {
+  background:
+    linear-gradient(
+      180deg,
+      transparent 38%,
+      rgba(var(--htbf-atmos), 0.05) 58%,
+      rgba(var(--htbf-atmos), 0.08) 70%,
+      transparent 90%
+    ),
+    radial-gradient(
+      ellipse 90% 26% at 46% 64%,
+      rgba(var(--htbf-atmos), 0.06) 0%,
+      transparent 72%
+    );
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
+.htbf-hero3d-fog-drift {
+  animation-name: htbf-hero3d-fog-drift;
+  animation-duration: 34s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes htbf-hero3d-fog-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translate3d(2.4%, -0.5%, 0);
+    opacity: 0.92;
+  }
+}
+
+/* Near out-of-focus bokeh — the very front of the depth field. A few large, soft
+   warm orbs catching the light, so the viewer feels they are looking *through* the
+   scene. Kept faint; the pre-rendered blur is static (cheap), only transforms move. */
+.htbf-hero3d-bokeh {
+  border-radius: 9999px;
+  mix-blend-mode: screen;
+}
+
+.htbf-hero3d-bokeh-drift {
+  animation-name: htbf-hero3d-bokeh-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes htbf-hero3d-bokeh-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-6px, -5px, 0);
+  }
+}
+
+/* Rim light on the subject — the sun catching her edge, keyed to the same sun
+   colour and direction so she is lit by the world, not spotlit on top of it.
+   A cleaner hot rim near the sun side plus a soft warm fill on her front. */
+.htbf-hero3d-rim-boost {
+  background:
+    radial-gradient(ellipse at var(--htbf-sun-x) 26%, rgba(var(--htbf-sun-core), 0.22) 0%, rgba(var(--htbf-sun-deep), 0.1) 32%, transparent 54%),
+    radial-gradient(ellipse at 46% 50%, rgba(var(--htbf-sun-warm), 0.1) 0%, transparent 46%),
+    linear-gradient(180deg, transparent 0%, rgba(var(--htbf-sun-deep), 0.05) 100%);
+  opacity: 0.85;
+}
+
+/* Backlight wrapping the silhouette — the sun sits behind her, so light bleeds
+   around her edges. Sits *behind* the girl and screens through wherever she does
+   not cover, giving that halo of contre-jour light that reads as photographic. */
+.htbf-hero3d-subject-backlight {
+  background: radial-gradient(
+    ellipse 34% 42% at 50% 38%,
+    rgba(var(--htbf-sun-core), 0.42) 0%,
+    rgba(var(--htbf-sun-warm), 0.16) 42%,
+    rgba(var(--htbf-sun-deep), 0.05) 62%,
+    transparent 76%
+  );
+  mix-blend-mode: screen;
+}
+
+/* Barely-there shimmer of the light playing on her rim — luxury, not motion. */
+.htbf-hero3d-rim-shimmer {
+  animation-name: htbf-hero3d-rim-shimmer;
+  animation-duration: 9s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes htbf-hero3d-rim-shimmer {
+  0%,
+  100% {
+    opacity: 0.78;
+  }
+  50% {
+    opacity: 0.92;
+  }
+}
+
+.htbf-hero3d-grade-bloom-v4 {
+  background: radial-gradient(
+    ellipse at var(--htbf-sun-x) var(--htbf-sun-y),
+    rgba(var(--htbf-sun-core), 0.1) 0%,
+    transparent 58%
+  );
+  mix-blend-mode: soft-light;
+}
+
+/* Vignette darkens away from the sun, so the eye falls off toward the same
+   ambient shadow that grounds the rest of the world. A whisper of royal blue in
+   the falloff keeps the shadows rich rather than muddy black — cinematic, not HDR. */
+.htbf-hero3d-grade-vignette-v4 {
+  background: radial-gradient(
+    ellipse at var(--htbf-sun-x) 44%,
+    transparent 30%,
+    rgba(var(--htbf-royal), 0.1) 74%,
+    rgba(var(--htbf-shadow), 0.42) 100%
+  );
+}
+
+/* Film grade — gentle S-curve contrast with soft highlight rolloff. Lifts the
+   sunlit centre a touch, deepens the corners into royal shadow, and never lets
+   the highlights clip. Soft-light keeps it filmic instead of HDR-processed. */
+.htbf-hero3d-grade-filmic {
+  background:
+    radial-gradient(
+      ellipse 90% 80% at var(--htbf-sun-x) var(--htbf-sun-y),
+      rgba(255, 250, 240, 0.06) 0%,
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(var(--htbf-royal), 0.06) 0%,
+      transparent 26%,
+      transparent 72%,
+      rgba(var(--htbf-shadow), 0.07) 100%
+    );
+  mix-blend-mode: soft-light;
+}
+
+.htbf-hero3d-grade-teal-v4 {
+  background: linear-gradient(
+    180deg,
+    rgba(var(--htbf-shadow), 0.1) 0%,
+    transparent 40%,
+    rgba(var(--htbf-shadow), 0.16) 100%
+  );
+}
+
+.htbf-hero3d-grade-vignette {
+  background: radial-gradient(
+    ellipse at var(--htbf-sun-x) 45%,
+    transparent 35%,
+    rgba(var(--htbf-shadow), 0.42) 100%
+  );
+}
+
+.htbf-hero3d-grade-bloom {
+  background: radial-gradient(
+    circle at var(--htbf-sun-x) var(--htbf-sun-y),
+    rgba(var(--htbf-sun-core), 0.14) 0%,
+    transparent 52%
+  );
+  mix-blend-mode: soft-light;
 }
