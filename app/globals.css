@@ -167,3 +167,390 @@ body {
 .htbf-loader-exit {
   animation: htbf-loader-fade-out 650ms ease-in forwards;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HTBF Premium Homepage Design System
+   One language shared by every section below the hero, keyed to the same
+   royal-blue / warm-gold palette and easing as the cinematic hero. Consistent
+   radii, borders, shadows, glass, and motion — nothing ad-hoc per section.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --htbf-ds-royal: 22, 54, 110;
+  --htbf-ds-blue: 11, 99, 206;
+  --htbf-ds-navy: 8, 32, 74;
+  --htbf-ds-gold: 212, 175, 55;
+  --htbf-ds-warm: 255, 221, 160;
+  --htbf-ds-radius-card: 1.75rem;
+  --htbf-ds-radius-panel: 2.5rem;
+  --htbf-ds-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Scroll reveal — fade + gentle rise, staggered via inline delay ── */
+.htbf-reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition:
+    opacity 0.7s var(--htbf-ds-ease),
+    transform 0.7s var(--htbf-ds-ease);
+  will-change: opacity, transform;
+}
+
+.htbf-reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Premium light card — the base surface for content across the page ── */
+.htbf-card {
+  position: relative;
+  border-radius: var(--htbf-ds-radius-card);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1px solid rgba(var(--htbf-ds-blue), 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(var(--htbf-ds-navy), 0.04),
+    0 18px 40px -24px rgba(var(--htbf-ds-navy), 0.2),
+    0 6px 16px -10px rgba(var(--htbf-ds-navy), 0.1);
+  transition:
+    transform 0.45s var(--htbf-ds-ease),
+    box-shadow 0.45s var(--htbf-ds-ease),
+    border-color 0.45s var(--htbf-ds-ease);
+}
+
+.htbf-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(var(--htbf-ds-blue), 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 30px 62px -28px rgba(var(--htbf-ds-navy), 0.3),
+    0 10px 24px -12px rgba(var(--htbf-ds-navy), 0.14);
+}
+
+/* ── Cinematic thumbnail — a lit surface, not a flat placeholder ── */
+.htbf-thumb {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.4rem;
+  background:
+    radial-gradient(130% 120% at 20% 0%, #eef6ff 0%, transparent 52%),
+    radial-gradient(140% 120% at 100% 100%, #fff1d2 0%, transparent 58%),
+    linear-gradient(140deg, #d8e9ff 0%, #f4f9ff 42%, #ffe7bd 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 -34px 60px -34px rgba(var(--htbf-ds-navy), 0.3),
+    inset 0 22px 42px -30px rgba(255, 255, 255, 0.9);
+}
+
+.htbf-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    80% 60% at 50% 26%,
+    rgba(255, 255, 255, 0.36) 0%,
+    transparent 62%
+  );
+  opacity: 0;
+  transition: opacity 0.5s var(--htbf-ds-ease);
+  pointer-events: none;
+}
+
+.htbf-card:hover .htbf-thumb::after {
+  opacity: 1;
+}
+
+/* ── Glass play button ── */
+.htbf-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(255, 255, 255, 0.62) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 22px -10px rgba(var(--htbf-ds-navy), 0.4);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition:
+    transform 0.45s var(--htbf-ds-ease),
+    box-shadow 0.45s var(--htbf-ds-ease);
+}
+
+.htbf-card:hover .htbf-play {
+  transform: scale(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 16px 30px -10px rgba(var(--htbf-ds-navy), 0.46);
+}
+
+/* ── Icon chip — consistent icon treatment across feature/utility cards ── */
+.htbf-icon-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #eff6ff 0%, #e0edff 100%);
+  border: 1px solid rgba(var(--htbf-ds-blue), 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 18px -12px rgba(var(--htbf-ds-navy), 0.28);
+  color: #0b63ce;
+  transition: transform 0.45s var(--htbf-ds-ease);
+}
+
+.htbf-card:hover .htbf-icon-chip {
+  transform: translateY(-2px);
+}
+
+/* ── Premium navy panel (Praise Reports) — royal→navy with a warm keyed glow ── */
+.htbf-panel-navy {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--htbf-ds-radius-panel);
+  background:
+    radial-gradient(90% 120% at 88% 4%, rgba(var(--htbf-ds-warm), 0.16) 0%, transparent 44%),
+    radial-gradient(120% 120% at 4% 0%, rgba(42, 85, 150, 0.55) 0%, transparent 56%),
+    linear-gradient(150deg, #0c3468 0%, #082f63 46%, #05244e 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 44px 90px -46px rgba(5, 20, 45, 0.6);
+}
+
+.htbf-panel-navy::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    100% 60% at 50% -12%,
+    rgba(255, 255, 255, 0.1) 0%,
+    transparent 60%
+  );
+}
+
+/* ── Dark glass (inner cards on navy) ── */
+.htbf-glass-dark {
+  border-radius: 1.4rem;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 24px 44px -32px rgba(0, 0, 0, 0.5);
+  transition:
+    transform 0.45s var(--htbf-ds-ease),
+    background 0.45s var(--htbf-ds-ease),
+    border-color 0.45s var(--htbf-ds-ease);
+}
+
+.htbf-glass-dark:hover {
+  transform: translateY(-3px);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* ── Cinematic CTA background — the emotional close of the page ── */
+.htbf-cta {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--htbf-ds-radius-panel);
+  background:
+    radial-gradient(80% 90% at 82% 2%, rgba(var(--htbf-ds-warm), 0.5) 0%, transparent 46%),
+    radial-gradient(90% 100% at 0% 100%, rgba(207, 228, 255, 0.7) 0%, transparent 56%),
+    linear-gradient(150deg, #fff7e9 0%, #f3f8ff 52%, #eaf3ff 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 44px 96px -52px rgba(var(--htbf-ds-navy), 0.32);
+}
+
+.htbf-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    52% 42% at 80% 6%,
+    rgba(255, 236, 200, 0.5) 0%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+}
+
+/* Faint testimony collage floating behind the CTA — atmosphere, not content */
+.htbf-cta-collage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.5;
+}
+
+.htbf-cta-collage span {
+  position: absolute;
+  border-radius: 1.25rem;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.2) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 24px 50px -30px rgba(var(--htbf-ds-navy), 0.25);
+  filter: blur(1px);
+}
+
+/* ── Premium light glass panel (CTA inner card) ── */
+.htbf-glass-panel {
+  border-radius: var(--htbf-ds-radius-card);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.86) 0%,
+    rgba(255, 255, 255, 0.64) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 30px 64px -34px rgba(var(--htbf-ds-navy), 0.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   V3 refinement layer — handcrafted details that make each section feel like
+   part of one continuous story. All keyed to the same tokens above.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Warm testimonial media surface — differentiates written stories from the
+   cool video thumb so the feed reads as real, varied content. */
+.htbf-thumb.is-warm {
+  background:
+    radial-gradient(130% 120% at 20% 0%, #fff3dc 0%, transparent 52%),
+    radial-gradient(140% 120% at 100% 100%, #ffe1bc 0%, transparent 58%),
+    linear-gradient(140deg, #ffeccb 0%, #fff6ea 44%, #eaf2ff 100%);
+}
+
+/* Soft caption scrim at the base of every media surface — grounds the glyph
+   and adds the sense of a real preview rather than a flat placeholder. */
+.htbf-thumb::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 52%;
+  background: linear-gradient(
+    to top,
+    rgba(var(--htbf-ds-navy), 0.14) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* Glyph mark for written stories — matches the glass play button language. */
+.htbf-media-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: #0b63ce;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(255, 255, 255, 0.62) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 22px -10px rgba(var(--htbf-ds-navy), 0.4);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition:
+    transform 0.45s var(--htbf-ds-ease),
+    box-shadow 0.45s var(--htbf-ds-ease);
+}
+
+.htbf-card:hover .htbf-media-glyph {
+  transform: scale(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 16px 30px -10px rgba(var(--htbf-ds-navy), 0.46);
+}
+
+/* Author initial chip — believable, quiet attribution. */
+.htbf-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(145deg, #0b63ce 0%, #082f63 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 6px 14px -8px rgba(var(--htbf-ds-navy), 0.5);
+}
+
+/* Hairline divider keyed to the system — used to separate meta rows. */
+.htbf-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--htbf-ds-navy), 0.1),
+    transparent
+  );
+}
+
+/* Faint woven grid on the navy panel — handcrafted depth, painted behind the
+   content (which carries its own stacking context). */
+.htbf-panel-navy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 34px 34px;
+  -webkit-mask-image: radial-gradient(ellipse at 72% 22%, black, transparent 76%);
+  mask-image: radial-gradient(ellipse at 72% 22%, black, transparent 76%);
+}
+
+/* Warm gold accent — a small keyed flourish for section closings. */
+.htbf-accent-gold {
+  height: 3px;
+  width: 3.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    rgba(var(--htbf-ds-gold), 0.9) 0%,
+    rgba(var(--htbf-ds-warm), 0.7) 100%
+  );
+  box-shadow: 0 4px 12px -4px rgba(var(--htbf-ds-gold), 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .htbf-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .htbf-card,
+  .htbf-glass-dark,
+  .htbf-play,
+  .htbf-media-glyph,
+  .htbf-icon-chip,
+  .htbf-thumb::after {
+    transition: none;
+  }
+}

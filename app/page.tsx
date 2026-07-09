@@ -11,19 +11,20 @@ import {
   Sparkles,
   Send,
   Search,
+  Quote,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import Hero3DScene from "../components/hero3d/Hero3DScene";
+import { Reveal } from "../components/marketing/Reveal";
 
-const sectionClass = "mx-auto max-w-7xl px-4 sm:px-6 py-14 md:py-16";
+const sectionClass = "mx-auto max-w-7xl px-4 sm:px-6 py-16 md:py-24";
 const btnPrimary =
   "inline-flex items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-2.5 text-sm font-heading font-bold text-white shadow-sm transition-all duration-200 hover:bg-[#084f9f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b63ce]/35 focus-visible:ring-offset-2 active:scale-[0.98]";
 const btnPrimaryLg =
   "inline-flex items-center justify-center gap-2 rounded-full bg-[#082f63] px-6 py-3.5 text-base font-heading font-bold text-white shadow-lg shadow-blue-950/10 transition-all duration-200 hover:bg-[#0b3f80] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#082f63]/35 focus-visible:ring-offset-2 active:scale-[0.98]";
 const btnSecondary =
   "inline-flex items-center justify-center gap-2 rounded-full border border-slate-200/90 bg-white px-6 py-3.5 text-base font-heading font-bold text-[#082f63] shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 active:scale-[0.98]";
-const cardClass =
-  "rounded-[2rem] border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300/80 hover:shadow-lg hover:shadow-blue-950/[0.04]";
+const cardClass = "htbf-card";
 
 export default function HomePage() {
   const [checkingUser, setCheckingUser] = useState(true);
@@ -88,18 +89,24 @@ export default function HomePage() {
       title: "God gave me peace when I felt overwhelmed.",
       location: "Phoenix, USA",
       tag: "Peace",
+      variant: "written" as const,
+      meta: "2 min read",
     },
     {
       type: "Testimony",
       title: "Jesus restored hope in my family.",
       location: "Lagos, Nigeria",
       tag: "Restoration",
+      variant: "written" as const,
+      meta: "3 min read",
     },
     {
       type: "Video Story",
       title: "The Holy Spirit helped me forgive and move forward.",
       location: "Manila, Philippines",
       tag: "Freedom",
+      variant: "video" as const,
+      meta: "1 min watch",
     },
   ];
 
@@ -206,209 +213,262 @@ export default function HomePage() {
         </section>
 
         <section id="stories" className={sectionClass}>
-          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-              <div className="text-sm font-heading font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
-                Freedom Feed
+          <Reveal>
+            <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+              <div>
+                <div className="text-sm font-heading font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
+                  Freedom Feed
+                </div>
+                <h2 className="mt-2 font-heading text-3xl font-black tracking-tight text-[#062a57] md:text-4xl">
+                  Stories being shared now
+                </h2>
               </div>
-              <h2 className="mt-2 font-heading text-3xl font-black tracking-tight text-[#062a57] md:text-4xl">
-                Stories being shared now
-              </h2>
+
+              <Link
+                href="/login"
+                className="w-fit rounded-full border border-slate-200/90 bg-white/90 px-5 py-2.5 text-sm font-heading font-bold text-[#082f63] shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 active:scale-[0.98]"
+              >
+                View More Stories
+              </Link>
             </div>
+          </Reveal>
 
-            <Link
-              href="/login"
-              className="w-fit rounded-full border border-slate-200/90 bg-white px-5 py-2.5 text-sm font-heading font-bold text-[#082f63] shadow-sm transition-all duration-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2 active:scale-[0.98]"
-            >
-              View More Stories
-            </Link>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-3">
-            {stories.map((story) => (
-              <article key={story.title} className={`${cardClass} p-5`}>
-                <div className="mb-5 flex items-center justify-between">
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-heading font-black text-[#0b63ce]">
-                    {story.type}
-                  </span>
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-heading font-black text-amber-700">
-                    {story.tag}
-                  </span>
-                </div>
-
-                <div className="mb-4 h-44 rounded-[1.5rem] bg-gradient-to-br from-[#eaf5ff] via-white to-[#fff0cf] p-4 ring-1 ring-slate-100">
-                  <div className="flex h-full items-center justify-center rounded-[1.2rem] border border-white bg-white/55">
-                    <Play className="h-10 w-10 fill-[#0b63ce] text-[#0b63ce]" />
+          <div className="grid gap-6 md:grid-cols-3">
+            {stories.map((story, i) => (
+              <Reveal key={story.title} delay={i * 90}>
+                <article className={`${cardClass} flex h-full flex-col p-5`}>
+                  <div className="mb-5 flex items-center justify-between">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-heading font-black text-[#0b63ce] ring-1 ring-blue-100/80">
+                      {story.type}
+                    </span>
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-heading font-black text-amber-700 ring-1 ring-amber-100/80">
+                      {story.tag}
+                    </span>
                   </div>
-                </div>
 
-                <h3 className="font-heading text-xl font-black leading-tight text-slate-900">
-                  {story.title}
-                </h3>
+                  <div
+                    className={`htbf-thumb mb-5 flex h-48 items-center justify-center ${
+                      story.variant === "video" ? "" : "is-warm"
+                    }`}
+                  >
+                    {story.variant === "video" ? (
+                      <span className="htbf-play h-16 w-16">
+                        <Play className="h-6 w-6 fill-[#0b63ce] text-[#0b63ce]" />
+                      </span>
+                    ) : (
+                      <span className="htbf-media-glyph h-16 w-16">
+                        {story.type === "Testimony" ? (
+                          <Quote className="h-6 w-6" />
+                        ) : (
+                          <Sparkles className="h-6 w-6" />
+                        )}
+                      </span>
+                    )}
 
-                <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-500">
-                  <Globe2 className="h-4 w-4" /> {story.location}
-                </div>
+                    <span className="absolute bottom-3 left-3 rounded-full bg-white/85 px-2.5 py-1 text-[11px] font-heading font-bold text-[#082f63] shadow-sm backdrop-blur-sm">
+                      {story.meta}
+                    </span>
+                  </div>
 
-                <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5">
-                    Amen
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5">
-                    Praise God
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5">
-                    This encouraged me
-                  </span>
-                </div>
-              </article>
+                  <h3 className="font-heading text-xl font-black leading-snug tracking-tight text-slate-900">
+                    {story.title}
+                  </h3>
+
+                  <div className="htbf-divider mt-5" />
+
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="htbf-avatar h-9 w-9 text-sm">
+                      {story.location.charAt(0)}
+                    </span>
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-slate-500">
+                      <Globe2 className="h-4 w-4" /> {story.location}
+                    </div>
+                  </div>
+
+                  <div className="mt-auto pt-5 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                    <span className="rounded-full bg-slate-100/90 px-3 py-1.5">
+                      Amen
+                    </span>
+                    <span className="rounded-full bg-slate-100/90 px-3 py-1.5">
+                      Praise God
+                    </span>
+                    <span className="rounded-full bg-slate-100/90 px-3 py-1.5">
+                      This encouraged me
+                    </span>
+                  </div>
+                </article>
+              </Reveal>
             ))}
           </div>
         </section>
 
         <section id="praise" className={sectionClass}>
-          <div className="rounded-[2.5rem] bg-[#082f63] p-8 text-white shadow-2xl shadow-blue-950/10 md:p-12">
-            <div className="grid gap-10 md:grid-cols-[0.85fr_1.15fr] md:items-center">
-              <div>
-                <div className="mb-4 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-heading font-bold text-blue-100">
-                  Praise Reports
+          <Reveal>
+            <div className="htbf-panel-navy p-8 text-white md:p-12">
+              <div className="relative z-[1] grid gap-10 md:grid-cols-[0.85fr_1.15fr] md:items-center">
+                <div>
+                  <div className="mb-4 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-heading font-bold text-blue-100 ring-1 ring-white/15 backdrop-blur-sm">
+                    Praise Reports
+                  </div>
+
+                  <h2 className="font-heading text-3xl font-black tracking-tight sm:text-4xl">
+                    Small reminders. Real hope.
+                  </h2>
+
+                  <div className="htbf-accent-gold mt-5" />
+
+                  <p className="mt-5 text-base leading-7 text-blue-100/90 sm:text-lg sm:leading-8">
+                    Short posts that help people see encouragement throughout the
+                    day — answered prayer, renewed peace, a door opening, a heart
+                    restored.
+                  </p>
                 </div>
 
-                <h2 className="font-heading text-3xl font-black tracking-tight sm:text-4xl">
-                  Small reminders. Real hope.
-                </h2>
-
-                <p className="mt-5 text-base leading-7 text-blue-100 sm:text-lg sm:leading-8">
-                  Short posts that help people see encouragement throughout the
-                  day — answered prayer, renewed peace, a door opening, a heart
-                  restored.
-                </p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                {[
-                  [
-                    "Answered Prayer",
-                    "God made a way when I could not see one.",
-                  ],
-                  ["Healing", "Thankful for renewed strength and peace today."],
-                  [
-                    "Restoration",
-                    "God is restoring something I thought was lost.",
-                  ],
-                  ["Peace", "I woke up today with a calm heart."],
-                ].map(([title, body]) => (
-                  <div
-                    key={title}
-                    className="rounded-3xl bg-white/10 p-5 ring-1 ring-white/10 backdrop-blur-sm transition-all duration-300 hover:bg-white/[0.14]"
-                  >
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-[#0b63ce]">
-                      <Sparkles className="h-5 w-5" />
-                    </div>
-                    <div className="font-heading font-black">{title}</div>
-                    <p className="mt-2 text-sm leading-6 text-blue-100">
-                      {body}
-                    </p>
-                  </div>
-                ))}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {[
+                    [
+                      "Answered Prayer",
+                      "God made a way when I could not see one.",
+                    ],
+                    ["Healing", "Thankful for renewed strength and peace today."],
+                    [
+                      "Restoration",
+                      "God is restoring something I thought was lost.",
+                    ],
+                    ["Peace", "I woke up today with a calm heart."],
+                  ].map(([title, body], i) => (
+                    <Reveal key={title} delay={i * 80}>
+                      <div className="htbf-glass-dark h-full p-5">
+                        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 text-[#0b63ce] shadow-sm ring-1 ring-white/60">
+                          <Sparkles className="h-5 w-5" />
+                        </div>
+                        <div className="font-heading font-black">{title}</div>
+                        <p className="mt-2 text-sm leading-6 text-blue-100/90">
+                          {body}
+                        </p>
+                      </div>
+                    </Reveal>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </section>
 
         <section className={sectionClass}>
           <div className="grid gap-6 md:grid-cols-3">
             <InfoCard
-              icon={<HeartHandshake className="mb-5 h-9 w-9 text-[#0b63ce]" />}
+              icon={<HeartHandshake className="h-6 w-6" />}
+              eyebrow="01"
               title="Encouraging responses"
               text="Simple response options keep the focus on prayer, praise, and encouragement."
+              delay={0}
             />
 
             <InfoCard
-              icon={
-                <MessageCircleHeart className="mb-5 h-9 w-9 text-[#0b63ce]" />
-              }
+              icon={<MessageCircleHeart className="h-6 w-6" />}
+              eyebrow="02"
               title="Prayer support"
               text="A quiet place for people to share prayer needs and receive encouragement."
+              delay={90}
             />
 
             <InfoCard
-              icon={<ShieldCheck className="mb-5 h-9 w-9 text-[#0b63ce]" />}
+              icon={<ShieldCheck className="h-6 w-6" />}
+              eyebrow="03"
               title="Protected space"
               text="Reporting and review tools help keep the community focused and safe."
+              delay={180}
             />
           </div>
         </section>
 
         <section className={sectionClass}>
-          <div className="rounded-[2.5rem] border border-slate-200/80 bg-white p-8 shadow-sm md:p-12">
-            <div className="mb-7 flex items-center justify-between gap-4">
-              <div>
-                <div className="text-sm font-heading font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
-                  Browse
+          <Reveal>
+            <div className="htbf-card p-8 md:p-12">
+              <div className="mb-7 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-heading font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
+                    Browse
+                  </div>
+                  <h2 className="mt-2 font-heading text-3xl font-black tracking-tight text-[#062a57]">
+                    Find encouragement by category
+                  </h2>
                 </div>
-                <h2 className="mt-2 font-heading text-3xl font-black tracking-tight text-[#062a57]">
-                  Find encouragement by category
-                </h2>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className="rounded-full border border-slate-200/90 bg-slate-50/80 px-5 py-3 text-sm font-heading font-bold text-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-[#0b63ce] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b63ce]/30 focus-visible:ring-offset-2 active:scale-[0.98]"
+                  >
+                    {cat}
+                  </button>
+                ))}
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-3">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  className="rounded-full border border-slate-200/90 bg-slate-50 px-5 py-3 text-sm font-heading font-bold text-slate-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-[#0b63ce] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b63ce]/30 focus-visible:ring-offset-2 active:scale-[0.98]"
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
+          </Reveal>
         </section>
 
         <section id="about" className={`${sectionClass} pb-16 md:pb-20`}>
-          <div className="grid gap-8 rounded-[2.5rem] bg-gradient-to-br from-[#fff7e6] to-[#eaf5ff] p-8 md:grid-cols-[1fr_0.85fr] md:p-12">
-            <div>
-              <h2 className="font-heading text-3xl font-black tracking-tight text-[#062a57] sm:text-4xl">
-                Your story may be the encouragement someone else needs today.
-              </h2>
-
-              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
-                Whether your story is big or small, recent or years in the
-                making, it matters. Enter HTBF to read stories from others,
-                share what God has done, and be part of a community centered on
-                freedom, hope, prayer, and encouragement.
-              </p>
-
-              <Link
-                href="/login"
-                className={`${btnPrimary} mt-8 px-6 py-3.5 text-base`}
-              >
-                Enter HTBF
-              </Link>
-            </div>
-
-            <div className="rounded-[2rem] bg-white/75 p-6 shadow-sm ring-1 ring-white backdrop-blur-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <LogoMark />
-
-                <div>
-                  <div className="font-heading font-black text-[#062a57]">
-                    HTBF
-                  </div>
-                  <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    HYPER TO BE FREE
-                  </div>
-                </div>
+          <Reveal>
+            <div className="htbf-cta p-8 md:p-12">
+              {/* Faint testimony collage drifting behind — atmosphere, not content */}
+              <div className="htbf-cta-collage" aria-hidden>
+                <span className="left-[-4%] top-[12%] h-24 w-40 rotate-[-6deg]" />
+                <span className="right-[6%] top-[6%] h-20 w-36 rotate-[5deg]" />
+                <span className="left-[38%] bottom-[-6%] h-24 w-44 rotate-[3deg]" />
+                <span className="right-[22%] bottom-[8%] h-16 w-28 rotate-[-4deg]" />
               </div>
 
-              <p className="leading-7 text-slate-600">
-                Inspired by a dream of a place filled with people from all over
-                the world sharing the good things God has done in their lives.
-              </p>
+              <div className="relative grid gap-8 md:grid-cols-[1fr_0.85fr]">
+                <div>
+                  <h2 className="font-heading text-3xl font-black tracking-tight text-[#062a57] sm:text-4xl">
+                    Your story may be the encouragement someone else needs today.
+                  </h2>
+
+                  <div className="htbf-accent-gold mt-6" />
+
+                  <p className="mt-6 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+                    Whether your story is big or small, recent or years in the
+                    making, it matters. Enter HTBF to read stories from others,
+                    share what God has done, and be part of a community centered
+                    on freedom, hope, prayer, and encouragement.
+                  </p>
+
+                  <Link
+                    href="/login"
+                    className={`${btnPrimary} mt-8 px-6 py-3.5 text-base`}
+                  >
+                    Enter HTBF
+                  </Link>
+                </div>
+
+                <div className="htbf-glass-panel p-6">
+                  <div className="mb-4 flex items-center gap-3">
+                    <LogoMark />
+
+                    <div>
+                      <div className="font-heading font-black text-[#062a57]">
+                        HTBF
+                      </div>
+                      <div className="-mt-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                        HYPER TO BE FREE
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="leading-7 text-slate-600">
+                    Inspired by a dream of a place filled with people from all
+                    over the world sharing the good things God has done in their
+                    lives.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
+          </Reveal>
         </section>
       </main>
 
@@ -484,18 +544,33 @@ function LogoMark() {
 
 function InfoCard({
   icon,
+  eyebrow,
   title,
   text,
+  delay = 0,
 }: {
   icon: React.ReactNode;
+  eyebrow?: string;
   title: string;
   text: string;
+  delay?: number;
 }) {
   return (
-    <div className={`${cardClass} p-7`}>
-      {icon}
-      <h3 className="font-heading text-2xl font-black text-[#062a57]">{title}</h3>
-      <p className="mt-3 leading-7 text-slate-600">{text}</p>
-    </div>
+    <Reveal delay={delay}>
+      <div className={`${cardClass} h-full p-7`}>
+        <div className="mb-5 flex items-center justify-between">
+          <span className="htbf-icon-chip h-14 w-14">{icon}</span>
+          {eyebrow ? (
+            <span className="font-heading text-sm font-black tracking-[0.18em] text-slate-300">
+              {eyebrow}
+            </span>
+          ) : null}
+        </div>
+        <h3 className="font-heading text-2xl font-black text-[#062a57]">
+          {title}
+        </h3>
+        <p className="mt-3 leading-7 text-slate-600">{text}</p>
+      </div>
+    </Reveal>
   );
 }
