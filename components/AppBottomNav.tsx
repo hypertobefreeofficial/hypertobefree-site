@@ -11,6 +11,7 @@ const publicRoutesWithoutBottomNav = [
   "/terms",
   "/content-rules",
   "/copyright",
+  "/preview/hero-3d",
 ];
 
 export default function AppBottomNav() {
