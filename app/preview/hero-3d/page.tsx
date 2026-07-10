@@ -31,7 +31,7 @@ export default function Hero3DPreviewPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-        <Hero3DScene showMotionBadge showFloatingCards showTiltPrompt />
+        <Hero3DScene showMotionBadge showFloatingCards />
 
         <section className="mt-10 grid gap-6 md:grid-cols-2">
           <div className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm">

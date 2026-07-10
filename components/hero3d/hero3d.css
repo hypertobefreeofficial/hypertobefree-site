@@ -137,6 +137,55 @@
   animation-delay: -2.5s;
 }
 
+/* ── Mobile-only automatic ambient depth ──
+   On phones the pointer parallax is disabled, so the scene would otherwise sit
+   perfectly still. This slow, nearly subconscious scale + drift gives the mobile
+   hero cinematic life automatically the moment it renders. Desktop is untouched
+   because the animation only exists inside the mobile media query. */
+@media (max-width: 767.98px) {
+  .htbf-hero3d-mobile-drift {
+    transform-origin: 58% 46%;
+    will-change: transform;
+    animation: htbf-hero3d-mobile-drift 20s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes htbf-hero3d-mobile-drift {
+  0% {
+    transform: scale(1.028) translate3d(-7px, 4px, 0);
+  }
+  100% {
+    transform: scale(1.055) translate3d(8px, -5px, 0);
+  }
+}
+
+/* ── Lighter mobile glass ──
+   On phones the single overlay card uses a more transparent, less-blurred glass
+   so the woman, river and sunset still read through it. Desktop keeps the full
+   heavy glass because these overrides only exist in the mobile media query. */
+@media (max-width: 767.98px) {
+  .htbf-hero3d-glass.htbf-hero3d-glass-mobile {
+    border-radius: 1rem;
+    background: linear-gradient(
+      152deg,
+      rgba(255, 255, 255, 0.32) 0%,
+      rgba(255, 250, 240, 0.14) 44%,
+      rgba(var(--htbf-atmos), 0.14) 100%
+    );
+    border-color: rgba(255, 255, 255, 0.42);
+    backdrop-filter: blur(18px) saturate(1.55) brightness(1.03);
+    -webkit-backdrop-filter: blur(18px) saturate(1.55) brightness(1.03);
+    box-shadow:
+      0 1.5px 0 rgba(255, 255, 255, 0.7) inset,
+      0 16px 30px -18px rgba(var(--htbf-shadow), 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .htbf-hero3d-glass.htbf-hero3d-glass-mobile::after {
+    border-radius: calc(1rem - 1px);
+  }
+}
+
 @keyframes htbf-hero3d-cloud-drift-a {
   0%,
   100% {
@@ -315,6 +364,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .htbf-hero3d-mobile-drift,
   .htbf-hero3d-ambient,
   .htbf-hero3d-particle-float,
   .htbf-hero3d-card-float,

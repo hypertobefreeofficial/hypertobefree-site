@@ -10,8 +10,6 @@ export type Hero3DSceneProps = {
   sceneClassName?: string;
   showFloatingCards?: boolean;
   showMotionBadge?: boolean;
-  /** iOS tilt permission prompt on coarse pointers */
-  showTiltPrompt?: boolean;
   children?: React.ReactNode;
   ariaLabel?: string;
 };
@@ -21,7 +19,6 @@ export default function Hero3DScene({
   sceneClassName,
   showFloatingCards = true,
   showMotionBadge = false,
-  showTiltPrompt = false,
   children,
   ariaLabel = "Cinematic sunrise scene with a person walking in freedom",
 }: Hero3DSceneProps) {
@@ -31,9 +28,6 @@ export default function Hero3DScene({
     mode,
     reducedMotion,
     lowPowerMode,
-    orientationAvailable,
-    orientationPermission,
-    requestOrientationAccess,
   } = useParallax();
 
   const rootRef = useRef<HTMLElement | null>(null);
@@ -62,7 +56,7 @@ export default function Hero3DScene({
       >
         <div
           className={cn(
-            "relative w-full h-[clamp(32.5rem,135vw,38.75rem)] md:h-auto md:aspect-[4/5] lg:aspect-[5/6]",
+            "relative w-full h-[clamp(33rem,114vw,36rem)] md:h-auto md:aspect-[4/5] lg:aspect-[5/6]",
             !reducedMotion && "htbf-hero3d-entrance"
           )}
         >
@@ -105,19 +99,6 @@ export default function Hero3DScene({
                       : "Static · idle"}
             </span>
           </div>
-        ) : null}
-
-        {showTiltPrompt &&
-        orientationAvailable &&
-        orientationPermission === "prompt" &&
-        !reducedMotion ? (
-          <button
-            type="button"
-            onClick={() => void requestOrientationAccess()}
-            className="absolute bottom-4 right-4 z-[21] rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-heading font-bold text-[#062a57] shadow-lg backdrop-blur-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b63ce]/40 focus-visible:ring-offset-2"
-          >
-            Enable tilt depth
-          </button>
         ) : null}
       </section>
     </div>
