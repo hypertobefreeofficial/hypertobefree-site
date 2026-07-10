@@ -80,7 +80,10 @@ function LayerImage({ src, className, priority = false }: LayerImageProps) {
         draggable={false}
         decoding="async"
         fetchPriority={priority ? "high" : "auto"}
-        className={cn("h-full w-full object-cover object-center", className)}
+        className={cn(
+          "h-full w-full object-cover object-[55%_50%] md:object-center",
+          className
+        )}
       />
     </div>
   );

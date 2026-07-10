@@ -32,6 +32,10 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import {
+  FEED_MEDIA_EL_CLASS,
+  FEED_MEDIA_FRAME_CLASS,
+} from "../lib/feedMediaClasses";
+import {
   creationCenterStoryTemplates,
   type CreationCenterTemplateId,
 } from "../lib/creationCenter";
@@ -2756,7 +2760,7 @@ function MiniReelPreviewVideo({ videoUrl }: { videoUrl: string }) {
           playsInline
           preload="metadata"
           data-freedom-feed-preview-video="true"
-          className="pointer-events-none h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          className={`pointer-events-none transition duration-300 group-hover:scale-105 ${FEED_MEDIA_EL_CLASS}`}
           onLoadedMetadata={(event) => {
             const video = event.currentTarget;
 
@@ -3198,17 +3202,9 @@ function FreedomFeedVideoMediaFrame({
   stamp: VideoTemplate;
   videoUrl: string;
 }) {
-  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const [shouldLoadPreview, setShouldLoadPreview] = useState(false);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const frameStyle = aspectRatio
-    ? {
-        aspectRatio: `${aspectRatio}`,
-        height: aspectRatio < 1 ? "100%" : "auto",
-        width: aspectRatio >= 1 ? "100%" : "auto",
-      }
-    : undefined;
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -3252,11 +3248,7 @@ function FreedomFeedVideoMediaFrame({
   }, [videoUrl]);
 
   return (
-    <div
-      ref={frameRef}
-      className="relative flex h-full max-h-full max-w-full items-center justify-center overflow-hidden bg-black"
-      style={frameStyle}
-    >
+    <div ref={frameRef} className={FEED_MEDIA_FRAME_CLASS}>
       {shouldLoadPreview ? (
         <video
           ref={videoRef}
@@ -3265,7 +3257,7 @@ function FreedomFeedVideoMediaFrame({
           playsInline
           preload="metadata"
           data-freedom-feed-preview-video="true"
-          className="pointer-events-none block h-full w-full bg-black object-contain object-center"
+          className={`pointer-events-none bg-black ${FEED_MEDIA_EL_CLASS}`}
           src={videoUrl}
           onLoadedMetadata={(event) => {
             const video = event.currentTarget;
@@ -3273,10 +3265,6 @@ function FreedomFeedVideoMediaFrame({
             video.muted = true;
             video.defaultMuted = true;
             video.playsInline = true;
-
-            if (video.videoWidth > 0 && video.videoHeight > 0) {
-              setAspectRatio(video.videoWidth / video.videoHeight);
-            }
           }}
         >
           Your browser does not support the video tag.

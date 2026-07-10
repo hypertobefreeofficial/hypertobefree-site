@@ -62,7 +62,7 @@ export default function Hero3DScene({
       >
         <div
           className={cn(
-            "relative aspect-[4/5] w-full sm:aspect-[5/6] md:aspect-[4/5] lg:aspect-[5/6]",
+            "relative w-full h-[clamp(32.5rem,135vw,38.75rem)] md:h-auto md:aspect-[4/5] lg:aspect-[5/6]",
             !reducedMotion && "htbf-hero3d-entrance"
           )}
         >

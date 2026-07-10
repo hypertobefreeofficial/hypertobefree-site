@@ -667,6 +667,23 @@ body {
   margin-right: -50vw;
 }
 
+/* Hero headline serif voice — a restrained royal-blue → warm-gold text wash.
+   Solid royal-blue fallback keeps it legible where background-clip: text is
+   unsupported, and the blue-weighted stops keep contrast accessible for the
+   large display size. */
+.htbf-hero-serif {
+  color: #0b4aa0;
+  background-image: linear-gradient(
+    100deg,
+    #0b4aa0 0%,
+    #0b63ce 46%,
+    #b07d1e 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 /* Editorial eyebrow — used to open every below-hero movement. */
 .htbf-eyebrow {
   display: inline-flex;

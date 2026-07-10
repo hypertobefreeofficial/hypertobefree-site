@@ -269,38 +269,62 @@ export default function HomePage() {
           />
           <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#f8fbff] to-transparent" />
 
-          <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:gap-12 md:py-24 lg:py-28">
-            <div className="max-w-2xl">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100/90 bg-white/85 px-4 py-2 text-sm font-heading font-semibold text-[#0b63ce] shadow-sm backdrop-blur-sm">
-                <Sparkles className="h-4 w-4" />
-                Stories of freedom, hope, and praise
-              </div>
+          <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] md:gap-14 md:py-24 md:min-h-[720px] lg:gap-16 lg:py-28 lg:min-h-[800px]">
+            <div className="relative max-w-2xl">
+              {/* Ambient — faint oversized wordmark behind the headline (desktop only) */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -left-3 -top-16 hidden select-none font-display text-[12rem] font-black leading-none tracking-tight text-[#0b3a7a] opacity-[0.035] lg:block"
+              >
+                HOPE
+              </span>
+              {/* Ambient — warm radial glow washing the headline (desktop only) */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -left-16 top-4 hidden h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(255,221,160,0.45),transparent_70%)] blur-2xl md:block"
+              />
 
-              <h1 className="font-display text-4xl font-black leading-[1.04] tracking-tight text-[#062a57] sm:text-5xl md:text-6xl lg:text-7xl">
-                See what God is doing in lives around the world.
-              </h1>
+              <div className="relative z-10">
+                <div className="mb-6 inline-flex items-center gap-2.5 rounded-full border border-blue-100/80 bg-white/80 px-4 py-2 shadow-sm backdrop-blur-sm">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-[#d4af37] opacity-60 blur-[1px]" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gradient-to-br from-[#e7c65a] to-[#c69a2a]" />
+                  </span>
+                  <span className="font-heading text-[0.72rem] font-bold uppercase tracking-[0.22em] text-[#0b63ce]">
+                    Stories of freedom, hope, and praise
+                  </span>
+                </div>
 
-              <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 sm:mt-6 sm:text-lg sm:leading-8">
-                A faith-centered space for testimonies, praise reports, prayer
-                encouragement, and stories of freedom through God, Jesus, and
-                the Holy Spirit.
-              </p>
+                <h1 className="text-[#062a57]">
+                  <span className="block font-display text-4xl font-black leading-[1.02] tracking-[-0.02em] [text-wrap:balance] sm:text-5xl md:text-6xl lg:text-[4.5rem] xl:text-[5rem]">
+                    See what God is doing
+                  </span>
+                  <span className="htbf-hero-serif mt-1 block font-quote text-[2.35rem] font-medium italic leading-[1.08] tracking-[-0.01em] [text-wrap:balance] sm:text-[2.85rem] md:text-[3.4rem] lg:text-[5rem] xl:text-[5.5rem]">
+                    in lives around the world.
+                  </span>
+                </h1>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link href="/share-your-story" className={btnPrimaryLg}>
-                  Share Your Story <Send className="h-4 w-4" />
-                </Link>
+                <p className="mt-6 max-w-xl font-heading text-base font-medium leading-7 text-slate-600 sm:mt-7 sm:text-lg sm:leading-8">
+                  A faith-centered space for testimonies, praise reports, prayer
+                  encouragement, and stories of freedom through God, Jesus, and
+                  the Holy Spirit.
+                </p>
 
-                <Link href="/login" className={btnSecondary}>
-                  Explore Testimonies <Search className="h-4 w-4" />
-                </Link>
+                <div className="mt-9 flex flex-col gap-3 sm:flex-row lg:mt-10">
+                  <Link href="/share-your-story" className={btnPrimaryLg}>
+                    Share Your Story <Send className="h-4 w-4" />
+                  </Link>
+
+                  <Link href="/login" className={btnSecondary}>
+                    Explore Testimonies <Search className="h-4 w-4" />
+                  </Link>
+                </div>
               </div>
             </div>
 
             <Hero3DScene
               className="relative mx-auto w-full max-w-[560px] md:max-w-none"
               showFloatingCards
-              showTiltPrompt
               ariaLabel="A person walking in freedom at sunrise"
             />
           </div>

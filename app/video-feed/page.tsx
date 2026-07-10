@@ -42,6 +42,10 @@ import {
 } from "lucide-react";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
+import {
+  FEED_MEDIA_BACKDROP_CLASS,
+  FEED_MEDIA_EL_CLASS,
+} from "../../lib/feedMediaClasses";
 import { supabase } from "../../lib/supabaseClient";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -2826,6 +2830,18 @@ function AutoPlayReelVideo({
       onPointerCancel={releaseHoldPause}
       onMouseLeave={releaseHoldPause}
     >
+      {shouldLoadVideo && (
+        <video
+          aria-hidden
+          muted
+          loop
+          playsInline
+          autoPlay
+          preload="metadata"
+          src={videoUrl}
+          className={`hidden md:block ${FEED_MEDIA_BACKDROP_CLASS}`}
+        />
+      )}
       <div className="relative h-full w-full overflow-hidden bg-black md:mx-auto md:w-[min(100vw,78dvh)] md:max-w-full lg:w-[min(100vw,84dvh)]">
         {shouldLoadVideo ? (
           <video
@@ -2836,7 +2852,7 @@ function AutoPlayReelVideo({
             loop={!audioTestimonyMode}
             playsInline
             preload="metadata"
-            className="h-full w-full bg-black object-cover object-center transition-transform duration-150 ease-out will-change-transform"
+            className={`bg-black transition-transform duration-150 ease-out will-change-transform ${FEED_MEDIA_EL_CLASS}`}
             style={{
               transform: `scale(${zoomScale})`,
               transformOrigin: "center center",
