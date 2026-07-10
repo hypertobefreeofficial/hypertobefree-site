@@ -137,25 +137,62 @@
   animation-delay: -2.5s;
 }
 
+/* Mobile artwork motion shells — base layout (desktop: full inset, no animation). */
+.htbf-hero3d-mobile-artwork-clip {
+  position: absolute;
+  inset: 0;
+}
+
+.htbf-hero3d-mobile-sensor {
+  position: absolute;
+  inset: 0;
+}
+
+.htbf-hero3d-mobile-ambient {
+  position: absolute;
+  inset: 0;
+}
+
 /* ── Mobile-only automatic ambient depth ──
-   On phones the pointer parallax is disabled, so the scene would otherwise sit
-   perfectly still. This slow, nearly subconscious scale + drift gives the mobile
-   hero cinematic life automatically the moment it renders. Desktop is untouched
-   because the animation only exists inside the mobile media query. */
+   Stable outer clip (overflow hidden) + oversized inner canvas (108%) so scale
+   and translation have room to read. CSS animation lives on the inner canvas
+   only; glass cards and foreground grasses are outside and stay fixed. Desktop
+   rules are untouched — everything below is scoped to max-width 767.98px. */
 @media (max-width: 767.98px) {
-  .htbf-hero3d-mobile-drift {
+  .htbf-hero3d-mobile-artwork-clip {
+    overflow: hidden;
+  }
+
+  .htbf-hero3d-mobile-sensor {
+    overflow: visible;
+  }
+
+  .htbf-hero3d-mobile-ambient {
+    inset: auto;
+    top: -4%;
+    left: -4%;
+    width: 108%;
+    height: 108%;
+    transform: translate3d(0, 0, 0);
     transform-origin: 58% 46%;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
     will-change: transform;
-    animation: htbf-hero3d-mobile-drift 20s ease-in-out infinite alternate;
+  }
+
+  .htbf-hero3d-mobile-ambient-active {
+    animation: htbf-hero3d-mobile-ambient 20s ease-in-out infinite alternate;
+    animation-fill-mode: both;
+    animation-play-state: running;
   }
 }
 
-@keyframes htbf-hero3d-mobile-drift {
+@keyframes htbf-hero3d-mobile-ambient {
   0% {
-    transform: scale(1.028) translate3d(-7px, 4px, 0);
+    transform: translate3d(-16px, 8px, 0) scale(1.025);
   }
   100% {
-    transform: scale(1.055) translate3d(8px, -5px, 0);
+    transform: translate3d(16px, -9px, 0) scale(1.06);
   }
 }
 
@@ -364,7 +401,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .htbf-hero3d-mobile-drift,
+  .htbf-hero3d-mobile-ambient-active,
   .htbf-hero3d-ambient,
   .htbf-hero3d-particle-float,
   .htbf-hero3d-card-float,
