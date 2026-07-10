@@ -159,6 +159,13 @@ export function Hero3DLayerStack({
 
   return (
     <>
+      {/* Dedicated mobile motion wrapper — only the background + mid-ground
+          artwork (sky → subject → pollen) drifts. The foreground grasses, dust,
+          and the glass cards live outside this wrapper and stay perfectly
+          stationary, giving the drift a fixed reference so it reads as cinematic
+          depth. Desktop gets no transform (the drift rule is mobile-only), so
+          z-index ordering and the approved composition are unchanged. */}
+      <div className="htbf-hero3d-mobile-drift absolute inset-0">
       {/* L1 · Deep sky */}
       <Hero3DLayer
         layerRef={layerRef(registerLayer, "sky")}
@@ -350,6 +357,8 @@ export function Hero3DLayerStack({
           <LayerImage src={HERO3D_ASSETS.pollen} />
         </div>
       </Hero3DLayer>
+      </div>
+      {/* ── End mobile motion wrapper — everything below stays stationary ── */}
 
       {showFloatingCards ? (
         <>

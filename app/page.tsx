@@ -269,7 +269,7 @@ export default function HomePage() {
           />
           <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#f8fbff] to-transparent" />
 
-          <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] md:gap-14 md:py-24 md:min-h-[720px] lg:gap-16 lg:py-28 lg:min-h-[800px]">
+          <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 pb-12 pt-16 sm:px-6 md:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] md:gap-14 md:py-24 md:min-h-[720px] lg:gap-16 lg:py-28 lg:min-h-[800px]">
             <div className="relative max-w-2xl">
               {/* Ambient — faint oversized wordmark behind the headline (desktop only) */}
               <span
@@ -327,6 +327,34 @@ export default function HomePage() {
               showFloatingCards
               ariaLabel="A person walking in freedom at sunrise"
             />
+
+            {/* Mobile-only companion panel — the "world" card lives below the
+                artwork on phones so it never covers the woman or the scenery. */}
+            <div className="mx-auto w-full max-w-[560px] md:hidden">
+              <div className="rounded-[1.25rem] border border-white/70 bg-white/80 p-4 shadow-[0_16px_34px_-22px_rgba(6,42,87,0.42)] backdrop-blur-xl">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="font-heading text-sm font-black text-slate-900">
+                    From Around the World
+                  </p>
+                  <Globe2 className="h-4 w-4 shrink-0 text-[#0b63ce]" aria-hidden />
+                </div>
+                <div className="space-y-1.5 text-sm text-slate-700">
+                  {[
+                    ["USA", "Praise Report"],
+                    ["Nigeria", "Testimony"],
+                    ["Philippines", "Prayer"],
+                  ].map(([place, type]) => (
+                    <div
+                      key={place}
+                      className="flex justify-between gap-3 rounded-xl bg-slate-50/80 px-3 py-2 ring-1 ring-slate-200/70"
+                    >
+                      <span className="font-medium">{place}</span>
+                      <span className="text-slate-500">{type}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

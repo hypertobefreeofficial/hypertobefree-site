@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type TouchEvent,
 } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Bookmark,
@@ -1641,44 +1642,68 @@ export default function FreedomFeed({
     >
       <div className="mx-auto max-w-3xl">
         {!lockedFilter && (
-          <div className="mb-6 rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[#0b63ce]">
-                <Sparkles className="h-6 w-6" />
-              </div>
-
-              <Link
-                href="/share-your-story"
-                className="flex min-h-12 flex-1 items-center rounded-full bg-slate-100 px-5 text-left text-base font-semibold text-slate-500 hover:bg-slate-200"
-              >
-                What has God done?
-              </Link>
+          <div className="relative mb-6 overflow-hidden rounded-[1.75rem] border border-white/70 shadow-[0_18px_40px_-24px_rgba(6,42,87,0.45)]">
+            {/* Approved HTBF hero still as the composer background — optimized by
+                next/image (a lightweight webp is served instead of the source
+                PNG). Focal point keeps the woman toward the right and the quiet
+                sky/river behind the prompt on the left. */}
+            <div aria-hidden className="absolute inset-0">
+              <Image
+                src="/images/hero-asset-pack/hero-composite-preview.png"
+                alt=""
+                fill
+                priority={false}
+                quality={68}
+                sizes="(max-width: 768px) 100vw, 768px"
+                className="object-cover object-[72%_26%] md:object-[75%_24%]"
+              />
+              {/* Soft white / ice wash — strongest on the left for legibility */}
+              <div className="absolute inset-0 bg-gradient-to-r from-white/92 via-white/70 to-white/34 md:from-white/88 md:via-white/58 md:to-white/22" />
+              {/* Ice-blue brand tint top → soft base */}
+              <div className="absolute inset-0 bg-gradient-to-b from-[#eaf3ff]/55 via-transparent to-white/35" />
+              {/* Gentle navy depth near the right edge */}
+              <div className="absolute inset-0 bg-gradient-to-l from-[#062a57]/18 via-transparent to-transparent" />
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-sm font-bold text-slate-600">
-              <Link
-                href="/share-your-story"
-                className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
-              >
-                <Plus className="h-4 w-4" />
-                Story
-              </Link>
+            <div className="relative z-10 p-4 md:p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#0b63ce] shadow-sm ring-1 ring-white/70 backdrop-blur-md">
+                  <Sparkles className="h-6 w-6" />
+                </div>
 
-              <Link
-                href="/videos"
-                className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
-              >
-                <Video className="h-4 w-4" />
-                Videos
-              </Link>
+                <Link
+                  href="/share-your-story"
+                  className="flex min-h-12 flex-1 items-center rounded-full bg-white/82 px-5 text-left text-base font-semibold text-[#082f63] shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_6px_-2px_rgba(6,42,87,0.18)] ring-1 ring-white/70 backdrop-blur-md transition hover:bg-white/92"
+                >
+                  What has God done?
+                </Link>
+              </div>
 
-              <Link
-                href="/prayer"
-                className="flex items-center justify-center gap-2 rounded-2xl px-2 py-2 hover:bg-blue-50 hover:text-[#0b63ce]"
-              >
-                <MessageCircleHeart className="h-4 w-4" />
-                Prayer
-              </Link>
+              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/55 pt-3 text-[13px] font-bold text-[#082f63] sm:text-sm">
+                <Link
+                  href="/share-your-story"
+                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-2xl bg-white/72 px-2 shadow-sm ring-1 ring-white/60 backdrop-blur-md transition hover:bg-white hover:text-[#0b63ce] sm:gap-2"
+                >
+                  <Plus className="h-4 w-4 shrink-0" />
+                  Story
+                </Link>
+
+                <Link
+                  href="/videos"
+                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-2xl bg-white/72 px-2 shadow-sm ring-1 ring-white/60 backdrop-blur-md transition hover:bg-white hover:text-[#0b63ce] sm:gap-2"
+                >
+                  <Video className="h-4 w-4 shrink-0" />
+                  Videos
+                </Link>
+
+                <Link
+                  href="/prayer"
+                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-2xl bg-white/72 px-2 shadow-sm ring-1 ring-white/60 backdrop-blur-md transition hover:bg-white hover:text-[#0b63ce] sm:gap-2"
+                >
+                  <MessageCircleHeart className="h-4 w-4 shrink-0" />
+                  Prayer
+                </Link>
+              </div>
             </div>
           </div>
         )}
