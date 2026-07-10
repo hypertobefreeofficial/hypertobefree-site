@@ -269,7 +269,7 @@ export default function HomePage() {
           />
           <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#f8fbff] to-transparent" />
 
-          <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:gap-12 md:py-24 lg:py-28">
+          <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 md:grid-cols-2 md:gap-12 md:py-24 lg:py-28">
             <div className="max-w-2xl">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100/90 bg-white/85 px-4 py-2 text-sm font-heading font-semibold text-[#0b63ce] shadow-sm backdrop-blur-sm">
                 <Sparkles className="h-4 w-4" />
@@ -300,7 +300,6 @@ export default function HomePage() {
             <Hero3DScene
               className="relative mx-auto w-full max-w-[560px] md:max-w-none"
               showFloatingCards
-              showTiltPrompt
               ariaLabel="A person walking in freedom at sunrise"
             />
           </div>

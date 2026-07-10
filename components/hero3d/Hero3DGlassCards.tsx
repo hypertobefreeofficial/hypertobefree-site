@@ -33,13 +33,13 @@ export function Hero3DVideoCard({
     <CardShell
       reducedMotion={reducedMotion}
       className={cn(
-        "absolute left-0 top-[8%] w-[min(88%,19.5rem)] md:left-[-4%] md:top-[10%]",
+        "absolute bottom-[6%] left-3 w-[min(74%,15rem)] md:inset-auto md:left-[-4%] md:top-[10%] md:w-[min(88%,19.5rem)]",
         className
       )}
     >
       <div
         className={cn(
-          "htbf-hero3d-glass relative overflow-hidden rounded-[1.25rem] p-4 sm:p-[1.125rem]",
+          "htbf-hero3d-glass relative overflow-hidden rounded-[1.25rem] p-3.5 md:p-[1.125rem]",
           !reducedMotion && "htbf-hero3d-enter-card"
         )}
       >
@@ -47,24 +47,24 @@ export function Hero3DVideoCard({
           <span className="htbf-hero3d-glass-sheen" aria-hidden />
         ) : null}
         <div className="htbf-hero3d-glass-inner flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/75 shadow-sm ring-1 ring-white/60">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/75 shadow-sm ring-1 ring-white/60 md:h-11 md:w-11">
             <Play className="h-5 w-5 fill-[#0b63ce] text-[#0b63ce]" aria-hidden />
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-heading font-black text-slate-900">
               Latest Video Story
             </p>
-            <p className="text-xs font-medium text-slate-500">
+            <p className="truncate text-xs font-medium text-slate-500">
               Freedom • 1 min watch
             </p>
           </div>
         </div>
 
-        <p className="htbf-hero3d-glass-inner mt-3.5 text-sm leading-6 text-slate-700">
+        <p className="htbf-hero3d-glass-inner mt-3 text-[13px] leading-5 text-slate-700 md:mt-3.5 md:text-sm md:leading-6">
           “I woke up with peace after weeks of anxiety.”
         </p>
 
-        <div className="htbf-hero3d-glass-inner mt-3.5 flex flex-wrap gap-1.5">
+        <div className="htbf-hero3d-glass-inner mt-3 flex flex-wrap gap-1.5 md:mt-3.5">
           {["Amen", "Praying", "Encouraged"].map((label) => (
             <span
               key={label}
@@ -91,7 +91,7 @@ export function Hero3DWorldCard({
       reducedMotion={reducedMotion}
       floatClass="htbf-hero3d-card-float-delayed"
       className={cn(
-        "absolute bottom-[6%] left-[6%] w-[min(82%,17.5rem)] md:bottom-[8%] md:left-[8%]",
+        "absolute hidden bottom-[6%] left-[6%] w-[min(82%,17.5rem)] md:block md:bottom-[8%] md:left-[8%]",
         className
       )}
     >
