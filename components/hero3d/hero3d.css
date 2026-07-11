@@ -54,6 +54,96 @@
   transform-origin: 50% 30%;
 }
 
+/* Homepage approved composite — minimal in-frame polish */
+.htbf-hero3d-approved-polish-glow {
+  background: radial-gradient(
+    ellipse 52% 58% at 62% 44%,
+    rgba(255, 210, 140, 0.14),
+    transparent 72%
+  );
+}
+
+.htbf-hero3d-approved-polish-vignette {
+  background: radial-gradient(
+    ellipse 108% 96% at 50% 50%,
+    transparent 52%,
+    rgba(4, 16, 32, 0.22) 100%
+  );
+}
+
+.htbf-hero3d-approved-polish-grain {
+  opacity: 0.028;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* ── Homepage approved composite — nested motion wrappers ── */
+.htbf-hero3d-composite-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.htbf-hero3d-composite-sensor {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.htbf-hero3d-composite-ambient {
+  position: absolute;
+  inset: 0;
+  transform: translate3d(0, 0, 0);
+  transform-origin: 58% 46%;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.htbf-hero3d-composite-canvas {
+  position: absolute;
+  inset: -4%;
+}
+
+/* Mobile ambient pan/zoom — automatic, no permission */
+@media (max-width: 767.98px) {
+  .htbf-hero3d-composite-ambient-active {
+    animation: htbf-hero3d-composite-ambient-mobile 20s ease-in-out infinite
+      alternate;
+    animation-fill-mode: both;
+  }
+}
+
+@keyframes htbf-hero3d-composite-ambient-mobile {
+  0% {
+    transform: translate3d(-14px, 8px, 0) scale(1.025);
+  }
+  100% {
+    transform: translate3d(14px, -8px, 0) scale(1.055);
+  }
+}
+
+/* Desktop / laptop ambient drift */
+@media (min-width: 768px) {
+  .htbf-hero3d-composite-ambient-active {
+    animation: htbf-hero3d-composite-ambient-desktop 26s ease-in-out infinite
+      alternate;
+    animation-fill-mode: both;
+  }
+}
+
+@keyframes htbf-hero3d-composite-ambient-desktop {
+  0% {
+    transform: translate3d(-11px, 5px, 0) scale(1.01);
+  }
+  100% {
+    transform: translate3d(11px, -6px, 0) scale(1.035);
+  }
+}
+
 .htbf-hero3d-ambient {
   animation-duration: var(--htbf-hero-ambient-duration, 72s);
   animation-timing-function: ease-in-out;
@@ -137,25 +227,62 @@
   animation-delay: -2.5s;
 }
 
+/* Mobile artwork motion shells — base layout (desktop: full inset, no animation). */
+.htbf-hero3d-mobile-artwork-clip {
+  position: absolute;
+  inset: 0;
+}
+
+.htbf-hero3d-mobile-sensor {
+  position: absolute;
+  inset: 0;
+}
+
+.htbf-hero3d-mobile-ambient {
+  position: absolute;
+  inset: 0;
+}
+
 /* ── Mobile-only automatic ambient depth ──
-   On phones the pointer parallax is disabled, so the scene would otherwise sit
-   perfectly still. This slow, nearly subconscious scale + drift gives the mobile
-   hero cinematic life automatically the moment it renders. Desktop is untouched
-   because the animation only exists inside the mobile media query. */
+   Stable outer clip (overflow hidden) + oversized inner canvas (108%) so scale
+   and translation have room to read. CSS animation lives on the inner canvas
+   only; glass cards and foreground grasses are outside and stay fixed. Desktop
+   rules are untouched — everything below is scoped to max-width 767.98px. */
 @media (max-width: 767.98px) {
-  .htbf-hero3d-mobile-drift {
+  .htbf-hero3d-mobile-artwork-clip {
+    overflow: hidden;
+  }
+
+  .htbf-hero3d-mobile-sensor {
+    overflow: visible;
+  }
+
+  .htbf-hero3d-mobile-ambient {
+    inset: auto;
+    top: -4%;
+    left: -4%;
+    width: 108%;
+    height: 108%;
+    transform: translate3d(0, 0, 0);
     transform-origin: 58% 46%;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
     will-change: transform;
-    animation: htbf-hero3d-mobile-drift 20s ease-in-out infinite alternate;
+  }
+
+  .htbf-hero3d-mobile-ambient-active {
+    animation: htbf-hero3d-mobile-ambient 20s ease-in-out infinite alternate;
+    animation-fill-mode: both;
+    animation-play-state: running;
   }
 }
 
-@keyframes htbf-hero3d-mobile-drift {
+@keyframes htbf-hero3d-mobile-ambient {
   0% {
-    transform: scale(1.028) translate3d(-7px, 4px, 0);
+    transform: translate3d(-16px, 8px, 0) scale(1.025);
   }
   100% {
-    transform: scale(1.055) translate3d(8px, -5px, 0);
+    transform: translate3d(16px, -9px, 0) scale(1.06);
   }
 }
 
@@ -364,7 +491,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .htbf-hero3d-mobile-drift,
+  .htbf-hero3d-mobile-ambient-active,
+  .htbf-hero3d-composite-ambient-active,
   .htbf-hero3d-ambient,
   .htbf-hero3d-particle-float,
   .htbf-hero3d-card-float,

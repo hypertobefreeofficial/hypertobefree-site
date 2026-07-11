@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "../../lib/cn";
 import {
@@ -138,12 +139,31 @@ function layerRef(
   return registerLayer(getHero3DParallaxPx(id));
 }
 
+/** Mobile ambient mode must not write JS transforms onto animated artwork layers. */
+function noopLayerRef() {
+  return (_node: HTMLElement | null) => {};
+}
+
 export function Hero3DLayerStack({
   registerLayer,
   showFloatingCards = true,
   reducedMotion = false,
   lowPowerMode = false,
 }: Hero3DLayerStackProps) {
+  const [mobileArtwork, setMobileArtwork] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767.98px)");
+    const sync = () => setMobileArtwork(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  const parallaxLayersActive = !mobileArtwork && !reducedMotion;
+  const bindLayer = (id: Hero3DLayerId) =>
+    parallaxLayersActive ? layerRef(registerLayer, id) : noopLayerRef;
+
   const glowPulse = reducedMotion ? "" : "htbf-hero3d-glow-pulse";
   const rayShift = reducedMotion ? "" : "htbf-hero3d-ray-shift";
   const hazeDrift = reducedMotion ? "" : "htbf-hero3d-haze-drift";
@@ -159,16 +179,20 @@ export function Hero3DLayerStack({
 
   return (
     <>
-      {/* Dedicated mobile motion wrapper — only the background + mid-ground
-          artwork (sky → subject → pollen) drifts. The foreground grasses, dust,
-          and the glass cards live outside this wrapper and stay perfectly
-          stationary, giving the drift a fixed reference so it reads as cinematic
-          depth. Desktop gets no transform (the drift rule is mobile-only), so
-          z-index ordering and the approved composition are unchanged. */}
-      <div className="htbf-hero3d-mobile-drift absolute inset-0">
+      {/* Stable mobile clip viewport → optional sensor shell → oversized ambient
+          canvas (CSS-only transform). Glass cards, dust, and foreground grasses
+          are siblings outside this clip so they remain visually stationary. */}
+      <div className="htbf-hero3d-mobile-artwork-clip absolute inset-0">
+        <div className="htbf-hero3d-mobile-sensor absolute inset-0">
+          <div
+            className={cn(
+              "htbf-hero3d-mobile-ambient",
+              !reducedMotion && "htbf-hero3d-mobile-ambient-active"
+            )}
+          >
       {/* L1 · Deep sky */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "sky")}
+        layerRef={bindLayer("sky")}
         zIndex={getHero3DZIndex("sky")}
         zoom="env"
       >
@@ -179,7 +203,7 @@ export function Hero3DLayerStack({
 
       {/* L2 · Sunrise glow — huge warm bloom behind the scene */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "sun-glow")}
+        layerRef={bindLayer( "sun-glow")}
         zIndex={getHero3DZIndex("sun-glow")}
         zoom="env"
       >
@@ -210,7 +234,7 @@ export function Hero3DLayerStack({
 
       {/* L3 · High clouds */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "cloud-high")}
+        layerRef={bindLayer( "cloud-high")}
         zIndex={getHero3DZIndex("cloud-high")}
         zoom="env"
       >
@@ -231,7 +255,7 @@ export function Hero3DLayerStack({
 
       {/* L4 · Mid clouds */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "cloud-mid")}
+        layerRef={bindLayer( "cloud-mid")}
         zIndex={getHero3DZIndex("cloud-mid")}
         zoom="env"
       >
@@ -252,7 +276,7 @@ export function Hero3DLayerStack({
 
       {/* L5 · Volumetric sun rays */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "sun-rays")}
+        layerRef={bindLayer( "sun-rays")}
         zIndex={getHero3DZIndex("sun-rays")}
         zoom="env"
       >
@@ -261,7 +285,7 @@ export function Hero3DLayerStack({
 
       {/* L6 · Mountain range — softened w/ atmospheric haze */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "mountains")}
+        layerRef={bindLayer( "mountains")}
         zIndex={getHero3DZIndex("mountains")}
         zoom="env"
       >
@@ -274,7 +298,7 @@ export function Hero3DLayerStack({
 
       {/* L7 · Valley + river */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "valley")}
+        layerRef={bindLayer( "valley")}
         zIndex={getHero3DZIndex("valley")}
         zoom="env"
       >
@@ -293,7 +317,7 @@ export function Hero3DLayerStack({
 
       {/* L8 · Distant trees */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "trees")}
+        layerRef={bindLayer( "trees")}
         zIndex={getHero3DZIndex("trees")}
         zoom="env"
       >
@@ -302,7 +326,7 @@ export function Hero3DLayerStack({
 
       {/* L9 · Wildflowers */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "wildflowers")}
+        layerRef={bindLayer( "wildflowers")}
         zIndex={getHero3DZIndex("wildflowers")}
         zoom="env"
       >
@@ -313,7 +337,7 @@ export function Hero3DLayerStack({
 
       {/* L10 · Subject */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "subject")}
+        layerRef={bindLayer( "subject")}
         zIndex={getHero3DZIndex("subject")}
         zoom="subject"
       >
@@ -344,7 +368,7 @@ export function Hero3DLayerStack({
 
       {/* L11 · Floating pollen */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "pollen")}
+        layerRef={bindLayer( "pollen")}
         zIndex={getHero3DZIndex("pollen")}
         zoom="env"
       >
@@ -357,14 +381,16 @@ export function Hero3DLayerStack({
           <LayerImage src={HERO3D_ASSETS.pollen} />
         </div>
       </Hero3DLayer>
+          </div>
+        </div>
       </div>
-      {/* ── End mobile motion wrapper — everything below stays stationary ── */}
+      {/* ── End mobile artwork clip — overlays below stay stationary ── */}
 
       {showFloatingCards ? (
         <>
           {/* L12 · Video testimony card */}
           <Hero3DLayer
-            layerRef={layerRef(registerLayer, "glass-card-video")}
+            layerRef={bindLayer( "glass-card-video")}
             zIndex={getHero3DZIndex("glass-card-video")}
           >
             <Hero3DVideoCard reducedMotion={reducedMotion} />
@@ -372,7 +398,7 @@ export function Hero3DLayerStack({
 
           {/* L13 · World stories card */}
           <Hero3DLayer
-            layerRef={layerRef(registerLayer, "glass-card-world")}
+            layerRef={bindLayer( "glass-card-world")}
             zIndex={getHero3DZIndex("glass-card-world")}
           >
             <Hero3DWorldCard reducedMotion={reducedMotion} />
@@ -382,7 +408,7 @@ export function Hero3DLayerStack({
 
       {/* L14 · Illuminated dust */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "dust")}
+        layerRef={bindLayer( "dust")}
         zIndex={getHero3DZIndex("dust")}
       >
         <Hero3DParticles
@@ -393,7 +419,7 @@ export function Hero3DLayerStack({
 
       {/* L15 · Premium foreground grasses (moves most) */}
       <Hero3DLayer
-        layerRef={layerRef(registerLayer, "grasses")}
+        layerRef={bindLayer( "grasses")}
         zIndex={getHero3DZIndex("grasses")}
         zoom="env"
       >
