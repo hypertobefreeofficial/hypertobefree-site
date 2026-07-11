@@ -324,7 +324,8 @@ export default function HomePage() {
 
             <Hero3DScene
               className="relative mx-auto w-full max-w-[560px] md:max-w-none"
-              showFloatingCards
+              showFloatingCards={false}
+              useApprovedComposite
               ariaLabel="A person walking in freedom at sunrise"
             />
 

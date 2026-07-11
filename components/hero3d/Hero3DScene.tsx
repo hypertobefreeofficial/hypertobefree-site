@@ -3,6 +3,8 @@
 import { useCallback, useRef } from "react";
 import { cn } from "../../lib/cn";
 import { useParallax } from "../../hooks/useParallax";
+import { Hero3DApprovedCompositeArt, HERO_COMPOSITE_SENSOR_PARALLAX_PX } from "./Hero3DApprovedCompositeArt";
+import { Hero3DVideoCard, Hero3DWorldCard } from "./Hero3DGlassCards";
 import { Hero3DLayerStack } from "./Hero3DLayer";
 
 export type Hero3DSceneProps = {
@@ -10,6 +12,8 @@ export type Hero3DSceneProps = {
   sceneClassName?: string;
   showFloatingCards?: boolean;
   showMotionBadge?: boolean;
+  /** Homepage: render the approved composite still instead of individual layers. */
+  useApprovedComposite?: boolean;
   children?: React.ReactNode;
   ariaLabel?: string;
 };
@@ -19,6 +23,7 @@ export default function Hero3DScene({
   sceneClassName,
   showFloatingCards = true,
   showMotionBadge = false,
+  useApprovedComposite = false,
   children,
   ariaLabel = "Cinematic sunrise scene with a person walking in freedom",
 }: Hero3DSceneProps) {
@@ -60,23 +65,40 @@ export default function Hero3DScene({
             !reducedMotion && "htbf-hero3d-entrance"
           )}
         >
-          <Hero3DLayerStack
-            registerLayer={registerLayer}
-            showFloatingCards={showFloatingCards}
-            reducedMotion={reducedMotion}
-            lowPowerMode={lowPowerMode}
-          />
+          {useApprovedComposite ? (
+            <>
+              <Hero3DApprovedCompositeArt
+                reducedMotion={reducedMotion}
+                sensorLayerRef={registerLayer(HERO_COMPOSITE_SENSOR_PARALLAX_PX)}
+              />
+              {showFloatingCards ? (
+                <div className="pointer-events-none absolute inset-0 z-[12]">
+                  <Hero3DVideoCard reducedMotion={reducedMotion} />
+                  <Hero3DWorldCard reducedMotion={reducedMotion} />
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Hero3DLayerStack
+                registerLayer={registerLayer}
+                showFloatingCards={showFloatingCards}
+                reducedMotion={reducedMotion}
+                lowPowerMode={lowPowerMode}
+              />
 
-          {/* Static V4 cinematic grade — no parallax */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 z-[19]"
-          >
-            <div className="absolute inset-0 htbf-hero3d-grade-bloom-v4" />
-            <div className="absolute inset-0 htbf-hero3d-grade-filmic" />
-            <div className="absolute inset-0 htbf-hero3d-grade-vignette-v4" />
-            <div className="absolute inset-0 htbf-hero3d-grade-teal-v4 mix-blend-multiply opacity-40" />
-          </div>
+              {/* Static V4 cinematic grade — no parallax */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-[19]"
+              >
+                <div className="absolute inset-0 htbf-hero3d-grade-bloom-v4" />
+                <div className="absolute inset-0 htbf-hero3d-grade-filmic" />
+                <div className="absolute inset-0 htbf-hero3d-grade-vignette-v4" />
+                <div className="absolute inset-0 htbf-hero3d-grade-teal-v4 mix-blend-multiply opacity-40" />
+              </div>
+            </>
+          )}
 
           {children ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[20] bg-gradient-to-t from-[#041428]/80 via-[#041428]/25 to-transparent px-5 pb-6 pt-16 sm:px-8 sm:pb-8">

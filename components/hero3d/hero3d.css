@@ -54,6 +54,96 @@
   transform-origin: 50% 30%;
 }
 
+/* Homepage approved composite — minimal in-frame polish */
+.htbf-hero3d-approved-polish-glow {
+  background: radial-gradient(
+    ellipse 52% 58% at 62% 44%,
+    rgba(255, 210, 140, 0.14),
+    transparent 72%
+  );
+}
+
+.htbf-hero3d-approved-polish-vignette {
+  background: radial-gradient(
+    ellipse 108% 96% at 50% 50%,
+    transparent 52%,
+    rgba(4, 16, 32, 0.22) 100%
+  );
+}
+
+.htbf-hero3d-approved-polish-grain {
+  opacity: 0.028;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+/* ── Homepage approved composite — nested motion wrappers ── */
+.htbf-hero3d-composite-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.htbf-hero3d-composite-sensor {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.htbf-hero3d-composite-ambient {
+  position: absolute;
+  inset: 0;
+  transform: translate3d(0, 0, 0);
+  transform-origin: 58% 46%;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.htbf-hero3d-composite-canvas {
+  position: absolute;
+  inset: -4%;
+}
+
+/* Mobile ambient pan/zoom — automatic, no permission */
+@media (max-width: 767.98px) {
+  .htbf-hero3d-composite-ambient-active {
+    animation: htbf-hero3d-composite-ambient-mobile 20s ease-in-out infinite
+      alternate;
+    animation-fill-mode: both;
+  }
+}
+
+@keyframes htbf-hero3d-composite-ambient-mobile {
+  0% {
+    transform: translate3d(-14px, 8px, 0) scale(1.025);
+  }
+  100% {
+    transform: translate3d(14px, -8px, 0) scale(1.055);
+  }
+}
+
+/* Desktop / laptop ambient drift */
+@media (min-width: 768px) {
+  .htbf-hero3d-composite-ambient-active {
+    animation: htbf-hero3d-composite-ambient-desktop 26s ease-in-out infinite
+      alternate;
+    animation-fill-mode: both;
+  }
+}
+
+@keyframes htbf-hero3d-composite-ambient-desktop {
+  0% {
+    transform: translate3d(-11px, 5px, 0) scale(1.01);
+  }
+  100% {
+    transform: translate3d(11px, -6px, 0) scale(1.035);
+  }
+}
+
 .htbf-hero3d-ambient {
   animation-duration: var(--htbf-hero-ambient-duration, 72s);
   animation-timing-function: ease-in-out;
@@ -402,6 +492,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .htbf-hero3d-mobile-ambient-active,
+  .htbf-hero3d-composite-ambient-active,
   .htbf-hero3d-ambient,
   .htbf-hero3d-particle-float,
   .htbf-hero3d-card-float,
