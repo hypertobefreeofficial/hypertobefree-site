@@ -1,174 +1,66 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import LoggedInBottomNav from "../../../components/LoggedInBottomNav";
+import JourneyInboxShell from "../../../components/journey/inbox/JourneyInboxShell";
+import JourneyInboxHeader from "../../../components/journey/inbox/JourneyInboxHeader";
+import JourneyConversationList from "../../../components/journey/inbox/JourneyConversationList";
+import JourneyConversationPanel from "../../../components/journey/inbox/JourneyConversationPanel";
+import JourneyConversationContext from "../../../components/journey/inbox/JourneyConversationContext";
+import JourneyInboxEmptyState from "../../../components/journey/inbox/JourneyInboxEmptyState";
 import { supabase } from "../../../lib/supabaseClient";
+import {
+  MESSAGE_SELECT,
+  PRAYER_VIDEO_BUCKET,
+  MAX_PRAYER_VIDEO_SECONDS,
+} from "../../../lib/journey/inbox/constants";
+import type {
+  ClearMessageRequest,
+  InboxFilter,
+  InboxMessage,
+  ReplyMode,
+} from "../../../lib/journey/inbox/types";
+import {
+  buildInboxListItems,
+  buildInboxThread,
+  filterInboxMessages,
+  formatUnreadBadge,
+  getInboxItemKey,
+  getPrayerThreadIdForInsert,
+  getPrayerThreadKey,
+  getThreadReplyTarget,
+  getVideoDuration,
+  groupInboxItemsByTime,
+  isLocalInboxMessageId,
+  isPrayerConversationMessage,
+  isPrayerStorySummary,
+  searchInboxItems,
+} from "../../../lib/journey/inbox/utils";
+import styles from "../../../components/journey/inbox/JourneyInbox.module.css";
 
-type InboxMessage = {
-  id: string;
-  user_id?: string | null;
-  sender_user_id?: string | null;
-  parent_message_id?: string | null;
-  thread_id?: string | null;
-  title: string;
-  body: string;
-  read: boolean;
-  created_at: string;
-  category?: string | null;
-  message_type?: string | null;
-  type?: string | null;
-  story_id?: string | null;
-  prayer_request_id?: string | null;
-  video_url?: string | null;
-  image_url?: string | null;
-  action_url?: string | null;
-  hidden_at?: string | null;
-};
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
 
-type InboxMessageKind =
-  | "encouragement"
-  | "prayer_video_reply"
-  | "scripture_share"
-  | "testimony_response"
-  | "team"
-  | "milestone"
-  | "approval";
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const update = () => setMatches(mediaQuery.matches);
 
-type InboxFilter =
-  | "all"
-  | "unread"
-  | "prayer"
-  | "approvals"
-  | "milestones"
-  | "team";
+    update();
+    mediaQuery.addEventListener("change", update);
 
-type ReplyMode = "text" | "video";
+    return () => mediaQuery.removeEventListener("change", update);
+  }, [query]);
 
-type ClearMessageRequest =
-  | { mode: "single"; messages: InboxMessage[] }
-  | { mode: "all"; messages: InboxMessage[] };
-
-type PrayerStorySummary = {
-  id: string;
-  name: string | null;
-  location: string | null;
-  story_text: string | null;
-  story_type: string | null;
-  created_at: string | null;
-};
-
-type InboxThread = {
-  key: string;
-  messages: InboxMessage[];
-  latestMessage: InboxMessage;
-  unreadCount: number;
-  storyId: string | null;
-};
-
-type InboxListItem =
-  | { kind: "message"; message: InboxMessage }
-  | { kind: "thread"; thread: InboxThread };
-
-const BASE_SELECT = "id, title, body, read, created_at, category";
-const MESSAGE_SELECT = `${BASE_SELECT}, sender_user_id, parent_message_id, thread_id, message_type, story_id, prayer_request_id, video_url, image_url, action_url, hidden_at`;
-
-const PRAYER_VIDEO_BUCKET = "story-videos";
-const MAX_PRAYER_VIDEO_SECONDS = 30;
-
-const INBOX_CARD_STYLES: Record<
-  InboxMessageKind,
-  {
-    label: string;
-    eyebrow: string;
-    ring: string;
-    badge: string;
-    panel: string;
-  }
-> = {
-  encouragement: {
-    label: "Encouragement",
-    eyebrow: "Someone encouraged you",
-    ring: "ring-emerald-200",
-    badge: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-    panel: "bg-emerald-50 text-emerald-950 ring-emerald-100",
-  },
-  prayer_video_reply: {
-    label: "Prayer Response",
-    eyebrow: "Private prayer response",
-    ring: "ring-blue-200",
-    badge: "bg-blue-50 text-[#0b63ce] ring-blue-100",
-    panel: "bg-blue-50 text-[#082f63] ring-blue-100",
-  },
-  scripture_share: {
-    label: "Scripture Share",
-    eyebrow: "Scripture for your journey",
-    ring: "ring-indigo-200",
-    badge: "bg-indigo-50 text-indigo-700 ring-indigo-100",
-    panel: "bg-indigo-50 text-indigo-950 ring-indigo-100",
-  },
-  testimony_response: {
-    label: "Testimony Response",
-    eyebrow: "Response to your story",
-    ring: "ring-sky-200",
-    badge: "bg-sky-50 text-sky-700 ring-sky-100",
-    panel: "bg-sky-50 text-sky-950 ring-sky-100",
-  },
-  team: {
-    label: "HTBF Team",
-    eyebrow: "HTBF update",
-    ring: "ring-slate-200",
-    badge: "bg-slate-100 text-slate-700 ring-slate-200",
-    panel: "bg-slate-50 text-slate-700 ring-slate-200",
-  },
-  milestone: {
-    label: "Milestone",
-    eyebrow: "Journey milestone",
-    ring: "ring-amber-200",
-    badge: "bg-amber-50 text-amber-800 ring-amber-100",
-    panel: "bg-amber-50 text-amber-950 ring-amber-100",
-  },
-  approval: {
-    label: "Approval",
-    eyebrow: "Story review update",
-    ring: "ring-cyan-200",
-    badge: "bg-cyan-50 text-cyan-700 ring-cyan-100",
-    panel: "bg-cyan-50 text-cyan-950 ring-cyan-100",
-  },
-};
-
-const FILTERS: { id: InboxFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
-  { id: "prayer", label: "Prayer Updates" },
-  { id: "approvals", label: "Approvals" },
-  { id: "milestones", label: "Milestones" },
-  { id: "team", label: "HTBF Team" },
-];
-
-function getVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    const url = URL.createObjectURL(file);
-
-    video.preload = "metadata";
-    video.onloadedmetadata = () => {
-      URL.revokeObjectURL(url);
-      resolve(video.duration);
-    };
-    video.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read video duration."));
-    };
-    video.src = url;
-  });
+  return matches;
 }
 
 export default function JourneyInboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [prayerStories, setPrayerStories] = useState<
-    Record<string, PrayerStorySummary>
+    Record<string, import("../../../lib/journey/inbox/types").PrayerStorySummary>
   >({});
   const [activeFilter, setActiveFilter] = useState<InboxFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [clearMessageRequest, setClearMessageRequest] =
     useState<ClearMessageRequest | null>(null);
@@ -176,7 +68,6 @@ export default function JourneyInboxPage() {
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
-  const [replyMessage, setReplyMessage] = useState<InboxMessage | null>(null);
   const [replyMode, setReplyMode] = useState<ReplyMode>("text");
   const [replyText, setReplyText] = useState("");
   const [replyVideoFile, setReplyVideoFile] = useState<File | null>(null);
@@ -186,9 +77,10 @@ export default function JourneyInboxPage() {
   );
   const [replyStatus, setReplyStatus] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
-  const [selectedThreadKey, setSelectedThreadKey] = useState<string | null>(
-    null
-  );
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  const isDesktop = useMediaQuery("(min-width: 1100px)");
+  const hideBottomNav = useMediaQuery("(min-width: 1024px)");
 
   useEffect(() => {
     async function loadMessages() {
@@ -271,7 +163,9 @@ export default function JourneyInboxPage() {
 
     const nextPrayerStories = (Array.isArray(data) ? data : [])
       .filter(isPrayerStorySummary)
-      .reduce<Record<string, PrayerStorySummary>>((storyMap, story) => {
+      .reduce<
+        Record<string, import("../../../lib/journey/inbox/types").PrayerStorySummary>
+      >((storyMap, story) => {
         storyMap[story.id] = story;
         return storyMap;
       }, {});
@@ -285,32 +179,62 @@ export default function JourneyInboxPage() {
     };
   }, [replyVideoPreviewUrl]);
 
-  const filteredMessages = useMemo(() => {
-    return messages.filter((message) => {
-      if (activeFilter === "all") return true;
-      if (activeFilter === "unread") return !message.read;
+  const allInboxItems = useMemo(
+    () => buildInboxListItems(messages),
+    [messages]
+  );
 
-      const category = getMessageCategoryKey(message);
-      return category === activeFilter;
-    });
-  }, [activeFilter, messages]);
+  const filteredMessages = useMemo(
+    () => filterInboxMessages(messages, activeFilter),
+    [activeFilter, messages]
+  );
 
-  const inboxItems = useMemo(
+  const filteredInboxItems = useMemo(
     () => buildInboxListItems(filteredMessages),
     [filteredMessages]
   );
 
-  const selectedThread = useMemo(() => {
-    if (!selectedThreadKey) return null;
+  const searchedInboxItems = useMemo(
+    () => searchInboxItems(filteredInboxItems, searchQuery),
+    [filteredInboxItems, searchQuery]
+  );
 
-    return buildInboxThread(
-      messages.filter(
+  const groupedInboxItems = useMemo(
+    () => groupInboxItemsByTime(searchedInboxItems),
+    [searchedInboxItems]
+  );
+
+  const selectedItem = useMemo(() => {
+    if (!selectedKey) return null;
+
+    return (
+      searchedInboxItems.find((item) => getInboxItemKey(item) === selectedKey) ??
+      null
+    );
+  }, [searchedInboxItems, selectedKey]);
+
+  const selectedThread = useMemo(() => {
+    if (selectedItem?.kind === "thread") {
+      const threadMessages = messages.filter(
         (message) =>
           isPrayerConversationMessage(message) &&
-          getPrayerThreadKey(message) === selectedThreadKey
-      )
-    );
-  }, [messages, selectedThreadKey]);
+          getPrayerThreadKey(message) === selectedItem.thread.key
+      );
+
+      return buildInboxThread(threadMessages);
+    }
+
+    return null;
+  }, [messages, selectedItem]);
+
+  const selectedMessage =
+    selectedItem?.kind === "message" ? selectedItem.message : null;
+
+  const activeReplyTarget = useMemo(() => {
+    if (!selectedThread) return null;
+
+    return getThreadReplyTarget(selectedThread, userId);
+  }, [selectedThread, userId]);
 
   const unreadCount = useMemo(
     () => messages.filter((message) => !message.read).length,
@@ -321,6 +245,21 @@ export default function JourneyInboxPage() {
   const visibleUnreadIds = filteredMessages
     .filter((message) => !message.read && !isLocalInboxMessageId(message.id))
     .map((message) => message.id);
+
+  const showMobileDetail = !isDesktop && selectedKey !== null;
+
+  const panelMode =
+    selectedThread !== null
+      ? "thread"
+      : selectedMessage !== null
+        ? "notification"
+        : "empty";
+
+  const linkedStoryId =
+    selectedThread?.storyId ||
+    selectedMessage?.story_id ||
+    selectedMessage?.prayer_request_id ||
+    null;
 
   async function markAsRead(id: string) {
     if (!userId) {
@@ -424,43 +363,69 @@ export default function JourneyInboxPage() {
     );
   }
 
-  function openClearMessageModal(message: InboxMessage) {
+  function selectConversation(key: string) {
     setStatusMessage("");
-    setClearMessageRequest({ mode: "single", messages: [message] });
-  }
+    setReplyStatus("");
+    setSelectedKey(key);
 
-  function openThread(threadKey: string) {
-    setStatusMessage("");
-    setSelectedThreadKey(threadKey);
+    const item =
+      allInboxItems.find((entry) => getInboxItemKey(entry) === key) ?? null;
 
-    const threadMessageIds = messages
-      .filter(
-        (message) =>
-          isPrayerConversationMessage(message) &&
-          getPrayerThreadKey(message) === threadKey &&
-          !message.read
-      )
-      .map((message) => message.id);
+    if (item?.kind === "thread") {
+      const unreadIds = item.thread.messages
+        .filter((message) => !message.read)
+        .map((message) => message.id);
 
-    if (threadMessageIds.length > 0) {
-      void markMessagesAsRead(threadMessageIds);
-    }
-  }
+      if (unreadIds.length > 0) {
+        void markMessagesAsRead(unreadIds);
+      }
 
-  function closeThread() {
-    setSelectedThreadKey(null);
-  }
-
-  function replyFromThread(thread: InboxThread, mode: ReplyMode) {
-    const replyTarget = getThreadReplyTarget(thread, userId);
-
-    if (!replyTarget) {
-      setStatusMessage("This conversation does not have someone to reply to.");
       return;
     }
 
-    setSelectedThreadKey(null);
-    openReplyModal(replyTarget, mode);
+    if (item?.kind === "message" && !item.message.read) {
+      void markAsRead(item.message.id);
+    }
+  }
+
+  const selectedKeyStillVisible = useMemo(() => {
+    if (!selectedKey) return false;
+    return searchedInboxItems.some(
+      (item) => getInboxItemKey(item) === selectedKey
+    );
+  }, [searchedInboxItems, selectedKey]);
+
+  useEffect(() => {
+    if (!isDesktop || loading) return;
+
+    const firstVisible = searchedInboxItems[0];
+
+    if (!firstVisible) {
+      if (selectedKey !== null) setSelectedKey(null);
+      return;
+    }
+
+    if (!selectedKey || !selectedKeyStillVisible) {
+      selectConversation(getInboxItemKey(firstVisible));
+    }
+    // Keep selection stable while the user browses; only auto-pick when empty/missing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isDesktop,
+    loading,
+    searchedInboxItems,
+    selectedKey,
+    selectedKeyStillVisible,
+  ]);
+
+  function backToInboxList() {
+    setSelectedKey(null);
+    setReplyStatus("");
+  }
+
+  function openClearMessageModal(message: InboxMessage) {
+    setStatusMessage("");
+    setClearMessageRequest({ mode: "single", messages: [message] });
   }
 
   function openClearAllMessagesModal() {
@@ -522,48 +487,27 @@ export default function JourneyInboxPage() {
     setMessages((current) =>
       current.filter((message) => !messageIds.includes(message.id))
     );
+
+    if (selectedKey) {
+      const clearedSelectionKeys = new Set(
+        clearMessageRequest.messages.map((message) =>
+          isPrayerConversationMessage(message)
+            ? getPrayerThreadKey(message)
+            : `message:${message.id}`
+        )
+      );
+
+      if (clearedSelectionKeys.has(selectedKey)) {
+        setSelectedKey(null);
+      }
+    }
+
     setClearMessageRequest(null);
     setStatusMessage(
       clearMessageRequest.mode === "all"
-        ? "Messages cleared from your Journey Inbox."
-        : "Message cleared from your Journey Inbox."
+        ? "Messages removed from your Journey Inbox."
+        : "Message removed from your Journey Inbox."
     );
-  }
-
-  function openReplyModal(message: InboxMessage, mode: ReplyMode) {
-    setStatusMessage("");
-    setReplyStatus("");
-
-    if (!message.sender_user_id) {
-      setStatusMessage("This message does not have a sender to reply to.");
-      return;
-    }
-
-    setReplyMessage(message);
-    setReplyMode(mode);
-    setReplyText("");
-    setReplyVideoFile(null);
-    setReplyVideoDuration(null);
-
-    if (replyVideoPreviewUrl) {
-      URL.revokeObjectURL(replyVideoPreviewUrl);
-      setReplyVideoPreviewUrl("");
-    }
-  }
-
-  function closeReplyModal() {
-    setReplyMessage(null);
-    setReplyMode("text");
-    setReplyText("");
-    setReplyVideoFile(null);
-    setReplyVideoDuration(null);
-    setReplyStatus("");
-    setSendingReply(false);
-
-    if (replyVideoPreviewUrl) {
-      URL.revokeObjectURL(replyVideoPreviewUrl);
-      setReplyVideoPreviewUrl("");
-    }
   }
 
   async function handleReplyVideoFile(file: File | null) {
@@ -609,12 +553,12 @@ export default function JourneyInboxPage() {
       return;
     }
 
-    if (!replyMessage || !replyMessage.sender_user_id) {
+    if (!activeReplyTarget || !activeReplyTarget.sender_user_id) {
       setReplyStatus("Could not find the message sender.");
       return;
     }
 
-    if (replyMessage.sender_user_id === userId) {
+    if (activeReplyTarget.sender_user_id === userId) {
       setReplyStatus("You cannot reply to your own message.");
       return;
     }
@@ -637,7 +581,7 @@ export default function JourneyInboxPage() {
         return;
       }
 
-      const storyOrMessageId = replyMessage.story_id || replyMessage.id;
+      const storyOrMessageId = activeReplyTarget.story_id || activeReplyTarget.id;
       const extension =
         replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
       const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
@@ -666,8 +610,8 @@ export default function JourneyInboxPage() {
 
     const messageType =
       replyMode === "video" ? "prayer_video_reply" : "prayer_reply";
-    const threadId = getPrayerThreadIdForInsert(replyMessage);
-    const parentMessageId = replyMessage.id;
+    const threadId = getPrayerThreadIdForInsert(activeReplyTarget);
+    const parentMessageId = activeReplyTarget.id;
     const recipientReplyTitle =
       replyMode === "video"
         ? "Someone replied with a prayer video"
@@ -679,7 +623,7 @@ export default function JourneyInboxPage() {
 
     const replyRows = [
       {
-        user_id: replyMessage.sender_user_id,
+        user_id: activeReplyTarget.sender_user_id,
         sender_user_id: userId,
         parent_message_id: parentMessageId,
         thread_id: threadId,
@@ -687,8 +631,8 @@ export default function JourneyInboxPage() {
         body,
         category: "prayer",
         message_type: messageType,
-        story_id: replyMessage.story_id,
-        prayer_request_id: replyMessage.prayer_request_id,
+        story_id: activeReplyTarget.story_id,
+        prayer_request_id: activeReplyTarget.prayer_request_id,
         action_url: "/journey/inbox",
         video_url: videoUrl,
         read: false,
@@ -702,8 +646,8 @@ export default function JourneyInboxPage() {
         body,
         category: "prayer",
         message_type: messageType,
-        story_id: replyMessage.story_id,
-        prayer_request_id: replyMessage.prayer_request_id,
+        story_id: activeReplyTarget.story_id,
+        prayer_request_id: activeReplyTarget.prayer_request_id,
         action_url: "/journey/inbox",
         video_url: videoUrl,
         read: true,
@@ -719,7 +663,15 @@ export default function JourneyInboxPage() {
       return;
     }
 
-    closeReplyModal();
+    setReplyText("");
+    setReplyVideoFile(null);
+    setReplyVideoDuration(null);
+
+    if (replyVideoPreviewUrl) {
+      URL.revokeObjectURL(replyVideoPreviewUrl);
+      setReplyVideoPreviewUrl("");
+    }
+
     setStatusMessage("Prayer reply sent privately.");
 
     const localSenderMessage: InboxMessage = {
@@ -734,8 +686,8 @@ export default function JourneyInboxPage() {
       created_at: new Date().toISOString(),
       category: "prayer",
       message_type: messageType,
-      story_id: replyMessage.story_id,
-      prayer_request_id: replyMessage.prayer_request_id,
+      story_id: activeReplyTarget.story_id,
+      prayer_request_id: activeReplyTarget.prayer_request_id,
       video_url: videoUrl,
       action_url: "/journey/inbox",
     };
@@ -743,1145 +695,139 @@ export default function JourneyInboxPage() {
     setMessages((current) => [localSenderMessage, ...current]);
   }
 
+  function handleClearSelected() {
+    if (selectedThread) {
+      setClearMessageRequest({
+        mode: "all",
+        messages: selectedThread.messages,
+      });
+      return;
+    }
+
+    if (selectedMessage) {
+      openClearMessageModal(selectedMessage);
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#f8fbff] px-4 py-6 text-slate-900">
-      <div className="mx-auto max-w-4xl">
-        <Link
-          href="/journey"
-          className="mb-5 inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] shadow-sm ring-1 ring-blue-100 hover:bg-blue-50"
-        >
-          Back to Journey
-        </Link>
-
-        <header className="mb-6 rounded-[2rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-6 text-white shadow-sm">
-          <div className="text-sm font-black uppercase tracking-[0.22em] text-blue-100">
-            HYPER TO BE FREE
-          </div>
-          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
-            Journey Inbox
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">
-            Messages, updates, prayer videos, and milestones from your HTBF
-            journey.
-          </p>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <MiniInboxStat label="Messages" value={messages.length} />
-            <MiniInboxStat label="Unread" value={formattedUnreadCount} />
-          </div>
-        </header>
-
-        {statusMessage && (
-          <div className="mb-4 rounded-[1.5rem] bg-white p-4 text-sm font-bold text-[#062a57] shadow-sm ring-1 ring-blue-100">
-            {statusMessage}
-          </div>
-        )}
-
-        <section className="mb-5 rounded-[2rem] bg-white p-4 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex flex-wrap gap-2">
-            {FILTERS.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setActiveFilter(filter.id)}
-                className={`rounded-full px-4 py-2 text-sm font-black transition ${
-                  activeFilter === filter.id
-                    ? "bg-[#0b63ce] text-white shadow-sm"
-                    : "bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-bold text-slate-500">
-              Showing {inboxItems.length} inbox item
-              {inboxItems.length === 1 ? "" : "s"}.
-            </p>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={markVisibleAsRead}
-                disabled={visibleUnreadIds.length === 0 || markingAllRead}
-                className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {markingAllRead ? "Marking..." : "Mark All as Read"}
-              </button>
-
-              <button
-                type="button"
-                onClick={openClearAllMessagesModal}
-                disabled={filteredMessages.length === 0}
-                className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Clear All visible messages
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {loading ? (
-          <div className="rounded-[2rem] bg-white p-6 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-slate-200">
-            Loading messages...
-          </div>
-        ) : inboxItems.length === 0 ? (
-          <div className="rounded-[2rem] bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
-            <h2 className="text-xl font-black text-[#062a57]">
-              No Journey Inbox messages yet.
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Welcome messages, prayer updates, approval notices, milestones,
-              and HTBF announcements will appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {inboxItems.map((item) =>
-              item.kind === "thread" ? (
-                <PrayerThreadCard
-                  key={item.thread.key}
-                  thread={item.thread}
-                  story={
-                    item.thread.storyId
-                      ? prayerStories[item.thread.storyId]
-                      : undefined
-                  }
-                  onOpen={() => openThread(item.thread.key)}
-                  onMarkAsRead={() =>
-                    markMessagesAsRead(
-                      item.thread.messages.map((message) => message.id)
-                    )
-                  }
-                  onClear={() =>
-                    setClearMessageRequest({
-                      mode: "all",
-                      messages: item.thread.messages,
-                    })
-                  }
-                />
-              ) : (
-                <InboxMessageCard
-                  key={item.message.id}
-                  message={item.message}
-                  onMarkAsRead={markAsRead}
-                  onClear={openClearMessageModal}
-                  onReply={openReplyModal}
-                />
-              )
-            )}
-          </div>
-        )}
-      </div>
-
-      {selectedThread && (
-        <PrayerThreadModal
-          thread={selectedThread}
-          story={
-            selectedThread.storyId
-              ? prayerStories[selectedThread.storyId]
-              : undefined
-          }
-          userId={userId}
-          onClose={closeThread}
-          onReply={(mode) => replyFromThread(selectedThread, mode)}
-          onMarkAsRead={() =>
-            markMessagesAsRead(
-              selectedThread.messages.map((message) => message.id)
-            )
-          }
-        />
-      )}
-
-      {replyMessage && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
-          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
-            <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  PRIVATE PRAYER REPLY
-                </div>
-                <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  {replyMode === "video"
-                    ? "Reply with a prayer video"
-                    : "Reply with encouragement"}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeReplyModal}
-                className="rounded-full bg-slate-100 px-3 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
-              >
-                X
-              </button>
-            </div>
-
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Your reply will be sent privately to the person who sent you this
-              prayer message.
-            </p>
-
-            <textarea
-              value={replyText}
-              onChange={(event) => setReplyText(event.target.value)}
-              rows={5}
-              placeholder={
-                replyMode === "video"
-                  ? "Optional message with your video..."
-                  : "Write a short private reply..."
-              }
-              className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+    <>
+      <JourneyInboxShell
+        showMobileDetail={showMobileDetail}
+        statusMessage={statusMessage || undefined}
+        hideBottomNavPadding={hideBottomNav}
+        workspaceHeader={
+          <JourneyInboxHeader
+            unreadCount={formattedUnreadCount}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            activeFilter={activeFilter}
+            onFilterChange={setActiveFilter}
+            onMarkVisibleRead={() => void markVisibleAsRead()}
+            onClearVisible={openClearAllMessagesModal}
+            markingAllRead={markingAllRead}
+            canMarkVisibleRead={visibleUnreadIds.length > 0}
+            canClearVisible={filteredMessages.length > 0}
+            itemCount={searchedInboxItems.length}
+          />
+        }
+        listPane={
+          loading || searchedInboxItems.length === 0 ? (
+            <JourneyInboxEmptyState loading={loading} />
+          ) : (
+            <JourneyConversationList
+              groups={groupedInboxItems}
+              selectedKey={selectedKey}
+              onSelect={selectConversation}
             />
+          )
+        }
+        detailPane={
+          <JourneyConversationPanel
+            mode={panelMode}
+            showMobileBack={showMobileDetail}
+            onBack={backToInboxList}
+            thread={selectedThread}
+            message={selectedMessage}
+            story={linkedStoryId ? prayerStories[linkedStoryId] : undefined}
+            userId={userId}
+            onMarkRead={() => {
+              if (selectedThread) {
+                void markMessagesAsRead(
+                  selectedThread.messages.map((message) => message.id)
+                );
+              } else if (selectedMessage) {
+                void markAsRead(selectedMessage.id);
+              }
+            }}
+            onClear={handleClearSelected}
+            canReply={Boolean(activeReplyTarget)}
+            replyMode={replyMode}
+            onReplyModeChange={setReplyMode}
+            replyText={replyText}
+            onReplyTextChange={setReplyText}
+            replyVideoPreviewUrl={replyVideoPreviewUrl}
+            replyVideoDuration={replyVideoDuration}
+            replyStatus={replyStatus}
+            sendingReply={sendingReply}
+            onReplyVideoFile={(file) => void handleReplyVideoFile(file)}
+            onSendReply={() => void sendPrayerReply()}
+          />
+        }
+        contextPane={
+          isDesktop && selectedKey ? (
+            <JourneyConversationContext
+              thread={selectedThread}
+              message={selectedMessage}
+              story={linkedStoryId ? prayerStories[linkedStoryId] : undefined}
+            />
+          ) : undefined
+        }
+      />
 
-            {replyMode === "video" && (
-              <>
-                <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-blue-200 bg-blue-50/60 p-5 text-center transition hover:bg-blue-50">
-                  <span className="text-2xl">🎥</span>
-                  <span className="mt-2 text-sm font-black text-[#082f63]">
-                    Choose or record prayer video
-                  </span>
-                  <span className="mt-1 text-xs font-semibold text-slate-500">
-                    30 seconds max
-                  </span>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    capture="user"
-                    className="hidden"
-                    onChange={(event) =>
-                      void handleReplyVideoFile(event.target.files?.[0] ?? null)
-                    }
-                  />
-                </label>
+      {!hideBottomNav && !showMobileDetail ? <LoggedInBottomNav /> : null}
 
-                {replyVideoPreviewUrl && (
-                  <div className="mt-4 overflow-hidden rounded-[1.5rem] bg-black">
-                    <video
-                      src={replyVideoPreviewUrl}
-                      controls
-                      playsInline
-                      className="max-h-[360px] w-full bg-black object-contain"
-                    />
-                  </div>
-                )}
+      {clearMessageRequest ? (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalCard} role="dialog" aria-modal="true">
+            <h2 className={styles.modalTitle}>
+              {clearMessageRequest.mode === "all"
+                ? "Remove visible messages?"
+                : "Remove from my Inbox?"}
+            </h2>
 
-                {replyVideoDuration !== null && (
-                  <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-600">
-                    Video length: {Math.round(replyVideoDuration)} seconds
-                  </div>
-                )}
-              </>
-            )}
+            <p className={styles.modalBody}>
+              {clearMessageRequest.mode === "all"
+                ? "This removes all visible Journey Inbox messages from your side only. It does not delete the sender's copy."
+                : "This removes the message from your Journey Inbox on your side only. It does not delete the sender's copy."}
+            </p>
 
-            {replyStatus && (
-              <div className="mt-3 rounded-2xl bg-blue-50 p-3 text-sm font-bold leading-6 text-[#082f63] ring-1 ring-blue-100">
-                {replyStatus}
-              </div>
-            )}
-
-            <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeReplyModal}
-                disabled={sendingReply}
-                className="rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Not Yet
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void sendPrayerReply()}
-                disabled={sendingReply}
-                className="rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {sendingReply ? "Sending..." : "Send Reply"}
-              </button>
-            </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {clearMessageRequest && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm">
-          <div className="flex min-h-full items-end sm:items-center sm:justify-center">
-            <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="mb-5">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                HYPER TO BE FREE
-              </div>
-
-              <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                {clearMessageRequest.mode === "all"
-                  ? "Clear all visible messages?"
-                  : "Clear this message?"}
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {clearMessageRequest.mode === "all"
-                  ? "This will remove all visible Journey Inbox messages from your side only."
-                  : "This will remove this message from your Journey Inbox on your side only."}
-              </p>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <div className={styles.modalActions}>
               <button
                 type="button"
                 onClick={closeClearMessageModal}
                 disabled={clearingMessage}
-                className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className={styles.secondaryAction}
               >
                 Not Yet
               </button>
 
               <button
                 type="button"
-                onClick={confirmClearMessage}
+                onClick={() => void confirmClearMessage()}
                 disabled={clearingMessage}
-                className="inline-flex items-center justify-center rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className={`${styles.primaryAction} ${styles.toolbarButtonDanger}`}
+                style={{ background: "#be123c" }}
               >
                 {clearingMessage
-                  ? "Clearing..."
+                  ? "Removing..."
                   : clearMessageRequest.mode === "all"
-                    ? "Clear All"
-                    : "Clear Message"}
+                    ? "Remove visible messages"
+                    : "Remove from my Inbox"}
               </button>
             </div>
-            </div>
           </div>
         </div>
-      )}
-    </main>
+      ) : null}
+    </>
   );
-}
-
-function MiniInboxStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: number | string;
-}) {
-  return (
-    <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
-      <div className="text-2xl font-black">{value}</div>
-      <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-blue-100">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function formatUnreadBadge(count: number) {
-  return count > 99 ? "99+" : String(count);
-}
-
-function PrayerThreadCard({
-  thread,
-  story,
-  onOpen,
-  onMarkAsRead,
-  onClear,
-}: {
-  thread: InboxThread;
-  story?: PrayerStorySummary;
-  onOpen: () => void;
-  onMarkAsRead: () => void;
-  onClear: () => void;
-}) {
-  const messageCount = thread.messages.length;
-  const latestBody = thread.latestMessage.body?.trim();
-  const hasUnread = thread.unreadCount > 0;
-  const formattedThreadUnreadCount = formatUnreadBadge(thread.unreadCount);
-
-  return (
-    <article
-      className={`rounded-[2rem] bg-white p-5 shadow-sm ring-1 ${
-        hasUnread ? "ring-amber-200 shadow-amber-100" : "ring-blue-200"
-      }`}
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        {hasUnread && (
-          <span
-            className="h-2.5 w-2.5 rounded-full bg-red-600"
-            aria-label="Unread conversation"
-          />
-        )}
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-          Prayer Conversation
-        </span>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
-          {messageCount} Message{messageCount === 1 ? "" : "s"}
-        </span>
-        {hasUnread && (
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
-            {formattedThreadUnreadCount} unread
-          </span>
-        )}
-        <span className="text-xs font-bold text-slate-400">
-          {formatMessageDate(thread.latestMessage.created_at)}
-        </span>
-      </div>
-
-      <div
-        className={`mt-4 rounded-[1.5rem] p-4 ring-1 ${
-          hasUnread
-            ? "bg-amber-50 ring-amber-100"
-            : "bg-blue-50 ring-blue-100"
-        }`}
-      >
-        <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-          Private Prayer Thread
-        </div>
-        <h2 className="mt-2 text-xl font-black text-[#062a57]">
-          Prayer Conversation
-        </h2>
-        {story?.story_text && (
-          <p
-            className="mt-2 line-clamp-2 text-sm leading-6 text-[#082f63]"
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {story.story_text}
-          </p>
-        )}
-        {latestBody && (
-          <p
-            className={`mt-3 line-clamp-2 text-sm leading-6 ${
-              hasUnread ? "font-bold text-slate-800" : "text-slate-600"
-            }`}
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            Latest: {latestBody}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-        >
-          View Conversation
-        </button>
-        {thread.unreadCount > 0 && (
-          <button
-            type="button"
-            onClick={onMarkAsRead}
-            className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
-          >
-            Mark as Read
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onClear}
-          className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
-        >
-          Clear
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function PrayerThreadModal({
-  thread,
-  story,
-  userId,
-  onClose,
-  onReply,
-  onMarkAsRead,
-}: {
-  thread: InboxThread;
-  story?: PrayerStorySummary;
-  userId: string | null;
-  onClose: () => void;
-  onReply: (mode: ReplyMode) => void;
-  onMarkAsRead: () => void;
-}) {
-  const chronologicalMessages = getThreadMessagesChronological(thread.messages);
-  const canReply = Boolean(getThreadReplyTarget(thread, userId));
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 p-4 backdrop-blur-sm">
-      <div className="flex h-full items-end sm:items-center sm:justify-center">
-        <div className="flex h-[88vh] max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] bg-white text-slate-900 shadow-2xl">
-          <div className="shrink-0 border-b border-slate-100 bg-white p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  Prayer Conversation
-                </div>
-                <h2 className="mt-1 text-2xl font-black text-[#062a57]">
-                  {thread.messages.length} Message
-                  {thread.messages.length === 1 ? "" : "s"}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {thread.unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={onMarkAsRead}
-                  className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
-                >
-                  Mark Conversation Read
-                </button>
-              )}
-              {canReply && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => onReply("text")}
-                    className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-50"
-                  >
-                    Reply with Text
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onReply("video")}
-                    className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-                  >
-                    Reply with Video
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div
-            className="min-h-0 flex-1 overscroll-contain overflow-y-auto bg-[#f8fbff] p-5 pb-24 sm:pb-5"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
-            <div className="space-y-4">
-            <div className="rounded-[1.5rem] bg-white p-4 ring-1 ring-blue-100">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Original Prayer Request
-              </div>
-              {story?.story_text ? (
-                <p
-                  className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700"
-                  style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-                >
-                  {story.story_text}
-                </p>
-              ) : (
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  This conversation is linked to a private prayer request.
-                </p>
-              )}
-              {(story?.name || story?.location) && (
-                <p className="mt-3 text-xs font-bold text-slate-400">
-                  {story.name || "HTBF Community"}
-                  {story.location ? ` • ${story.location}` : ""}
-                </p>
-              )}
-            </div>
-
-            {chronologicalMessages.map((message) => (
-              <ThreadTimelineMessage
-                key={message.id}
-                message={message}
-                mine={Boolean(userId && message.sender_user_id === userId)}
-              />
-            ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ThreadTimelineMessage({
-  message,
-  mine,
-}: {
-  message: InboxMessage;
-  mine: boolean;
-}) {
-  const videoUrl = message.video_url?.trim();
-
-  return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[85%] rounded-[1.5rem] p-4 shadow-sm ring-1 ${
-          mine
-            ? "bg-[#0b63ce] text-white ring-blue-200"
-            : "bg-white text-slate-800 ring-slate-200"
-        }`}
-      >
-        <div
-          className={`mb-2 text-[10px] font-black uppercase tracking-[0.16em] ${
-            mine ? "text-blue-100" : "text-[#0b63ce]"
-          }`}
-        >
-          {mine ? "You" : "Prayer reply"} •{" "}
-          {formatMessageDate(message.created_at)}
-        </div>
-        <p
-          className="whitespace-pre-wrap text-sm leading-6"
-          style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-        >
-          {message.body}
-        </p>
-        {videoUrl && (
-          <div className="mt-3 overflow-hidden rounded-2xl bg-black">
-            <video
-              src={videoUrl}
-              controls
-              playsInline
-              className="max-h-[360px] w-full bg-black object-contain"
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function isPrayerStorySummary(value: unknown): value is PrayerStorySummary {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "id" in value &&
-    typeof value.id === "string"
-  );
-}
-
-function buildInboxListItems(messages: InboxMessage[]): InboxListItem[] {
-  const threadMap = new Map<string, InboxMessage[]>();
-  const items: InboxListItem[] = [];
-
-  messages.forEach((message) => {
-    if (!isPrayerConversationMessage(message)) {
-      items.push({ kind: "message", message });
-      return;
-    }
-
-    const threadKey = getPrayerThreadKey(message);
-    const threadMessages = threadMap.get(threadKey) ?? [];
-    threadMessages.push(message);
-    threadMap.set(threadKey, threadMessages);
-  });
-
-  threadMap.forEach((threadMessages) => {
-    const thread = buildInboxThread(threadMessages);
-
-    if (thread) {
-      items.push({ kind: "thread", thread });
-    }
-  });
-
-  return items.sort(
-    (first, second) =>
-      getInboxListItemTime(second) - getInboxListItemTime(first)
-  );
-}
-
-function buildInboxThread(messages: InboxMessage[]): InboxThread | null {
-  if (messages.length === 0) return null;
-
-  const sortedNewestFirst = [...messages].sort(
-    (first, second) => getMessageTime(second) - getMessageTime(first)
-  );
-  const latestMessage = sortedNewestFirst[0];
-
-  if (!latestMessage) return null;
-
-  return {
-    key: getPrayerThreadKey(latestMessage),
-    messages: sortedNewestFirst,
-    latestMessage,
-    unreadCount: messages.filter((message) => !message.read).length,
-    storyId:
-      latestMessage.prayer_request_id?.trim() ||
-      latestMessage.story_id?.trim() ||
-      null,
-  };
-}
-
-function getInboxListItemTime(item: InboxListItem) {
-  return item.kind === "thread"
-    ? getMessageTime(item.thread.latestMessage)
-    : getMessageTime(item.message);
-}
-
-function getThreadMessagesChronological(messages: InboxMessage[]) {
-  return [...messages].sort(
-    (first, second) => getMessageTime(first) - getMessageTime(second)
-  );
-}
-
-function getMessageTime(message: InboxMessage) {
-  const time = new Date(message.created_at).getTime();
-
-  return Number.isFinite(time) ? time : 0;
-}
-
-function isLocalInboxMessageId(messageId: string) {
-  return messageId.startsWith("local-");
-}
-
-function getPrayerThreadKey(message: InboxMessage) {
-  const cleanThreadId = message.thread_id?.trim();
-
-  if (cleanThreadId) return `thread:${cleanThreadId}`;
-
-  const linkedPrayerId =
-    message.prayer_request_id?.trim() || message.story_id?.trim();
-
-  if (linkedPrayerId) return `prayer:${linkedPrayerId}`;
-
-  return `message:${message.id}`;
-}
-
-function getPrayerThreadIdForInsert(message: InboxMessage) {
-  const cleanThreadId = message.thread_id?.trim();
-
-  if (cleanThreadId) return cleanThreadId;
-
-  const linkedPrayerId =
-    message.prayer_request_id?.trim() || message.story_id?.trim();
-
-  if (linkedPrayerId) return `prayer:${linkedPrayerId}`;
-
-  return `message:${message.id}`;
-}
-
-function getThreadReplyTarget(thread: InboxThread, userId: string | null) {
-  const chronologicalMessages = getThreadMessagesChronological(thread.messages);
-  const latestFromOtherPerson = [...chronologicalMessages]
-    .reverse()
-    .find(
-      (message) =>
-        message.sender_user_id && (!userId || message.sender_user_id !== userId)
-    );
-
-  return latestFromOtherPerson ?? null;
-}
-
-function isPrayerConversationMessage(message: InboxMessage) {
-  const searchable = normalizeSearchable([
-    message.message_type,
-    message.type,
-    message.category,
-    message.title,
-    message.body,
-  ]);
-
-  return Boolean(
-    message.sender_user_id &&
-      matchesAny(searchable, [
-        "prayer video response",
-        "prayer video reply",
-        "prayer reply",
-        "prayer video",
-        "prayer_video_response",
-        "prayer_video_reply",
-        "prayer_reply",
-      ])
-  );
-}
-
-function InboxMessageCard({
-  message,
-  onMarkAsRead,
-  onClear,
-  onReply,
-}: {
-  message: InboxMessage;
-  onMarkAsRead: (id: string) => void;
-  onClear: (message: InboxMessage) => void;
-  onReply: (message: InboxMessage, mode: ReplyMode) => void;
-}) {
-  const messageKind = getInboxMessageKind(message);
-  const style = INBOX_CARD_STYLES[messageKind];
-  const explicitCategory = getExplicitCategoryLabel(message);
-  const imageUrl = message.image_url?.trim();
-  const videoUrl = message.video_url?.trim();
-  const actionUrl = message.action_url?.trim();
-  const canReply = isPrayerReplyable(message);
-  const isUnread = !message.read;
-
-  return (
-    <article
-      className={`rounded-[2rem] bg-white p-5 shadow-sm ring-1 ${
-        isUnread ? "ring-amber-200 shadow-amber-100" : style.ring
-      }`}
-    >
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {isUnread && (
-          <span
-            className="h-2.5 w-2.5 rounded-full bg-red-600"
-            aria-label="Unread message"
-          />
-        )}
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-black ${
-            !isUnread
-              ? "bg-slate-100 text-slate-600"
-              : "bg-amber-100 text-amber-800"
-          }`}
-        >
-          {isUnread ? "Unread" : "Read"}
-        </span>
-
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${style.badge}`}
-        >
-          {explicitCategory || style.label}
-        </span>
-
-        <span className="text-xs font-bold text-slate-400">
-          {formatMessageDate(message.created_at)}
-        </span>
-      </div>
-
-      <div
-        className={`rounded-[1.5rem] p-4 ring-1 ${
-          isUnread ? "bg-amber-50 text-amber-950 ring-amber-100" : style.panel
-        }`}
-      >
-        <div className="text-xs font-black uppercase tracking-[0.18em]">
-          {style.eyebrow}
-        </div>
-
-        <h2 className="mt-2 text-xl font-black text-[#062a57]">
-          {message.title}
-        </h2>
-
-        {messageKind === "scripture_share" ? (
-          <blockquote
-            className="mt-3 border-l-4 border-current pl-4 text-sm font-bold leading-7"
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {message.body}
-          </blockquote>
-        ) : (
-          <p
-            className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${
-              isUnread ? "font-bold" : ""
-            }`}
-            style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
-          >
-            {message.body}
-          </p>
-        )}
-      </div>
-
-      {(imageUrl || videoUrl) && (
-        <div className="mt-4 space-y-3">
-          {imageUrl && (
-            <img
-              src={imageUrl}
-              alt={message.title || "Journey Inbox image"}
-              className="max-h-[420px] w-full rounded-[1.5rem] object-cover ring-1 ring-slate-200"
-            />
-          )}
-
-          {videoUrl && (
-            <div className="overflow-hidden rounded-[1.5rem] bg-slate-950 ring-1 ring-slate-200">
-              <video
-                src={videoUrl}
-                controls
-                playsInline
-                className="max-h-[420px] w-full bg-slate-950"
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {canReply && (
-        <div className="mt-4 rounded-[1.5rem] bg-blue-50 p-4 ring-1 ring-blue-100">
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-            Private Prayer Thread
-          </div>
-          <p className="mt-2 text-sm leading-6 text-[#082f63]">
-            Reply privately with encouragement or a 30-second prayer video.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onReply(message, "text")}
-              className="rounded-full bg-white px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
-            >
-              Reply with Text
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onReply(message, "video")}
-              className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-            >
-              Reply with Video
-            </button>
-          </div>
-        </div>
-      )}
-
-      {(message.sender_user_id ||
-        message.story_id ||
-        message.prayer_request_id) && (
-        <div className="mt-4 flex flex-wrap gap-2 text-xs font-black text-slate-500">
-          {message.sender_user_id && (
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-100">
-              Community message
-            </span>
-          )}
-          {message.story_id && (
-            <span className="rounded-full bg-slate-50 px-3 py-1 ring-1 ring-slate-200">
-              Story linked
-            </span>
-          )}
-          {message.prayer_request_id && (
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-[#0b63ce] ring-1 ring-blue-100">
-              Prayer request linked
-            </span>
-          )}
-        </div>
-      )}
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {!message.read && (
-          <button
-            type="button"
-            onClick={() => onMarkAsRead(message.id)}
-            className="rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-          >
-            Mark as Read
-          </button>
-        )}
-
-        {actionUrl && (
-          <a
-            href={actionUrl}
-            target={actionUrl.startsWith("/") ? undefined : "_blank"}
-            rel={actionUrl.startsWith("/") ? undefined : "noreferrer"}
-            className="rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-[#0b63ce] ring-1 ring-blue-100 hover:bg-blue-100"
-          >
-            View
-          </a>
-        )}
-
-        <button
-          type="button"
-          onClick={() => onClear(message)}
-          className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100"
-        >
-          Clear
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function isPrayerReplyable(message: InboxMessage) {
-  const searchable = normalizeSearchable([
-    message.message_type,
-    message.type,
-    message.category,
-    message.title,
-    message.body,
-  ]);
-
-  return Boolean(
-    message.sender_user_id &&
-      matchesAny(searchable, [
-        "prayer video response",
-        "prayer video reply",
-        "prayer reply",
-        "prayer video",
-        "prayer_video_response",
-        "prayer_video_reply",
-        "prayer_reply",
-      ])
-  );
-}
-
-function getExplicitCategoryLabel(message: InboxMessage) {
-  const rawCategory =
-    message.category?.trim() ||
-    message.message_type?.trim() ||
-    message.type?.trim();
-
-  if (!rawCategory) return "";
-
-  return formatCategoryLabel(rawCategory);
-}
-
-function getInboxMessageKind(message: InboxMessage): InboxMessageKind {
-  const searchable = normalizeSearchable([
-    message.message_type,
-    message.type,
-    message.category,
-    message.title,
-    message.body,
-  ]);
-
-  if (
-    matchesAny(searchable, [
-      "prayer_video_response",
-      "prayer video response",
-      "prayer_video_reply",
-      "prayer video reply",
-      "prayer_reply",
-      "prayer reply",
-      "video prayer",
-    ])
-  ) {
-    return "prayer_video_reply";
-  }
-
-  if (matchesAny(searchable, ["scripture_share", "scripture share", "verse"])) {
-    return "scripture_share";
-  }
-
-  if (
-    matchesAny(searchable, [
-      "testimony_response",
-      "testimony response",
-      "story response",
-    ])
-  ) {
-    return "testimony_response";
-  }
-
-  if (
-    matchesAny(searchable, [
-      "encouragement",
-      "encourage",
-      "encouraged",
-      "encouraging",
-    ])
-  ) {
-    return "encouragement";
-  }
-
-  if (
-    matchesAny(searchable, [
-      "approval",
-      "approved",
-      "approve",
-      "pending",
-      "submitted",
-      "removed",
-    ])
-  ) {
-    return "approval";
-  }
-
-  if (
-    matchesAny(searchable, [
-      "milestone",
-      "achievement",
-      "badge",
-      "streak",
-      "journey",
-      "progress",
-    ])
-  ) {
-    return "milestone";
-  }
-
-  return "team";
-}
-
-function getMessageCategoryKey(message: InboxMessage): Exclude<
-  InboxFilter,
-  "all" | "unread"
-> {
-  const messageKind = getInboxMessageKind(message);
-  const searchable = normalizeSearchable([
-    message.category,
-    message.message_type,
-    message.type,
-    message.title,
-    message.body,
-  ]);
-
-  if (
-    messageKind === "prayer_video_reply" ||
-    message.prayer_request_id ||
-    matchesAny(searchable, ["prayer", "pray", "praying", "answered"])
-  ) {
-    return "prayer";
-  }
-
-  if (
-    messageKind === "approval" ||
-    matchesAny(searchable, [
-      "approval",
-      "approved",
-      "approve",
-      "pending",
-      "submitted",
-      "removed",
-    ])
-  ) {
-    return "approvals";
-  }
-
-  if (
-    messageKind === "milestone" ||
-    matchesAny(searchable, [
-      "milestone",
-      "achievement",
-      "badge",
-      "streak",
-      "journey",
-      "progress",
-    ])
-  ) {
-    return "milestones";
-  }
-
-  return "team";
-}
-
-function matchesAny(value: string, keywords: string[]) {
-  return keywords.some((keyword) => value.includes(keyword));
-}
-
-function normalizeSearchable(values: Array<string | null | undefined>) {
-  return values
-    .filter(Boolean)
-    .join(" ")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .toLowerCase();
-}
-
-function formatCategoryLabel(value: string) {
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function formatMessageDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
 }
