@@ -1,33 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  HeartHandshake,
-  Sparkles,
-  Trophy,
-  Flame,
-  Send,
-  Users,
-  Footprints,
-  Compass,
-  MessageCircleHeart,
-  Globe2,
-  Target,
-  Lightbulb,
-  HandHeart,
-  Map,
-  NotebookPen,
-  Play,
-  Inbox,
-  ChevronRight,
-  Trash2,
-  Video,
-  X,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Send, Trash2, X } from "lucide-react";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
+import JourneyHeader from "../../components/journey/JourneyHeader";
+import JourneyHero from "../../components/journey/JourneyHero";
+import JourneyMetrics from "../../components/journey/JourneyMetrics";
+import JourneyQuickActions from "../../components/journey/JourneyQuickActions";
+import JourneyInboxCard from "../../components/journey/JourneyInboxCard";
+import JourneyManagementCard from "../../components/journey/JourneyManagementCard";
+import JourneyMilestonePath from "../../components/journey/JourneyMilestonePath";
+import JourneyMapFeature from "../../components/journey/JourneyMapFeature";
+import JourneyImpactCards from "../../components/journey/JourneyImpactCards";
+import JourneyReflectionCard from "../../components/journey/JourneyReflectionCard";
+import JourneyKeepGoingCard from "../../components/journey/JourneyKeepGoingCard";
+import styles from "../../components/journey/JourneyDashboard.module.css";
 import { supabase } from "../../lib/supabaseClient";
 
 type StoryRow = {
@@ -345,6 +332,23 @@ export default function JourneyPage() {
     setMessage("");
   }
 
+  const focusReflectionRoom = useCallback(() => {
+    const section = document.getElementById("journey-reflection-room");
+    const textarea = document.getElementById("journey-reflection-textarea");
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    section?.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+
+    window.setTimeout(() => {
+      textarea?.focus({ preventScroll: true });
+    }, prefersReducedMotion ? 0 : 300);
+  }, []);
+
   function startEditingStory(story: StoryRow) {
     if (story.status === "removed") {
       setMessage("Removed uploads cannot be edited.");
@@ -612,420 +616,70 @@ export default function JourneyPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
-          <Link
-            href="/feed"
-            className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Feed
-          </Link>
+    <main className={styles.page}>
+      <JourneyHeader />
 
-          <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-            Journey
+      <div className={styles.shell}>
+        <div className={styles.stack}>
+          <JourneyHero />
+
+          <JourneyMetrics
+            storiesShared={journeyTotals.storiesShared}
+            prayersJoined={journeyTotals.prayersJoined}
+            godDidIt={journeyTotals.godDidIt}
+            encouragements={journeyTotals.encouragements}
+          />
+
+          {message && <div className={styles.messageBanner}>{message}</div>}
+
+          <JourneyQuickActions onReflect={focusReflectionRoom} />
+
+          <div className={styles.inboxManageLayout}>
+            <JourneyInboxCard
+              unreadCount={journeyInboxUnreadCount}
+              formattedUnreadCount={formattedJourneyInboxUnreadCount}
+              priorityFirst={journeyInboxUnreadCount > 0}
+            />
+
+            <JourneyManagementCard
+              controlCenterOpen={controlCenterOpen}
+              onOpenControlCenter={openControlCenter}
+              onCloseControlCenter={() => setControlCenterOpen(false)}
+              uploadTotals={uploadTotals}
+              myUploads={myUploads}
+              removedUploads={removedUploads}
+              removingStoryId={removingStoryId}
+              clearingRemovedStoryId={clearingRemovedStoryId}
+              clearingAllRemoved={clearingAllRemoved}
+              onEditStory={startEditingStory}
+              onRemoveStory={removeMyUpload}
+              onClearRemovedStory={clearRemovedUpload}
+              onClearAllRemoved={clearAllRemovedUploads}
+            />
           </div>
+
+          <JourneyMilestonePath
+            myStoriesCount={myStories.length}
+            encouragementTotal={encouragementImpact.total}
+            encouragementEncouraged={encouragementImpact.encouraged}
+            godDidItCount={myGodDidItMoments.length}
+          />
+
+          <JourneyMapFeature />
+
+          <JourneyImpactCards
+            prayerWatchlistCount={myPrayerWatchlist.length}
+            godDidItCount={myGodDidItMoments.length}
+            encouragementImpact={encouragementImpact}
+          />
+
+          <JourneyReflectionCard
+            reflection={reflection}
+            onReflectionChange={saveReflection}
+          />
+
+          <JourneyKeepGoingCard />
         </div>
-      </header>
-
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-        <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#082f63] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100 ring-1 ring-white/15">
-            <Sparkles className="h-4 w-4" />
-            Freedom Journey
-          </div>
-
-          <h1 className="text-4xl font-black tracking-tight">
-            This is your role in the movement.
-          </h1>
-
-          <p className="mt-3 leading-7 text-blue-100">
-            Journey helps you keep track of prayer, encouragement, answered
-            prayers, personal reflection, and the stories you have shared.
-          </p>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <MiniStat number={journeyTotals.storiesShared} label="Shared" />
-            <MiniStat number={journeyTotals.prayersJoined} label="Prayers" />
-            <MiniStat number={journeyTotals.godDidIt} label="God Did It" />
-            <MiniStat
-              number={journeyTotals.encouragements}
-              label="Responses"
-            />
-          </div>
-        </section>
-
-        {message && (
-          <section className="rounded-[2rem] bg-blue-50 p-5 text-sm font-bold text-[#082f63] ring-1 ring-blue-100">
-            {message}
-          </section>
-        )}
-
-        <button
-          type="button"
-          onClick={openControlCenter}
-          className="w-full rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
-        >
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-              <Compass className="h-6 w-6" />
-              </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
-                Manage My Uploads
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                My uploads
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                View, edit, and remove your videos, testimonies, praise reports,
-                and prayer requests from one place.
-              </p>
-            </div>
-
-            <ChevronRight className="h-5 w-5 text-slate-400" />
-          </div>
-        </button>
-
-        {controlCenterOpen && (
-          <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
-                  Control Center
-                </div>
-                <h2 className="text-2xl font-black text-[#062a57]">
-                  My Uploads
-                </h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  This is where you manage what you have shared on HTBF.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setControlCenterOpen(false)}
-                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <MiniUploadStat label="Total" number={uploadTotals.total} />
-              <MiniUploadStat label="Approved" number={uploadTotals.approved} />
-              <MiniUploadStat label="Pending" number={uploadTotals.pending} />
-              <MiniUploadStat label="Removed" number={uploadTotals.removed} />
-              <MiniUploadStat label="Videos" number={uploadTotals.videos} />
-            </div>
-
-            {removedUploads.length > 0 && (
-              <div className="mb-5 flex flex-col gap-3 rounded-[1.5rem] bg-red-50 p-4 ring-1 ring-red-100 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="text-sm font-black text-red-800">
-                    Clear removed uploads
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-red-700">
-                    Permanently remove items already marked Removed from this
-                    control center.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={clearAllRemovedUploads}
-                  disabled={clearingAllRemoved}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {clearingAllRemoved ? "Clearing..." : "Clear All Removed"}
-                </button>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {myUploads.length === 0 ? (
-                <div className="rounded-[1.5rem] bg-slate-50 p-5 text-sm leading-6 text-slate-600 ring-1 ring-slate-200">
-                  You have not uploaded anything yet.
-                </div>
-              ) : (
-                myUploads.map((story) => (
-                  <MyUploadCard
-                    key={story.id}
-                    story={story}
-                    removing={removingStoryId === story.id}
-                    clearingRemoved={clearingRemovedStoryId === story.id}
-                    onEdit={() => startEditingStory(story)}
-                    onRemove={() => removeMyUpload(story)}
-                    onClearRemoved={() => clearRemovedUpload(story)}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-        )}
-
-        <Link
-          href="/journey/inbox"
-          className="block w-full rounded-[2rem] bg-white p-5 text-left shadow-sm ring-1 ring-slate-200 transition hover:bg-blue-50"
-        >
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <Inbox className="h-6 w-6" />
-              {journeyInboxUnreadCount > 0 && (
-                <span className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white">
-                  {formattedJourneyInboxUnreadCount}
-                </span>
-              )}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Journey Inbox
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                Messages, updates, and milestones
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                {journeyInboxUnreadCount > 0
-                  ? `You have ${formattedJourneyInboxUnreadCount} unread conversation${
-                      journeyInboxUnreadCount === 1 ? "" : "s"
-                    }.`
-                  : "Messages, updates, and milestones from your HTBF journey."}
-              </p>
-              <div className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-                {formattedJourneyInboxUnreadCount} unread conversation
-                {journeyInboxUnreadCount === 1 ? "" : "s"}
-              </div>
-            </div>
-
-            <ChevronRight className="h-5 w-5 text-slate-400" />
-          </div>
-        </Link>
-
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-              <Target className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                Today’s Mission
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                Do one thing that brings encouragement.
-              </h2>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <MissionButton
-              href="/prayer"
-              icon={<HeartHandshake className="h-5 w-5" />}
-              title="Pray"
-              text="Stand with one request"
-            />
-
-            <MissionButton
-              href="/feed"
-              icon={<HandHeart className="h-5 w-5" />}
-              title="Encourage"
-              text="Respond to one story"
-            />
-
-            <MissionButton
-              href="/share-your-story"
-              icon={<Send className="h-5 w-5" />}
-              title="Testify"
-              text="Share what God did"
-            />
-          </div>
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-              <Footprints className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">
-                Freedom Milestones
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                Your HTBF journey path
-              </h2>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <JourneyPathStep
-              active={myStories.length > 0}
-              number="01"
-              icon={<Lightbulb className="h-5 w-5" />}
-              title="God Moved"
-              text="Something happened that was worth remembering."
-            />
-
-            <JourneyPathStep
-              active={myStories.length > 0}
-              number="02"
-              icon={<Send className="h-5 w-5" />}
-              title="You Shared"
-              text={
-                myStories.length > 0
-                  ? `You have shared ${myStories.length} approved ${
-                      myStories.length === 1 ? "story" : "stories"
-                    }.`
-                  : "Share a testimony, praise report, prayer request, or video."
-              }
-            />
-
-            <JourneyPathStep
-              active={encouragementImpact.total > 0}
-              number="03"
-              icon={<Users className="h-5 w-5" />}
-              title="The Community Responded"
-              text={
-                encouragementImpact.total > 0
-                  ? `Your stories have received ${encouragementImpact.total} response${
-                      encouragementImpact.total === 1 ? "" : "s"
-                    }.`
-                  : "Responses to your stories will appear here."
-              }
-            />
-
-            <JourneyPathStep
-              active={myGodDidItMoments.length > 0}
-              number="04"
-              icon={<CheckCircle2 className="h-5 w-5" />}
-              title="God Did It"
-              text={
-                myGodDidItMoments.length > 0
-                  ? `${myGodDidItMoments.length} of your prayer ${
-                      myGodDidItMoments.length === 1
-                        ? "request has"
-                        : "requests have"
-                    } been marked answered.`
-                  : "Answered prayer moments will appear here."
-              }
-            />
-
-            <JourneyPathStep
-              active={encouragementImpact.encouraged > 0}
-              number="05"
-              icon={<Flame className="h-5 w-5" />}
-              title="Lives Were Encouraged"
-              text={
-                encouragementImpact.encouraged > 0
-                  ? `${encouragementImpact.encouraged} ${
-                      encouragementImpact.encouraged === 1 ? "person" : "people"
-                    } ${
-                      encouragementImpact.encouraged === 1 ? "was" : "were"
-                    } encouraged by your stories.`
-                  : "Encouragement impact will grow as people respond."
-              }
-            />
-          </div>
-        </section>
-
-        <TestimonyMapFeatureCard />
-
-        <section className="grid gap-4 sm:grid-cols-2">
-          <DashboardCard
-            icon={<Users className="h-6 w-6" />}
-            eyebrow="My Prayer Watchlist"
-            title={`${myPrayerWatchlist.length} Prayer ${
-              myPrayerWatchlist.length === 1 ? "Request" : "Requests"
-            }`}
-            text="These are prayer requests you joined by selecting I’m Praying."
-            href="/prayer"
-            button="View Prayer"
-          />
-
-          <DashboardCard
-            icon={<CheckCircle2 className="h-6 w-6" />}
-            eyebrow="My God Did It Moments"
-            title={`${myGodDidItMoments.length} Answered`}
-            text="These are your prayer requests that have been marked answered."
-            href="/prayer"
-            button="View Answered"
-          />
-
-          <DashboardCard
-            icon={<MessageCircleHeart className="h-6 w-6" />}
-            eyebrow="Encouragement Impact"
-            title={`${encouragementImpact.total} Responses`}
-            text={`Amen: ${encouragementImpact.amen} • Praise God: ${encouragementImpact.praiseGod} • Encouraged: ${encouragementImpact.encouraged} • Praying: ${encouragementImpact.praying}`}
-            href="/feed"
-            button="Open Feed"
-          />
-        </section>
-
-        <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <NotebookPen className="h-6 w-6" />
-            </div>
-
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-emerald-700">
-                Reflection Room
-              </div>
-              <h2 className="text-2xl font-black text-[#062a57]">
-                What do you want to remember?
-              </h2>
-            </div>
-          </div>
-
-          <textarea
-            value={reflection}
-            onChange={(event) => saveReflection(event.target.value)}
-            placeholder="Write a private reflection, prayer note, or testimony reminder..."
-            className="min-h-40 w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 text-base leading-7 text-slate-700 outline-none transition focus:border-blue-200 focus:bg-white focus:ring-4 focus:ring-blue-50"
-          />
-
-          <p className="mt-3 text-sm font-semibold text-slate-500">
-            Saved on this device.
-          </p>
-        </section>
-
-        <section className="rounded-[2rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-6 text-white shadow-sm">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-blue-100">
-            <Trophy className="h-4 w-4" />
-            Keep going
-          </div>
-
-          <h2 className="text-3xl font-black tracking-tight">
-            One story can strengthen another person’s journey.
-          </h2>
-
-          <p className="mt-3 leading-7 text-blue-100">
-            Share what God did, stand with someone in prayer, or write down what
-            you want to remember.
-          </p>
-
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/share-your-story"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-black text-[#082f63] hover:bg-blue-50"
-            >
-              Share What God Did
-              <Send className="h-4 w-4" />
-            </Link>
-
-            <Link
-              href="/video-feed"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white/10 px-5 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/15"
-            >
-              Watch Testimonies
-              <Play className="h-4 w-4" />
-            </Link>
-          </div>
-        </section>
       </div>
 
       <LoggedInBottomNav />
@@ -1121,184 +775,6 @@ export default function JourneyPage() {
   );
 }
 
-function MiniStat({
-  number,
-  label,
-}: {
-  number: string | number;
-  label: string;
-}) {
-  return (
-    <div className="rounded-2xl bg-white/10 p-3 text-center ring-1 ring-white/15">
-      <div className="text-2xl font-black">{number}</div>
-      <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-blue-100">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function MiniUploadStat({
-  number,
-  label,
-}: {
-  number: string | number;
-  label: string;
-}) {
-  return (
-    <div className="rounded-2xl bg-slate-50 p-3 text-center ring-1 ring-slate-100">
-      <div className="text-xl font-black text-[#062a57]">{number}</div>
-      <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function MyUploadCard({
-  story,
-  removing,
-  clearingRemoved,
-  onEdit,
-  onRemove,
-  onClearRemoved,
-}: {
-  story: StoryRow;
-  removing: boolean;
-  clearingRemoved: boolean;
-  onEdit: () => void;
-  onRemove: () => void;
-  onClearRemoved: () => void;
-}) {
-  const isRemoved = story.status === "removed";
-  const isApproved = story.status === "approved";
-  const hasVideo = Boolean(story.video_url);
-
-  const preview =
-    story.story_text?.trim() ||
-    story.story_type ||
-    "No description added yet.";
-
-  return (
-    <article className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-200">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StoryStatusBadge status={story.status} />
-
-            {hasVideo && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-black text-[#0b63ce] ring-1 ring-blue-100">
-                <Video className="h-3 w-3" />
-                Video
-              </span>
-            )}
-          </div>
-
-          <div className="mt-2 text-sm font-black text-[#062a57]">
-            {story.story_type || "HTBF Upload"}
-          </div>
-
-          <div className="mt-1 text-xs font-bold text-slate-500">
-            Submitted {formatShortDate(story.created_at)}
-            {story.edited_at ? ` • Edited ${formatShortDate(story.edited_at)}` : ""}
-          </div>
-        </div>
-      </div>
-
-      <p
-        className="whitespace-pre-line text-sm font-semibold leading-6 text-slate-700"
-        style={{
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-        }}
-      >
-        {preview.length > 220 ? `${preview.slice(0, 220)}...` : preview}
-      </p>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onEdit}
-          disabled={isRemoved}
-          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#082f63] ring-1 ring-slate-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <NotebookPen className="h-4 w-4" />
-          Edit
-        </button>
-
-        {isApproved && hasVideo && (
-          <Link
-            href={`/video-feed?story=${story.id}&from=control-center`}
-            className="inline-flex items-center gap-2 rounded-full bg-[#0b63ce] px-4 py-2 text-sm font-black text-white hover:bg-[#084f9f]"
-          >
-            <Play className="h-4 w-4" />
-            View
-          </Link>
-        )}
-
-        {!isRemoved && (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={removing}
-            className="inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Trash2 className="h-4 w-4" />
-            {removing ? "Removing..." : "Remove"}
-          </button>
-        )}
-
-        {isRemoved && (
-          <button
-            type="button"
-            onClick={onClearRemoved}
-            disabled={clearingRemoved}
-            className="inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Trash2 className="h-4 w-4" />
-            {clearingRemoved ? "Deleting..." : "Delete Forever"}
-          </button>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function StoryStatusBadge({ status }: { status: string | null }) {
-  const normalized = status || "pending";
-
-  const style =
-    normalized === "approved"
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
-      : normalized === "removed"
-        ? "bg-red-50 text-red-700 ring-red-100"
-        : "bg-amber-50 text-amber-700 ring-amber-100";
-
-  const label =
-    normalized === "approved"
-      ? "Approved"
-      : normalized === "removed"
-        ? "Removed"
-        : "Pending";
-
-  return (
-    <span
-      className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black ring-1 ${style}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function formatShortDate(value: string | null) {
-  if (!value) return "";
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(new Date(value));
-}
-
 function formatUnreadBadge(count: number) {
   return count > 99 ? "99+" : String(count);
 }
@@ -1351,156 +827,5 @@ function isPrayerConversationMessage(message: UnreadInboxMessageRow) {
         "prayer_video_reply",
         "prayer_reply",
       ].some((keyword) => searchable.includes(keyword))
-  );
-}
-
-function MissionButton({
-  href,
-  icon,
-  title,
-  text,
-}: {
-  href: string;
-  icon: ReactNode;
-  title: string;
-  text: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100 transition hover:bg-blue-50"
-    >
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#0b63ce] shadow-sm ring-1 ring-slate-100">
-        {icon}
-      </div>
-
-      <div className="font-black text-[#062a57]">{title}</div>
-      <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
-    </Link>
-  );
-}
-
-function JourneyPathStep({
-  active,
-  number,
-  icon,
-  title,
-  text,
-}: {
-  active: boolean;
-  number: string;
-  icon: ReactNode;
-  title: string;
-  text: string;
-}) {
-  return (
-    <div
-      className={`flex gap-4 rounded-[1.5rem] p-4 ring-1 ${
-        active
-          ? "bg-blue-50 ring-blue-100"
-          : "bg-slate-50 ring-slate-100"
-      }`}
-    >
-      <div
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-1 ${
-          active
-            ? "bg-[#0b63ce] text-white ring-blue-200"
-            : "bg-white text-[#0b63ce] ring-slate-100"
-        }`}
-      >
-        {icon}
-      </div>
-
-      <div>
-        <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-          {number}
-        </div>
-        <div className="mt-1 font-black text-[#062a57]">{title}</div>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
-      </div>
-    </div>
-  );
-}
-
-function TestimonyMapFeatureCard() {
-  return (
-    <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#061f45] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10 ring-1 ring-white/15">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_12rem] lg:items-center">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
-            <Map className="h-4 w-4" aria-hidden />
-            Testimony Map
-          </div>
-
-          <h2 className="mt-4 text-3xl font-black tracking-tight">
-            Explore stories of faith, freedom, prayer, and praise from around the
-            world.
-          </h2>
-
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-blue-100">
-            See approved HTBF stories by approximate public location, browse
-            clusters, and discover what God is doing across cities and nations.
-          </p>
-
-          <Link
-            href="/map"
-            className="mt-5 inline-flex rounded-full bg-white px-5 py-3 text-sm font-black text-[#062a57] transition hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-white/30"
-          >
-            Explore the Map
-          </Link>
-        </div>
-
-        <div
-          aria-hidden
-          className="relative hidden h-40 overflow-hidden rounded-[1.75rem] bg-white/10 ring-1 ring-white/20 lg:block"
-        >
-          <div className="absolute inset-0 opacity-40">
-            <div className="absolute left-[18%] top-[28%] h-16 w-24 rounded-full border border-white/70" />
-            <div className="absolute left-[48%] top-[18%] h-20 w-28 rounded-full border border-white/70" />
-            <div className="absolute left-[68%] top-[42%] h-14 w-20 rounded-full border border-white/70" />
-          </div>
-          <Globe2 className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 text-white/90" />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DashboardCard({
-  icon,
-  eyebrow,
-  title,
-  text,
-  href,
-  button,
-}: {
-  icon: ReactNode;
-  eyebrow: string;
-  title: string;
-  text: string;
-  href: string;
-  button: string;
-}) {
-  return (
-    <div className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#0b63ce]">
-        {icon}
-      </div>
-
-      <div className="text-xs font-black uppercase tracking-[0.16em] text-[#0b63ce]">
-        {eyebrow}
-      </div>
-
-      <h3 className="mt-1 text-2xl font-black text-[#062a57]">{title}</h3>
-
-      <p className="mt-2 leading-7 text-slate-600">{text}</p>
-
-      <Link
-        href={href}
-        className="mt-5 inline-flex rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f]"
-      >
-        {button}
-      </Link>
-    </div>
   );
 }
