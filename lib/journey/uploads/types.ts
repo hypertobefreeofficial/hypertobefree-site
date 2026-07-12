@@ -6,6 +6,11 @@ export type JourneyUpload = {
   story_type: string | null;
   story_text: string | null;
   video_url: string | null;
+  image_url?: string | null;
+  thumbnail_url?: string | null;
+  signed_image_url?: string | null;
+  signed_video_url?: string | null;
+  signed_thumbnail_url?: string | null;
   status: string | null;
   prayer_status: string | null;
   answered_text: string | null;
