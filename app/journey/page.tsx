@@ -16,6 +16,11 @@ import JourneyKeepGoingCard from "../../components/journey/JourneyKeepGoingCard"
 import JourneyUploadsWorkspace from "../../components/journey/uploads/JourneyUploadsWorkspace";
 import styles from "../../components/journey/JourneyDashboard.module.css";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  resolveStoryMediaUrl,
+  STORY_IMAGE_BUCKET,
+  STORY_VIDEO_BUCKET,
+} from "../../lib/journey/uploads/media";
 
 type StoryRow = {
   id: string;
@@ -25,6 +30,11 @@ type StoryRow = {
   story_type: string | null;
   story_text: string | null;
   video_url: string | null;
+  image_url?: string | null;
+  thumbnail_url?: string | null;
+  signed_image_url?: string | null;
+  signed_video_url?: string | null;
+  signed_thumbnail_url?: string | null;
   status: string | null;
   prayer_status: string | null;
   answered_text: string | null;
@@ -194,7 +204,7 @@ export default function JourneyPage() {
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, video_url, status, prayer_status, answered_text, created_at, edited_at, removed_at"
+        "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, answered_text, created_at, edited_at, removed_at"
       )
       .eq("user_id", currentUserId)
       .order("created_at", { ascending: false })
@@ -205,7 +215,27 @@ export default function JourneyPage() {
       return;
     }
 
-    setMyUploads((data as StoryRow[]) ?? []);
+    const rows = (data as StoryRow[]) ?? [];
+
+    const resolved = await Promise.all(
+      rows.map(async (story) => ({
+        ...story,
+        signed_image_url: await resolveStoryMediaUrl(
+          story.image_url ?? null,
+          STORY_IMAGE_BUCKET
+        ),
+        signed_thumbnail_url: await resolveStoryMediaUrl(
+          story.thumbnail_url ?? null,
+          STORY_IMAGE_BUCKET
+        ),
+        signed_video_url: await resolveStoryMediaUrl(
+          story.video_url,
+          STORY_VIDEO_BUCKET
+        ),
+      }))
+    );
+
+    setMyUploads(resolved);
   }
 
   async function loadJourneyInboxUnreadCount(currentUserId: string) {
