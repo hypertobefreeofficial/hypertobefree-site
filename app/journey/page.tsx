@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Send, Trash2, X } from "lucide-react";
 import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import JourneyHeader from "../../components/journey/JourneyHeader";
 import JourneyHero from "../../components/journey/JourneyHero";
@@ -14,6 +13,7 @@ import JourneyMapFeature from "../../components/journey/JourneyMapFeature";
 import JourneyImpactCards from "../../components/journey/JourneyImpactCards";
 import JourneyReflectionCard from "../../components/journey/JourneyReflectionCard";
 import JourneyKeepGoingCard from "../../components/journey/JourneyKeepGoingCard";
+import JourneyUploadsWorkspace from "../../components/journey/uploads/JourneyUploadsWorkspace";
 import styles from "../../components/journey/JourneyDashboard.module.css";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -77,6 +77,7 @@ export default function JourneyPage() {
   const [clearingAllRemoved, setClearingAllRemoved] = useState(false);
   const [clearRemovedRequest, setClearRemovedRequest] =
     useState<ClearRemovedRequest | null>(null);
+  const [removeRequest, setRemoveRequest] = useState<StoryRow | null>(null);
 
   useEffect(() => {
     async function loadJourney() {
@@ -428,12 +429,6 @@ export default function JourneyPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Remove this upload from HTBF? It will no longer appear in public feeds, search, or video areas."
-    );
-
-    if (!confirmed) return;
-
     setRemovingStoryId(story.id);
     setMessage("");
 
@@ -442,6 +437,7 @@ export default function JourneyPage() {
     });
 
     setRemovingStoryId(null);
+    setRemoveRequest(null);
 
     if (error) {
       setMessage(`Could not remove upload: ${error.message}`);
@@ -607,9 +603,11 @@ export default function JourneyPage() {
 
   if (checkingUser) {
     return (
-      <main className="min-h-screen bg-[#f8fbff] px-4 py-10 text-slate-900">
-        <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          Loading your Journey...
+      <main className={styles.page}>
+        <div className={styles.shell}>
+          <div className={styles.sectionCard} role="status">
+            Loading your Journey...
+          </div>
         </div>
       </main>
     );
@@ -642,19 +640,8 @@ export default function JourneyPage() {
             />
 
             <JourneyManagementCard
-              controlCenterOpen={controlCenterOpen}
               onOpenControlCenter={openControlCenter}
-              onCloseControlCenter={() => setControlCenterOpen(false)}
-              uploadTotals={uploadTotals}
-              myUploads={myUploads}
-              removedUploads={removedUploads}
-              removingStoryId={removingStoryId}
-              clearingRemovedStoryId={clearingRemovedStoryId}
-              clearingAllRemoved={clearingAllRemoved}
-              onEditStory={startEditingStory}
-              onRemoveStory={removeMyUpload}
-              onClearRemovedStory={clearRemovedUpload}
-              onClearAllRemoved={clearAllRemovedUploads}
+              uploadCount={uploadTotals.total}
             />
           </div>
 
@@ -682,95 +669,49 @@ export default function JourneyPage() {
         </div>
       </div>
 
-      <LoggedInBottomNav />
+      {!controlCenterOpen ? <LoggedInBottomNav /> : null}
 
-      {clearRemovedRequest && (
-        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="mb-5">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
-                HYPER TO BE FREE
-              </div>
-
-              <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                Clear removed uploads?
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                This will permanently remove items already marked Removed from
-                your uploads list.
-              </p>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeClearRemovedModal}
-                className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-200"
-              >
-                Not Yet
-              </button>
-
-              <button
-                type="button"
-                onClick={confirmClearRemovedUploads}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                Clear Removed
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editingStory && (
-        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
-                  Edit Upload
-                </div>
-
-                <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  Update your story text
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingStory(null);
-                  setEditStoryText("");
-                }}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label="Close edit box"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <textarea
-              value={editStoryText}
-              onChange={(event) => setEditStoryText(event.target.value)}
-              rows={7}
-              placeholder="Update your testimony, praise report, prayer request, or video description..."
-              className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-            />
-
-            <button
-              type="button"
-              disabled={savingStoryEdit}
-              onClick={saveStoryEdit}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {savingStoryEdit ? "Saving..." : "Save Changes"}
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      <JourneyUploadsWorkspace
+        open={controlCenterOpen}
+        onClose={() => setControlCenterOpen(false)}
+        uploads={myUploads}
+        reactions={reactions}
+        encouragementImpact={encouragementImpact}
+        removingStoryId={removingStoryId}
+        clearingRemovedStoryId={clearingRemovedStoryId}
+        clearingAllRemoved={clearingAllRemoved}
+        editingStory={editingStory}
+        editStoryText={editStoryText}
+        savingStoryEdit={savingStoryEdit}
+        onEditTextChange={setEditStoryText}
+        onStartEdit={startEditingStory}
+        onCancelEdit={() => {
+          setEditingStory(null);
+          setEditStoryText("");
+        }}
+        onSaveEdit={() => void saveStoryEdit()}
+        onRequestRemove={(upload) => {
+          setMessage("");
+          setRemoveRequest(upload);
+        }}
+        onRequestDeleteForever={clearRemovedUpload}
+        onRequestDeleteAllRemoved={clearAllRemovedUploads}
+        removeRequest={removeRequest}
+        deleteRequest={
+          clearRemovedRequest?.mode === "single"
+            ? clearRemovedRequest.story
+            : null
+        }
+        deleteAllRequestOpen={clearRemovedRequest?.mode === "all"}
+        onCancelRemove={() => setRemoveRequest(null)}
+        onCancelDelete={closeClearRemovedModal}
+        onCancelDeleteAll={closeClearRemovedModal}
+        onConfirmRemove={() => {
+          if (removeRequest) void removeMyUpload(removeRequest);
+        }}
+        onConfirmDelete={() => void confirmClearRemovedUploads()}
+        onConfirmDeleteAll={() => void confirmClearRemovedUploads()}
+      />
     </main>
   );
 }
