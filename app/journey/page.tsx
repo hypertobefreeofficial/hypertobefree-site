@@ -932,6 +932,8 @@ export default function JourneyPage() {
           </div>
         </section>
 
+        <TestimonyMapFeatureCard />
+
         <section className="grid gap-4 sm:grid-cols-2">
           <DashboardCard
             icon={<Users className="h-6 w-6" />}
@@ -960,15 +962,6 @@ export default function JourneyPage() {
             text={`Amen: ${encouragementImpact.amen} • Praise God: ${encouragementImpact.praiseGod} • Encouraged: ${encouragementImpact.encouraged} • Praying: ${encouragementImpact.praying}`}
             href="/feed"
             button="Open Feed"
-          />
-
-          <DashboardCard
-            icon={<Globe2 className="h-6 w-6" />}
-            eyebrow="Movement View"
-            title="Testimony Map"
-            text="See where stories, prayers, videos, and answered prayers are being shared."
-            href="/search"
-            button="Open Map"
           />
         </section>
 
@@ -1426,6 +1419,50 @@ function JourneyPathStep({
         <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
       </div>
     </div>
+  );
+}
+
+function TestimonyMapFeatureCard() {
+  return (
+    <section className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#061f45] via-[#0b63ce] to-[#69b7ff] p-6 text-white shadow-xl shadow-blue-950/10 ring-1 ring-white/15">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_12rem] lg:items-center">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-blue-100">
+            <Map className="h-4 w-4" aria-hidden />
+            Testimony Map
+          </div>
+
+          <h2 className="mt-4 text-3xl font-black tracking-tight">
+            Explore stories of faith, freedom, prayer, and praise from around the
+            world.
+          </h2>
+
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-blue-100">
+            See approved HTBF stories by approximate public location, browse
+            clusters, and discover what God is doing across cities and nations.
+          </p>
+
+          <Link
+            href="/map"
+            className="mt-5 inline-flex rounded-full bg-white px-5 py-3 text-sm font-black text-[#062a57] transition hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-white/30"
+          >
+            Explore the Map
+          </Link>
+        </div>
+
+        <div
+          aria-hidden
+          className="relative hidden h-40 overflow-hidden rounded-[1.75rem] bg-white/10 ring-1 ring-white/20 lg:block"
+        >
+          <div className="absolute inset-0 opacity-40">
+            <div className="absolute left-[18%] top-[28%] h-16 w-24 rounded-full border border-white/70" />
+            <div className="absolute left-[48%] top-[18%] h-20 w-28 rounded-full border border-white/70" />
+            <div className="absolute left-[68%] top-[42%] h-14 w-20 rounded-full border border-white/70" />
+          </div>
+          <Globe2 className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 text-white/90" />
+        </div>
+      </div>
+    </section>
   );
 }
 
