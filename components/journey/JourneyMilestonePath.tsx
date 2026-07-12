@@ -113,17 +113,13 @@ export default function JourneyMilestonePath({
         </div>
       </div>
 
-      <div className={styles.pathHorizontal}>
+      <ol className={styles.pathList}>
         {steps.map((step) => (
-          <PathStepCard key={step.number} {...step} layout="horizontal" />
+          <li key={step.number} className={styles.pathListItem}>
+            <PathStepCard {...step} />
+          </li>
         ))}
-      </div>
-
-      <div className={styles.pathVertical}>
-        {steps.map((step) => (
-          <PathStepCard key={step.number} {...step} layout="vertical" />
-        ))}
-      </div>
+      </ol>
     </section>
   );
 }
@@ -135,8 +131,7 @@ function PathStepCard({
   title,
   text,
   accent,
-  layout,
-}: PathStep & { layout: "horizontal" | "vertical" }) {
+}: PathStep) {
   const accentStyles: Record<PathStep["accent"], string> = {
     blue: "bg-[#0b63ce] text-white ring-blue-200",
     violet: "bg-violet-600 text-white ring-violet-200",
@@ -152,13 +147,9 @@ function PathStepCard({
       }`}
       aria-current={active ? "step" : undefined}
     >
-      <div
-        className={`flex ${layout === "horizontal" ? "flex-col" : "gap-4"} ${
-          layout === "vertical" ? "items-start" : ""
-        }`}
-      >
+      <div className={styles.pathStepInner}>
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-1 ${
+          className={`${styles.pathNode} ${
             active
               ? accentStyles[accent]
               : "bg-white text-[#0b63ce] ring-slate-100"
@@ -167,10 +158,10 @@ function PathStepCard({
           {icon}
         </div>
 
-        <div>
+        <div className={styles.pathStepCopy}>
           <div className={styles.pathNumber}>{number}</div>
           <div className={styles.pathTitle}>{title}</div>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+          <p className={styles.pathText}>{text}</p>
         </div>
       </div>
     </article>

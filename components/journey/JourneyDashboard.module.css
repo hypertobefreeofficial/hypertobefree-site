@@ -334,31 +334,100 @@
   box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.95);
 }
 
-.pathHorizontal {
-  display: none;
-  gap: 0.75rem;
-}
-
-@media (min-width: 1100px) {
-  .pathHorizontal {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-
-  .pathVertical {
-    display: none;
-  }
-}
-
-.pathVertical {
+.pathList {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.85rem;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pathList::before {
+  content: "";
+  position: absolute;
+  left: calc(1rem + 1.375rem);
+  top: calc(1rem + 2.75rem);
+  bottom: calc(1rem + 0.5rem);
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(139, 92, 246, 0.35) 0%,
+    rgba(11, 99, 206, 0.35) 25%,
+    rgba(236, 72, 153, 0.35) 50%,
+    rgba(245, 158, 11, 0.35) 75%,
+    rgba(16, 185, 129, 0.35) 100%
+  );
+  z-index: 0;
+}
+
+@media (min-width: 900px) {
+  .pathList {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .pathList::before {
+    left: 10%;
+    right: 10%;
+    top: calc(1rem + 1.375rem);
+    bottom: auto;
+    width: auto;
+    height: 3px;
+    background: linear-gradient(
+      90deg,
+      rgba(139, 92, 246, 0.35) 0%,
+      rgba(11, 99, 206, 0.35) 25%,
+      rgba(236, 72, 153, 0.35) 50%,
+      rgba(245, 158, 11, 0.35) 75%,
+      rgba(16, 185, 129, 0.35) 100%
+    );
+  }
+}
+
+.pathListItem {
+  min-width: 0;
 }
 
 .pathStep {
   border-radius: 1.5rem;
   padding: 1rem;
   border: 1px solid rgba(226, 232, 240, 0.95);
+  position: relative;
+  z-index: 1;
+  height: 100%;
+}
+
+.pathStepInner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .pathStepInner {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+.pathNode {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  box-shadow:
+    0 8px 18px -12px rgba(6, 42, 87, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.pathStepCopy {
+  min-width: 0;
 }
 
 .pathStepActive {
@@ -382,6 +451,13 @@
   margin-top: 0.25rem;
   font-weight: 800;
   color: #062a57;
+}
+
+.pathText {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #64748b;
 }
 
 .mapFeature {
