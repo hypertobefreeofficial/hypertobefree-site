@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import LoggedInBottomNav from "../../../components/LoggedInBottomNav";
 import JourneyInboxShell from "../../../components/journey/inbox/JourneyInboxShell";
 import JourneyInboxHeader from "../../../components/journey/inbox/JourneyInboxHeader";
-import JourneyInboxFilters from "../../../components/journey/inbox/JourneyInboxFilters";
 import JourneyConversationList from "../../../components/journey/inbox/JourneyConversationList";
 import JourneyConversationPanel from "../../../components/journey/inbox/JourneyConversationPanel";
 import JourneyConversationContext from "../../../components/journey/inbox/JourneyConversationContext";
@@ -39,20 +38,20 @@ import {
 } from "../../../lib/journey/inbox/utils";
 import styles from "../../../components/journey/inbox/JourneyInbox.module.css";
 
-function useIsDesktopInbox() {
-  const [isDesktop, setIsDesktop] = useState(false);
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1100px)");
-    const update = () => setIsDesktop(mediaQuery.matches);
+    const mediaQuery = window.matchMedia(query);
+    const update = () => setMatches(mediaQuery.matches);
 
     update();
     mediaQuery.addEventListener("change", update);
 
     return () => mediaQuery.removeEventListener("change", update);
-  }, []);
+  }, [query]);
 
-  return isDesktop;
+  return matches;
 }
 
 export default function JourneyInboxPage() {
@@ -80,7 +79,8 @@ export default function JourneyInboxPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-  const isDesktop = useIsDesktopInbox();
+  const isDesktop = useMediaQuery("(min-width: 1100px)");
+  const hideBottomNav = useMediaQuery("(min-width: 1024px)");
 
   useEffect(() => {
     async function loadMessages() {
@@ -208,10 +208,10 @@ export default function JourneyInboxPage() {
     if (!selectedKey) return null;
 
     return (
-      allInboxItems.find((item) => getInboxItemKey(item) === selectedKey) ??
+      searchedInboxItems.find((item) => getInboxItemKey(item) === selectedKey) ??
       null
     );
-  }, [allInboxItems, selectedKey]);
+  }, [searchedInboxItems, selectedKey]);
 
   const selectedThread = useMemo(() => {
     if (selectedItem?.kind === "thread") {
@@ -256,7 +256,10 @@ export default function JourneyInboxPage() {
         : "empty";
 
   const linkedStoryId =
-    selectedThread?.storyId || selectedMessage?.story_id || selectedMessage?.prayer_request_id || null;
+    selectedThread?.storyId ||
+    selectedMessage?.story_id ||
+    selectedMessage?.prayer_request_id ||
+    null;
 
   async function markAsRead(id: string) {
     if (!userId) {
@@ -384,6 +387,36 @@ export default function JourneyInboxPage() {
       void markAsRead(item.message.id);
     }
   }
+
+  const selectedKeyStillVisible = useMemo(() => {
+    if (!selectedKey) return false;
+    return searchedInboxItems.some(
+      (item) => getInboxItemKey(item) === selectedKey
+    );
+  }, [searchedInboxItems, selectedKey]);
+
+  useEffect(() => {
+    if (!isDesktop || loading) return;
+
+    const firstVisible = searchedInboxItems[0];
+
+    if (!firstVisible) {
+      if (selectedKey !== null) setSelectedKey(null);
+      return;
+    }
+
+    if (!selectedKey || !selectedKeyStillVisible) {
+      selectConversation(getInboxItemKey(firstVisible));
+    }
+    // Keep selection stable while the user browses; only auto-pick when empty/missing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isDesktop,
+    loading,
+    searchedInboxItems,
+    selectedKey,
+    selectedKeyStillVisible,
+  ]);
 
   function backToInboxList() {
     setSelectedKey(null);
@@ -681,38 +714,36 @@ export default function JourneyInboxPage() {
       <JourneyInboxShell
         showMobileDetail={showMobileDetail}
         statusMessage={statusMessage || undefined}
+        hideBottomNavPadding={hideBottomNav}
+        workspaceHeader={
+          <JourneyInboxHeader
+            unreadCount={formattedUnreadCount}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            activeFilter={activeFilter}
+            onFilterChange={setActiveFilter}
+            onMarkVisibleRead={() => void markVisibleAsRead()}
+            onClearVisible={openClearAllMessagesModal}
+            markingAllRead={markingAllRead}
+            canMarkVisibleRead={visibleUnreadIds.length > 0}
+            canClearVisible={filteredMessages.length > 0}
+            itemCount={searchedInboxItems.length}
+          />
+        }
         listPane={
-          <>
-            <JourneyInboxHeader unreadCount={formattedUnreadCount} />
-
-            <JourneyInboxFilters
-              activeFilter={activeFilter}
-              onFilterChange={setActiveFilter}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              itemCount={searchedInboxItems.length}
-              onMarkVisibleRead={() => void markVisibleAsRead()}
-              onClearVisible={openClearAllMessagesModal}
-              markingAllRead={markingAllRead}
-              canMarkVisibleRead={visibleUnreadIds.length > 0}
-              canClearVisible={filteredMessages.length > 0}
+          loading || searchedInboxItems.length === 0 ? (
+            <JourneyInboxEmptyState loading={loading} />
+          ) : (
+            <JourneyConversationList
+              groups={groupedInboxItems}
+              selectedKey={selectedKey}
+              onSelect={selectConversation}
             />
-
-            {loading || searchedInboxItems.length === 0 ? (
-              <JourneyInboxEmptyState loading={loading} />
-            ) : (
-              <JourneyConversationList
-                groups={groupedInboxItems}
-                selectedKey={selectedKey}
-                onSelect={selectConversation}
-              />
-            )}
-          </>
+          )
         }
         detailPane={
           <JourneyConversationPanel
             mode={panelMode}
-            unreadCount={formattedUnreadCount}
             showMobileBack={showMobileDetail}
             onBack={backToInboxList}
             thread={selectedThread}
@@ -753,7 +784,7 @@ export default function JourneyInboxPage() {
         }
       />
 
-      {!showMobileDetail ? <LoggedInBottomNav /> : null}
+      {!hideBottomNav && !showMobileDetail ? <LoggedInBottomNav /> : null}
 
       {clearMessageRequest ? (
         <div className={styles.modalOverlay}>

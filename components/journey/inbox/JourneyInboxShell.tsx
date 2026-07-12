@@ -2,22 +2,30 @@ import type { ReactNode } from "react";
 import styles from "./JourneyInbox.module.css";
 
 type JourneyInboxShellProps = {
+  workspaceHeader: ReactNode;
   listPane: ReactNode;
   detailPane: ReactNode;
   contextPane?: ReactNode;
   showMobileDetail: boolean;
   statusMessage?: string;
+  hideBottomNavPadding?: boolean;
 };
 
 export default function JourneyInboxShell({
+  workspaceHeader,
   listPane,
   detailPane,
   contextPane,
   showMobileDetail,
   statusMessage,
+  hideBottomNavPadding = false,
 }: JourneyInboxShellProps) {
   return (
-    <main className={styles.page}>
+    <main
+      className={`${styles.page} ${
+        hideBottomNavPadding ? styles.pageDesktopNoNav : ""
+      }`}
+    >
       <div className={styles.shell}>
         {statusMessage ? (
           <div className={styles.statusBanner}>{statusMessage}</div>
@@ -25,24 +33,40 @@ export default function JourneyInboxShell({
 
         <div className={styles.workspace}>
           <div
-            className={`${styles.listPane} ${
-              showMobileDetail ? styles.listPaneHiddenMobile : ""
+            className={`${styles.workspaceHeader} ${
+              showMobileDetail ? styles.workspaceHeaderHiddenMobile : ""
             }`}
           >
-            {listPane}
+            {workspaceHeader}
           </div>
 
           <div
-            className={`${styles.detailPane} ${
-              showMobileDetail ? styles.detailPaneActiveMobile : ""
+            className={`${styles.workspaceBody} ${
+              showMobileDetail ? styles.workspaceBodyDetailMobile : ""
             }`}
           >
-            {detailPane}
-          </div>
+            <div
+              className={`${styles.listPane} ${
+                showMobileDetail ? styles.listPaneHiddenMobile : ""
+              }`}
+            >
+              {listPane}
+            </div>
 
-          {contextPane ? (
-            <aside className={styles.contextPaneVisible}>{contextPane}</aside>
-          ) : null}
+            <div
+              className={`${styles.detailPane} ${
+                showMobileDetail ? styles.detailPaneActiveMobile : ""
+              }`}
+            >
+              <div className={styles.detailSurface}>{detailPane}</div>
+            </div>
+
+            {contextPane ? (
+              <aside className={`${styles.contextPane} ${styles.contextPaneVisible}`}>
+                {contextPane}
+              </aside>
+            ) : null}
+          </div>
         </div>
       </div>
     </main>

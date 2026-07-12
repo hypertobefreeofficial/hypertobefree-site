@@ -30,6 +30,7 @@ export default function JourneyConversationRow({
 }: JourneyConversationRowProps) {
   const preview = getInboxRowPreview(item);
   const style = INBOX_CARD_STYLES[preview.kind];
+  const isUnread = preview.unreadCount > 0;
 
   return (
     <button
@@ -37,7 +38,9 @@ export default function JourneyConversationRow({
       role="listitem"
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
-      className={`${styles.rowButton} ${selected ? styles.rowSelected : ""}`}
+      className={`${styles.rowButton} ${selected ? styles.rowSelected : ""} ${
+        isUnread ? styles.rowUnread : ""
+      }`}
     >
       <div className={styles.rowAvatar} aria-hidden>
         <CategoryIcon kind={preview.kind} isThread={item.kind === "thread"} />
@@ -45,25 +48,24 @@ export default function JourneyConversationRow({
 
       <div className={styles.rowBody}>
         <div className={styles.rowTop}>
-          <div className={styles.rowTitle}>{preview.senderLabel}</div>
+          <div className={styles.rowSender}>{preview.senderLabel}</div>
           <time className={styles.rowTime} dateTime={preview.timestamp}>
             {formatMessageDateShort(preview.timestamp)}
           </time>
         </div>
 
-        <div className="text-sm font-bold text-[#062a57]">{preview.title}</div>
+        <div className={styles.rowTitle}>{preview.title}</div>
         <div className={styles.rowPreview}>{preview.body}</div>
 
         <div className={styles.rowMeta}>
           <span className={styles.typeBadge}>{style.label}</span>
           {preview.hasVideo ? (
-            preview.videoUrl ? (
-              <Video className="h-4 w-4 text-[#0b63ce]" aria-label="Video message" />
-            ) : (
-              <Video className="h-4 w-4 text-[#0b63ce]" aria-label="Includes video" />
-            )
+            <span className={styles.videoIndicator} aria-label="Includes video">
+              <Video className="h-3.5 w-3.5" aria-hidden />
+              Video
+            </span>
           ) : null}
-          {preview.unreadCount > 0 ? (
+          {isUnread ? (
             <span className={styles.unreadBadge}>
               {formatUnreadBadge(preview.unreadCount)}
             </span>

@@ -1,6 +1,6 @@
+import { ArrowLeft, Inbox } from "lucide-react";
 import JourneyMessageBubble from "./JourneyMessageBubble";
 import JourneyReplyComposer from "./JourneyReplyComposer";
-import JourneyInboxHeader from "./JourneyInboxHeader";
 import type {
   InboxMessage,
   InboxThread,
@@ -19,7 +19,6 @@ import styles from "./JourneyInbox.module.css";
 
 type JourneyConversationPanelProps = {
   mode: "empty" | "thread" | "notification";
-  unreadCount: string;
   showMobileBack: boolean;
   onBack: () => void;
   thread?: InboxThread | null;
@@ -43,7 +42,6 @@ type JourneyConversationPanelProps = {
 
 export default function JourneyConversationPanel({
   mode,
-  unreadCount,
   showMobileBack,
   onBack,
   thread,
@@ -67,10 +65,14 @@ export default function JourneyConversationPanel({
   if (mode === "empty") {
     return (
       <div className={styles.placeholderPanel}>
-        <h2 className={styles.placeholderTitle}>Select a conversation</h2>
+        <div className={styles.placeholderGlow} aria-hidden />
+        <div className={styles.placeholderIcon}>
+          <Inbox className="h-7 w-7" aria-hidden />
+        </div>
+        <h2 className={styles.placeholderTitle}>Choose a conversation</h2>
         <p className={styles.placeholderBody}>
-          Choose a message or prayer thread from the list to read, respond, or
-          manage it here.
+          Open a prayer response, video message, encouragement, approval, or
+          milestone from the list.
         </p>
       </div>
     );
@@ -85,10 +87,9 @@ export default function JourneyConversationPanel({
 
     return (
       <>
-        <JourneyInboxHeader
-          unreadCount={unreadCount}
-          showBackToList={showMobileBack}
-          onBackToList={onBack}
+        <ConversationChrome
+          showMobileBack={showMobileBack}
+          onBack={onBack}
           title={message.title}
           subtitle={style.eyebrow}
         />
@@ -102,7 +103,9 @@ export default function JourneyConversationPanel({
             </time>
 
             {kind === "scripture_share" ? (
-              <blockquote className={styles.notificationBody}>{message.body}</blockquote>
+              <blockquote className={styles.notificationBody}>
+                {message.body}
+              </blockquote>
             ) : (
               <p className={styles.notificationBody}>{message.body}</p>
             )}
@@ -115,14 +118,16 @@ export default function JourneyConversationPanel({
               />
             ) : null}
 
-            {videoUrl ? <JourneyVideoMessage videoUrl={videoUrl} title={message.title} /> : null}
+            {videoUrl ? (
+              <JourneyVideoMessage videoUrl={videoUrl} title={message.title} />
+            ) : null}
 
             <div className={styles.detailActions}>
               {!message.read ? (
                 <button
                   type="button"
                   onClick={onMarkRead}
-                  className={`${styles.primaryAction}`}
+                  className={styles.primaryAction}
                 >
                   Mark read
                 </button>
@@ -142,7 +147,7 @@ export default function JourneyConversationPanel({
               <button
                 type="button"
                 onClick={onClear}
-                className={`${styles.secondaryAction} ${styles.toolbarButtonDanger}`}
+                className={styles.quietDangerAction}
               >
                 Remove from my Inbox
               </button>
@@ -154,16 +159,17 @@ export default function JourneyConversationPanel({
   }
 
   if (mode === "thread" && thread) {
-    const chronologicalMessages = getThreadMessagesChronological(thread.messages);
+    const chronologicalMessages = getThreadMessagesChronological(
+      thread.messages
+    );
     const replyTarget = getThreadReplyTarget(thread, userId);
     const showComposer = canReply && Boolean(replyTarget);
 
     return (
       <>
-        <JourneyInboxHeader
-          unreadCount={unreadCount}
-          showBackToList={showMobileBack}
-          onBackToList={onBack}
+        <ConversationChrome
+          showMobileBack={showMobileBack}
+          onBack={onBack}
           title="Prayer Conversation"
           subtitle={`${thread.messages.length} message${
             thread.messages.length === 1 ? "" : "s"
@@ -188,7 +194,7 @@ export default function JourneyConversationPanel({
             <button
               type="button"
               onClick={onClear}
-              className={`${styles.secondaryAction} ${styles.toolbarButtonDanger}`}
+              className={styles.quietDangerAction}
             >
               Remove from my Inbox
             </button>
@@ -196,7 +202,10 @@ export default function JourneyConversationPanel({
         </div>
 
         <div className={styles.messages}>
-          <section className={styles.contextCard} aria-label="Original prayer request">
+          <section
+            className={styles.contextCard}
+            aria-label="Original prayer request"
+          >
             <div className={styles.contextTitle}>Original Prayer Request</div>
             {story?.story_text ? (
               <p className={styles.contextBody}>{story.story_text}</p>
@@ -243,4 +252,37 @@ export default function JourneyConversationPanel({
   }
 
   return null;
+}
+
+function ConversationChrome({
+  showMobileBack,
+  onBack,
+  title,
+  subtitle,
+}: {
+  showMobileBack: boolean;
+  onBack: () => void;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className={styles.conversationChrome}>
+      {showMobileBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className={styles.backLink}
+          aria-label="Back to inbox list"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Inbox
+        </button>
+      ) : null}
+
+      <div className={styles.titleBlock}>
+        <h2 className={styles.panelTitle}>{title}</h2>
+        <p className={styles.panelSubtitle}>{subtitle}</p>
+      </div>
+    </div>
+  );
 }
