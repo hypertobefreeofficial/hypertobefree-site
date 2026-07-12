@@ -43,8 +43,8 @@ export default function JourneyHero() {
           reflection, and the stories you have shared.
         </p>
 
-        <Link href="/journey/map" className={styles.heroCta}>
-          Explore Testimony Map
+        <Link href="/share-your-story" className={styles.heroCta}>
+          Share Something
         </Link>
       </div>
     </section>

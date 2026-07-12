@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function JourneyMapAliasPage() {
-  redirect("/map");
+/** Prayer discovery map entry now lives inside /prayer. */
+export default function JourneyMapPage() {
+  redirect("/prayer");
 }

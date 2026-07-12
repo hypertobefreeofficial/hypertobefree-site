@@ -1030,7 +1030,7 @@ export function VideoFeedExperience({
       .eq("status", "approved")
       .not("video_url", "is", null)
       .order("created_at", { ascending: false })
-      .limit(15);
+      .limit(30);
 
     if (error || !data) {
       setMessage(
@@ -1039,7 +1039,20 @@ export function VideoFeedExperience({
       return;
     }
 
-    const storyIds = data.map((story) => story.id);
+    // Prayer Connect requests belong on /prayer, not the video feed.
+    const nonPrayerRows = data.filter(
+      (row) =>
+        !(
+          typeof row === "object" &&
+          row !== null &&
+          "story_type" in row &&
+          typeof row.story_type === "string" &&
+          row.story_type.toLowerCase().includes("prayer")
+        )
+    );
+
+    const videoRows = nonPrayerRows.slice(0, 15) as StoryRow[];
+    const storyIds = videoRows.map((story) => story.id);
 
     let reactions: ReactionRow[] = [];
     let replies: VideoReplyRow[] = [];
@@ -1061,7 +1074,7 @@ export function VideoFeedExperience({
     }
 
     const nextStories: VideoStory[] = await Promise.all(
-      (data as StoryRow[]).map(async (story) => {
+      videoRows.map(async (story) => {
         let signedVideoUrl: string | null = null;
 
         if (story.video_url) {
