@@ -1,0 +1,134 @@
+.htbf-testimony-map {
+  --htbf-map-royal: #0b63ce;
+  --htbf-map-navy: #062a57;
+  --htbf-map-gold: #d4af37;
+}
+
+.htbf-testimony-map__surface {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border-radius: 1.75rem;
+  background: linear-gradient(180deg, #e8f3ff 0%, #f8fbff 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65),
+    0 18px 40px -24px rgba(6, 42, 87, 0.45);
+}
+
+.htbf-testimony-map__leaflet {
+  height: 100%;
+  min-height: 420px;
+  width: 100%;
+  z-index: 1;
+}
+
+.htbf-testimony-map__leaflet .leaflet-container {
+  height: 100%;
+  min-height: 420px;
+  width: 100%;
+  background: #dbeafe;
+  font-family: inherit;
+}
+
+.htbf-testimony-map__marker {
+  display: flex;
+  height: 1.35rem;
+  width: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 18px -8px rgba(6, 42, 87, 0.55);
+}
+
+.htbf-testimony-map__marker::after {
+  content: "";
+  height: 0.45rem;
+  width: 0.45rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.htbf-map-marker--testimony {
+  background: linear-gradient(180deg, #1d7fe8 0%, #0b63ce 100%);
+}
+
+.htbf-map-marker--praise {
+  background: linear-gradient(180deg, #f0c75a 0%, #d4af37 100%);
+}
+
+.htbf-map-marker--prayer {
+  background: linear-gradient(180deg, #7eb8ff 0%, #4d8fe0 100%);
+}
+
+.htbf-map-marker--healing {
+  background: linear-gradient(180deg, #63d9a8 0%, #2fbf84 100%);
+}
+
+.htbf-map-marker--freedom {
+  background: linear-gradient(180deg, #4f8df0 0%, #274f9d 100%);
+}
+
+.htbf-map-marker--restoration {
+  background: linear-gradient(180deg, #b58df4 0%, #7d53c7 100%);
+}
+
+.htbf-map-marker--answered {
+  background: linear-gradient(180deg, #ffd978 0%, #f0b429 100%);
+}
+
+.htbf-testimony-map__cluster {
+  display: flex;
+  height: 2.4rem;
+  width: 2.4rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  background: linear-gradient(180deg, rgba(11, 99, 206, 0.95) 0%, rgba(6, 42, 87, 0.96) 100%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  box-shadow: 0 12px 24px -10px rgba(6, 42, 87, 0.65);
+}
+
+.htbf-testimony-map__preview {
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px -24px rgba(6, 42, 87, 0.45);
+}
+
+.htbf-testimony-map__sheet {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  z-index: 45;
+  margin-inline: auto;
+  max-width: 42rem;
+  padding-inline: 1rem;
+}
+
+.htbf-testimony-map__globe-motif {
+  background-image:
+    radial-gradient(circle at 72% 28%, rgba(255, 214, 128, 0.28), transparent 34%),
+    radial-gradient(circle at 24% 68%, rgba(11, 99, 206, 0.18), transparent 28%),
+    linear-gradient(135deg, rgba(6, 42, 87, 0.08), rgba(11, 99, 206, 0.04));
+}
+
+@media (min-width: 1024px) {
+  .htbf-testimony-map__surface {
+    min-height: 560px;
+  }
+
+  .htbf-testimony-map__leaflet,
+  .htbf-testimony-map__leaflet .leaflet-container {
+    min-height: 560px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .htbf-testimony-map__leaflet .leaflet-zoom-animated {
+    transition: none !important;
+  }
+}
