@@ -1,0 +1,173 @@
+/* Feed-only micro-motion — isolated from homepage Hero3D */
+
+.motionRoot {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.sensor {
+  position: absolute;
+  inset: 0;
+}
+
+.interactive {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.ambient {
+  position: absolute;
+  inset: -5%;
+  will-change: transform;
+}
+
+.ambientActive {
+  animation-fill-mode: both;
+}
+
+.imageOverscan {
+  position: absolute;
+  inset: -3%;
+}
+
+.image {
+  object-fit: cover;
+  object-position: center center;
+}
+
+/* Desktop ambient — 28s, scale 1.015 → 1.025, travel ≤4px */
+@media (min-width: 768px) {
+  .ambientActive {
+    animation: htbf-feed-hero-ambient-desktop 28s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes htbf-feed-hero-ambient-desktop {
+  0% {
+    transform: translate3d(-4px, 2px, 0) scale(1.015);
+  }
+  100% {
+    transform: translate3d(4px, -3px, 0) scale(1.025);
+  }
+}
+
+/* Mobile ambient — 22s, scale 1.02 → 1.035 */
+@media (max-width: 767.98px) {
+  .ambientActive {
+    animation: htbf-feed-hero-ambient-mobile 22s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes htbf-feed-hero-ambient-mobile {
+  0% {
+    transform: translate3d(-6px, 3px, 0) scale(1.02);
+  }
+  100% {
+    transform: translate3d(6px, -3.5px, 0) scale(1.035);
+  }
+}
+
+/* Restrained polish overlays — stationary relative to card frame */
+.polish {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.sunBloom {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 42% 58% at 78% 34%,
+    rgba(255, 214, 128, 0.22) 0%,
+    rgba(255, 196, 96, 0.08) 34%,
+    transparent 68%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.72;
+}
+
+.edgeVignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 118% 108% at 50% 50%,
+    transparent 58%,
+    rgba(3, 20, 48, 0.16) 100%
+  );
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+.particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.particle {
+  --particle-i: 0;
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 236, 180, 0.9) 0%,
+    rgba(255, 236, 180, 0) 72%
+  );
+  opacity: 0;
+  animation: htbf-feed-hero-pollen 18s ease-in-out infinite;
+  animation-delay: calc(var(--particle-i) * -2.4s);
+  left: calc(12% + var(--particle-i) * 11%);
+  top: calc(18% + (var(--particle-i) % 3) * 18%);
+}
+
+.particle:nth-child(odd) {
+  width: 2px;
+  height: 2px;
+  animation-duration: 22s;
+}
+
+@keyframes htbf-feed-hero-pollen {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+  18% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.35;
+    transform: translate3d(10px, -18px, 0);
+  }
+  82% {
+    opacity: 0;
+    transform: translate3d(22px, -34px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambientActive {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .interactive {
+    transform: none !important;
+  }
+
+  .particles {
+    display: none;
+  }
+}
