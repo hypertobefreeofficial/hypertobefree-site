@@ -10,7 +10,6 @@ import {
   type ReactNode,
   type TouchEvent,
 } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   Bookmark,
@@ -22,16 +21,14 @@ import {
   Globe2,
   Info,
   MoreHorizontal,
-  Plus,
   Video,
   MessageCircleHeart,
-  Sparkles,
   CheckCircle2,
   Share2,
   UserX,
   X,
 } from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
+import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
 import {
   FEED_MEDIA_EL_CLASS,
   FEED_MEDIA_FRAME_CLASS,
@@ -45,6 +42,7 @@ import {
   readStoredCreatorStudioDesignFromStory,
 } from "../lib/creatorStudioMetadata";
 import CreatorStudioStoryRenderer from "./creation-center/CreatorStudioStoryRenderer";
+import { FeedComposer } from "./FeedComposer";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
 
@@ -352,18 +350,27 @@ export default function FreedomFeed({
     }
 
     async function loadPage() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      if (isSupabaseConfigured) {
+        try {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
 
-      currentUserIdRef.current = user?.id ?? null;
-      setUserId(currentUserIdRef.current);
+          currentUserIdRef.current = user?.id ?? null;
+          setUserId(currentUserIdRef.current);
 
-      if (currentUserIdRef.current) {
-        await loadAccountSafety(currentUserIdRef.current);
-      } else {
-        setSavedStoryIds([]);
-        setBlockedUserIds([]);
+          if (currentUserIdRef.current) {
+            await loadAccountSafety(currentUserIdRef.current);
+          } else {
+            setSavedStoryIds([]);
+            setBlockedUserIds([]);
+          }
+        } catch (error) {
+          console.warn(
+            "Could not load feed session:",
+            formatFeedLoadError(error)
+          );
+        }
       }
 
       await reloadFeed();
@@ -745,36 +752,64 @@ export default function FreedomFeed({
     }
   }
 
-  async function loadApprovedStories(currentUserId: string | null) {
-    const { data, error } = await supabase
-      .from("stories")
-      .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text, creation_mode, ai_suggestions"
-      )
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(40);
+  function formatFeedLoadError(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
 
-    if (error || !data) {
-      console.error("Could not load approved stories:", error);
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      typeof error.message === "string"
+    ) {
+      return error.message;
+    }
+
+    return "Unknown error";
+  }
+
+  async function loadApprovedStories(currentUserId: string | null) {
+    if (!isSupabaseConfigured) {
+      console.warn(
+        "Could not load approved stories: Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local, then restart the dev server."
+      );
       return;
     }
 
-    const storyIds = data.map((story) => story.id);
+    try {
+      const { data, error } = await supabase
+        .from("stories")
+        .select(
+          "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text, creation_mode, ai_suggestions"
+        )
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(40);
 
-    let reactions: ReactionRow[] = [];
+      if (error || !data) {
+        console.warn(
+          "Could not load approved stories:",
+          error ? formatFeedLoadError(error) : "No data returned"
+        );
+        return;
+      }
 
-    if (storyIds.length > 0) {
-      const { data: reactionData } = await supabase
-        .from("story_reactions")
-        .select("story_id, user_id, reaction_type")
-        .in("story_id", storyIds);
+      const storyIds = data.map((story) => story.id);
 
-      reactions = (reactionData as ReactionRow[]) ?? [];
-    }
+      let reactions: ReactionRow[] = [];
 
-    const updatedStories: ApprovedStory[] = await Promise.all(
-      data.map(async (story) => {
+      if (storyIds.length > 0) {
+        const { data: reactionData } = await supabase
+          .from("story_reactions")
+          .select("story_id, user_id, reaction_type")
+          .in("story_id", storyIds);
+
+        reactions = (reactionData as ReactionRow[]) ?? [];
+      }
+
+      const updatedStories: ApprovedStory[] = await Promise.all(
+        data.map(async (story) => {
         let signedImageUrl: string | null = null;
         let signedVideoUrl: string | null = null;
 
@@ -891,6 +926,12 @@ export default function FreedomFeed({
     );
 
     setStories(updatedStories);
+    } catch (error) {
+      console.warn(
+        "Could not load approved stories:",
+        formatFeedLoadError(error)
+      );
+    }
   }
 
   const filteredStories = useMemo(() => {
@@ -1641,72 +1682,7 @@ export default function FreedomFeed({
       }`}
     >
       <div className="mx-auto max-w-3xl">
-        {!lockedFilter && (
-          <div className="relative mb-6 overflow-hidden rounded-[1.75rem] border border-white/70 shadow-[0_18px_40px_-24px_rgba(6,42,87,0.45)]">
-            {/* Approved HTBF hero still as the composer background — optimized by
-                next/image (a lightweight webp is served instead of the source
-                PNG). Focal point keeps the woman toward the right and the quiet
-                sky/river behind the prompt on the left. */}
-            <div aria-hidden className="absolute inset-0">
-              <Image
-                src="/images/hero-asset-pack/hero-composite-preview.png"
-                alt=""
-                fill
-                priority={false}
-                quality={68}
-                sizes="(max-width: 768px) 100vw, 768px"
-                className="object-cover object-[72%_26%] md:object-[75%_24%]"
-              />
-              {/* Soft white / ice wash — strongest on the left for legibility */}
-              <div className="absolute inset-0 bg-gradient-to-r from-white/92 via-white/70 to-white/34 md:from-white/88 md:via-white/58 md:to-white/22" />
-              {/* Ice-blue brand tint top → soft base */}
-              <div className="absolute inset-0 bg-gradient-to-b from-[#eaf3ff]/55 via-transparent to-white/35" />
-              {/* Gentle navy depth near the right edge */}
-              <div className="absolute inset-0 bg-gradient-to-l from-[#062a57]/18 via-transparent to-transparent" />
-            </div>
-
-            <div className="relative z-10 p-4 md:p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#0b63ce] shadow-sm ring-1 ring-white/70 backdrop-blur-md">
-                  <Sparkles className="h-6 w-6" />
-                </div>
-
-                <Link
-                  href="/share-your-story"
-                  className="flex min-h-12 flex-1 items-center rounded-full bg-white/82 px-5 text-left text-base font-semibold text-[#082f63] shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_2px_6px_-2px_rgba(6,42,87,0.18)] ring-1 ring-white/70 backdrop-blur-md transition hover:bg-white/92"
-                >
-                  What has God done?
-                </Link>
-              </div>
-
-              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/55 pt-3 text-[13px] font-bold text-[#082f63] sm:text-sm">
-                <Link
-                  href="/share-your-story"
-                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-2xl bg-white/72 px-2 shadow-sm ring-1 ring-white/60 backdrop-blur-md transition hover:bg-white hover:text-[#0b63ce] sm:gap-2"
-                >
-                  <Plus className="h-4 w-4 shrink-0" />
-                  Story
-                </Link>
-
-                <Link
-                  href="/videos"
-                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-2xl bg-white/72 px-2 shadow-sm ring-1 ring-white/60 backdrop-blur-md transition hover:bg-white hover:text-[#0b63ce] sm:gap-2"
-                >
-                  <Video className="h-4 w-4 shrink-0" />
-                  Videos
-                </Link>
-
-                <Link
-                  href="/prayer"
-                  className="flex min-h-10 items-center justify-center gap-1.5 rounded-2xl bg-white/72 px-2 shadow-sm ring-1 ring-white/60 backdrop-blur-md transition hover:bg-white hover:text-[#0b63ce] sm:gap-2"
-                >
-                  <MessageCircleHeart className="h-4 w-4 shrink-0" />
-                  Prayer
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
+        {!lockedFilter && <FeedComposer />}
 
         <div className="mb-6">
           <div className="mb-4">
