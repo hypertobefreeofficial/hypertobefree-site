@@ -40,6 +40,7 @@ export type PrayerConnectRequest = {
   id: string;
   userId: string | null;
   displayName: string | null;
+  avatarUrl: string | null;
   title: string;
   body: string;
   locationLabel: string | null;
@@ -56,6 +57,7 @@ export type PrayerConnectRequest = {
   distanceMiles: number | null;
   prayingCount: number;
   encouragementCount: number;
+  responseCount: number;
   isAnonymous: boolean;
   isUrgent: boolean;
   topics: string[];

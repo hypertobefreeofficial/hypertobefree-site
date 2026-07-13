@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -12,13 +13,27 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  submitPublicVideoPrayerResponse,
+} from "../../lib/prayer-connect/communityResponses";
+import { getPrayerInteractionPrefs } from "../../lib/prayer-connect/interactionPrefs";
+import { uploadPrayerVideo } from "../../lib/prayer-connect/media";
+import {
+  sendPrivatePrayerMessage,
+  sendPrivateVideoPrayer,
+} from "../../lib/prayer-connect/privateResponses";
+import { formatResponseCount } from "../../lib/prayer-connect/responseCounts";
 import type { PrayerConnectRequest } from "../../lib/prayer-connect/types";
 import {
   detectSensitivePersonalInfo,
   formatApproximateDistance,
   formatRelativeTime,
 } from "../../lib/prayer-connect/utils";
-import { submitWrittenPrayer } from "../../lib/prayer-connect/persistence";
+import PrayerCommunityResponses from "./PrayerCommunityResponses";
+import PrayerMedia from "./PrayerMedia";
+import PrayerResponseChooser, {
+  type PrayerResponseChoice,
+} from "./PrayerResponseChooser";
 import styles from "./PrayerConnect.module.css";
 
 type PrayerConnectDetailProps = {
@@ -28,11 +43,13 @@ type PrayerConnectDetailProps = {
   userPrayed?: boolean;
   userEncouraged?: boolean;
   followAvailable?: boolean;
+  userId: string | null;
   onClose: () => void;
   onToggleSave: () => void;
   onToggleFollow?: () => void;
   onPrayed: (requestId: string) => void;
   onEncouraged?: (requestId: string) => void;
+  onResponseCountChange?: (requestId: string, count: number) => void;
 };
 
 export default function PrayerConnectDetail({
@@ -42,27 +59,44 @@ export default function PrayerConnectDetail({
   userPrayed = false,
   userEncouraged = false,
   followAvailable = true,
+  userId,
   onClose,
   onToggleSave,
   onToggleFollow,
   onPrayed,
   onEncouraged,
+  onResponseCountChange,
 }: PrayerConnectDetailProps) {
+  const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [praying, setPraying] = useState(false);
   const [encouraging, setEncouraging] = useState(false);
   const [localPrayed, setLocalPrayed] = useState(userPrayed);
   const [localEncouraged, setLocalEncouraged] = useState(userEncouraged);
-  const [writeOpen, setWriteOpen] = useState(false);
-  const [writeBody, setWriteBody] = useState("");
-  const [writing, setWriting] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [activeResponse, setActiveResponse] =
+    useState<PrayerResponseChoice | null>(null);
+  const [privateBody, setPrivateBody] = useState("");
+  const [privateVideoFile, setPrivateVideoFile] = useState<File | null>(null);
+  const [publicVideoFile, setPublicVideoFile] = useState<File | null>(null);
+  const [publicVideoPreview, setPublicVideoPreview] = useState("");
+  const [privateVideoPreview, setPrivateVideoPreview] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [communityRefreshKey, setCommunityRefreshKey] = useState(0);
+  const [responseCount, setResponseCount] = useState(request.responseCount);
+
+  const prefs = getPrayerInteractionPrefs(request.topics, request.prayerStatus);
   const sensitive = detectSensitivePersonalInfo(request.body);
-  const allowEncouragement =
-    !request.topics.length || request.topics.includes("allow-encouragement");
-  const allowPublicPrayers =
-    !request.topics.length || request.topics.includes("allow-public-prayers");
-  const allowSharing =
-    !request.topics.length || request.topics.includes("allow-sharing");
+  const distance = formatApproximateDistance(request.distanceMiles);
+  const canRespond =
+    prefs.acceptsNewResponses &&
+    (prefs.allowPublicVideo ||
+      prefs.allowPrivateMessage ||
+      prefs.allowPrivateVideo);
+
+  useEffect(() => {
+    setResponseCount(request.responseCount);
+  }, [request.id, request.responseCount]);
 
   useEffect(() => {
     setLocalPrayed(userPrayed);
@@ -71,14 +105,55 @@ export default function PrayerConnectDetail({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        if (writeOpen) setWriteOpen(false);
-        else onClose();
+      if (event.key !== "Escape") return;
+      if (activeResponse) {
+        closeResponseModal();
+        return;
       }
+      if (chooserOpen) {
+        setChooserOpen(false);
+        return;
+      }
+      onClose();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, writeOpen]);
+  }, [activeResponse, chooserOpen, onClose]);
+
+  useEffect(() => {
+    return () => {
+      if (publicVideoPreview) URL.revokeObjectURL(publicVideoPreview);
+      if (privateVideoPreview) URL.revokeObjectURL(privateVideoPreview);
+    };
+  }, [privateVideoPreview, publicVideoPreview]);
+
+  function closeResponseModal() {
+    setActiveResponse(null);
+    setPrivateBody("");
+    setPrivateVideoFile(null);
+    setPublicVideoFile(null);
+    if (publicVideoPreview) URL.revokeObjectURL(publicVideoPreview);
+    if (privateVideoPreview) URL.revokeObjectURL(privateVideoPreview);
+    setPublicVideoPreview("");
+    setPrivateVideoPreview("");
+  }
+
+  function handleChooseResponse(choice: PrayerResponseChoice) {
+    setChooserOpen(false);
+    setActiveResponse(choice);
+    setMessage(null);
+  }
+
+  async function requireUser() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setMessage("Sign in to respond to this prayer request.");
+      return null;
+    }
+    return user;
+  }
 
   async function handleIPrayed() {
     if (localPrayed) {
@@ -90,14 +165,8 @@ export default function PrayerConnectDetail({
     setMessage(null);
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setMessage("Sign in to mark that you prayed.");
-        return;
-      }
+      const user = await requireUser();
+      if (!user) return;
 
       const { error } = await supabase.from("story_reactions").insert({
         story_id: request.id,
@@ -126,7 +195,7 @@ export default function PrayerConnectDetail({
   }
 
   async function handleEncourage() {
-    if (!allowEncouragement) {
+    if (!prefs.allowEncouragement) {
       setMessage("The requester turned off encouragement for this request.");
       return;
     }
@@ -138,13 +207,9 @@ export default function PrayerConnectDetail({
     setEncouraging(true);
     setMessage(null);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setMessage("Sign in to send encouragement.");
-        return;
-      }
+      const user = await requireUser();
+      if (!user) return;
+
       const { error } = await supabase.from("story_reactions").insert({
         story_id: request.id,
         user_id: user.id,
@@ -170,7 +235,7 @@ export default function PrayerConnectDetail({
   }
 
   async function handleShare() {
-    if (!allowSharing) {
+    if (!prefs.allowSharing) {
       setMessage("The requester turned off sharing for this request.");
       return;
     }
@@ -191,36 +256,110 @@ export default function PrayerConnectDetail({
     }
   }
 
-  async function handleWritePrayer() {
-    setWriting(true);
+  async function submitPublicVideo() {
+    if (!publicVideoFile) {
+      setMessage("Choose a video to upload.");
+      return;
+    }
+    setSubmitting(true);
     setMessage(null);
     try {
+      const user = await requireUser();
+      if (!user) return;
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setMessage("Sign in to write a prayer.");
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setMessage("Sign in to send a public video prayer.");
         return;
       }
-      await submitWrittenPrayer({
-        userId: user.id,
-        storyId: request.id,
-        body: writeBody,
+      const videoUrl = await uploadPrayerVideo(user.id, publicVideoFile);
+      await submitPublicVideoPrayerResponse({
+        prayerStoryId: request.id,
+        responseVideoUrl: videoUrl,
+        accessToken: token,
       });
-      setWriteBody("");
-      setWriteOpen(false);
-      setMessage("Your written prayer was shared.");
+      closeResponseModal();
+      setCommunityRefreshKey((value) => value + 1);
+      setResponseCount((count) => {
+        const next = count + 1;
+        onResponseCountChange?.(request.id, next);
+        return next;
+      });
+      setMessage("Your public video prayer was submitted.");
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Could not save your prayer."
+        error instanceof Error
+          ? error.message
+          : "Could not submit your video prayer."
       );
     } finally {
-      setWriting(false);
+      setSubmitting(false);
     }
   }
 
-  const mediaSrc = request.thumbnailUrl || request.imageUrl;
-  const distance = formatApproximateDistance(request.distanceMiles);
+  async function submitPrivateMessage() {
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const user = await requireUser();
+      if (!user) return;
+      if (!request.userId) {
+        setMessage("This request cannot receive private messages right now.");
+        return;
+      }
+      const result = await sendPrivatePrayerMessage({
+        storyId: request.id,
+        senderUserId: user.id,
+        recipientUserId: request.userId,
+        body: privateBody,
+        storyTitle: request.title,
+      });
+      closeResponseModal();
+      setMessage("Private message sent.");
+      router.push(result.destination);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not send your message."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitPrivateVideo() {
+    if (!privateVideoFile) {
+      setMessage("Choose a video to send.");
+      return;
+    }
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const user = await requireUser();
+      if (!user) return;
+      if (!request.userId) {
+        setMessage("This request cannot receive private video prayers right now.");
+        return;
+      }
+      const result = await sendPrivateVideoPrayer({
+        storyId: request.id,
+        senderUserId: user.id,
+        recipientUserId: request.userId,
+        videoFile: privateVideoFile,
+        storyTitle: request.title,
+      });
+      closeResponseModal();
+      setMessage("Private video prayer sent.");
+      router.push(result.destination);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not send your video prayer."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className={styles.detailOverlay} role="presentation" onClick={onClose}>
@@ -247,39 +386,47 @@ export default function PrayerConnectDetail({
         </div>
 
         <div className={styles.detailBody}>
-          {request.videoUrl ? (
-            <video
-              className={styles.detailMedia}
-              src={request.videoUrl}
-              controls
-              playsInline
-              preload="metadata"
-              poster={mediaSrc || undefined}
-            />
-          ) : mediaSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={mediaSrc} alt="" className={styles.detailMedia} />
-          ) : (
-            <div className={styles.detailTextHero}>
-              <span className={styles.cardCategoryChip}>{request.categoryLabel}</span>
-              <p>{request.title}</p>
+          <div className={styles.detailIdentity}>
+            {request.avatarUrl ? (
+              <img
+                src={request.avatarUrl}
+                alt=""
+                className={styles.detailAvatar}
+              />
+            ) : (
+              <span className={styles.detailAvatarFallback} aria-hidden>
+                {(request.displayName || "A").slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <div className={styles.detailIdentityCopy}>
+              <p className={styles.detailIdentityName}>
+                {request.isAnonymous
+                  ? "Anonymous request"
+                  : request.displayName || "HTBF community member"}
+              </p>
+              <p className={styles.detailIdentityMeta}>
+                {[request.locationLabel, distance, formatRelativeTime(request.createdAt)]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
             </div>
-          )}
+            <span className={styles.detailCategoryBadge}>{request.categoryLabel}</span>
+          </div>
+
+          <div className={styles.detailHero}>
+            <PrayerMedia
+              mediaKind={request.mediaKind}
+              title={request.title}
+              categoryLabel={request.categoryLabel}
+              imageUrl={request.imageUrl}
+              thumbnailUrl={request.thumbnailUrl}
+              videoUrl={request.videoUrl}
+              variant="detail"
+              className={styles.detailMedia}
+            />
+          </div>
 
           <h2 className={styles.detailTitle}>{request.title}</h2>
-          <p className={styles.detailMeta}>
-            {[
-              request.isAnonymous
-                ? "Anonymous request"
-                : request.displayName || "HTBF community member",
-              request.locationLabel,
-              distance,
-              formatRelativeTime(request.createdAt),
-              request.categoryLabel,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
 
           {request.prayerStatus === "answered" ? (
             <div className={styles.answeredBanner}>
@@ -308,142 +455,240 @@ export default function PrayerConnectDetail({
                 (localEncouraged && !userEncouraged ? 1 : 0)}{" "}
               encouragements
             </span>
+            <span>{formatResponseCount(responseCount)}</span>
           </div>
+
+          <PrayerCommunityResponses
+            storyId={request.id}
+            userId={userId}
+            refreshKey={communityRefreshKey}
+            onCountChange={(count) => {
+              setResponseCount(count);
+              onResponseCountChange?.(request.id, count);
+            }}
+          />
 
           {message ? <p className={styles.inlineMessage}>{message}</p> : null}
         </div>
 
         <div className={styles.detailFooter}>
-          <button
-            type="button"
-            className={styles.primaryButton}
-            onClick={() => void handleIPrayed()}
-            disabled={praying || localPrayed}
-          >
-            <HeartHandshake className="h-4 w-4" aria-hidden />
-            {localPrayed ? "You prayed" : praying ? "Saving..." : "I Prayed"}
-          </button>
-
-          {allowPublicPrayers ? (
+          <div className={styles.detailPrimaryActions}>
             <button
               type="button"
-              className={styles.secondaryButton}
-              onClick={() => setWriteOpen(true)}
+              className={styles.primaryButton}
+              onClick={() => void handleIPrayed()}
+              disabled={praying || localPrayed}
             >
-              Write a Prayer
+              <HeartHandshake className="h-4 w-4" aria-hidden />
+              {localPrayed ? "You prayed" : praying ? "Saving..." : "I Prayed"}
             </button>
-          ) : null}
 
-          {allowEncouragement ? (
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={() => void handleEncourage()}
-              disabled={encouraging || localEncouraged}
-            >
-              {localEncouraged
-                ? "Encouraged"
-                : encouraging
-                  ? "Sending..."
-                  : "Encourage"}
+            {canRespond ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => setChooserOpen(true)}
+              >
+                Respond with Prayer
+              </button>
+            ) : null}
+          </div>
+
+          <div className={styles.detailSecondaryActions}>
+            {prefs.allowEncouragement ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => void handleEncourage()}
+                disabled={encouraging || localEncouraged}
+              >
+                {localEncouraged
+                  ? "Encouraged"
+                  : encouraging
+                    ? "Sending..."
+                    : "Encourage"}
+              </button>
+            ) : null}
+
+            <button type="button" className={styles.secondaryButton} onClick={onToggleSave}>
+              <Bookmark className="h-4 w-4" aria-hidden />
+              {saved ? "Saved" : "Save"}
             </button>
-          ) : null}
 
-          <button type="button" className={styles.secondaryButton} onClick={onToggleSave}>
-            <Bookmark className="h-4 w-4" aria-hidden />
-            {saved ? "Saved" : "Save"}
-          </button>
+            {followAvailable && onToggleFollow ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={onToggleFollow}
+              >
+                {following ? "Following" : "Follow"}
+              </button>
+            ) : null}
 
-          {followAvailable && onToggleFollow ? (
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={onToggleFollow}
-            >
-              {following ? "Following" : "Follow"}
-            </button>
-          ) : null}
+            {prefs.allowSharing ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => void handleShare()}
+              >
+                <Share2 className="h-4 w-4" aria-hidden />
+                Share
+              </button>
+            ) : null}
 
-          {allowSharing ? (
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={() => void handleShare()}
-            >
-              <Share2 className="h-4 w-4" aria-hidden />
-              Share
-            </button>
-          ) : null}
-
-          <Link href={`/feed?story=${request.id}`} className={styles.quietDanger}>
-            <Flag className="h-4 w-4" aria-hidden />
-            Report
-          </Link>
-
-          {request.prayerStatus === "answered" ? (
-            <Link
-              href={`/share-your-story?type=testimony&from=answered&story=${request.id}`}
-              className={styles.secondaryButton}
-            >
-              Share as a Testimony
+            <Link href={`/feed?story=${request.id}`} className={styles.quietDanger}>
+              <Flag className="h-4 w-4" aria-hidden />
+              Report
             </Link>
-          ) : null}
+
+            {request.prayerStatus === "answered" ? (
+              <Link
+                href={`/share-your-story?type=testimony&from=answered&story=${request.id}`}
+                className={styles.secondaryButton}
+              >
+                Share as a Testimony
+              </Link>
+            ) : null}
+          </div>
         </div>
       </aside>
 
-      {writeOpen ? (
-        <div
-          className={styles.modalOverlay}
-          onClick={() => setWriteOpen(false)}
-        >
+      <PrayerResponseChooser
+        open={chooserOpen}
+        prefs={prefs}
+        onClose={() => setChooserOpen(false)}
+        onChoose={handleChooseResponse}
+      />
+
+      {activeResponse ? (
+        <div className={styles.modalOverlay} onClick={closeResponseModal}>
           <div
             className={styles.modalCard}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="write-prayer-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 id="write-prayer-title">Write a Prayer</h2>
-            <p className={styles.detailMeta}>
-              Share a short written prayer for this request. Keep it respectful
-              and avoid private contact details.
-            </p>
-            <textarea
-              className={styles.composerTextarea}
-              rows={5}
-              value={writeBody}
-              onChange={(event) => setWriteBody(event.target.value)}
-              placeholder="Lord, I lift this request to You..."
-              maxLength={2000}
-            />
-            {detectSensitivePersonalInfo(writeBody).length > 0 ? (
-              <div className={styles.privacyWarning} role="status">
-                Please remove addresses, phone numbers, or emails before
-                sending.
-              </div>
+            {activeResponse === "public-video" ? (
+              <>
+                <h2>Send a Public Video Prayer</h2>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setPublicVideoFile(file);
+                    if (publicVideoPreview) URL.revokeObjectURL(publicVideoPreview);
+                    setPublicVideoPreview(file ? URL.createObjectURL(file) : "");
+                  }}
+                />
+                {publicVideoPreview ? (
+                  <video
+                    className={styles.responsePreviewVideo}
+                    src={publicVideoPreview}
+                    controls
+                    playsInline
+                  />
+                ) : null}
+                <div className={styles.emptyActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={closeResponseModal}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    disabled={submitting || !publicVideoFile}
+                    onClick={() => void submitPublicVideo()}
+                  >
+                    {submitting ? "Uploading..." : "Submit Video Prayer"}
+                  </button>
+                </div>
+              </>
             ) : null}
-            <div className={styles.emptyActions}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => setWriteOpen(false)}
-                disabled={writing}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => void handleWritePrayer()}
-                disabled={
-                  writing ||
-                  !writeBody.trim() ||
-                  detectSensitivePersonalInfo(writeBody).length > 0
-                }
-              >
-                {writing ? "Sending..." : "Send Prayer"}
-              </button>
-            </div>
+
+            {activeResponse === "private-message" ? (
+              <>
+                <h2>Send a Private Message</h2>
+                <p className={styles.detailMeta}>
+                  Only the requester will see this in HTBF Messages.
+                </p>
+                <textarea
+                  className={styles.composerTextarea}
+                  rows={5}
+                  value={privateBody}
+                  onChange={(event) => setPrivateBody(event.target.value)}
+                  placeholder="Share your encouragement privately..."
+                  maxLength={2000}
+                />
+                <div className={styles.emptyActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={closeResponseModal}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    disabled={submitting || !privateBody.trim()}
+                    onClick={() => void submitPrivateMessage()}
+                  >
+                    {submitting ? "Sending..." : "Send Message"}
+                  </button>
+                </div>
+              </>
+            ) : null}
+
+            {activeResponse === "private-video" ? (
+              <>
+                <h2>Send a Private Video Prayer</h2>
+                <p className={styles.detailMeta}>
+                  This video is delivered privately through Journey Inbox.
+                </p>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setPrivateVideoFile(file);
+                    if (privateVideoPreview) URL.revokeObjectURL(privateVideoPreview);
+                    setPrivateVideoPreview(file ? URL.createObjectURL(file) : "");
+                  }}
+                />
+                {privateVideoPreview ? (
+                  <video
+                    className={styles.responsePreviewVideo}
+                    src={privateVideoPreview}
+                    controls
+                    playsInline
+                  />
+                ) : null}
+                <div className={styles.emptyActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={closeResponseModal}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    disabled={submitting || !privateVideoFile}
+                    onClick={() => void submitPrivateVideo()}
+                  >
+                    {submitting ? "Sending..." : "Send Private Video"}
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}

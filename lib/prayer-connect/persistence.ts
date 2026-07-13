@@ -114,7 +114,6 @@ export async function submitWrittenPrayer(options: {
     story_id: options.storyId,
     author_user_id: options.userId,
     body: clean,
-    status: "visible",
   });
 
   if (error) {

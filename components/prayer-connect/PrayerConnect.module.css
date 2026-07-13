@@ -1,96 +1,236 @@
-/* Prayer Connect + Prayer section navigation */
+/* Prayer Connect — visual tokens + layout */
 
 .page {
+  --prayer-bg-page: #f7f4ef;
+  --prayer-bg-surface: #fffdf9;
+  --prayer-bg-elevated: #ffffff;
+  --prayer-border: rgba(214, 205, 194, 0.75);
+  --prayer-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+  --prayer-shadow-hover: 0 24px 48px rgba(15, 23, 42, 0.1);
+  --prayer-text-primary: #062a57;
+  --prayer-text-secondary: #5b6b82;
+  --prayer-blue: #0b63ce;
+  --prayer-blue-dark: #084f9f;
+  --prayer-warm-highlight: #f4e8d4;
+  --prayer-answered: #15803d;
+  --prayer-urgent: #be123c;
+  --prayer-radius-card: 1.1rem;
+  --prayer-radius-panel: 1.35rem;
+  --prayer-space-xs: 0.35rem;
+  --prayer-space-sm: 0.65rem;
+  --prayer-space-md: 1rem;
+  --prayer-space-lg: 1.5rem;
+  --prayer-space-xl: 2rem;
+  --prayer-canvas-max: 90rem;
+
   min-height: 100dvh;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef5fc 100%);
-  color: #0f172a;
+  background:
+    radial-gradient(circle at 12% -8%, rgba(11, 99, 206, 0.1), transparent 34%),
+    radial-gradient(circle at 88% 0%, rgba(244, 232, 212, 0.55), transparent 30%),
+    linear-gradient(180deg, var(--prayer-bg-page) 0%, #f3f7fc 52%, #f8fafc 100%);
+  color: var(--prayer-text-primary);
   padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 }
 
-.topBar {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+@media (min-width: 1024px) {
+  .page {
+    padding-bottom: var(--prayer-space-lg);
+  }
 }
 
-.topBarInner {
+.canvas,
+.prayerViewport {
+  max-width: var(--prayer-canvas-max);
+  margin: 0 auto;
+  padding: 0 var(--prayer-space-md) var(--prayer-space-md);
+}
+
+@media (min-width: 1024px) {
+  .prayerViewport {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    padding-bottom: var(--prayer-space-sm);
+  }
+}
+
+@media (min-width: 1280px) {
+  .canvas,
+  .prayerViewport {
+    padding-inline: var(--prayer-space-lg);
+  }
+}
+
+.prayerDiscover {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0.45rem;
+}
+
+@media (min-width: 1024px) {
+  .prayerDiscover {
+    overflow: hidden;
+  }
+}
+
+.experienceHeader {
+  position: relative;
+  margin-bottom: 0;
+  padding: 0.65rem var(--prayer-space-md) 0.45rem;
+  border-radius: var(--prayer-radius-panel);
+  background:
+    linear-gradient(135deg, rgba(255, 253, 249, 0.98), rgba(248, 251, 255, 0.94));
+  border: 1px solid var(--prayer-border);
+  box-shadow: var(--prayer-shadow);
+  overflow: hidden;
+}
+
+.experienceHeaderArt {
+  position: absolute;
+  inset: 0 0 auto auto;
+  width: min(42%, 22rem);
+  height: 100%;
+  background:
+    linear-gradient(90deg, rgba(255, 253, 249, 0.98) 8%, rgba(255, 253, 249, 0.35) 42%, transparent 100%),
+    url("/images/feed/freedom-feed-hero-final.png") center / cover no-repeat;
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.experienceHeaderChrome {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 92rem;
-  margin: 0 auto;
-  padding: 0.75rem 1rem 0.35rem;
+  gap: var(--prayer-space-sm);
+  margin-bottom: 0.45rem;
 }
 
-.brandLink,
-.topBarLabel {
-  font-size: 0.85rem;
-  font-weight: 900;
-  color: #082f63;
+.experienceHeaderChromeActions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-.topBarLabel {
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #0b63ce;
+.experienceHeaderHero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--prayer-space-md);
+  padding-bottom: 0.1rem;
+}
+
+.headerGhostButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--prayer-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.headerGhostButton:hover {
+  background: rgba(11, 99, 206, 0.06);
+  color: var(--prayer-blue);
+}
+
+.headerGhostLabel {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .headerGhostLabel {
+    display: inline;
+  }
+}
+
+.experienceBrand {
+  text-decoration: none;
+  color: inherit;
+}
+
+.headerPostButton {
+  display: none;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .headerPostButton {
+    display: inline-flex;
+  }
+}
+
+.experienceHeaderMain {
+  display: none;
+}
+
+.experienceHeaderCopy {
+  min-width: 0;
 }
 
 .sectionNav {
+  position: relative;
   width: 100%;
+  margin-top: 0.35rem;
+  border-top: 1px solid rgba(214, 205, 194, 0.45);
+  padding-top: 0.35rem;
 }
 
 .sectionNavInner {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.15rem;
   overflow-x: auto;
   scrollbar-width: thin;
-  padding-bottom: 0.15rem;
+  padding-bottom: 0.1rem;
 }
 
 .sectionNavLink {
   flex: 0 0 auto;
-  min-height: 2.5rem;
+  min-height: 2.65rem;
   display: inline-flex;
   align-items: center;
-  border-radius: 9999px;
-  padding: 0.45rem 0.9rem;
-  font-size: 0.78rem;
+  border-radius: 0.55rem 0.55rem 0 0;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.84rem;
   font-weight: 800;
-  color: #475569;
-  background: #fff;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  color: var(--prayer-text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
   text-decoration: none;
   cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.sectionNavLink:hover {
+  color: var(--prayer-blue);
+  background: rgba(11, 99, 206, 0.04);
 }
 
 .sectionNavLinkActive {
-  background: #0b63ce;
-  border-color: #0b63ce;
-  color: #fff;
+  color: var(--prayer-blue);
+  border-bottom-color: var(--prayer-blue);
+  background: rgba(11, 99, 206, 0.06);
 }
 
 .shell {
-  max-width: 92rem;
+  max-width: var(--prayer-canvas-max);
   margin: 0 auto;
-  padding: 1rem;
+  padding: var(--prayer-space-md);
 }
 
 .hero {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-@media (min-width: 900px) {
-  .hero {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-  }
+  display: none;
 }
 
 .eyebrow {
@@ -98,22 +238,66 @@
   font-weight: 800;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #0b63ce;
+  color: var(--prayer-blue);
 }
 
 .title {
-  font-size: clamp(1.75rem, 3vw, 2.4rem);
-  font-weight: 900;
-  color: #062a57;
-  line-height: 1.1;
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-size: clamp(1.55rem, 2.2vw, 2rem);
+  font-weight: 800;
+  color: var(--prayer-text-primary);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
-  margin-top: 0.4rem;
-  max-width: 36rem;
-  color: #64748b;
-  font-size: 0.95rem;
-  line-height: 1.55;
+  margin-top: 0.28rem;
+  max-width: 34rem;
+  color: var(--prayer-text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.firstTimeBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-height: 3.25rem;
+  max-height: 4.25rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 0.95rem;
+  background:
+    linear-gradient(135deg, rgba(255, 253, 249, 0.98), rgba(240, 247, 255, 0.92));
+  border: 1px solid rgba(11, 99, 206, 0.16);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.firstTimeBannerCopy {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  color: var(--prayer-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.firstTimeBannerCopy strong {
+  color: var(--prayer-text-primary);
+}
+
+.firstTimeBannerButton {
+  flex-shrink: 0;
+  min-height: 2.35rem;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.35rem 0.85rem;
+  background: var(--prayer-blue);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .heroActions,
@@ -267,10 +451,34 @@
 }
 
 .mobileToggle {
-  margin-bottom: 0.75rem;
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--prayer-border);
 }
 
-@media (min-width: 1100px) {
+.mobileToggleButton {
+  flex: 1;
+  min-height: 2.45rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--prayer-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mobileToggleButtonActive {
+  background: var(--prayer-blue);
+  color: #fff;
+  border-color: var(--prayer-blue);
+}
+
+@media (min-width: 1024px) {
   .mobileToggle {
     display: none;
   }
@@ -278,7 +486,7 @@
 
 .workspace {
   display: grid;
-  gap: 0.85rem;
+  gap: var(--prayer-space-sm);
   min-height: 0;
 }
 
@@ -314,10 +522,13 @@
   border-top: 1px solid rgba(226, 232, 240, 0.95);
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 1024px) {
   .workspace {
-    grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
-    align-items: start;
+    grid-template-columns: minmax(0, 1.62fr) minmax(18rem, 1fr);
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
   }
 
   .hideOnMobile {
@@ -329,7 +540,7 @@
   display: block;
 }
 
-@media (max-width: 1099px) {
+@media (max-width: 1023px) {
   .hideOnMobile {
     display: none !important;
   }
@@ -337,11 +548,122 @@
 
 .resultsColumn,
 .mapColumn {
-  border-radius: 1.25rem;
-  background: #fff;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: var(--prayer-radius-panel);
+  background: var(--prayer-bg-elevated);
+  border: 1px solid var(--prayer-border);
   overflow: hidden;
   min-width: 0;
+  box-shadow: var(--prayer-shadow);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mapSurface {
+  position: relative;
+  flex: 1;
+  min-height: 12rem;
+}
+
+.mapToolbarCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.mapToolbarTitle {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: var(--prayer-text-primary);
+}
+
+.mapToolbarMeta {
+  font-size: 0.72rem;
+  color: var(--prayer-text-secondary);
+}
+
+.mapSearchAreaButton {
+  min-height: 2.2rem;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.35rem 0.8rem;
+  background: var(--prayer-blue);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mapControls {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mapControlButton {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--prayer-border);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--prayer-text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+}
+
+.mapLoadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 12rem;
+  color: var(--prayer-text-secondary);
+  font-size: 0.82rem;
+}
+
+.mapLoadingPulse {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(11, 99, 206, 0.2), rgba(11, 99, 206, 0.04));
+  animation: prayerMapPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes prayerMapPulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+.mapLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mapLegendDot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 9999px;
+  background: var(--prayer-blue);
+}
+
+.mapLegendDot[data-kind="answered"] {
+  background: var(--prayer-answered);
 }
 
 .resultsToolbar,
@@ -364,44 +686,39 @@
 }
 
 .resultsScroll {
+  flex: 1;
+  min-height: 0;
   max-height: none;
   padding: 0.85rem;
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 1024px) {
   .resultsScroll {
-    max-height: calc(100dvh - 18rem);
+    max-height: none;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
 
   .mapColumn {
-    position: sticky;
-    top: 7.5rem;
+    min-height: 100%;
   }
 }
 
 .cardGrid {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(1, minmax(0, 1fr));
 }
 
-@media (max-width: 420px) {
+@media (min-width: 640px) {
   .cardGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (min-width: 900px) {
-  .cardGrid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1280px) {
   .cardGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -470,16 +787,18 @@
 
 .cardPlayBadge {
   position: absolute;
-  inset: 50% auto auto 50%;
-  transform: translate(-50%, -50%);
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 9999px;
-  background: rgba(6, 42, 87, 0.82);
-  color: #fff;
+  left: 0.55rem;
+  bottom: 0.55rem;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.28rem 0.55rem;
+  background: rgba(6, 42, 87, 0.78);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  backdrop-filter: blur(6px);
 }
 
 .cardUrgent,
@@ -507,6 +826,46 @@
 
 .cardBody {
   padding: 0.7rem 0.75rem 0.8rem;
+}
+
+.cardAuthorRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.cardAvatarImage,
+.cardAvatarFallback {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.cardAvatarImage {
+  object-fit: cover;
+  border: 1px solid rgba(214, 205, 194, 0.8);
+}
+
+.cardAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #dbeafe, #eff6ff);
+  color: var(--prayer-blue);
+  font-size: 0.68rem;
+  font-weight: 900;
+  border: 1px solid rgba(11, 99, 206, 0.16);
+}
+
+.cardAuthorName {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--prayer-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cardTitleButton {
@@ -603,8 +962,8 @@
 }
 
 .skeletonCard {
-  aspect-ratio: 3 / 4;
-  border-radius: 1rem;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--prayer-radius-card);
   background: linear-gradient(90deg, #e8eef7, #f8fbff, #e8eef7);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease infinite;
@@ -633,7 +992,7 @@
   box-shadow: 0 12px 28px -16px rgba(6, 42, 87, 0.55);
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 1024px) {
   .stickyPost {
     display: none;
   }
@@ -1070,4 +1429,2135 @@
 .composerFooter .primaryButton,
 .composerFooter .secondaryButton {
   min-width: 7.5rem;
+}
+
+.searchSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+  min-height: 4.5rem;
+  max-height: 6.9rem;
+  padding: 0.7rem 1rem;
+  border-radius: 1rem;
+  background: var(--prayer-bg-surface);
+  border: 1px solid var(--prayer-border);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.searchSummaryLocation {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--prayer-text-primary);
+  line-height: 1.2;
+}
+
+.searchSummaryFilters {
+  margin-top: 0.15rem;
+  color: var(--prayer-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.searchSummaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.summaryChipButton,
+.summaryResetButton {
+  min-height: 2rem;
+  border-radius: 9999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.summaryChipButton {
+  border: 1px solid var(--prayer-border);
+  background: #fff;
+  color: var(--prayer-text-secondary);
+}
+
+.summaryChipButton:hover {
+  border-color: rgba(11, 99, 206, 0.35);
+  color: var(--prayer-blue);
+}
+
+.summaryResetButton {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #be123c;
+}
+
+.searchOnboarding {
+  margin-bottom: 0.75rem;
+  border-radius: var(--prayer-radius-panel);
+  background: var(--prayer-bg-elevated);
+  border: 1px solid var(--prayer-border);
+  box-shadow: var(--prayer-shadow);
+  overflow: hidden;
+}
+
+.searchOnboardingCompact {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 20;
+  margin-bottom: 0.45rem;
+  border-radius: 1rem;
+  background: var(--prayer-bg-surface);
+  border: 1px solid var(--prayer-border);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.searchOnboardingCompactGrid {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem 0.65rem;
+}
+
+.searchOnboardingCompact .searchOnboardingControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0;
+}
+
+.searchOnboardingCompact .searchTabs {
+  flex: 1;
+  min-width: min(100%, 28rem);
+}
+
+.searchOnboardingCompact .searchSetupActions {
+  margin-top: 0;
+  margin-left: auto;
+}
+
+.searchOnboardingCompactLead {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: var(--prayer-text-primary);
+}
+
+.searchOnboardingCompact .filterSelectRow,
+.searchOnboardingCompact .radiusRow {
+  margin-top: 0;
+}
+
+.searchOnboardingCompact .searchSetupActions {
+  margin-top: 0.35rem;
+}
+
+.workspaceWithOnboarding {
+  min-height: calc(100dvh - 19rem);
+}
+
+@media (min-width: 1024px) {
+  .workspaceWithOnboarding {
+    min-height: calc(100dvh - 17.5rem);
+  }
+}
+
+.searchOnboardingGrid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (min-width: 900px) {
+  .searchOnboardingGrid {
+    grid-template-columns: minmax(12rem, 0.9fr) minmax(0, 1.4fr);
+  }
+}
+
+.searchOnboardingIntro {
+  padding: 1rem 1.1rem;
+  background:
+    radial-gradient(circle at top left, rgba(244, 232, 212, 0.65), transparent 55%),
+    linear-gradient(160deg, rgba(11, 99, 206, 0.08), rgba(255, 255, 255, 0.2));
+}
+
+.searchOnboardingEyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--prayer-blue);
+}
+
+.searchOnboardingTitle {
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--prayer-text-primary);
+  line-height: 1.25;
+}
+
+.searchOnboardingBody {
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--prayer-text-secondary);
+}
+
+.searchOnboardingArt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.85rem;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--prayer-blue);
+  border: 1px solid rgba(11, 99, 206, 0.14);
+}
+
+.searchOnboardingControls {
+  padding: 0.9rem 1rem 1rem;
+}
+
+.searchSetupModalWrap {
+  width: min(44rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+
+.searchSetupModal {
+  border-radius: var(--prayer-radius-panel);
+  background: var(--prayer-bg-elevated);
+  border: 1px solid var(--prayer-border);
+  box-shadow: var(--prayer-shadow-hover);
+}
+
+.searchSetupModal .searchOnboardingGrid {
+  grid-template-columns: 1fr;
+}
+
+.searchSetupModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.searchSetupModalHeader h2 {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--prayer-text-primary);
+}
+
+.searchSetupActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+.mediaAsset,
+.cardMediaImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mediaFallback {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+  color: #fff;
+}
+
+.mediaFallbackVideo {
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #0b63ce, #082f63);
+}
+
+.mediaFallbackText {
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.18), transparent 40%),
+    linear-gradient(145deg, #0b63ce 0%, #1d4f91 55%, #082f63 100%);
+}
+
+.mediaFallbackEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.card {
+  overflow: hidden;
+  border-radius: 1.35rem;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.card:hover,
+.card:focus-within {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 44px rgba(15, 23, 42, 0.09);
+}
+
+.cardMediaButton {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: #dbeafe;
+}
+
+.detailIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.detailAvatar,
+.detailAvatarFallback {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.detailAvatar {
+  object-fit: cover;
+  border: 1px solid var(--prayer-border);
+}
+
+.detailAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #dbeafe, #eff6ff);
+  color: var(--prayer-blue);
+  font-weight: 900;
+}
+
+.detailIdentityCopy {
+  min-width: 0;
+  flex: 1;
+}
+
+.detailIdentityName {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: var(--prayer-text-primary);
+}
+
+.detailIdentityMeta {
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  color: var(--prayer-text-secondary);
+}
+
+.detailCategoryBadge {
+  flex-shrink: 0;
+  border-radius: 9999px;
+  padding: 0.25rem 0.55rem;
+  background: rgba(244, 232, 212, 0.65);
+  color: #7c5b1e;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.detailPrimaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.detailSecondaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .detailPanel {
+    width: min(100%, 40rem);
+  }
+
+  .detailHero {
+    max-height: 22rem;
+  }
+
+  .detailMedia {
+    max-height: 22rem;
+    object-fit: cover;
+  }
+}
+
+.detailHero {
+  overflow: hidden;
+  border-radius: 1.35rem;
+  background: #dbeafe;
+}
+
+.detailPanel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(96dvh, 980px);
+}
+
+.detailBody {
+  overflow: auto;
+  padding-bottom: 1rem;
+}
+
+.detailFooter {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  padding: 0.9rem 1rem calc(0.95rem + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+  backdrop-filter: blur(12px);
+}
+
+.communitySection {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.communityHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.communityHeader h3 {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #062a57;
+}
+
+.communityCount,
+.communityMeta {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.communityList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.communityCard {
+  padding: 0.95rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #fff, #f8fbff);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.communityBody {
+  line-height: 1.6;
+  color: #1e293b;
+}
+
+.communityVideo,
+.responsePreviewVideo,
+.composerPreviewVideo {
+  width: 100%;
+  border-radius: 0.9rem;
+  background: #0f172a;
+}
+
+.communityError,
+.communityEmpty,
+.responseEmpty,
+.responseNotice {
+  padding: 0.9rem 1rem;
+  border-radius: 0.95rem;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.communitySkeleton {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.communitySkeletonLine {
+  height: 3.5rem;
+  border-radius: 0.9rem;
+  background: linear-gradient(90deg, #eef2f7, #f8fafc, #eef2f7);
+  animation: prayerShimmer 1.4s infinite;
+}
+
+.communityAuthorRow {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.65rem;
+}
+
+.communityAuthorName {
+  font-weight: 800;
+  color: #062a57;
+}
+
+.communityAvatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  object-fit: cover;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.communityActions {
+  display: flex;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.responseOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.responseSheet {
+  width: min(100%, 42rem);
+  max-height: 88dvh;
+  overflow: auto;
+  padding: 1.1rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
+  border-radius: 1.35rem 1.35rem 0 0;
+  background: #fff;
+  box-shadow: 0 -18px 50px rgba(15, 23, 42, 0.18);
+}
+
+.responseSheetHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.responseGroup + .responseGroup {
+  margin-top: 1rem;
+}
+
+.responseGroup h3 {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #062a57;
+}
+
+.responseGroupHint {
+  margin: 0.25rem 0 0.65rem;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+
+.responseOptions {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.responseOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+  text-align: left;
+}
+
+.responseOption strong,
+.responseOption small {
+  display: block;
+}
+
+.responseOption small {
+  margin-top: 0.2rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+@keyframes prayerShimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+@media (min-width: 900px) {
+  .responseOverlay {
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .responseSheet {
+    border-radius: 1.35rem;
+  }
+
+  .detailPanel {
+    width: min(44rem, 100%);
+  }
+}
+
+@media (max-width: 1099px) {
+  .detailPanel {
+    width: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .communitySkeletonLine {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ============================================================= */
+/* PREMIUM REDESIGN LAYER — matches prayer-design-reference.png  */
+/* Rules below intentionally override earlier definitions.       */
+/* ============================================================= */
+
+/* ---- Page container model ---------------------------------- */
+.page {
+  --prayer-gold: #d9a441;
+  --prayer-gold-soft: #f4e8d4;
+  background:
+    radial-gradient(120% 90% at 82% -12%, rgba(11, 99, 206, 0.12), transparent 46%),
+    radial-gradient(90% 70% at 8% 4%, rgba(244, 232, 212, 0.5), transparent 42%),
+    linear-gradient(180deg, #f7f4ef 0%, #eef4fb 46%, #f6f9fd 100%);
+}
+
+/* Mobile reserves space for the fixed bottom navigation and the iOS
+   safe-area. On desktop/laptop the bottom nav is hidden, so the reserved
+   navigation padding is removed. */
+.page {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 1024px) {
+  .page {
+    padding-bottom: var(--prayer-space-lg);
+  }
+
+  .prayerViewport {
+    display: block;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    padding-top: 0.9rem;
+  }
+
+  .prayerDiscover {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .resultsScroll {
+    max-height: none;
+    overflow: visible;
+    padding: 1rem;
+  }
+
+  .workspace {
+    align-items: start;
+    height: auto;
+  }
+
+  .workspace:not(.workspaceSingle) {
+    grid-template-columns: minmax(0, 1.63fr) minmax(19rem, 1fr);
+    gap: 0.9rem;
+  }
+
+  .mapColumn {
+    position: sticky;
+    top: 0.9rem;
+    min-height: 0;
+    height: calc(100dvh - 9.5rem);
+    max-height: 42rem;
+  }
+}
+
+/* ---- App header (premium top bar) -------------------------- */
+.appHeader {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  background: rgba(255, 253, 249, 0.82);
+  border-bottom: 1px solid rgba(214, 205, 194, 0.6);
+  backdrop-filter: saturate(150%) blur(14px);
+}
+
+.appHeaderInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--prayer-space-md);
+  max-width: var(--prayer-canvas-max);
+  margin: 0 auto;
+  padding: 0.6rem var(--prayer-space-md);
+}
+
+@media (min-width: 1280px) {
+  .appHeaderInner {
+    padding-inline: var(--prayer-space-lg);
+  }
+}
+
+.appHeaderBrand {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.appHeaderNav {
+  display: none;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+@media (min-width: 900px) {
+  .appHeaderNav {
+    display: flex;
+  }
+}
+
+.appHeaderNavLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--prayer-text-secondary);
+  text-decoration: none;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.appHeaderNavLink:hover {
+  color: var(--prayer-blue);
+  background: rgba(11, 99, 206, 0.06);
+}
+
+.appHeaderNavLinkActive {
+  color: var(--prayer-blue);
+  background: rgba(11, 99, 206, 0.1);
+}
+
+.appHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.appHeaderIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--prayer-border);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--prayer-text-primary);
+  text-decoration: none;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.appHeaderIconButton:hover {
+  border-color: rgba(11, 99, 206, 0.32);
+  color: var(--prayer-blue);
+}
+
+/* ---- Hero: illuminated global prayer map ------------------- */
+.prayerHero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--prayer-radius-panel);
+  border: 1px solid rgba(214, 205, 194, 0.55);
+  box-shadow: 0 24px 54px -30px rgba(6, 42, 87, 0.5);
+  background: linear-gradient(120deg, #eaf1fb 0%, #dfeafb 50%, #cfe0f6 100%);
+}
+
+.prayerHeroBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.prayerHeroImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 72% 38%;
+}
+
+.prayerHeroGlow {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      100deg,
+      rgba(249, 246, 240, 0.94) 0%,
+      rgba(249, 246, 240, 0.7) 28%,
+      rgba(249, 246, 240, 0.22) 52%,
+      rgba(233, 241, 251, 0) 78%
+    );
+}
+
+.prayerHeroContent {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.15rem 1.25rem 0.35rem;
+}
+
+@media (min-width: 768px) {
+  .prayerHeroContent {
+    padding: 1.4rem 1.75rem 0.4rem;
+  }
+}
+
+.prayerHeroTopRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.prayerHeroCopy {
+  min-width: 0;
+  max-width: 34rem;
+}
+
+.prayerHeroTitle {
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  color: #072a57;
+}
+
+.prayerHeroAccent {
+  display: block;
+  width: 3.4rem;
+  height: 0.28rem;
+  margin: 0.55rem 0 0.6rem;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--prayer-gold), #f0cd86);
+}
+
+.prayerHeroSubtitle {
+  color: #43597a;
+  font-size: clamp(0.9rem, 1.4vw, 1.02rem);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.prayerHeroActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.prayerHeroHelp {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(11, 99, 206, 0.2);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--prayer-blue);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.prayerHeroHelp:hover {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+@media (min-width: 640px) {
+  .prayerHeroHelp {
+    display: inline-flex;
+  }
+}
+
+.prayerHeroPost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.9rem;
+  padding: 0.6rem 1.35rem;
+  border: none;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #0b63ce, #0a56b4);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 16px 30px -14px rgba(11, 99, 206, 0.85);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  white-space: nowrap;
+}
+
+.prayerHeroPost:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 36px -14px rgba(11, 99, 206, 0.9);
+}
+
+/* ---- On-hero section nav (tabs) ---------------------------- */
+.prayerHeroContent .sectionNav {
+  margin-top: 0.1rem;
+  border-top: none;
+  padding-top: 0;
+}
+
+.prayerHeroContent .sectionNavInner {
+  gap: 0.35rem;
+  border-bottom: 1px solid rgba(11, 99, 206, 0.14);
+}
+
+.prayerHeroContent .sectionNavLink {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.35rem;
+  margin-right: 1rem;
+  border-radius: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #4a5f7d;
+  border-bottom: 2px solid transparent;
+  transform: translateY(1px);
+}
+
+.prayerHeroContent .sectionNavLink:hover {
+  background: transparent;
+  color: var(--prayer-blue);
+}
+
+.prayerHeroContent .sectionNavLinkActive,
+.prayerHeroContent .sectionNavLinkActive:hover {
+  color: #072a57;
+  background: transparent;
+  border-bottom-color: var(--prayer-blue);
+  font-weight: 800;
+}
+
+/* ---- First-time search card (compact, elegant) ------------- */
+.searchRail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.95rem 1.1rem 1rem;
+  border-radius: var(--prayer-radius-panel);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--prayer-border);
+  box-shadow: 0 18px 40px -26px rgba(6, 42, 87, 0.4);
+}
+
+.searchRailIntro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.searchRailTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #072a57;
+}
+
+.searchRailTitle::before {
+  content: "";
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 50% 42%, #fff 0 22%, transparent 24%),
+    var(--prayer-blue);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.searchRailSubtitle {
+  color: var(--prayer-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.searchRailControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.searchRailModes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.searchRailMode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.6rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(11, 99, 206, 0.16);
+  background: rgba(240, 247, 255, 0.7);
+  color: #3d5578;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.searchRailMode:hover {
+  border-color: rgba(11, 99, 206, 0.4);
+  color: var(--prayer-blue);
+}
+
+.searchRailModeActive,
+.searchRailModeActive:hover {
+  background: var(--prayer-blue);
+  border-color: var(--prayer-blue);
+  color: #fff;
+}
+
+.searchRailPlaceRow {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1 1 16rem;
+  min-width: 12rem;
+}
+
+.searchRailPlaceInput {
+  flex: 1;
+  min-height: 2.6rem;
+  border-radius: 9999px;
+  border: 1px solid #d7e0ec;
+  background: #fff;
+  padding: 0.5rem 1rem;
+  font-size: 0.86rem;
+  color: #1e293b;
+}
+
+.searchRailGhostButton {
+  min-height: 2.6rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(11, 99, 206, 0.25);
+  background: #fff;
+  color: var(--prayer-blue);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.searchRailRadius {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  color: var(--prayer-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.searchRailRadius::before {
+  content: "Within";
+}
+
+.searchRailRadius select {
+  min-height: 2.6rem;
+  border-radius: 9999px;
+  border: 1px solid #d7e0ec;
+  background: #fff;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.searchRailSave {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.6rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(11, 99, 206, 0.35);
+  background: rgba(240, 247, 255, 0.8);
+  color: var(--prayer-blue);
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.searchRailSave::before {
+  content: "";
+  width: 0.85rem;
+  height: 0.95rem;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 2h12a2 2 0 0 1 2 2v18l-8-4-8 4V4a2 2 0 0 1 2-2z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 2h12a2 2 0 0 1 2 2v18l-8-4-8 4V4a2 2 0 0 1 2-2z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.searchRailSave:hover {
+  background: rgba(11, 99, 206, 0.12);
+}
+
+.searchRailError {
+  margin: 0;
+  color: var(--prayer-urgent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+/* ---- Returning-user saved search summary ------------------- */
+.searchSummary {
+  margin-bottom: 0;
+  min-height: 0;
+  max-height: none;
+  padding: 0.7rem 1.05rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--prayer-border);
+  box-shadow: 0 12px 30px -22px rgba(6, 42, 87, 0.4);
+}
+
+.searchSummaryLocation {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.searchSummaryLocation::before {
+  content: "";
+  width: 1.05rem;
+  height: 1.05rem;
+  background: var(--prayer-blue);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  flex-shrink: 0;
+}
+
+/* ---- Mobile Requests/Map/Filters toggle -------------------- */
+.mobileToggle {
+  margin-bottom: 0;
+}
+
+/* ---- Workspace (62/38) ------------------------------------- */
+@media (min-width: 1024px) {
+  .workspace:not(.workspaceSingle) {
+    grid-template-columns: minmax(0, 1.63fr) minmax(19rem, 1fr);
+    gap: 0.85rem;
+  }
+
+  /* Full-width Requests view must not reserve empty map space. */
+  .workspaceSingle {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Results column + toolbar ------------------------------ */
+.resultsColumn {
+  border-radius: var(--prayer-radius-panel);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--prayer-border);
+  box-shadow: 0 18px 40px -30px rgba(6, 42, 87, 0.4);
+}
+
+.resultsToolbar {
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  background: transparent;
+  border-bottom: 1px solid rgba(214, 205, 194, 0.5);
+}
+
+.resultsHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.resultsTitle {
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-size: 1.28rem;
+  font-weight: 700;
+  color: #072a57;
+  letter-spacing: -0.01em;
+}
+
+.resultsSubtitle {
+  font-size: 0.8rem;
+  color: var(--prayer-text-secondary);
+  font-weight: 600;
+}
+
+.resultsToolbarControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.resultsSortLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--prayer-text-secondary);
+}
+
+.resultsSortSelect {
+  min-height: 2.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--prayer-border);
+  background: #fff;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.resultsScroll {
+  padding: 0.95rem;
+}
+
+/* ---- Card grid + premium cards ----------------------------- */
+.cardGrid {
+  gap: 0.9rem;
+}
+
+@media (min-width: 640px) {
+  .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1600px) {
+  .cardGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.card {
+  border-radius: 1.15rem;
+  border: 1px solid rgba(214, 205, 194, 0.7);
+  background: #fff;
+  box-shadow: 0 14px 32px -24px rgba(6, 42, 87, 0.5);
+}
+
+.cardOpenButton {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.cardMediaWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: linear-gradient(145deg, #e6eefb, #d3e2f6);
+}
+
+.cardMediaImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 320ms ease;
+}
+
+.card:hover .cardMediaImage {
+  transform: scale(1.035);
+}
+
+.cardSaveOverlay {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: #45597a;
+  box-shadow: 0 8px 18px -8px rgba(6, 42, 87, 0.6);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.cardSaveOverlay:hover {
+  transform: translateY(-1px);
+  color: var(--prayer-blue);
+}
+
+.cardSaveOverlayActive {
+  background: var(--prayer-blue);
+  color: #fff;
+}
+
+.cardUrgent {
+  top: 0.6rem;
+  left: 0.6rem;
+  z-index: 2;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, #0b63ce, #0a4f9f);
+  color: #fff;
+  box-shadow: 0 8px 18px -8px rgba(11, 99, 206, 0.8);
+}
+
+.cardAnswered {
+  top: 0.6rem;
+  left: 0.6rem;
+  right: auto;
+  z-index: 2;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.68rem;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  box-shadow: 0 8px 18px -8px rgba(21, 128, 61, 0.7);
+}
+
+.cardPlayBadge {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 2;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border-radius: 9999px;
+  background: rgba(6, 42, 87, 0.68);
+  color: #fff;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem 0.9rem 0.9rem;
+}
+
+.cardAuthorRow {
+  margin-bottom: 0;
+  gap: 0.55rem;
+}
+
+.cardAvatarImage,
+.cardAvatarFallback {
+  width: 2rem;
+  height: 2rem;
+}
+
+.cardAuthorMeta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.cardAuthorName {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #1f3a5f;
+}
+
+.cardPostedTime {
+  font-size: 0.7rem;
+  color: #8595ab;
+  font-weight: 600;
+}
+
+.cardTitle {
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #072a57;
+  -webkit-line-clamp: 2;
+}
+
+.cardMeta {
+  margin-top: 0;
+  font-size: 0.74rem;
+  color: #6a7c95;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cardMeta::before {
+  content: "";
+  width: 0.82rem;
+  height: 0.82rem;
+  flex-shrink: 0;
+  background: #9aa9c0;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.cardFooter {
+  margin-top: 0.15rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(214, 205, 194, 0.45);
+  gap: 0.75rem;
+}
+
+.cardStat {
+  padding: 0;
+  background: transparent;
+  color: #5b6b82;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.cardStat::before {
+  content: "";
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  background: var(--prayer-blue);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21s-6.7-4.35-9.33-8.02C.9 10.27 1.4 7.1 3.7 5.7c1.8-1.1 4.02-.6 5.3.98L12 10l3-3.32c1.28-1.58 3.5-2.08 5.3-.98 2.3 1.4 2.8 4.57 1.03 7.28C18.7 16.65 12 21 12 21z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21s-6.7-4.35-9.33-8.02C.9 10.27 1.4 7.1 3.7 5.7c1.8-1.1 4.02-.6 5.3.98L12 10l3-3.32c1.28-1.58 3.5-2.08 5.3-.98 2.3 1.4 2.8 4.57 1.03 7.28C18.7 16.65 12 21 12 21z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.cardStat:last-child::before {
+  background: #8595ab;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---- Editorial text-only card treatment -------------------- */
+.mediaFallbackText {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.35rem 1.3rem;
+  background:
+    radial-gradient(circle at 82% 12%, rgba(217, 164, 65, 0.14), transparent 45%),
+    linear-gradient(150deg, #fbf7ef 0%, #f4ecdd 60%, #efe4cf 100%);
+  color: #072a57;
+}
+
+.mediaFallbackVideo {
+  background: linear-gradient(150deg, #0f2744 0%, #14396a 45%, #0b63ce 100%);
+}
+
+.mediaFallbackQuote {
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-size: 2.6rem;
+  line-height: 0.5;
+  color: rgba(217, 164, 65, 0.85);
+}
+
+.mediaFallbackExcerpt {
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-size: 1.02rem;
+  font-style: italic;
+  line-height: 1.42;
+  color: #143a68;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mediaFallbackCategory {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a97e2e;
+}
+
+/* ---- Map column: visually integrated ----------------------- */
+.mapColumn {
+  border-radius: var(--prayer-radius-panel);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--prayer-border);
+  box-shadow: 0 18px 40px -30px rgba(6, 42, 87, 0.4);
+}
+
+.mapToolbar {
+  background: transparent;
+  border-bottom: 1px solid rgba(214, 205, 194, 0.5);
+}
+
+.mapToolbarTitle {
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #072a57;
+}
+
+.mapToolbarActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.mapExpandButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid var(--prayer-border);
+  background: #fff;
+  color: var(--prayer-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mapExpandButton:hover {
+  color: var(--prayer-blue);
+  border-color: rgba(11, 99, 206, 0.35);
+}
+
+.mapSurface {
+  min-height: 16rem;
+}
+
+.mapColumn .mapLegend {
+  flex-wrap: wrap;
+  gap: 0.75rem 1.1rem;
+  border-top: 1px solid rgba(214, 205, 194, 0.5);
+}
+
+/* ---- Spotlight --------------------------------------------- */
+.spotlight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0.85rem 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(217, 164, 65, 0.2), transparent 46%),
+    linear-gradient(140deg, #072a57, #0b4f9f);
+  color: #fff;
+  box-shadow: 0 18px 36px -22px rgba(6, 42, 87, 0.9);
+}
+
+.spotlightEyebrow {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.spotlightEyebrow::before {
+  content: "";
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 9999px;
+  background: var(--prayer-gold);
+  box-shadow: 0 0 10px 1px rgba(217, 164, 65, 0.8);
+}
+
+.spotlightTitle {
+  font-family: var(--font-creator-elegant-serif, Georgia, serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.spotlightMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 600;
+}
+
+.spotlightUrgent {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffd9a0;
+  font-weight: 800;
+}
+
+.spotlightButton {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 1.05rem;
+  border-radius: 9999px;
+  border: none;
+  background: #fff;
+  color: #072a57;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+.spotlightButton:hover {
+  transform: translateY(-1px);
+}
+
+/* ---- Community response fallbacks -------------------------- */
+.communityVideoFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 6rem;
+  border-radius: 0.9rem;
+  background: linear-gradient(145deg, #0f2744, #0b63ce);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.communityAvatarFallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(145deg, #dbeafe, #eff6ff);
+  color: var(--prayer-blue);
+  font-weight: 900;
+  border: 1px solid rgba(11, 99, 206, 0.16);
+}
+
+/* ---- Mobile-first refinements ------------------------------ */
+@media (max-width: 1023px) {
+  .prayerViewport {
+    padding-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .prayerHeroContent {
+    gap: 0.75rem;
+    padding: 1rem 1.05rem 0.25rem;
+  }
+
+  .prayerHeroImage {
+    object-position: 68% 34%;
+  }
+
+  .prayerHeroTopRow {
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .prayerHeroActions {
+    width: 100%;
+  }
+
+  .prayerHeroPost {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .prayerHeroContent .sectionNavInner {
+    gap: 0.15rem;
+  }
+
+  .prayerHeroContent .sectionNavLink {
+    margin-right: 0.4rem;
+    font-size: 0.86rem;
+  }
+
+  .searchRailRadius {
+    margin-left: 0;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .resultsColumn,
+  .mapColumn {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .mapSurface {
+    min-height: 60vh;
+  }
+
+  .cardGrid,
+  .cardGridWide {
+    grid-template-columns: 1fr;
+  }
+
+  /* Dedicated full-screen map view on mobile */
+  .mapColumn {
+    position: static;
+    height: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .cardGrid,
+  .cardGridWide {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Reduced-height hero for returning users --------------- */
+.prayerHeroCompact .prayerHeroContent {
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+  padding-bottom: 0.25rem;
+}
+
+.prayerHeroCompact .prayerHeroTitle {
+  font-size: clamp(1.7rem, 3.2vw, 2.35rem);
+}
+
+.prayerHeroCompact .prayerHeroAccent {
+  margin: 0.3rem 0 0.35rem;
+}
+
+.prayerHeroCompact .prayerHeroSubtitle {
+  /* Slogan stays visible for returning users, just more compact. */
+  font-size: clamp(0.82rem, 1.2vw, 0.95rem);
+  line-height: 1.4;
+}
+
+@media (min-width: 768px) {
+  .prayerHeroCompact .prayerHeroContent {
+    padding: 0.9rem 1.75rem 0.3rem;
+  }
+}
+
+/* ---- Full-width density grid (returning "Requests" view) --- */
+.cardGridWide {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 560px) {
+  .cardGridWide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .cardGridWide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .cardGridWide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1600px) {
+  .cardGridWide {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Up to 3 requests: balanced larger cards, left-aligned */
+@media (min-width: 768px) {
+  .cardGridFew {
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 24rem));
+    justify-content: start;
+  }
+}
+
+/* ---- Incremental loading ----------------------------------- */
+.loadMoreRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.15rem;
+}
+
+.loadMoreButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.9rem;
+  padding: 0.6rem 1.45rem;
+  border-radius: 9999px;
+  border: 1px solid var(--prayer-border);
+  background: #fff;
+  color: var(--prayer-blue);
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 26px -20px rgba(6, 42, 87, 0.5);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.loadMoreButton:hover {
+  border-color: rgba(11, 99, 206, 0.4);
+  background: #f4f9ff;
+}
+
+.loadMoreMeta {
+  color: var(--prayer-text-secondary);
+  font-weight: 700;
+  font-size: 0.76rem;
+}
+
+/* ---- Saved-search view toggle (View Map / Return) ---------- */
+.summaryViewToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.2rem;
+  padding: 0.35rem 0.95rem;
+  border-radius: 9999px;
+  border: 1px solid var(--prayer-blue);
+  background: var(--prayer-blue);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.summaryViewToggle:hover {
+  background: var(--prayer-blue-dark);
+}
+
+/* ---- Empty-state illustration ------------------------------ */
+.emptyIllustration {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto 0.85rem;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(244, 232, 212, 0.85), rgba(219, 234, 254, 0.55));
+  color: var(--prayer-blue);
+  border: 1px solid rgba(11, 99, 206, 0.16);
+}
+
+/* ---- Results toolbar: content search + layout toggle ---- */
+.resultsToolbarControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.resultsSearchLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.resultsSearchField {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: min(100%, 18rem);
+  padding: 0.45rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid var(--prayer-border);
+  background: #fff;
+  color: var(--prayer-text-secondary);
+}
+
+.resultsSearchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.82rem;
+  color: var(--prayer-text);
+}
+
+.resultsSearchInput:focus {
+  outline: none;
+}
+
+.resultsSearchInput::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.resultsSearchClear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: rgba(100, 116, 139, 0.14);
+  color: var(--prayer-text-secondary);
+  cursor: pointer;
+}
+
+.resultsSearchClear:hover {
+  background: rgba(100, 116, 139, 0.24);
+}
+
+.resultsLayoutToggle {
+  display: inline-flex;
+  padding: 0.15rem;
+  border-radius: 9999px;
+  border: 1px solid var(--prayer-border);
+  background: #fff;
+}
+
+.resultsLayoutButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--prayer-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.resultsLayoutButtonActive {
+  background: rgba(11, 99, 206, 0.12);
+  color: var(--prayer-blue);
+}
+
+/* ---- List layout for prayer cards -------------------------- */
+.cardList {
+  grid-template-columns: 1fr !important;
+  gap: 0.75rem;
+}
+
+.cardList .cardOpenButton {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 11rem) minmax(0, 1fr);
+  align-items: stretch;
+  text-align: left;
+}
+
+.cardList .cardMediaWrap {
+  min-height: 7.5rem;
+  border-radius: 1rem 0 0 1rem;
+}
+
+.cardList .cardBody {
+  padding: 0.85rem 1rem 0.95rem;
+}
+
+.cardList .cardTitle {
+  -webkit-line-clamp: 2;
+}
+
+@media (max-width: 640px) {
+  .cardList .cardOpenButton {
+    grid-template-columns: 1fr;
+  }
+
+  .cardList .cardMediaWrap {
+    min-height: 11rem;
+    border-radius: 1rem 1rem 0 0;
+  }
+}
+
+/* ---- Card activity line (prayed · video prayers) ----------- */
+.cardActivity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5b6b82;
+}
+
+.cardActivity::before {
+  content: "";
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  background: var(--prayer-blue);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21s-6.7-4.35-9.33-8.02C.9 10.27 1.4 7.1 3.7 5.7c1.8-1.1 4.02-.6 5.3.98L12 10l3-3.32c1.28-1.58 3.5-2.08 5.3-.98 2.3 1.4 2.8 4.57 1.03 7.28C18.7 16.65 12 21 12 21z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21s-6.7-4.35-9.33-8.02C.9 10.27 1.4 7.1 3.7 5.7c1.8-1.1 4.02-.6 5.3.98L12 10l3-3.32c1.28-1.58 3.5-2.08 5.3-.98 2.3 1.4 2.8 4.57 1.03 7.28C18.7 16.65 12 21 12 21z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---- Composer prayer-type picker --------------------------- */
+.composerSearchField {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.55rem 0.9rem;
+  border-radius: 9999px;
+  border: 1px solid #dbe3ee;
+  background: #fff;
+  color: #64748b;
+}
+
+.composerSearchField:focus-within {
+  border-color: var(--prayer-blue);
+  box-shadow: 0 0 0 3px rgba(11, 99, 206, 0.16);
+}
+
+.composerSearchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.composerSearchInput:focus {
+  outline: none;
+}
+
+.useAsOtherButton {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 9999px;
+  border: 1px dashed var(--prayer-blue);
+  background: rgba(11, 99, 206, 0.08);
+  color: var(--prayer-blue);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.useAsOtherButton:hover {
+  background: rgba(11, 99, 206, 0.14);
+}
+
+.customTypeBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border-radius: 1rem;
+  border: 1px solid #dbe3ee;
+  background: #f8fafc;
+}
+
+.composerHelp {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+  .composerSearchField,
+  .customTypeBlock {
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(148, 163, 184, 0.28);
+  }
+
+  .composerSearchInput {
+    color: #e2e8f0;
+  }
 }

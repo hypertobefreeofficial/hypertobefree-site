@@ -6,6 +6,7 @@ import type {
   PrayerConnectSearchCenter,
   PrayerConnectSort,
 } from "./types";
+import { partitionPrayerTopics } from "./topicPartition";
 
 export const PRAYER_CONNECT_CATEGORIES: {
   id: PrayerConnectCategoryFilter;
@@ -26,6 +27,59 @@ export const PRAYER_CONNECT_CATEGORIES: {
   { id: "emotional", label: "Emotional well-being" },
   { id: "other", label: "Other" },
 ];
+
+export const MAX_CUSTOM_PRAYER_TYPE_LENGTH = 60;
+
+// Extended, human-facing prayer-type picker used by the composer. Each option
+// maps to an existing base category (so Discover filtering/sorting keeps
+// working) while the specific label is stored separately and shown on cards.
+export type PrayerTypeOption = {
+  label: string;
+  category: Exclude<PrayerConnectCategoryFilter, "all">;
+};
+
+export const PRAYER_TYPE_OPTIONS: PrayerTypeOption[] = [
+  { label: "Addiction and Recovery", category: "addiction" },
+  { label: "Anxiety and Fear", category: "emotional" },
+  { label: "Caregiving", category: "family" },
+  { label: "Children", category: "children" },
+  { label: "Church and Ministry", category: "ministry" },
+  { label: "Crisis or Emergency", category: "other" },
+  { label: "Deliverance", category: "faith" },
+  { label: "Depression and Mental Wellness", category: "emotional" },
+  { label: "Education", category: "other" },
+  { label: "Employment", category: "work" },
+  { label: "Family", category: "family" },
+  { label: "Finances", category: "finances" },
+  { label: "Forgiveness", category: "faith" },
+  { label: "Grief and Loss", category: "grief" },
+  { label: "Guidance and Direction", category: "faith" },
+  { label: "Healing", category: "health" },
+  { label: "Housing", category: "other" },
+  { label: "Legal Matters", category: "other" },
+  { label: "Loneliness", category: "emotional" },
+  { label: "Marriage", category: "relationships" },
+  { label: "Military and Veterans", category: "community" },
+  { label: "Parenting", category: "children" },
+  { label: "Pregnancy and Fertility", category: "health" },
+  { label: "Protection and Safety", category: "other" },
+  { label: "Relationships", category: "relationships" },
+  { label: "Salvation", category: "faith" },
+  { label: "Spiritual Growth", category: "faith" },
+  { label: "Temptation", category: "faith" },
+  { label: "Travel", category: "other" },
+  { label: "World Events", category: "community" },
+  { label: "Praise and Thanksgiving", category: "faith" },
+  { label: "Other", category: "other" },
+];
+
+export function sanitizeCustomPrayerType(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[<>{}[\]\\|`]/g, "")
+    .slice(0, MAX_CUSTOM_PRAYER_TYPE_LENGTH);
+}
 
 export const PRAYER_CONNECT_SORTS: { id: PrayerConnectSort; label: string }[] = [
   { id: "needs-prayer", label: "Needs Prayer" },
@@ -106,10 +160,33 @@ export function inferPrayerCategory(
   storyText: string | null,
   topics: string[] | null | undefined
 ): { id: PrayerConnectCategoryFilter; label: string } {
+  const partitioned = partitionPrayerTopics(topics);
+
+  // Prefer the explicit prayer-type label captured at post time so custom and
+  // extended types always show their real wording (never just "Other").
+  if (partitioned.prayerTypeLabel) {
+    return {
+      id: partitioned.category ?? "other",
+      label: partitioned.prayerTypeLabel,
+    };
+  }
+
+  if (partitioned.category) {
+    const match = PRAYER_CONNECT_CATEGORIES.find(
+      (item) => item.id === partitioned.category
+    );
+    if (match && match.id !== "all") {
+      if (match.id === "other" && partitioned.publicTopics.length > 0) {
+        return { id: "other", label: partitioned.publicTopics[0] };
+      }
+      return { id: match.id, label: match.label };
+    }
+  }
+
   const haystack = [
     storyType || "",
     storyText || "",
-    ...(topics || []),
+    ...partitioned.publicTopics,
   ]
     .join(" ")
     .toLowerCase();
@@ -172,6 +249,27 @@ export function detectSensitivePersonalInfo(text: string) {
   }
 
   return findings;
+}
+
+export function filterPrayerRequestsByContent(
+  requests: PrayerConnectRequest[],
+  query: string
+) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return requests;
+
+  return requests.filter((request) => {
+    const haystack = [
+      request.title,
+      request.body,
+      request.categoryLabel,
+      request.locationLabel || "",
+      ...request.topics,
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(needle);
+  });
 }
 
 export function filterAndSortPrayerRequests(

@@ -37,6 +37,24 @@ function CenterController({
   return null;
 }
 
+function ZoomController({
+  zoomSignal,
+  zoomDirection,
+}: {
+  zoomSignal: number;
+  zoomDirection: "in" | "out";
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!zoomSignal) return;
+    const nextZoom = map.getZoom() + (zoomDirection === "in" ? 1 : -1);
+    map.setZoom(Math.max(2, Math.min(14, nextZoom)), { animate: true });
+  }, [map, zoomDirection, zoomSignal]);
+
+  return null;
+}
+
 function MoveWatcher({
   onIdleCenter,
 }: {
@@ -115,6 +133,8 @@ type PrayerConnectMapProps = {
   radiusMiles: number | "anywhere";
   onSelect: (request: PrayerConnectRequest) => void;
   onMapIdle: (center: { lat: number; lng: number }) => void;
+  zoomSignal?: number;
+  zoomDirection?: "in" | "out";
 };
 
 export default function PrayerConnectMap({
@@ -123,6 +143,8 @@ export default function PrayerConnectMap({
   radiusMiles,
   onSelect,
   onMapIdle,
+  zoomSignal = 0,
+  zoomDirection = "in",
 }: PrayerConnectMapProps) {
   const tileUrl =
     process.env.NEXT_PUBLIC_MAP_TILE_URL ??
@@ -147,6 +169,7 @@ export default function PrayerConnectMap({
           url={tileUrl}
         />
         <CenterController center={center} zoom={zoom} />
+        <ZoomController zoomSignal={zoomSignal} zoomDirection={zoomDirection} />
         <MoveWatcher onIdleCenter={onMapIdle} />
         {center && typeof radiusMiles === "number" ? (
           <Circle

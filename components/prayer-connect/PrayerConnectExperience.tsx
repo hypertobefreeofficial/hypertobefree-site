@@ -1,20 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Bell,
-  CircleHelp,
-  Compass,
-  Globe2,
-  MapPin,
-  Navigation,
-  Plus,
-  RefreshCw,
-  Search,
-} from "lucide-react";
+import { Globe2, LayoutGrid, List, RefreshCw, Search, X } from "lucide-react";
 import { loadPrayerConnectRequests } from "../../lib/prayer-connect/loadPrayerConnectRequests";
 import { geocodePlaceQuery } from "../../lib/prayer-connect/geocodePlace";
 import { supabase } from "../../lib/supabaseClient";
@@ -29,8 +17,8 @@ import type {
 import {
   PRAYER_CONNECT_CATEGORIES,
   PRAYER_CONNECT_SORTS,
-  RADIUS_OPTIONS,
   filterAndSortPrayerRequests,
+  filterPrayerRequestsByContent,
 } from "../../lib/prayer-connect/utils";
 import {
   loadFollowedPrayerIds,
@@ -39,17 +27,28 @@ import {
   toggleFollowedPrayer,
   toggleSavedStory,
 } from "../../lib/prayer-connect/persistence";
+import { isMockPrayerMode } from "../../lib/prayer-connect/mockMode";
+import { MOCK_SAVED_STORY_IDS } from "../../lib/prayer-connect/mockPrayerData";
+import {
+  buildSearchSummary,
+  clearLocalPrayerSearch,
+  DEFAULT_PRAYER_SEARCH,
+  loadPrayerSearchPreferences,
+  savePrayerSearchPreferences,
+  type PrayerSearchPreferences,
+} from "../../lib/prayer-connect/searchPreferences";
 import PrayerConnectCard from "./PrayerConnectCard";
 import PrayerConnectDetail from "./PrayerConnectDetail";
+import PrayerExperienceHeader from "./PrayerExperienceHeader";
+import PrayerMapPanel from "./PrayerMapPanel";
 import PrayerMyRequestsPanel from "./PrayerMyRequestsPanel";
 import PrayerPostComposer from "./PrayerPostComposer";
-import PrayerSectionNav, { type PrayerViewTab } from "./PrayerSectionNav";
+import PrayerSearchRail from "./PrayerSearchRail";
+import PrayerSearchSetup from "./PrayerSearchSetup";
+import PrayerSearchSummaryBar from "./PrayerSearchSummaryBar";
+import PrayerSpotlight from "./PrayerSpotlight";
+import { type PrayerViewTab } from "./PrayerSectionNav";
 import styles from "./PrayerConnect.module.css";
-
-const PrayerConnectMap = dynamic(() => import("./PrayerConnectMap"), {
-  ssr: false,
-  loading: () => <div className={styles.mapSkeleton}>Loading map…</div>,
-});
 
 function parseTab(value: string | null): PrayerViewTab {
   if (
@@ -64,6 +63,7 @@ function parseTab(value: string | null): PrayerViewTab {
 }
 
 export default function PrayerConnectExperience() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<PrayerViewTab>("discover");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
@@ -101,12 +101,171 @@ export default function PrayerConnectExperience() {
   );
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [myRefreshKey, setMyRefreshKey] = useState(0);
+  const [searchConfigured, setSearchConfigured] = useState(false);
+  const [searchSetupOpen, setSearchSetupOpen] = useState(false);
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(12);
+  const [resultsLayout, setResultsLayout] = useState<"grid" | "list">("grid");
+  const [contentQuery, setContentQuery] = useState("");
+  const [debouncedContentQuery, setDebouncedContentQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const savedScroll = useRef(0);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("htbf-prayer-results-layout");
+    if (stored === "grid" || stored === "list") {
+      setResultsLayout(stored);
+    }
+  }, []);
+
+  useEffect(() => {
     setActiveTab(parseTab(searchParams.get("tab")));
   }, [searchParams]);
+
+  // Debounce content search so filtering only runs after the user pauses.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedContentQuery(contentQuery);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [contentQuery]);
+
+  const persistSearchPreferences = useCallback(
+    async (configured = true) => {
+      const prefs: PrayerSearchPreferences = {
+        ...DEFAULT_PRAYER_SEARCH,
+        configured,
+        searchMode,
+        center,
+        radius,
+        category,
+        sort,
+        mediaFilter,
+        mobileView,
+        placeQuery,
+      };
+      setSearchConfigured(configured);
+      await savePrayerSearchPreferences(userId, prefs);
+    },
+    [
+      userId,
+      searchMode,
+      center,
+      radius,
+      category,
+      sort,
+      mediaFilter,
+      mobileView,
+      placeQuery,
+    ]
+  );
+
+  useEffect(() => {
+    async function hydrateSearch() {
+      const loaded = await loadPrayerSearchPreferences(userId);
+      if (loaded.prefs.configured) {
+        setSearchMode(loaded.prefs.searchMode);
+        setCenter(loaded.prefs.center);
+        setRadius(loaded.prefs.radius);
+        setCategory(loaded.prefs.category);
+        setSort(loaded.prefs.sort);
+        setMediaFilter(loaded.prefs.mediaFilter);
+        setMobileView(loaded.prefs.mobileView);
+        setPlaceQuery(loaded.prefs.placeQuery);
+        setSearchConfigured(true);
+        setSearchSetupOpen(false);
+      } else {
+        setSearchMode("anywhere");
+        setCenter(null);
+        setRadius("anywhere");
+        setSearchConfigured(false);
+        setSearchSetupOpen(false);
+      }
+      setPrefsHydrated(true);
+    }
+    void hydrateSearch();
+  }, [userId]);
+
+  useEffect(() => {
+    const storyId = searchParams.get("story");
+    if (storyId && requests.length > 0) {
+      setSelectedId(storyId);
+    }
+  }, [searchParams, requests]);
+
+  useEffect(() => {
+    if (!prefsHydrated || !searchConfigured || searchSetupOpen) return;
+    const timer = window.setTimeout(() => {
+      void persistSearchPreferences(true);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [
+    prefsHydrated,
+    searchConfigured,
+    searchSetupOpen,
+    persistSearchPreferences,
+  ]);
+
+  function resetSearch() {
+    clearLocalPrayerSearch();
+    setSearchMode("anywhere");
+    setCenter(null);
+    setRadius("anywhere");
+    setCategory("all");
+    setSort("needs-prayer");
+    setMediaFilter("all");
+    setMobileView("requests");
+    setPlaceQuery("");
+    setPendingMapCenter(null);
+    setGeoError(null);
+    setSearchConfigured(false);
+    setSearchSetupOpen(false);
+    void savePrayerSearchPreferences(userId, DEFAULT_PRAYER_SEARCH);
+  }
+
+  function completeSearchSetup() {
+    setSearchConfigured(true);
+    setSearchSetupOpen(false);
+    void persistSearchPreferences(true);
+  }
+
+  const searchSummary = useMemo(
+    () => buildSearchSummary({
+      ...DEFAULT_PRAYER_SEARCH,
+      configured: searchConfigured,
+      searchMode,
+      center,
+      radius,
+      category,
+      sort,
+      mediaFilter,
+      mobileView,
+      placeQuery,
+    }),
+    [
+      searchConfigured,
+      searchMode,
+      center,
+      radius,
+      category,
+      sort,
+      mediaFilter,
+      mobileView,
+      placeQuery,
+    ]
+  );
+
+  const sortLabel =
+    PRAYER_CONNECT_SORTS.find((item) => item.id === sort)?.label || "Most recent";
+  const mediaLabel =
+    mediaFilter === "all"
+      ? "All media"
+      : mediaFilter === "video"
+        ? "Video"
+        : mediaFilter === "photo"
+          ? "Photo"
+          : "Text";
 
   const refresh = useCallback(async () => {
     setLoadState("loading");
@@ -114,7 +273,16 @@ export default function PrayerConnectExperience() {
     const result = await loadPrayerConnectRequests();
     if (result.ok === false) {
       setLoadState("error");
-      setErrorMessage(result.message);
+      // Never surface Supabase keys, env-var names, or raw errors to users.
+      // Log the technical detail internally and show a calm message instead.
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Prayer load failed:", result.reason, result.message);
+      }
+      setErrorMessage(
+        result.reason === "offline"
+          ? "You appear to be offline. Reconnect to load prayer requests."
+          : "We couldn't load prayer requests right now. Please try again in a moment."
+      );
       return;
     }
     setRequests(result.requests);
@@ -132,7 +300,7 @@ export default function PrayerConnectExperience() {
       } = await supabase.auth.getUser();
       setUserId(user?.id ?? null);
       if (!user) {
-        setSavedIds([]);
+        setSavedIds(isMockPrayerMode() ? MOCK_SAVED_STORY_IDS : []);
         setFollowingIds([]);
         setUserReactions(new Map());
         return;
@@ -193,22 +361,25 @@ export default function PrayerConnectExperience() {
   }, [requests, center, radius, category, sort, searchMode, mediaFilter]);
 
   const tabRequests = useMemo(() => {
+    let items: PrayerConnectRequest[];
     if (activeTab === "following") {
-      return requests.filter((item) => followingIds.includes(item.id));
+      items = requests.filter((item) => followingIds.includes(item.id));
+    } else if (activeTab === "saved") {
+      items = requests.filter((item) => savedIds.includes(item.id));
+    } else if (activeTab === "answered") {
+      items = requests.filter((item) => item.prayerStatus === "answered");
+    } else {
+      items = discoverFiltered;
     }
-    if (activeTab === "saved") {
-      return requests.filter((item) => savedIds.includes(item.id));
-    }
-    if (activeTab === "answered") {
-      return requests.filter((item) => item.prayerStatus === "answered");
-    }
-    return discoverFiltered;
+
+    return filterPrayerRequestsByContent(items, debouncedContentQuery);
   }, [
     activeTab,
     requests,
     followingIds,
     savedIds,
     discoverFiltered,
+    debouncedContentQuery,
   ]);
 
   const selected = useMemo(
@@ -220,14 +391,26 @@ export default function PrayerConnectExperience() {
   );
 
   function openRequest(id: string) {
-    savedScroll.current = scrollRef.current?.scrollTop ?? 0;
+    savedScroll.current =
+      typeof window !== "undefined"
+        ? window.scrollY
+        : scrollRef.current?.scrollTop ?? 0;
     setSelectedId(id);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("story", id);
+    router.replace(`/prayer?${params.toString()}`, { scroll: false });
   }
 
   function closeRequest() {
     setSelectedId(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("story");
+    const next = params.toString();
+    router.replace(next ? `/prayer?${next}` : "/prayer", { scroll: false });
     requestAnimationFrame(() => {
-      if (scrollRef.current) {
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: savedScroll.current });
+      } else if (scrollRef.current) {
         scrollRef.current.scrollTop = savedScroll.current;
       }
     });
@@ -264,7 +447,7 @@ export default function PrayerConnectExperience() {
     }
     if (!followAvailable) {
       setAuthMessage(
-        "Following requires the Prayer migration (prayer_follows). Apply it in Supabase to enable sync."
+        "Following isn't available right now. Please try again later."
       );
       return;
     }
@@ -304,6 +487,7 @@ export default function PrayerConnectExperience() {
           label: "Near your current area",
         });
         if (radius === "anywhere") setRadius(25);
+        completeSearchSetup();
       },
       () => {
         setGeoError(
@@ -330,6 +514,7 @@ export default function PrayerConnectExperience() {
       label: result.label,
     });
     if (radius === "anywhere") setRadius(25);
+    completeSearchSetup();
   }
 
   function chooseAnywhere() {
@@ -338,6 +523,7 @@ export default function PrayerConnectExperience() {
     setRadius("anywhere");
     setPendingMapCenter(null);
     setGeoError(null);
+    completeSearchSetup();
   }
 
   function applyMapSearch() {
@@ -348,6 +534,7 @@ export default function PrayerConnectExperience() {
       label: "Selected map area",
     });
     if (radius === "anywhere") setRadius(25);
+    completeSearchSetup();
   }
 
   function bumpRadius() {
@@ -357,61 +544,94 @@ export default function PrayerConnectExperience() {
   }
 
   const showDiscoverChrome = activeTab === "discover";
+  const showSearchSummary = showDiscoverChrome && searchConfigured;
+  const showFirstTimeRail = showDiscoverChrome && !searchConfigured;
+  const showSearchSetupModal =
+    showDiscoverChrome && searchConfigured && searchSetupOpen;
+
+  // First visit keeps the map prominent while a location is chosen.
+  // Returning users default to a full-width grid; the map is opt-in.
+  const isFirstVisit = showDiscoverChrome && !searchConfigured;
+  const mapVisible =
+    showDiscoverChrome && (isFirstVisit || mobileView === "map");
+  const fullWidthResults = !mapVisible;
+
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [
+    activeTab,
+    mobileView,
+    sort,
+    category,
+    mediaFilter,
+    center,
+    radius,
+    searchMode,
+    debouncedContentQuery,
+    resultsLayout,
+  ]);
+
+  const visibleRequests = tabRequests.slice(0, visibleCount);
+  const hasMoreRequests = tabRequests.length > visibleCount;
+
+  const spotlightRequest = useMemo(() => {
+    if (!showDiscoverChrome || discoverFiltered.length === 0) return null;
+    const urgent = discoverFiltered.find((item) => item.isUrgent);
+    if (urgent) return urgent;
+    return [...discoverFiltered].sort((a, b) => a.prayingCount - b.prayingCount)[0];
+  }, [showDiscoverChrome, discoverFiltered]);
+
+  const activeContentQuery = debouncedContentQuery.trim();
+  const contentSearching = contentQuery.trim() !== activeContentQuery;
+  const nearbyCountLabel =
+    loadState === "loading"
+      ? "Searching nearby requests…"
+      : contentSearching
+        ? "Searching prayers…"
+        : activeContentQuery
+          ? `${tabRequests.length} result${
+              tabRequests.length === 1 ? "" : "s"
+            } for “${activeContentQuery}”`
+          : `${tabRequests.length} request${
+              tabRequests.length === 1 ? "" : "s"
+            } nearby`;
+
+  const searchSetupProps = {
+    searchMode,
+    radius,
+    category,
+    sort,
+    mediaFilter,
+    placeQuery,
+    center,
+    geoError,
+    authMessage,
+    onSearchModeChange: setSearchMode,
+    onPlaceQueryChange: setPlaceQuery,
+    onRadiusChange: setRadius,
+    onCategoryChange: setCategory,
+    onSortChange: setSort,
+    onMediaFilterChange: setMediaFilter,
+    onNearMe: () => void useNearMe(),
+    onSearchPlace: () => void searchPlace(),
+    onChooseAnywhere: chooseAnywhere,
+    onOpenMap: () => {
+      setSearchMode("map");
+      setMobileView("map");
+    },
+    onSave: completeSearchSetup,
+  };
 
   return (
     <main className={styles.page}>
-      <header className={styles.topBar}>
-        <div className={styles.topBarInner}>
-          <Link href="/journey" className={styles.brandLink}>
-            HTBF
-          </Link>
-          <div className={styles.topBarActions}>
-            <Link
-              href="/notifications?category=prayer"
-              className={styles.iconButton}
-              aria-label="Prayer notifications"
-            >
-              <Bell className="h-4 w-4" aria-hidden />
-            </Link>
-            <div className={styles.topBarLabel}>Prayer</div>
-          </div>
-        </div>
-        <div
-          className={styles.shell}
-          style={{ paddingTop: 0, paddingBottom: "0.75rem" }}
-        >
-          <PrayerSectionNav active={activeTab} onChange={setActiveTab} />
-        </div>
-      </header>
-
-      <div className={styles.shell}>
-        <section className={styles.hero}>
-          <div>
-            <h1 className={styles.title}>Prayer</h1>
-            <p className={styles.subtitle}>
-              Find someone to pray for. Share what you are facing. Pray without
-              borders.
-            </p>
-          </div>
-          <div className={styles.heroActions}>
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => setComposerOpen(true)}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Post a Prayer Request
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              onClick={() => setHowOpen(true)}
-            >
-              <CircleHelp className="h-4 w-4" aria-hidden />
-              How It Works
-            </button>
-          </div>
-        </section>
+      <div className={styles.prayerViewport}>
+        <PrayerExperienceHeader
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onPost={() => setComposerOpen(true)}
+          onHowItWorks={() => setHowOpen(true)}
+          compact={searchConfigured}
+        />
 
         {activeTab === "my-requests" ? (
           <PrayerMyRequestsPanel
@@ -421,199 +641,47 @@ export default function PrayerConnectExperience() {
         ) : null}
 
         {activeTab !== "my-requests" ? (
-          <>
-            {showDiscoverChrome ? (
-              <section className={styles.searchPanel} aria-label="Location search">
-                <div className={styles.searchTabs} role="tablist">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={searchMode === "near-me"}
-                    className={`${styles.searchTab} ${
-                      searchMode === "near-me" ? styles.searchTabActive : ""
-                    }`}
-                    onClick={() => void useNearMe()}
-                  >
-                    <Navigation className="h-4 w-4" aria-hidden />
-                    Near Me
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={searchMode === "place"}
-                    className={`${styles.searchTab} ${
-                      searchMode === "place" ? styles.searchTabActive : ""
-                    }`}
-                    onClick={() => setSearchMode("place")}
-                  >
-                    <Search className="h-4 w-4" aria-hidden />
-                    ZIP / City
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={searchMode === "map"}
-                    className={`${styles.searchTab} ${
-                      searchMode === "map" ? styles.searchTabActive : ""
-                    }`}
-                    onClick={() => {
-                      setSearchMode("map");
-                      setMobileView("map");
-                    }}
-                  >
-                    <MapPin className="h-4 w-4" aria-hidden />
-                    On Map
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={searchMode === "anywhere"}
-                    className={`${styles.searchTab} ${
-                      searchMode === "anywhere" ? styles.searchTabActive : ""
-                    }`}
-                    onClick={chooseAnywhere}
-                  >
-                    <Globe2 className="h-4 w-4" aria-hidden />
-                    Anywhere
-                  </button>
-                </div>
+          <section className={styles.prayerDiscover}>
+            {showSearchSummary ? (
+              <PrayerSearchSummaryBar
+                locationLine={searchSummary.location}
+                filterLine={`${searchSummary.radius} · ${sortLabel} · ${mediaLabel}`}
+                viewMode={mobileView}
+                onViewMap={() => setMobileView("map")}
+                onReturnToRequests={() => setMobileView("requests")}
+                onChangeLocation={() => setSearchSetupOpen(true)}
+                onRadius={() => setSearchSetupOpen(true)}
+                onFilters={() => setFiltersOpen(true)}
+                onReset={resetSearch}
+              />
+            ) : null}
 
-                <div className={styles.placeRow}>
-                  <label htmlFor="prayer-place" className="sr-only">
-                    ZIP code, city, state, or country
-                  </label>
-                  <input
-                    id="prayer-place"
-                    className={styles.placeInput}
-                    value={placeQuery}
-                    onChange={(event) => setPlaceQuery(event.target.value)}
-                    placeholder="Search ZIP, city, state, or country"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") void searchPlace();
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={() => void useNearMe()}
-                  >
-                    Use My Location
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.primaryButton}
-                    onClick={() => void searchPlace()}
-                  >
-                    Search
-                  </button>
-                </div>
-
-                <div className={styles.radiusRow}>
-                  <span className={styles.controlLabel}>Radius</span>
-                  <div className={styles.pillRow}>
-                    {RADIUS_OPTIONS.map((option) => (
-                      <button
-                        key={String(option.id)}
-                        type="button"
-                        className={`${styles.pill} ${
-                          radius === option.id ? styles.pillActive : ""
-                        }`}
-                        onClick={() => setRadius(option.id)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className={styles.filterSelectRow}>
-                  <select
-                    className={styles.select}
-                    value={category}
-                    aria-label="Category"
-                    onChange={(event) =>
-                      setCategory(
-                        event.target.value as PrayerConnectCategoryFilter
-                      )
-                    }
-                  >
-                    {PRAYER_CONNECT_CATEGORIES.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className={styles.select}
-                    value={sort}
-                    aria-label="Sort"
-                    onChange={(event) =>
-                      setSort(event.target.value as PrayerConnectSort)
-                    }
-                  >
-                    {PRAYER_CONNECT_SORTS.filter(
-                      (item) =>
-                        !["video", "photo", "text"].includes(item.id)
-                    ).map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className={styles.select}
-                    value={mediaFilter}
-                    aria-label="Content type"
-                    onChange={(event) =>
-                      setMediaFilter(
-                        event.target.value as "all" | "video" | "photo" | "text"
-                      )
-                    }
-                  >
-                    <option value="all">All media</option>
-                    <option value="video">Video</option>
-                    <option value="photo">Photo</option>
-                    <option value="text">Text</option>
-                  </select>
-                </div>
-
-                {center ? (
-                  <p className={styles.centerLabel}>
-                    <Compass className="h-4 w-4" aria-hidden />
-                    Searching near {center.label}
-                  </p>
-                ) : (
-                  <p className={styles.centerLabel}>
-                    <Globe2 className="h-4 w-4" aria-hidden />
-                    Browsing prayer requests anywhere in the world
-                  </p>
-                )}
-
-                {geoError ? (
-                  <p className={styles.errorText} role="alert">
-                    {geoError}
-                  </p>
-                ) : null}
-
-                {authMessage ? (
-                  <p className={styles.errorText} role="status">
-                    {authMessage}
-                  </p>
-                ) : null}
-
-                <div className={styles.privacyNote}>
-                  HTBF uses approximate public locations only. Exact home
-                  addresses and residential coordinates are never shown.
-                </div>
-              </section>
+            {showFirstTimeRail ? (
+              <PrayerSearchRail
+                searchMode={searchMode}
+                radius={radius}
+                placeQuery={placeQuery}
+                geoError={geoError}
+                onSearchModeChange={setSearchMode}
+                onPlaceQueryChange={setPlaceQuery}
+                onRadiusChange={setRadius}
+                onNearMe={() => void useNearMe()}
+                onSearchPlace={() => void searchPlace()}
+                onChooseAnywhere={chooseAnywhere}
+                onOpenMap={() => {
+                  setSearchMode("map");
+                  setMobileView("map");
+                }}
+                onSave={completeSearchSetup}
+              />
             ) : null}
 
             {showDiscoverChrome ? (
               <div className={styles.mobileToggle}>
                 <button
                   type="button"
-                  className={`${styles.pill} ${
-                    mobileView === "requests" ? styles.pillActive : ""
+                  className={`${styles.mobileToggleButton} ${
+                    mobileView === "requests" ? styles.mobileToggleButtonActive : ""
                   }`}
                   onClick={() => setMobileView("requests")}
                 >
@@ -621,8 +689,8 @@ export default function PrayerConnectExperience() {
                 </button>
                 <button
                   type="button"
-                  className={`${styles.pill} ${
-                    mobileView === "map" ? styles.pillActive : ""
+                  className={`${styles.mobileToggleButton} ${
+                    mobileView === "map" ? styles.mobileToggleButtonActive : ""
                   }`}
                   onClick={() => setMobileView("map")}
                 >
@@ -630,7 +698,7 @@ export default function PrayerConnectExperience() {
                 </button>
                 <button
                   type="button"
-                  className={styles.pill}
+                  className={styles.mobileToggleButton}
                   onClick={() => setFiltersOpen(true)}
                 >
                   Filters
@@ -640,26 +708,106 @@ export default function PrayerConnectExperience() {
 
             <div
               className={`${styles.workspace} ${
-                !showDiscoverChrome ? styles.workspaceSingle : ""
+                fullWidthResults ? styles.workspaceSingle : ""
               }`}
             >
               <div
                 className={`${styles.resultsColumn} ${
-                  showDiscoverChrome && mobileView === "map"
-                    ? styles.hideOnMobile
-                    : ""
+                  mapVisible && mobileView === "map" ? styles.hideOnMobile : ""
                 }`}
               >
                 <div className={styles.resultsToolbar}>
-                  <span className={styles.resultCount}>
-                    {loadState === "loading"
-                      ? "Searching…"
-                      : activeTab === "discover" && typeof radius === "number"
-                        ? `${tabRequests.length} prayer requests within ${radius} miles`
-                        : `${tabRequests.length} prayer request${
-                            tabRequests.length === 1 ? "" : "s"
-                          }`}
-                  </span>
+                  <div className={styles.resultsHeading}>
+                    <h2 className={styles.resultsTitle}>Prayer requests</h2>
+                    <p
+                      className={styles.resultsSubtitle}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {nearbyCountLabel}
+                    </p>
+                  </div>
+
+                  <div className={styles.resultsToolbarControls}>
+                    <label className={styles.resultsSearchLabel} htmlFor="prayer-content-search">
+                      Search prayers by need, topic, keyword, or location
+                    </label>
+                    <div className={styles.resultsSearchField}>
+                      <Search className="h-4 w-4" aria-hidden />
+                      <input
+                        id="prayer-content-search"
+                        className={styles.resultsSearchInput}
+                        type="search"
+                        value={contentQuery}
+                        placeholder="Search prayers by need, topic, keyword, or location"
+                        onChange={(event) => setContentQuery(event.target.value)}
+                      />
+                      {contentQuery ? (
+                        <button
+                          type="button"
+                          className={styles.resultsSearchClear}
+                          aria-label="Clear search"
+                          onClick={() => {
+                            setContentQuery("");
+                            setDebouncedContentQuery("");
+                          }}
+                        >
+                          <X className="h-4 w-4" aria-hidden />
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className={styles.resultsLayoutToggle} role="group" aria-label="Results layout">
+                      <button
+                        type="button"
+                        className={`${styles.resultsLayoutButton} ${
+                          resultsLayout === "grid" ? styles.resultsLayoutButtonActive : ""
+                        }`}
+                        aria-pressed={resultsLayout === "grid"}
+                        onClick={() => {
+                          setResultsLayout("grid");
+                          window.localStorage.setItem("htbf-prayer-results-layout", "grid");
+                        }}
+                      >
+                        <LayoutGrid className="h-4 w-4" aria-hidden />
+                        Grid
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.resultsLayoutButton} ${
+                          resultsLayout === "list" ? styles.resultsLayoutButtonActive : ""
+                        }`}
+                        aria-pressed={resultsLayout === "list"}
+                        onClick={() => {
+                          setResultsLayout("list");
+                          window.localStorage.setItem("htbf-prayer-results-layout", "list");
+                        }}
+                      >
+                        <List className="h-4 w-4" aria-hidden />
+                        List
+                      </button>
+                    </div>
+
+                    <label className={styles.resultsSortLabel} htmlFor="prayer-sort">
+                      Sort
+                    </label>
+                    <select
+                      id="prayer-sort"
+                      className={styles.resultsSortSelect}
+                      value={sort}
+                      onChange={(event) =>
+                        setSort(event.target.value as PrayerConnectSort)
+                      }
+                    >
+                      {PRAYER_CONNECT_SORTS.filter(
+                        (item) => !["video", "photo", "text"].includes(item.id)
+                      ).map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className={styles.resultsScroll} ref={scrollRef}>
@@ -688,42 +836,73 @@ export default function PrayerConnectExperience() {
 
                   {loadState === "ready" && tabRequests.length === 0 ? (
                     <div className={styles.emptyState}>
+                      <div className={styles.emptyIllustration} aria-hidden>
+                        <Globe2 className="h-8 w-8" />
+                      </div>
                       <h2>
-                        {activeTab === "following"
+                        {activeContentQuery
+                          ? `No prayer requests matched “${activeContentQuery}”.`
+                          : activeTab === "following"
                           ? "You are not following any prayer requests yet"
                           : activeTab === "saved"
                             ? "No saved prayer requests yet"
                             : activeTab === "answered"
                               ? "No answered prayers in this view yet"
-                              : `No prayer requests were found${
-                                  typeof radius === "number"
-                                    ? ` within ${radius} miles`
-                                    : ""
-                                }.`}
+                              : "No prayer requests match this area yet."}
                       </h2>
                       <p>
-                        {activeTab === "discover"
-                          ? "Try expanding your radius, selecting another area, or posting a prayer request."
+                        {activeContentQuery
+                          ? "Try another word, clear the search, or broaden your location filters."
+                          : activeTab === "discover"
+                          ? "Try expanding your radius, exploring the map, choosing another area, or posting a prayer request."
                           : "Browse Discover to find someone to pray for."}
                       </p>
                       <div className={styles.emptyActions}>
-                        {activeTab === "discover" && typeof radius === "number" ? (
-                          <button
-                            type="button"
-                            className={styles.primaryButton}
-                            onClick={bumpRadius}
-                          >
-                            Expand Radius
-                          </button>
-                        ) : null}
                         {activeTab === "discover" ? (
-                          <button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={chooseAnywhere}
-                          >
-                            Choose Another Area
-                          </button>
+                          <>
+                            {activeContentQuery ? (
+                              <button
+                                type="button"
+                                className={styles.secondaryButton}
+                                onClick={() => {
+                                  setContentQuery("");
+                                  setDebouncedContentQuery("");
+                                }}
+                              >
+                                Clear Search
+                              </button>
+                            ) : null}
+                            {typeof radius === "number" ? (
+                              <button
+                                type="button"
+                                className={styles.primaryButton}
+                                onClick={bumpRadius}
+                              >
+                                Expand Search Area
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className={styles.secondaryButton}
+                              onClick={chooseAnywhere}
+                            >
+                              Search Anywhere
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.secondaryButton}
+                              onClick={() => setMobileView("map")}
+                            >
+                              Explore Map
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.secondaryButton}
+                              onClick={() => setComposerOpen(true)}
+                            >
+                              Post a Prayer Request
+                            </button>
+                          </>
                         ) : (
                           <button
                             type="button"
@@ -733,85 +912,115 @@ export default function PrayerConnectExperience() {
                             Go to Discover
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className={styles.secondaryButton}
-                          onClick={() => setComposerOpen(true)}
-                        >
-                          Post a Prayer Request
-                        </button>
                       </div>
                     </div>
                   ) : null}
 
                   {loadState === "ready" && tabRequests.length > 0 ? (
-                    <div className={styles.cardGrid}>
-                      {tabRequests.map((request) => (
-                        <PrayerConnectCard
-                          key={request.id}
-                          request={request}
-                          selected={selectedId === request.id}
-                      saved={savedIds.includes(request.id)}
-                      onOpen={() => openRequest(request.id)}
-                      onToggleSave={() => void toggleSave(request.id)}
-                        />
-                      ))}
-                    </div>
+                    <>
+                      <div
+                        className={`${
+                          fullWidthResults ? styles.cardGridWide : styles.cardGrid
+                        } ${
+                          resultsLayout === "list" ? styles.cardList : ""
+                        } ${
+                          fullWidthResults &&
+                          tabRequests.length <= 3 &&
+                          resultsLayout === "grid"
+                            ? styles.cardGridFew
+                            : ""
+                        }`}
+                      >
+                        {visibleRequests.map((request) => (
+                          <PrayerConnectCard
+                            key={request.id}
+                            request={request}
+                            selected={selectedId === request.id}
+                            saved={savedIds.includes(request.id)}
+                            onOpen={() => openRequest(request.id)}
+                            onToggleSave={() => void toggleSave(request.id)}
+                          />
+                        ))}
+                      </div>
+                      {hasMoreRequests ? (
+                        <div className={styles.loadMoreRow}>
+                          <button
+                            type="button"
+                            className={styles.loadMoreButton}
+                            onClick={() =>
+                              setVisibleCount((count) => count + 12)
+                            }
+                          >
+                            Show more prayer requests
+                            <span className={styles.loadMoreMeta}>
+                              {tabRequests.length - visibleCount} more
+                            </span>
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
                   ) : null}
                 </div>
               </div>
 
-              {showDiscoverChrome ? (
+              {mapVisible ? (
                 <div
-                  className={`${styles.mapColumn} ${
+                  className={
                     mobileView === "requests" ? styles.hideOnMobile : ""
-                  }`}
+                  }
                 >
-                  <div className={styles.mapToolbar}>
-                    <span>Map</span>
-                    {pendingMapCenter &&
-                    (!center ||
-                      pendingMapCenter.lat !== center.lat ||
-                      pendingMapCenter.lng !== center.lng) ? (
-                      <button
-                        type="button"
-                        className={styles.primaryButton}
-                        onClick={applyMapSearch}
-                      >
-                        Search This Area
-                      </button>
-                    ) : null}
-                  </div>
-                  <PrayerConnectMap
+                  <PrayerMapPanel
                     requests={discoverFiltered}
                     center={center}
                     radiusMiles={radius}
+                    pendingMapCenter={pendingMapCenter}
                     onSelect={(request) => openRequest(request.id)}
                     onMapIdle={setPendingMapCenter}
+                    onSearchThisArea={applyMapSearch}
+                    onRecenter={() => {
+                      if (center) {
+                        setPendingMapCenter({ lat: center.lat, lng: center.lng });
+                      }
+                    }}
+                    onExpand={() => setMobileView("map")}
+                    spotlight={
+                      spotlightRequest ? (
+                        <PrayerSpotlight
+                          request={spotlightRequest}
+                          onOpen={() => openRequest(spotlightRequest.id)}
+                        />
+                      ) : null
+                    }
                   />
-                  <div className={styles.mapLegend}>
-                    <span>Prayer requests</span>
-                    <span>Answered</span>
-                  </div>
                 </div>
               ) : null}
             </div>
-          </>
+          </section>
         ) : null}
       </div>
 
-      <button
-        type="button"
-        className={styles.stickyPost}
-        onClick={() => setComposerOpen(true)}
-      >
-        <Plus className="h-4 w-4" aria-hidden />
-        Post a Prayer Request
-      </button>
+      {showSearchSetupModal ? (
+        <div
+          className={styles.modalOverlay}
+          onClick={() => setSearchSetupOpen(false)}
+        >
+          <div
+            className={styles.searchSetupModalWrap}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <PrayerSearchSetup
+              variant="modal"
+              {...searchSetupProps}
+              onClose={() => setSearchSetupOpen(false)}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {selected ? (
         <PrayerConnectDetail
           request={selected}
+          userId={userId}
           saved={savedIds.includes(selected.id)}
           following={followingIds.includes(selected.id)}
           followAvailable={followAvailable}
@@ -837,6 +1046,13 @@ export default function PrayerConnectExperience() {
               next.set(id, set);
               return next;
             });
+          }}
+          onResponseCountChange={(id, count) => {
+            setRequests((current) =>
+              current.map((item) =>
+                item.id === id ? { ...item, responseCount: count } : item
+              )
+            );
           }}
           onEncouraged={(id) => {
             setRequests((current) =>
@@ -940,11 +1156,31 @@ export default function PrayerConnectExperience() {
                 setSort(event.target.value as PrayerConnectSort)
               }
             >
-              {PRAYER_CONNECT_SORTS.map((item) => (
+              {PRAYER_CONNECT_SORTS.filter(
+                (item) => !["video", "photo", "text"].includes(item.id)
+              ).map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
                 </option>
               ))}
+            </select>
+            <label className={styles.sheetLabel} htmlFor="sheet-media">
+              Media type
+            </label>
+            <select
+              id="sheet-media"
+              className={styles.select}
+              value={mediaFilter}
+              onChange={(event) =>
+                setMediaFilter(
+                  event.target.value as "all" | "video" | "photo" | "text"
+                )
+              }
+            >
+              <option value="all">All media</option>
+              <option value="video">Video</option>
+              <option value="photo">Photo</option>
+              <option value="text">Text</option>
             </select>
             <button
               type="button"

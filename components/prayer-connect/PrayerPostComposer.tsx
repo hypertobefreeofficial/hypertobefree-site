@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Image as ImageIcon,
   MapPin,
+  Search,
   Type,
   Video,
   X,
@@ -30,19 +31,18 @@ import {
   buildPublicGeoForPrayer,
   type LocationVisibility,
 } from "../../lib/prayer-connect/publicGeo";
+import { buildInteractionTopics } from "../../lib/prayer-connect/interactionPrefs";
 import {
-  PRAYER_CONNECT_CATEGORIES,
+  MAX_CUSTOM_PRAYER_TYPE_LENGTH,
+  PRAYER_TYPE_OPTIONS,
   detectSensitivePersonalInfo,
+  sanitizeCustomPrayerType,
 } from "../../lib/prayer-connect/utils";
 import styles from "./PrayerConnect.module.css";
 
 const STORY_IMAGE_BUCKET = "story-images";
 const STORY_VIDEO_BUCKET = "story-videos";
 const TOTAL_STEPS = 6;
-
-const CATEGORIES = PRAYER_CONNECT_CATEGORIES.filter(
-  (item) => item.id !== "all"
-) as { id: Exclude<PrayerConnectCategoryFilter, "all">; label: string }[];
 
 type LocationMode =
   | "none"
@@ -94,6 +94,12 @@ export default function PrayerPostComposer({
   const [mediaKind, setMediaKind] = useState<PrayerConnectMediaKind>("text");
   const [category, setCategory] =
     useState<Exclude<PrayerConnectCategoryFilter, "all">>("faith");
+  const [typeQuery, setTypeQuery] = useState("");
+  // Display label for a listed prayer type (empty when "Other" is chosen).
+  const [prayerTypeLabel, setPrayerTypeLabel] = useState("");
+  const [otherSelected, setOtherSelected] = useState(false);
+  const [customCategoryLabel, setCustomCategoryLabel] = useState("");
+  const [customConfirmed, setCustomConfirmed] = useState(false);
   const [isUrgent, setIsUrgent] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
@@ -104,7 +110,9 @@ export default function PrayerPostComposer({
   );
   const [placeResolving, setPlaceResolving] = useState(false);
   const [allowEncouragement, setAllowEncouragement] = useState(true);
-  const [allowPublicPrayers, setAllowPublicPrayers] = useState(true);
+  const [allowPublicVideo, setAllowPublicVideo] = useState(true);
+  const [allowPrivateMessage, setAllowPrivateMessage] = useState(true);
+  const [allowPrivateVideo, setAllowPrivateVideo] = useState(true);
   const [allowSharing, setAllowSharing] = useState(true);
   const [postAnonymous, setPostAnonymous] = useState(false);
   const [receiveUpdates, setReceiveUpdates] = useState(true);
@@ -119,13 +127,20 @@ export default function PrayerPostComposer({
     setDescription("");
     setMediaKind("text");
     setCategory("faith");
+    setTypeQuery("");
+    setPrayerTypeLabel("");
+    setOtherSelected(false);
+    setCustomCategoryLabel("");
+    setCustomConfirmed(false);
     setIsUrgent(false);
     setMediaFile(null);
     setLocationMode("none");
     setLocationText("");
     setResolvedPlaceLabel(null);
     setAllowEncouragement(true);
-    setAllowPublicPrayers(true);
+    setAllowPublicVideo(true);
+    setAllowPrivateMessage(true);
+    setAllowPrivateVideo(true);
     setAllowSharing(true);
     setPostAnonymous(false);
     setReceiveUpdates(true);
@@ -182,8 +197,44 @@ export default function PrayerPostComposer({
     `${title}\n${description}\n${locationText}`
   );
 
-  const categoryLabel =
-    CATEGORIES.find((item) => item.id === category)?.label ?? "Other";
+  const customTypeValue = sanitizeCustomPrayerType(customCategoryLabel);
+
+  // The label that will be stored and shown on cards. For "Other" this is the
+  // user's custom wording; otherwise it is the chosen listed type.
+  const effectiveTypeLabel = otherSelected ? customTypeValue : prayerTypeLabel;
+
+  const categoryLabel = effectiveTypeLabel || "Prayer request";
+
+  const typeNeedle = typeQuery.trim().toLowerCase();
+  const filteredPrayerTypes = PRAYER_TYPE_OPTIONS.filter((item) => {
+    if (item.label === "Other") return false;
+    if (!typeNeedle) return true;
+    return item.label.toLowerCase().includes(typeNeedle);
+  });
+  const showUseAsOther =
+    typeNeedle.length > 0 && filteredPrayerTypes.length === 0;
+
+  function selectPrayerType(option: (typeof PRAYER_TYPE_OPTIONS)[number]) {
+    if (option.label === "Other") {
+      selectOtherType("");
+      return;
+    }
+    setCategory(option.category);
+    setPrayerTypeLabel(option.label);
+    setOtherSelected(false);
+    setCustomCategoryLabel("");
+    setCustomConfirmed(false);
+    setError(null);
+  }
+
+  function selectOtherType(prefill: string) {
+    setCategory("other");
+    setPrayerTypeLabel("");
+    setOtherSelected(true);
+    setCustomCategoryLabel(prefill);
+    setCustomConfirmed(false);
+    setError(null);
+  }
 
   function buildLocationLabel(): string | null {
     if (locationMode === "none") return null;
@@ -220,6 +271,19 @@ export default function PrayerPostComposer({
     if (current === 2) {
       if (mediaKind !== "text" && !mediaFile) {
         return `Choose a ${mediaKind} file, or switch to text-only.`;
+      }
+      if (otherSelected) {
+        if (!customTypeValue) {
+          return "Add your custom prayer type, or choose one from the list.";
+        }
+        if (customTypeValue.length > MAX_CUSTOM_PRAYER_TYPE_LENGTH) {
+          return `Keep the custom prayer type under ${MAX_CUSTOM_PRAYER_TYPE_LENGTH} characters.`;
+        }
+        if (!customConfirmed) {
+          return "Confirm your custom prayer type to continue.";
+        }
+      } else if (!prayerTypeLabel) {
+        return "Choose a prayer type.";
       }
       return null;
     }
@@ -438,13 +502,18 @@ export default function PrayerPostComposer({
         videoUrl = await uploadVideo(user.id, mediaFile);
       }
 
-      const topics: string[] = [category];
-      if (isUrgent) topics.push("urgent");
-      if (allowEncouragement) topics.push("allow-encouragement");
-      if (allowPublicPrayers) topics.push("allow-public-prayers");
-      if (allowSharing) topics.push("allow-sharing");
-      if (receiveUpdates) topics.push("receive-updates");
-      if (postAnonymous) topics.push("anonymous");
+      const topics = buildInteractionTopics({
+        category,
+        prayerTypeLabel: effectiveTypeLabel,
+        isUrgent,
+        allowEncouragement,
+        allowPublicVideo,
+        allowPrivateMessage,
+        allowPrivateVideo,
+        allowSharing,
+        receiveUpdates,
+        postAnonymous,
+      });
 
       setPublishMessage("Publishing…");
 
@@ -675,22 +744,99 @@ export default function PrayerPostComposer({
                 </>
               ) : null}
 
-              <p className={styles.sheetLabel}>Category</p>
-              <div className={styles.pillRow}>
-                {CATEGORIES.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`${styles.pill} ${
-                      category === item.id ? styles.pillActive : ""
-                    }`}
-                    aria-pressed={category === item.id}
-                    onClick={() => setCategory(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <p className={styles.sheetLabel}>Prayer type</p>
+              <div className={styles.composerSearchField}>
+                <Search className="h-4 w-4" aria-hidden />
+                <input
+                  id="prayer-type-search"
+                  className={styles.composerSearchInput}
+                  value={typeQuery}
+                  placeholder="Search prayer types (try del, grief, marriage)…"
+                  aria-label="Search prayer types"
+                  onChange={(event) => setTypeQuery(event.target.value)}
+                />
               </div>
+
+              <div className={styles.pillRow} role="listbox" aria-label="Prayer types">
+                {filteredPrayerTypes.map((item) => {
+                  const selected = !otherSelected && prayerTypeLabel === item.label;
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={`${styles.pill} ${
+                        selected ? styles.pillActive : ""
+                      }`}
+                      onClick={() => selectPrayerType(item)}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={otherSelected}
+                  className={`${styles.pill} ${
+                    otherSelected ? styles.pillActive : ""
+                  }`}
+                  onClick={() => selectOtherType(customCategoryLabel)}
+                >
+                  Other
+                </button>
+              </div>
+
+              {showUseAsOther ? (
+                <button
+                  type="button"
+                  className={styles.useAsOtherButton}
+                  onClick={() => selectOtherType(typeQuery)}
+                >
+                  Use “{typeQuery.trim()}” as Other
+                </button>
+              ) : null}
+
+              {otherSelected ? (
+                <div className={styles.customTypeBlock}>
+                  <label className={styles.sheetLabel} htmlFor="prayer-custom-type">
+                    Custom prayer type
+                  </label>
+                  <input
+                    id="prayer-custom-type"
+                    className={styles.composerInput}
+                    value={customCategoryLabel}
+                    maxLength={MAX_CUSTOM_PRAYER_TYPE_LENGTH}
+                    placeholder="Prayer for deliverance from spiritual oppression"
+                    onChange={(event) => {
+                      setCustomCategoryLabel(event.target.value);
+                      setCustomConfirmed(false);
+                    }}
+                  />
+                  <p className={styles.composerHelp}>
+                    {customTypeValue.length}/{MAX_CUSTOM_PRAYER_TYPE_LENGTH}{" "}
+                    characters
+                  </p>
+                  <label className={styles.composerToggle}>
+                    <input
+                      type="checkbox"
+                      checked={customConfirmed}
+                      disabled={!customTypeValue}
+                      onChange={(event) => setCustomConfirmed(event.target.checked)}
+                    />
+                    <span>
+                      Use “{customTypeValue || "your wording"}” as my prayer type
+                    </span>
+                  </label>
+                </div>
+              ) : null}
+
+              {effectiveTypeLabel && (!otherSelected || customConfirmed) ? (
+                <p className={styles.composerHelp}>
+                  Selected prayer type: <strong>{effectiveTypeLabel}</strong>
+                </p>
+              ) : null}
 
               <label className={styles.composerToggle}>
                 <input
@@ -805,12 +951,28 @@ export default function PrayerPostComposer({
               <label className={styles.composerToggle}>
                 <input
                   type="checkbox"
-                  checked={allowPublicPrayers}
+                  checked={allowPublicVideo}
+                  onChange={(event) => setAllowPublicVideo(event.target.checked)}
+                />
+                <span>Allow public video prayers</span>
+              </label>
+              <label className={styles.composerToggle}>
+                <input
+                  type="checkbox"
+                  checked={allowPrivateMessage}
                   onChange={(event) =>
-                    setAllowPublicPrayers(event.target.checked)
+                    setAllowPrivateMessage(event.target.checked)
                   }
                 />
-                <span>Allow public prayers</span>
+                <span>Allow private messages</span>
+              </label>
+              <label className={styles.composerToggle}>
+                <input
+                  type="checkbox"
+                  checked={allowPrivateVideo}
+                  onChange={(event) => setAllowPrivateVideo(event.target.checked)}
+                />
+                <span>Allow private video prayers</span>
               </label>
               <label className={styles.composerToggle}>
                 <input
@@ -851,10 +1013,13 @@ export default function PrayerPostComposer({
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={mediaPreviewUrl} alt="" />
                   ) : mediaPreviewUrl && mediaKind === "video" ? (
-                    <div className={styles.composerPreviewVideoFallback}>
-                      <Video className="h-6 w-6" aria-hidden />
-                      <span>Video request</span>
-                    </div>
+                    <video
+                      className={styles.composerPreviewVideo}
+                      src={mediaPreviewUrl}
+                      controls
+                      playsInline
+                      preload="metadata"
+                    />
                   ) : (
                     <div className={styles.composerPreviewTextFallback}>
                       <span className={styles.cardCategoryChip}>
@@ -886,7 +1051,7 @@ export default function PrayerPostComposer({
                   </p>
                   <ul className={styles.composerPreviewFlags}>
                     {allowEncouragement ? <li>Encouragement on</li> : null}
-                    {allowPublicPrayers ? <li>Public prayers on</li> : null}
+                    {allowPublicVideo ? <li>Public video prayers on</li> : null}
                     {allowSharing ? <li>Sharing on</li> : null}
                     {receiveUpdates ? <li>Updates on</li> : null}
                   </ul>

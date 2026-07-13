@@ -198,8 +198,8 @@ export default function PrayerMyRequestsPanel({
       <div className={styles.emptyState}>
         <h2>You have not posted a prayer request yet</h2>
         <p>Share a need so others can discover and pray with you.</p>
-        <button type="button" className={styles.primaryButton} onClick={onOpenPost}>
-          Post a Prayer Request
+        <button type="button" className={styles.secondaryButton} onClick={onOpenPost}>
+          Share a need
         </button>
       </div>
     );

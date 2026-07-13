@@ -30,8 +30,16 @@
 | `20260712_prayer_production_readiness_preflight.sql` | Read-only preflight checks |
 | `20260712_prayer_production_readiness_hardened.sql` | Hardened transactional migration |
 
+| `20260713_prayer_search_preferences.sql` | User-owned prayer discovery defaults (optional) |
+
 The original unhardened `20260712_prayer_production_readiness.sql` has been
 removed and replaced by the hardened file.
+
+## Optional follow-up migration
+
+`20260713_prayer_search_preferences.sql` stores per-user Prayer discovery
+defaults (search mode, approximate center, radius, filters). The app falls
+back to `localStorage` when this table is not applied yet.
 
 ## What the hardened migration does
 

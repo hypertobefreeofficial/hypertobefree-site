@@ -10,6 +10,11 @@ import {
   inferMediaKind,
   inferPrayerCategory,
 } from "./utils";
+import { loadPublicResponseCounts } from "./responseCounts";
+import { attachResolvedMediaToRequests } from "./media";
+import { partitionPrayerTopics } from "./topicPartition";
+import { isMockPrayerMode } from "./mockMode";
+import { MOCK_PRAYER_REQUESTS } from "./mockPrayerData";
 
 type RawStoryRow = {
   id: string;
@@ -35,6 +40,7 @@ type ProfileRow = {
   id: string;
   show_location: boolean | null;
   display_name: string | null;
+  avatar_url: string | null;
 };
 
 type ReactionRow = {
@@ -64,6 +70,10 @@ function toNumber(value: number | string | null | undefined) {
 }
 
 export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResult> {
+  if (isMockPrayerMode()) {
+    return { ok: true, requests: MOCK_PRAYER_REQUESTS };
+  }
+
   if (!isSupabaseConfigured) {
     return {
       ok: false,
@@ -146,19 +156,20 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
 
     const profileMap = new Map<
       string,
-      { showLocation: boolean; displayName: string | null }
+      { showLocation: boolean; displayName: string | null; avatarUrl: string | null }
     >();
 
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, show_location, display_name")
+        .select("id, show_location, display_name, avatar_url")
         .in("id", userIds);
 
       ((profiles as ProfileRow[]) ?? []).forEach((profile) => {
         profileMap.set(profile.id, {
           showLocation: profile.show_location !== false,
           displayName: profile.display_name,
+          avatarUrl: profile.avatar_url,
         });
       });
     }
@@ -213,6 +224,7 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
           null
         : null;
 
+      const partitioned = partitionPrayerTopics(story.topics);
       const category = inferPrayerCategory(
         story.story_type,
         story.story_text,
@@ -229,10 +241,10 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
       const isAnonymous =
         !story.name?.trim() ||
         story.name.trim().toLowerCase() === "anonymous" ||
-        (story.topics || []).includes("anonymous");
+        partitioned.metaKeys.includes("anonymous");
 
       const isUrgent =
-        (story.topics || []).includes("urgent") ||
+        partitioned.metaKeys.includes("urgent") ||
         /\b(urgent|emergency|crisis|immediate)\b/i.test(
           `${story.story_type || ""} ${body}`
         );
@@ -250,6 +262,7 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
         displayName: isAnonymous
           ? null
           : profile?.displayName || story.name || null,
+        avatarUrl: isAnonymous ? null : profile?.avatarUrl || null,
         title: getPrayerTitle(story.story_text),
         body,
         locationLabel: publicLabel,
@@ -274,13 +287,24 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
         distanceMiles: null,
         prayingCount: reactionMap.get(story.id)?.praying ?? 0,
         encouragementCount: reactionMap.get(story.id)?.encouraged ?? 0,
+        responseCount: 0,
         isAnonymous,
         isUrgent,
         topics: story.topics ?? [],
       };
     });
 
-    return { ok: true, requests };
+    const responseCounts = await loadPublicResponseCounts(
+      requests.map((request) => request.id)
+    );
+
+    const requestsWithCounts = requests.map((request) => ({
+      ...request,
+      responseCount: responseCounts.get(request.id) ?? 0,
+    }));
+
+    const withMedia = await attachResolvedMediaToRequests(requestsWithCounts);
+    return { ok: true, requests: withMedia };
   } catch (error) {
     return {
       ok: false,
