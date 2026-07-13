@@ -1,21 +1,33 @@
 /* Prayer Connect — visual tokens + layout */
 
 .page {
-  --prayer-bg-page: #f7f4ef;
+  --prayer-page-bg: #f6f9fd;
+  --prayer-bg-page: #f6f9fd;
+  --prayer-surface: #fffdf9;
   --prayer-bg-surface: #fffdf9;
+  --prayer-surface-elevated: #ffffff;
   --prayer-bg-elevated: #ffffff;
-  --prayer-border: rgba(214, 205, 194, 0.75);
-  --prayer-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+  --prayer-border: rgba(203, 213, 225, 0.72);
+  --prayer-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
   --prayer-shadow-hover: 0 24px 48px rgba(15, 23, 42, 0.1);
-  --prayer-text-primary: #062a57;
+  --prayer-card-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+  --prayer-panel-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
+  --prayer-text: #0b2545;
+  --prayer-text-primary: #0b2545;
+  --prayer-text-muted: #5b6b82;
   --prayer-text-secondary: #5b6b82;
   --prayer-blue: #0b63ce;
+  --prayer-blue-deep: #06336c;
   --prayer-blue-dark: #084f9f;
+  --prayer-gold: #c69a2a;
+  --prayer-gold-soft: #e7c977;
   --prayer-warm-highlight: #f4e8d4;
   --prayer-answered: #15803d;
   --prayer-urgent: #be123c;
-  --prayer-radius-card: 1.1rem;
-  --prayer-radius-panel: 1.35rem;
+  --prayer-card-radius: 1rem;
+  --prayer-radius-card: 1rem;
+  --prayer-panel-radius: 1.25rem;
+  --prayer-radius-panel: 1.25rem;
   --prayer-space-xs: 0.35rem;
   --prayer-space-sm: 0.65rem;
   --prayer-space-md: 1rem;
@@ -25,35 +37,18 @@
 
   min-height: 100dvh;
   background:
-    radial-gradient(circle at 12% -8%, rgba(11, 99, 206, 0.1), transparent 34%),
-    radial-gradient(circle at 88% 0%, rgba(244, 232, 212, 0.55), transparent 30%),
-    linear-gradient(180deg, var(--prayer-bg-page) 0%, #f3f7fc 52%, #f8fafc 100%);
+    radial-gradient(circle at 82% -6%, rgba(198, 154, 42, 0.08), transparent 34%),
+    radial-gradient(circle at 12% -4%, rgba(11, 99, 206, 0.08), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, var(--prayer-page-bg) 46%, #f2f6fb 100%);
   color: var(--prayer-text-primary);
   padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
-}
-
-@media (min-width: 1024px) {
-  .page {
-    padding-bottom: var(--prayer-space-lg);
-  }
 }
 
 .canvas,
 .prayerViewport {
   max-width: var(--prayer-canvas-max);
   margin: 0 auto;
-  padding: 0 var(--prayer-space-md) var(--prayer-space-md);
-}
-
-@media (min-width: 1024px) {
-  .prayerViewport {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    min-height: 100dvh;
-    max-height: 100dvh;
-    overflow: hidden;
-    padding-bottom: var(--prayer-space-sm);
-  }
+  padding: var(--prayer-space-md) var(--prayer-space-md) var(--prayer-space-md);
 }
 
 @media (min-width: 1280px) {
@@ -67,13 +62,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  gap: 0.45rem;
-}
-
-@media (min-width: 1024px) {
-  .prayerDiscover {
-    overflow: hidden;
-  }
+  gap: 0.6rem;
+  margin-top: 0.75rem;
 }
 
 .experienceHeader {
@@ -526,9 +516,7 @@
   .workspace {
     grid-template-columns: minmax(0, 1.62fr) minmax(18rem, 1fr);
     align-items: stretch;
-    flex: 1;
-    min-height: 0;
-    height: 100%;
+    height: clamp(26rem, calc(100dvh - 21rem), 42rem);
   }
 
   .hideOnMobile {
