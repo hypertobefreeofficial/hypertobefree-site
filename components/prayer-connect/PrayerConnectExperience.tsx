@@ -2,7 +2,16 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Globe2, LayoutGrid, List, RefreshCw, Search, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Globe2,
+  LayoutGrid,
+  List,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
+} from "lucide-react";
 import { loadPrayerConnectRequests } from "../../lib/prayer-connect/loadPrayerConnectRequests";
 import { geocodePlaceQuery } from "../../lib/prayer-connect/geocodePlace";
 import { supabase } from "../../lib/supabaseClient";
@@ -48,6 +57,12 @@ import PrayerSearchSetup from "./PrayerSearchSetup";
 import PrayerSearchSummaryBar from "./PrayerSearchSummaryBar";
 import PrayerSpotlight from "./PrayerSpotlight";
 import { type PrayerViewTab } from "./PrayerSectionNav";
+import { useIsMobile } from "./useIsMobile";
+import PrayerMobileHeader from "./PrayerMobileHeader";
+import PrayerMobileMenu from "./PrayerMobileMenu";
+import PrayerMobileOverflowMenu from "./PrayerMobileOverflowMenu";
+import PrayerMobileControls from "./PrayerMobileControls";
+import PrayerMobileCardGrid from "./PrayerMobileCardGrid";
 import styles from "./PrayerConnect.module.css";
 
 function parseTab(value: string | null): PrayerViewTab {
@@ -108,6 +123,10 @@ export default function PrayerConnectExperience() {
   const [resultsLayout, setResultsLayout] = useState<"grid" | "list">("grid");
   const [contentQuery, setContentQuery] = useState("");
   const [debouncedContentQuery, setDebouncedContentQuery] = useState("");
+  const isMobile = useIsMobile();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileOverflowOpen, setMobileOverflowOpen] = useState(false);
+  const [mobileSearchActive, setMobileSearchActive] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const savedScroll = useRef(0);
 
@@ -543,11 +562,24 @@ export default function PrayerConnectExperience() {
     setRadius(order[Math.min(order.length - 1, index + 1)]);
   }
 
+  function changeResultsLayout(layout: "grid" | "list") {
+    setResultsLayout(layout);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("htbf-prayer-results-layout", layout);
+    }
+  }
+
+  function openMapView() {
+    setActiveTab("discover");
+    setSearchMode((mode) => (mode === "anywhere" ? "map" : mode));
+    setMobileView("map");
+  }
+
   const showDiscoverChrome = activeTab === "discover";
   const showSearchSummary = showDiscoverChrome && searchConfigured;
   const showFirstTimeRail = showDiscoverChrome && !searchConfigured;
   const showSearchSetupModal =
-    showDiscoverChrome && searchConfigured && searchSetupOpen;
+    searchSetupOpen && (isMobile || (showDiscoverChrome && searchConfigured));
 
   // First visit keeps the map prominent while a location is chosen.
   // Returning users default to a full-width grid; the map is opt-in.
@@ -596,6 +628,12 @@ export default function PrayerConnectExperience() {
               tabRequests.length === 1 ? "" : "s"
             } nearby`;
 
+  const mobileLocationLabel = searchConfigured
+    ? `${searchSummary.location}${
+        typeof radius === "number" ? ` · ${radius} mi` : ""
+      }`
+    : "Choose your area";
+
   const searchSetupProps = {
     searchMode,
     radius,
@@ -625,13 +663,41 @@ export default function PrayerConnectExperience() {
   return (
     <main className={styles.page}>
       <div className={styles.prayerViewport}>
-        <PrayerExperienceHeader
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onPost={() => setComposerOpen(true)}
-          onHowItWorks={() => setHowOpen(true)}
-          compact={searchConfigured}
-        />
+        {isMobile ? (
+          <>
+            <PrayerMobileHeader
+              onOpenMenu={() => setMobileMenuOpen(true)}
+              onToggleSearch={() => setMobileSearchActive((value) => !value)}
+              onOpenOverflow={() => setMobileOverflowOpen(true)}
+              searchActive={mobileSearchActive}
+            />
+            {isMobile && showDiscoverChrome && mobileView === "map" ? null : (
+            <PrayerMobileControls
+              activeTab={activeTab}
+              onSelectTab={setActiveTab}
+              showDiscoverControls={activeTab !== "my-requests"}
+              locationLabel={mobileLocationLabel}
+              onOpenLocation={() => setSearchSetupOpen(true)}
+              searchActive={mobileSearchActive && activeTab !== "my-requests"}
+              contentQuery={contentQuery}
+              onContentQueryChange={setContentQuery}
+              onClearSearch={() => {
+                setContentQuery("");
+                setDebouncedContentQuery("");
+              }}
+              resultCountLabel={nearbyCountLabel}
+            />
+            )}
+          </>
+        ) : (
+          <PrayerExperienceHeader
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onPost={() => setComposerOpen(true)}
+            onHowItWorks={() => setHowOpen(true)}
+            compact={searchConfigured}
+          />
+        )}
 
         {activeTab === "my-requests" ? (
           <PrayerMyRequestsPanel
@@ -642,7 +708,7 @@ export default function PrayerConnectExperience() {
 
         {activeTab !== "my-requests" ? (
           <section className={styles.prayerDiscover}>
-            {showSearchSummary ? (
+            {!isMobile && showSearchSummary ? (
               <PrayerSearchSummaryBar
                 locationLine={searchSummary.location}
                 filterLine={`${searchSummary.radius} · ${sortLabel} · ${mediaLabel}`}
@@ -656,7 +722,7 @@ export default function PrayerConnectExperience() {
               />
             ) : null}
 
-            {showFirstTimeRail ? (
+            {!isMobile && showFirstTimeRail ? (
               <PrayerSearchRail
                 searchMode={searchMode}
                 radius={radius}
@@ -676,7 +742,7 @@ export default function PrayerConnectExperience() {
               />
             ) : null}
 
-            {showDiscoverChrome ? (
+            {!isMobile && showDiscoverChrome ? (
               <div className={styles.mobileToggle}>
                 <button
                   type="button"
@@ -716,6 +782,7 @@ export default function PrayerConnectExperience() {
                   mapVisible && mobileView === "map" ? styles.hideOnMobile : ""
                 }`}
               >
+                {!isMobile ? (
                 <div className={styles.resultsToolbar}>
                   <div className={styles.resultsHeading}>
                     <h2 className={styles.resultsTitle}>Prayer requests</h2>
@@ -809,6 +876,7 @@ export default function PrayerConnectExperience() {
                     </select>
                   </div>
                 </div>
+                ) : null}
 
                 <div className={styles.resultsScroll} ref={scrollRef}>
                   {loadState === "loading" ? (
@@ -917,6 +985,21 @@ export default function PrayerConnectExperience() {
                   ) : null}
 
                   {loadState === "ready" && tabRequests.length > 0 ? (
+                    isMobile ? (
+                      <PrayerMobileCardGrid
+                        requests={visibleRequests}
+                        layout={resultsLayout}
+                        selectedId={selectedId}
+                        savedIds={savedIds}
+                        onOpen={(id) => openRequest(id)}
+                        onToggleSave={(id) => void toggleSave(id)}
+                        hasMore={hasMoreRequests}
+                        remainingCount={tabRequests.length - visibleCount}
+                        onLoadMore={() =>
+                          setVisibleCount((count) => count + 12)
+                        }
+                      />
+                    ) : (
                     <>
                       <div
                         className={`${
@@ -959,16 +1042,31 @@ export default function PrayerConnectExperience() {
                         </div>
                       ) : null}
                     </>
+                    )
                   ) : null}
                 </div>
               </div>
 
               {mapVisible ? (
                 <div
-                  className={
+                  className={`${
                     mobileView === "requests" ? styles.hideOnMobile : ""
-                  }
+                  } ${
+                    isMobile && mobileView === "map"
+                      ? styles.mobileMapWrap
+                      : ""
+                  }`}
                 >
+                  {isMobile && mobileView === "map" ? (
+                    <button
+                      type="button"
+                      className={styles.mobileMapReturn}
+                      onClick={() => setMobileView("requests")}
+                    >
+                      <ArrowLeft className="h-4 w-4" aria-hidden />
+                      Return to Requests
+                    </button>
+                  ) : null}
                   <PrayerMapPanel
                     requests={discoverFiltered}
                     center={center}
@@ -998,6 +1096,44 @@ export default function PrayerConnectExperience() {
           </section>
         ) : null}
       </div>
+
+      {isMobile ? (
+        <>
+          <button
+            type="button"
+            className={styles.mobilePostFab}
+            aria-label="Post a prayer request"
+            onClick={() => setComposerOpen(true)}
+          >
+            <Plus className="h-6 w-6" aria-hidden />
+          </button>
+
+          <PrayerMobileMenu
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            activeTab={activeTab}
+            mapActive={mobileView === "map" && activeTab === "discover"}
+            onSelectTab={(tab) => {
+              setActiveTab(tab);
+              setMobileView("requests");
+            }}
+            onOpenMap={openMapView}
+            onPost={() => setComposerOpen(true)}
+          />
+
+          <PrayerMobileOverflowMenu
+            open={mobileOverflowOpen}
+            onClose={() => setMobileOverflowOpen(false)}
+            resultsLayout={resultsLayout}
+            onFilter={() => setFiltersOpen(true)}
+            onSort={() => setFiltersOpen(true)}
+            onSaveSearchArea={() => completeSearchSetup()}
+            onViewMap={openMapView}
+            onLayoutChange={changeResultsLayout}
+            onHowItWorks={() => setHowOpen(true)}
+          />
+        </>
+      ) : null}
 
       {showSearchSetupModal ? (
         <div
@@ -1128,8 +1264,15 @@ export default function PrayerConnectExperience() {
             onClick={(event) => event.stopPropagation()}
           >
             <h2>Filters</h2>
+            <p
+              className={styles.sheetCount}
+              role="status"
+              aria-live="polite"
+            >
+              {nearbyCountLabel}
+            </p>
             <label className={styles.sheetLabel} htmlFor="sheet-category">
-              Category
+              Prayer type
             </label>
             <select
               id="sheet-category"
@@ -1182,13 +1325,26 @@ export default function PrayerConnectExperience() {
               <option value="photo">Photo</option>
               <option value="text">Text</option>
             </select>
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => setFiltersOpen(false)}
-            >
-              Apply
-            </button>
+            <div className={styles.sheetActions}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => {
+                  setCategory("all");
+                  setSort("needs-prayer");
+                  setMediaFilter("all");
+                }}
+              >
+                Clear all
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={() => setFiltersOpen(false)}
+              >
+                Apply
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
