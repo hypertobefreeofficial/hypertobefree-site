@@ -9,7 +9,6 @@ import JourneyQuickActions from "../../components/journey/JourneyQuickActions";
 import JourneyInboxCard from "../../components/journey/JourneyInboxCard";
 import JourneyManagementCard from "../../components/journey/JourneyManagementCard";
 import JourneyMilestonePath from "../../components/journey/JourneyMilestonePath";
-import JourneyMapFeature from "../../components/journey/JourneyMapFeature";
 import JourneyImpactCards from "../../components/journey/JourneyImpactCards";
 import JourneyReflectionCard from "../../components/journey/JourneyReflectionCard";
 import JourneyKeepGoingCard from "../../components/journey/JourneyKeepGoingCard";
@@ -681,8 +680,6 @@ export default function JourneyPage() {
             encouragementEncouraged={encouragementImpact.encouraged}
             godDidItCount={myGodDidItMoments.length}
           />
-
-          <JourneyMapFeature />
 
           <JourneyImpactCards
             prayerWatchlistCount={myPrayerWatchlist.length}
