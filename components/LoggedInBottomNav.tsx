@@ -38,9 +38,14 @@ export default function LoggedInBottomNav({
 
   if (pathname?.startsWith("/video-feed")) return null;
 
+  // The Prayer experience ships its own desktop top navigation, so the mobile
+  // bottom bar is hidden on large screens for prayer routes only.
+  const hideOnDesktop =
+    pathname === "/prayer" || pathname?.startsWith("/prayer/");
+
   if (variant === "video") {
     return (
-      <nav className="fixed inset-x-0 bottom-0 z-50 bg-transparent px-3 pb-[calc(0.6rem+env(safe-area-inset-bottom))] pt-2 lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 bg-transparent px-3 pb-[calc(0.6rem+env(safe-area-inset-bottom))] pt-2">
         <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
           {navItems.map((item) => {
             const Icon = item.icon;
