@@ -31,9 +31,38 @@
 | `20260712_prayer_production_readiness_hardened.sql` | Hardened transactional migration |
 
 | `20260713_prayer_search_preferences.sql` | User-owned prayer discovery defaults (optional) |
+| `20260714_prayer_video_response_removal.sql` | Soft-removal bookkeeping for public video responses (additive) |
+| `20260715_prayer_interaction_persistence.sql` | Server-backed hide (`prayer_hidden_stories`) + optional `content_reports` RLS |
+| `20260716_prayer_video_response_duration_verification.sql` | Duration verification state on public video responses |
+| `20260717_prayer_security_hardening.sql` | Audit-field protection trigger on `prayer_video_responses` |
 
 The original unhardened `20260712_prayer_production_readiness.sql` has been
 removed and replaced by the hardened file.
+
+`20260714_prayer_video_response_removal.sql` is additive and idempotent. It adds
+`removed_at`, `removed_by_user_id`, `removal_source`, `removal_reason`, and
+`updated_at` to the pre-existing `prayer_video_responses` table, plus an
+`updated_at` touch trigger and a partial index for still-public responses. It
+does **not** change the existing `status` CHECK constraint; prayer-owner,
+author, and moderator removals all use `status = 'removed'` and are
+distinguished by `removal_source`. Who may remove a response is enforced
+server-side by `/api/remove-prayer-video-response` (service role,
+ownership-verified). The app degrades gracefully if this migration has not been
+applied yet.
+
+`20260715_prayer_interaction_persistence.sql` is additive and idempotent. It
+creates `prayer_hidden_stories` (private per-user hide, with RLS) and optionally
+hardens `content_reports` with snapshot columns + reporter-only policies when
+that table already exists. Save continues to reuse `saved_content`; follow
+continues to use `prayer_follows` (20260712). Apply manually in Supabase SQL
+editor (dev/staging first):
+
+```sql
+-- In Supabase SQL editor:
+\i supabase/migrations/20260715_prayer_interaction_persistence.sql
+```
+
+Or paste the file contents into the SQL editor and run.
 
 ## Optional follow-up migration
 

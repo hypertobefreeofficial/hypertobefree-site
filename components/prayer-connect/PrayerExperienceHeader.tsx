@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { CircleHelp, Plus } from "lucide-react";
+import { CircleHelp, EyeOff, Plus } from "lucide-react";
 import PrayerSectionNav, { type PrayerViewTab } from "./PrayerSectionNav";
 import styles from "./PrayerConnect.module.css";
 
@@ -10,6 +10,7 @@ type PrayerExperienceHeaderProps = {
   onTabChange: (tab: PrayerViewTab) => void;
   onPost: () => void;
   onHowItWorks: () => void;
+  onOpenHidden?: () => void;
   compact?: boolean;
 };
 
@@ -18,6 +19,7 @@ export default function PrayerExperienceHeader({
   onTabChange,
   onPost,
   onHowItWorks,
+  onOpenHidden,
   compact = false,
 }: PrayerExperienceHeaderProps) {
   return (
@@ -57,6 +59,16 @@ export default function PrayerExperienceHeader({
           </div>
 
           <div className={styles.prayerHeroActions}>
+            {onOpenHidden ? (
+              <button
+                type="button"
+                className={styles.prayerHeroHelp}
+                onClick={onOpenHidden}
+              >
+                <EyeOff className="h-4 w-4" aria-hidden />
+                <span>Hidden prayers</span>
+              </button>
+            ) : null}
             <button
               type="button"
               className={styles.prayerHeroHelp}

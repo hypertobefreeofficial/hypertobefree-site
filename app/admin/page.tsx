@@ -16,6 +16,7 @@ import {
   Video,
   XCircle,
 } from "lucide-react";
+import { moderatorDurationNotice } from "../../lib/prayer-connect/responsePublication";
 import { supabase } from "../../lib/supabaseClient";
 
 const storyFilters: { label: string; value: StoryFilter }[] = [
@@ -102,6 +103,7 @@ type PrayerVideoResponse = {
   moderated_by: string | null;
   hidden_at: string | null;
   removed_at: string | null;
+  duration_verification_status?: string | null;
   prayer_text: string | null;
   prayer_owner_user_id: string | null;
   prayer_owner_name: string | null;
@@ -227,6 +229,25 @@ export default function AdminPage() {
       .filter(
         (response): response is PrayerVideoResponse => response !== null
       );
+
+    const responseIds = loadedResponses.map((item) => item.response_id);
+    if (responseIds.length > 0) {
+      const { data: durationRows } = await supabase
+        .from("prayer_video_responses")
+        .select("id, duration_verification_status")
+        .in("id", responseIds);
+
+      const durationMap = new Map(
+        ((durationRows as { id: string; duration_verification_status: string | null }[]) ??
+          []
+        ).map((row) => [row.id, row.duration_verification_status])
+      );
+
+      loadedResponses.forEach((response) => {
+        response.duration_verification_status =
+          durationMap.get(response.response_id) ?? "unavailable";
+      });
+    }
 
     setPrayerVideoResponses(loadedResponses);
     await loadPrayerResponseVideoUrls(loadedResponses);
@@ -493,6 +514,67 @@ export default function AdminPage() {
     }
 
     setMessage("");
+
+    if (nextStatus === "approved") {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        setMessage("Please sign in again to approve responses.");
+        return;
+      }
+
+      let payload: {
+        ok?: boolean;
+        error?: string;
+        status?: string;
+        durationVerificationStatus?: string;
+      } | null = null;
+
+      try {
+        const response = await fetch("/api/moderate-prayer-video-response", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            response_id: responseId,
+            next_status: "approved",
+          }),
+        });
+        payload = (await response.json().catch(() => null)) as typeof payload;
+        if (!response.ok || payload?.ok === false) {
+          setMessage(
+            payload?.error ??
+              "Could not approve this response. Duration verification may have failed."
+          );
+          return;
+        }
+      } catch {
+        setMessage("Could not reach the moderation server.");
+        return;
+      }
+
+      const moderatedAt = new Date().toISOString();
+      setPrayerVideoResponses((currentResponses) =>
+        currentResponses.map((response) =>
+          response.response_id === responseId
+            ? {
+                ...response,
+                status: "approved",
+                moderated_at: moderatedAt,
+                duration_verification_status:
+                  payload?.durationVerificationStatus ??
+                  response.duration_verification_status,
+              }
+            : response
+        )
+      );
+      setMessage("Prayer video response marked as approved.");
+      return;
+    }
 
     const { error } = await supabase.rpc(
       "moderate_prayer_video_response",
@@ -1537,6 +1619,16 @@ export default function AdminPage() {
                         <div className="mt-4 text-xs font-bold text-slate-400">
                           Response ID: {response.response_id}
                         </div>
+
+                        {moderatorDurationNotice(
+                          response.duration_verification_status
+                        ) ? (
+                          <div className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-900 ring-1 ring-amber-200">
+                            {moderatorDurationNotice(
+                              response.duration_verification_status
+                            )}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="overflow-hidden rounded-[1.5rem] bg-slate-950 ring-1 ring-slate-800">

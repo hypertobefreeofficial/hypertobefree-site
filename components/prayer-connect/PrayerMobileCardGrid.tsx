@@ -2,6 +2,7 @@
 
 import type { PrayerConnectRequest } from "../../lib/prayer-connect/types";
 import PrayerConnectCard from "./PrayerConnectCard";
+import { type PrayerActionItem } from "./PrayerActionMenu";
 import styles from "./PrayerConnect.module.css";
 
 type PrayerMobileCardGridProps = {
@@ -11,6 +12,7 @@ type PrayerMobileCardGridProps = {
   savedIds: string[];
   onOpen: (id: string) => void;
   onToggleSave: (id: string) => void;
+  buildMenuItems?: (request: PrayerConnectRequest) => PrayerActionItem[];
   hasMore: boolean;
   remainingCount: number;
   onLoadMore: () => void;
@@ -23,6 +25,7 @@ export default function PrayerMobileCardGrid({
   savedIds,
   onOpen,
   onToggleSave,
+  buildMenuItems,
   hasMore,
   remainingCount,
   onLoadMore,
@@ -42,6 +45,7 @@ export default function PrayerMobileCardGrid({
             saved={savedIds.includes(request.id)}
             onOpen={() => onOpen(request.id)}
             onToggleSave={() => onToggleSave(request.id)}
+            menuItems={buildMenuItems?.(request)}
           />
         ))}
       </div>

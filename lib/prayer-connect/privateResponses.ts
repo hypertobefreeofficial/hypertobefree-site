@@ -1,7 +1,29 @@
 import { supabase } from "../supabaseClient";
 import { uploadPrayerVideo } from "./media";
 
-const MAX_PRIVATE_VIDEO_SECONDS = 120;
+const MAX_PRIVATE_VIDEO_SECONDS = 30;
+
+async function assertUsersNotBlocked(
+  senderUserId: string,
+  recipientUserId: string
+) {
+  const { data, error } = await supabase
+    .from("blocked_users")
+    .select("blocker_user_id")
+    .or(
+      `and(blocker_user_id.eq.${senderUserId},blocked_user_id.eq.${recipientUserId}),and(blocker_user_id.eq.${recipientUserId},blocked_user_id.eq.${senderUserId})`
+    )
+    .limit(1);
+
+  if (error) {
+    console.error("Private prayer block check failed:", error.message);
+    throw new Error("Could not verify messaging permissions. Please try again.");
+  }
+
+  if ((data ?? []).length > 0) {
+    throw new Error("You cannot send messages to this person.");
+  }
+}
 
 export async function sendPrivatePrayerMessage(options: {
   storyId: string;
@@ -12,6 +34,8 @@ export async function sendPrivatePrayerMessage(options: {
 }) {
   const clean = options.body.trim();
   if (!clean) throw new Error("Please write a message first.");
+
+  await assertUsersNotBlocked(options.senderUserId, options.recipientUserId);
 
   const { data: existing } = await supabase
     .from("story_video_replies")
@@ -49,6 +73,8 @@ export async function sendPrivateVideoPrayer(options: {
   note?: string;
   storyTitle: string;
 }) {
+  await assertUsersNotBlocked(options.senderUserId, options.recipientUserId);
+
   const duration = await readVideoDuration(options.videoFile);
   if (duration > MAX_PRIVATE_VIDEO_SECONDS) {
     throw new Error(

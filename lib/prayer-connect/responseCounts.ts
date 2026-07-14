@@ -1,5 +1,28 @@
 import { supabase } from "../supabaseClient";
 
+async function countApprovedVideoResponses(storyIds: string[]) {
+  const withRemovedFilter = await supabase
+    .from("prayer_video_responses")
+    .select("story_id")
+    .in("story_id", storyIds)
+    .eq("status", "approved")
+    .is("removed_at", null);
+
+  if (!withRemovedFilter.error) {
+    return withRemovedFilter;
+  }
+
+  if (/removed_at/i.test(withRemovedFilter.error.message)) {
+    return supabase
+      .from("prayer_video_responses")
+      .select("story_id")
+      .in("story_id", storyIds)
+      .eq("status", "approved");
+  }
+
+  return withRemovedFilter;
+}
+
 // Public prayer responses are video-only. Legacy written responses remain in
 // the `prayer_written_responses` table but are intentionally NOT counted or
 // rendered in the public Prayer experience.
@@ -9,11 +32,7 @@ export async function loadPublicResponseCounts(storyIds: string[]) {
 
   storyIds.forEach((id) => counts.set(id, 0));
 
-  const videoResult = await supabase
-    .from("prayer_video_responses")
-    .select("story_id")
-    .in("story_id", storyIds)
-    .eq("status", "approved");
+  const videoResult = await countApprovedVideoResponses(storyIds);
 
   if (videoResult.error) {
     console.error("Could not load video response counts:", videoResult.error);

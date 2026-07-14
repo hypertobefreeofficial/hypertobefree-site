@@ -6,6 +6,7 @@ import {
   formatApproximateDistance,
   formatRelativeTime,
 } from "../../lib/prayer-connect/utils";
+import PrayerActionMenu, { type PrayerActionItem } from "./PrayerActionMenu";
 import PrayerMedia from "./PrayerMedia";
 import { formatResponseCount } from "../../lib/prayer-connect/responseCounts";
 import styles from "./PrayerConnect.module.css";
@@ -16,6 +17,7 @@ type PrayerConnectCardProps = {
   saved?: boolean;
   onOpen: () => void;
   onToggleSave: () => void;
+  menuItems?: PrayerActionItem[];
 };
 
 export default function PrayerConnectCard({
@@ -24,6 +26,7 @@ export default function PrayerConnectCard({
   saved = false,
   onOpen,
   onToggleSave,
+  menuItems,
 }: PrayerConnectCardProps) {
   const distance = formatApproximateDistance(request.distanceMiles);
   const authorLabel = request.displayName || "Anonymous";
@@ -40,6 +43,17 @@ export default function PrayerConnectCard({
     <article
       className={`${styles.card} ${selected ? styles.cardSelected : ""}`}
     >
+      {menuItems && menuItems.length > 0 ? (
+        <div className={styles.cardMenuOverlay}>
+          <PrayerActionMenu
+            items={menuItems}
+            size="sm"
+            align="right"
+            triggerLabel={`Options for ${request.title}`}
+            sheetTitle="Prayer options"
+          />
+        </div>
+      ) : null}
       <button
         type="button"
         className={styles.cardOpenButton}

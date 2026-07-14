@@ -1,20 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Ban, Flag, RefreshCw, UserRound } from "lucide-react";
+import { Ban, Flag, RefreshCw, Trash2, UserRound } from "lucide-react";
+import { supabase } from "../../lib/supabaseClient";
 import {
   loadCommunityPrayerResponses,
+  removePrayerVideoResponse,
   type CommunityPrayerResponses,
 } from "../../lib/prayer-connect/communityResponses";
 import { getMockCommunityResponses } from "../../lib/prayer-connect/mockPrayerData";
 import { formatResponseCount } from "../../lib/prayer-connect/responseCounts";
+import PrayerActionMenu, { type PrayerActionItem } from "./PrayerActionMenu";
+import PrayerConfirmDialog from "./PrayerConfirmDialog";
 import styles from "./PrayerConnect.module.css";
 
 type PrayerCommunityResponsesProps = {
   storyId: string;
   userId: string | null;
+  /** Owner of the parent prayer (to enable owner-removal of responses). */
+  prayerOwnerId?: string | null;
   refreshKey?: number;
   onCountChange?: (count: number) => void;
+  onReportResponse?: (opts: {
+    responseId: string;
+    authorUserId: string;
+  }) => void;
+  onBlockUser?: (authorUserId: string) => void;
+  onViewProfile?: (authorUserId: string) => void;
 };
 
 type LoadStatus = "idle" | "loading" | "loaded" | "refreshing" | "error";
@@ -28,16 +40,26 @@ const EMPTY_RESPONSES: CommunityPrayerResponses = {
 export default function PrayerCommunityResponses({
   storyId,
   userId,
+  prayerOwnerId = null,
   refreshKey = 0,
   onCountChange,
+  onReportResponse,
+  onBlockUser,
+  onViewProfile,
 }: PrayerCommunityResponsesProps) {
   const [status, setStatus] = useState<LoadStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [responses, setResponses] =
     useState<CommunityPrayerResponses>(EMPTY_RESPONSES);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [removeTarget, setRemoveTarget] = useState<{
+    responseId: string;
+    isAuthor: boolean;
+  } | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
-  void userId;
+  const isPrayerOwner = Boolean(prayerOwnerId) && prayerOwnerId === userId;
 
   // Keep the count callback in a ref so it never becomes an effect dependency.
   // An inline parent callback would otherwise re-trigger the load on every
@@ -84,7 +106,7 @@ export default function PrayerCommunityResponses({
         const mock = getMockCommunityResponses(storyId);
         result = { ok: true, responses: mock ?? EMPTY_RESPONSES };
       } else {
-        result = await loadCommunityPrayerResponses(storyId);
+        result = await loadCommunityPrayerResponses(storyId, userId);
       }
 
       if (!active || requestId !== requestIdRef.current) return;
@@ -125,6 +147,120 @@ export default function PrayerCommunityResponses({
     loadedStoryRef.current = null;
     setReloadNonce((value) => value + 1);
   }
+
+  function refreshOnce() {
+    // Same-story background refresh — keeps existing responses visible and does
+    // not flash skeletons (see the load effect's isNewStory branch).
+    setReloadNonce((value) => value + 1);
+  }
+
+  async function confirmRemoval() {
+    if (!removeTarget || removing) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setRemoveError("Please sign in again to remove this response.");
+        setRemoving(false);
+        return;
+      }
+      const result = await removePrayerVideoResponse({
+        responseId: removeTarget.responseId,
+        accessToken: token,
+      });
+      if (result.ok !== true) {
+        setRemoveError(result.error);
+        setRemoving(false);
+        return;
+      }
+      // Optimistically drop it, then refresh once to reconcile with the server.
+      const removedId = removeTarget.responseId;
+      setResponses((prev) => ({
+        ...prev,
+        video: prev.video.filter((item) => item.id !== removedId),
+      }));
+      setRemoveTarget(null);
+      setRemoving(false);
+      refreshOnce();
+    } catch (error) {
+      console.error("Remove video response failed:", error);
+      setRemoveError("Could not remove the response. Please try again.");
+      setRemoving(false);
+    }
+  }
+
+  function buildResponseMenu(item: {
+    id: string;
+    authorUserId: string;
+  }): PrayerActionItem[] {
+    const isAuthor = Boolean(userId) && item.authorUserId === userId;
+    const items: PrayerActionItem[] = [];
+
+    if (isPrayerOwner && !isAuthor) {
+      items.push({
+        id: "remove",
+        label: "Remove video response",
+        icon: Trash2,
+        danger: true,
+        onSelect: () => setRemoveTarget({ responseId: item.id, isAuthor: false }),
+      });
+    }
+    if (isAuthor) {
+      items.push({
+        id: "delete",
+        label: "Delete my video response",
+        icon: Trash2,
+        danger: true,
+        onSelect: () => setRemoveTarget({ responseId: item.id, isAuthor: true }),
+      });
+    }
+    if (!isAuthor) {
+      items.push({
+        id: "report",
+        label: "Report to Admin",
+        icon: Flag,
+        onSelect: () =>
+          onReportResponse?.({
+            responseId: item.id,
+            authorUserId: item.authorUserId,
+          }),
+      });
+      items.push({
+        id: "block",
+        label: "Block user",
+        icon: Ban,
+        danger: true,
+        onSelect: () => onBlockUser?.(item.authorUserId),
+      });
+    } else {
+      items.push({
+        id: "report-problem",
+        label: "Report a problem",
+        icon: Flag,
+        onSelect: () =>
+          onReportResponse?.({
+            responseId: item.id,
+            authorUserId: item.authorUserId,
+          }),
+      });
+    }
+    if (onViewProfile && !isAuthor) {
+      items.push({
+        id: "profile",
+        label: "View profile",
+        icon: UserRound,
+        onSelect: () => onViewProfile(item.authorUserId),
+      });
+    }
+    return items;
+  }
+
+  const viewerRemovedCount = responses.viewer?.removedCount ?? 0;
+  const viewerPendingCount = responses.viewer?.pendingCount ?? 0;
 
   return (
     <section
@@ -173,17 +309,22 @@ export default function PrayerCommunityResponses({
             <article key={item.id} className={styles.communityCard}>
               <div className={styles.communityAuthorRow}>
                 <AuthorAvatar author={item.author} />
-                <div>
+                <div className={styles.communityAuthorText}>
                   <p className={styles.communityAuthorName}>
                     {item.author.displayName}
                   </p>
                   <p className={styles.communityMeta}>
                     Video prayer · {formatWhen(item.createdAt)}
-                    {item.status && item.status !== "approved"
-                      ? ` · ${item.status}`
-                      : ""}
                   </p>
                 </div>
+                {buildResponseMenu(item).length > 0 ? (
+                  <PrayerActionMenu
+                    items={buildResponseMenu(item)}
+                    size="sm"
+                    triggerLabel={`Options for ${item.author.displayName}'s video prayer`}
+                    sheetTitle="Video prayer options"
+                  />
+                ) : null}
               </div>
               {item.signedVideoUrl ? (
                 <video
@@ -199,20 +340,47 @@ export default function PrayerCommunityResponses({
                   Video unavailable
                 </div>
               )}
-              <div className={styles.communityActions}>
-                <button type="button" className={styles.quietDanger}>
-                  <Flag className="h-3.5 w-3.5" aria-hidden />
-                  Report
-                </button>
-                <button type="button" className={styles.quietDanger}>
-                  <Ban className="h-3.5 w-3.5" aria-hidden />
-                  Block
-                </button>
-              </div>
             </article>
           ))}
         </div>
       ) : null}
+
+      {!showSkeleton && (viewerRemovedCount > 0 || viewerPendingCount > 0) ? (
+        <div className={styles.communityViewerNote} role="status">
+          {viewerPendingCount > 0 ? (
+            <p>Your video prayer is awaiting review.</p>
+          ) : null}
+          {viewerRemovedCount > 0 ? (
+            <p>This video response is no longer visible on the prayer.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <PrayerConfirmDialog
+        open={Boolean(removeTarget)}
+        danger
+        loading={removing}
+        errorMessage={removeError}
+        title={
+          removeTarget?.isAuthor
+            ? "Delete your video prayer response?"
+            : "Remove this video prayer response?"
+        }
+        body={
+          removeTarget?.isAuthor
+            ? "This video will no longer appear publicly on the prayer."
+            : "This video will no longer appear publicly on your prayer. This does not automatically report or block the person who posted it."
+        }
+        confirmLabel={
+          removeTarget?.isAuthor ? "Delete response" : "Remove response"
+        }
+        onCancel={() => {
+          if (removing) return;
+          setRemoveTarget(null);
+          setRemoveError(null);
+        }}
+        onConfirm={() => void confirmRemoval()}
+      />
     </section>
   );
 }

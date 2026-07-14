@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Ban,
+  Bell,
   Bookmark,
   CheckCircle2,
+  EyeOff,
   Flag,
   HeartHandshake,
+  Link2,
+  Pencil,
+  Settings2,
   Share2,
+  UserRound,
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
@@ -19,6 +26,7 @@ import {
 import { getPrayerInteractionPrefs } from "../../lib/prayer-connect/interactionPrefs";
 import { getPublicVideoEligibility } from "../../lib/prayer-connect/eligibility";
 import { uploadPrayerVideo } from "../../lib/prayer-connect/media";
+import { blockUser } from "../../lib/prayer-connect/blocking";
 import {
   sendPrivatePrayerMessage,
   sendPrivateVideoPrayer,
@@ -30,14 +38,20 @@ import {
   formatApproximateDistance,
   formatRelativeTime,
 } from "../../lib/prayer-connect/utils";
+import PrayerActionMenu, { type PrayerActionItem } from "./PrayerActionMenu";
 import PrayerCommunityResponses from "./PrayerCommunityResponses";
+import PrayerConfirmDialog from "./PrayerConfirmDialog";
 import PrayerMedia from "./PrayerMedia";
+import PrayerReportModal, {
+  type PrayerReportContentType,
+} from "./PrayerReportModal";
 import PrayerResponseChooser, {
   type PrayerResponseChoice,
 } from "./PrayerResponseChooser";
 import styles from "./PrayerConnect.module.css";
 
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_RESPONSE_VIDEO_SECONDS = 30; // public + private video prayer responses
 
 function validateVideoFile(file: File): string | null {
   const type = file.type || "";
@@ -48,6 +62,39 @@ function validateVideoFile(file: File): string | null {
   }
   if (file.size > MAX_VIDEO_BYTES) {
     return "That video is too large. Please choose a file under 100 MB.";
+  }
+  return null;
+}
+
+// Reads duration from metadata. Returns null if the browser cannot determine it
+// (we do not block on an unknown duration — the server remains the backstop).
+function readVideoDurationSeconds(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    try {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        resolve(Number.isFinite(video.duration) ? video.duration : null);
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      video.src = url;
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function validateResponseVideo(file: File): Promise<string | null> {
+  const base = validateVideoFile(file);
+  if (base) return base;
+  const duration = await readVideoDurationSeconds(file);
+  if (duration != null && duration > MAX_RESPONSE_VIDEO_SECONDS + 0.5) {
+    return `Video prayers must be ${MAX_RESPONSE_VIDEO_SECONDS} seconds or shorter.`;
   }
   return null;
 }
@@ -66,6 +113,16 @@ type PrayerConnectDetailProps = {
   onPrayed: (requestId: string) => void;
   onEncouraged?: (requestId: string) => void;
   onResponseCountChange?: (requestId: string, count: number) => void;
+  onHidePrayer?: (requestId: string) => void;
+  onBlockedUser?: (blockedUserId: string) => void;
+};
+
+type ReportTargetState = {
+  contentType: PrayerReportContentType;
+  reportedUserId: string | null;
+  storyId?: string | null;
+  responseId?: string | null;
+  subjectLabel: string;
 };
 
 export default function PrayerConnectDetail({
@@ -82,9 +139,17 @@ export default function PrayerConnectDetail({
   onPrayed,
   onEncouraged,
   onResponseCountChange,
+  onHidePrayer,
+  onBlockedUser,
 }: PrayerConnectDetailProps) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<ReportTargetState | null>(
+    null
+  );
+  const [blockTargetId, setBlockTargetId] = useState<string | null>(null);
+  const [blocking, setBlocking] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
   const [praying, setPraying] = useState(false);
   const [encouraging, setEncouraging] = useState(false);
   const [localPrayed, setLocalPrayed] = useState(userPrayed);
@@ -117,6 +182,150 @@ export default function PrayerConnectDetail({
   const sensitive = detectSensitivePersonalInfo(request.body);
   const distance = formatApproximateDistance(request.distanceMiles);
   const canRespond = eligibility.canRespond;
+  const isOwner = Boolean(request.userId) && request.userId === userId;
+
+  function viewProfile(profileUserId: string | null) {
+    if (!profileUserId) return;
+    router.push(`/profile/${profileUserId}`);
+  }
+
+  async function copyPrayerLink() {
+    const url = `${window.location.origin}/prayer?story=${request.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setMessage("Prayer link copied.");
+    } catch {
+      setMessage(url);
+    }
+  }
+
+  async function confirmBlock() {
+    if (!blockTargetId || blocking) return;
+    if (!userId) {
+      setBlockError("Please sign in to block someone.");
+      return;
+    }
+    setBlocking(true);
+    setBlockError(null);
+    try {
+      await blockUser(userId, blockTargetId);
+      onBlockedUser?.(blockTargetId);
+      setBlockTargetId(null);
+      setBlocking(false);
+      setMessage("User blocked. You won't see their prayers or responses.");
+    } catch (error) {
+      console.error("Block user failed:", error);
+      setBlockError(
+        error instanceof Error ? error.message : "Could not block this user."
+      );
+      setBlocking(false);
+    }
+  }
+
+  const prayerMenuItems: PrayerActionItem[] = isOwner
+    ? [
+        {
+          id: "edit",
+          label: "Edit prayer",
+          icon: Pencil,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "manage",
+          label: "Manage response permissions",
+          icon: Settings2,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "update",
+          label: "Post an update",
+          icon: Bell,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "answered",
+          label: "Mark as answered",
+          icon: CheckCircle2,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "delete",
+          label: "Delete prayer",
+          icon: X,
+          danger: true,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+      ]
+    : [
+        {
+          id: "save",
+          label: saved ? "Remove from Saved" : "Save prayer",
+          icon: Bookmark,
+          onSelect: onToggleSave,
+        },
+        ...(followAvailable && onToggleFollow
+          ? [
+              {
+                id: "follow",
+                label: following ? "Unfollow updates" : "Follow updates",
+                icon: Bell,
+                onSelect: onToggleFollow,
+              } satisfies PrayerActionItem,
+            ]
+          : []),
+        ...(prefs.allowSharing
+          ? [
+              {
+                id: "share",
+                label: "Share prayer",
+                icon: Share2,
+                onSelect: () => void handleShare(),
+              } satisfies PrayerActionItem,
+            ]
+          : []),
+        {
+          id: "copy",
+          label: "Copy prayer link",
+          icon: Link2,
+          onSelect: () => void copyPrayerLink(),
+        },
+        {
+          id: "profile",
+          label: "View profile",
+          icon: UserRound,
+          disabled: !request.userId || request.isAnonymous,
+          onSelect: () => viewProfile(request.userId),
+        },
+        {
+          id: "hide",
+          label: "Hide this prayer",
+          icon: EyeOff,
+          onSelect: () => {
+            onHidePrayer?.(request.id);
+            onClose();
+          },
+        },
+        {
+          id: "report",
+          label: "Report to Admin",
+          icon: Flag,
+          onSelect: () =>
+            setReportTarget({
+              contentType: "prayer_request",
+              reportedUserId: request.userId,
+              storyId: request.id,
+              subjectLabel: "this prayer",
+            }),
+        },
+        {
+          id: "block",
+          label: "Block user",
+          icon: Ban,
+          danger: true,
+          disabled: !request.userId,
+          onSelect: () => setBlockTargetId(request.userId),
+        },
+      ];
 
   useEffect(() => {
     setResponseCount(request.responseCount);
@@ -186,7 +395,7 @@ export default function PrayerConnectDetail({
     setMessage(null);
   }
 
-  function selectPublicVideoFile(file: File | null) {
+  async function selectPublicVideoFile(file: File | null) {
     setModalError(null);
     setModalNotice(null);
     if (publicVideoPreview) URL.revokeObjectURL(publicVideoPreview);
@@ -195,7 +404,7 @@ export default function PrayerConnectDetail({
       setPublicVideoPreview("");
       return;
     }
-    const validationError = validateVideoFile(file);
+    const validationError = await validateResponseVideo(file);
     if (validationError) {
       setPublicVideoFile(null);
       setPublicVideoPreview("");
@@ -502,14 +711,21 @@ export default function PrayerConnectDetail({
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back
           </button>
-          <button
-            type="button"
-            className={styles.iconButton}
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
+          <div className={styles.detailHeaderActions}>
+            <PrayerActionMenu
+              items={prayerMenuItems}
+              triggerLabel="Prayer options"
+              sheetTitle={isOwner ? "Manage prayer" : "Prayer options"}
+            />
+            <button
+              type="button"
+              className={styles.iconButton}
+              aria-label="Close"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
         </div>
 
         <div className={styles.detailBody}>
@@ -588,11 +804,23 @@ export default function PrayerConnectDetail({
           <PrayerCommunityResponses
             storyId={request.id}
             userId={userId}
+            prayerOwnerId={request.userId}
             refreshKey={communityRefreshKey}
             onCountChange={(count) => {
               setResponseCount(count);
               onResponseCountChange?.(request.id, count);
             }}
+            onReportResponse={({ responseId, authorUserId }) =>
+              setReportTarget({
+                contentType: "video_response",
+                reportedUserId: authorUserId,
+                storyId: request.id,
+                responseId,
+                subjectLabel: "this video prayer",
+              })
+            }
+            onBlockUser={(authorUserId) => setBlockTargetId(authorUserId)}
+            onViewProfile={(authorUserId) => viewProfile(authorUserId)}
           />
 
           {message ? <p className={styles.inlineMessage}>{message}</p> : null}
@@ -664,10 +892,23 @@ export default function PrayerConnectDetail({
               </button>
             ) : null}
 
-            <Link href={`/feed?story=${request.id}`} className={styles.quietDanger}>
-              <Flag className="h-4 w-4" aria-hidden />
-              Report
-            </Link>
+            {!isOwner ? (
+              <button
+                type="button"
+                className={styles.quietDanger}
+                onClick={() =>
+                  setReportTarget({
+                    contentType: "prayer_request",
+                    reportedUserId: request.userId,
+                    storyId: request.id,
+                    subjectLabel: "this prayer",
+                  })
+                }
+              >
+                <Flag className="h-4 w-4" aria-hidden />
+                Report
+              </button>
+            ) : null}
 
             {request.prayerStatus === "answered" ? (
               <Link
@@ -686,6 +927,41 @@ export default function PrayerConnectDetail({
         prefs={prefs}
         onClose={() => setChooserOpen(false)}
         onChoose={handleChooseResponse}
+      />
+
+      <PrayerReportModal
+        open={Boolean(reportTarget)}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onBlock={
+          reportTarget?.reportedUserId
+            ? () => setBlockTargetId(reportTarget.reportedUserId)
+            : undefined
+        }
+        onHide={
+          reportTarget?.contentType === "prayer_request"
+            ? () => {
+                onHidePrayer?.(request.id);
+                onClose();
+              }
+            : undefined
+        }
+      />
+
+      <PrayerConfirmDialog
+        open={Boolean(blockTargetId)}
+        danger
+        loading={blocking}
+        errorMessage={blockError}
+        title="Block this person?"
+        body="You won't see their prayers or responses, and they won't be able to send you new private prayers. You can unblock anyone from account settings."
+        confirmLabel="Block user"
+        onCancel={() => {
+          if (blocking) return;
+          setBlockTargetId(null);
+          setBlockError(null);
+        }}
+        onConfirm={() => void confirmBlock()}
       />
 
       {activeResponse ? (
@@ -738,7 +1014,7 @@ export default function PrayerConnectDetail({
                     accept="video/*"
                     className={styles.visuallyHiddenInput}
                     onChange={(event) =>
-                      selectPublicVideoFile(event.target.files?.[0] ?? null)
+                      void selectPublicVideoFile(event.target.files?.[0] ?? null)
                     }
                   />
                   <button
@@ -802,15 +1078,17 @@ export default function PrayerConnectDetail({
                         setPrivateVideoPreview("");
                         return;
                       }
-                      const validationError = validateVideoFile(file);
-                      if (validationError) {
-                        setPrivateVideoFile(null);
-                        setPrivateVideoPreview("");
-                        setModalError(validationError);
-                        return;
-                      }
-                      setPrivateVideoFile(file);
-                      setPrivateVideoPreview(URL.createObjectURL(file));
+                      void (async () => {
+                        const validationError = await validateResponseVideo(file);
+                        if (validationError) {
+                          setPrivateVideoFile(null);
+                          setPrivateVideoPreview("");
+                          setModalError(validationError);
+                          return;
+                        }
+                        setPrivateVideoFile(file);
+                        setPrivateVideoPreview(URL.createObjectURL(file));
+                      })();
                     }}
                   />
                   <button

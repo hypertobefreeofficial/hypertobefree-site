@@ -5,3 +5,7 @@ node_modules/
 *.tsbuildinfo
 .env.local
 .env*.local
+.playwright/
+tests/prayer/fixtures/generated/
+test-results/
+playwright-report/

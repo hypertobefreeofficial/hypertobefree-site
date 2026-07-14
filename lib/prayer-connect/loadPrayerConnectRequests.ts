@@ -60,6 +60,45 @@ function isPrayerStory(storyType: string | null) {
   return (storyType || "").toLowerCase().includes("prayer");
 }
 
+async function loadBidirectionalBlockedUserIds(
+  viewerUserId: string
+): Promise<Set<string>> {
+  const blocked = new Set<string>();
+
+  const [iBlockedResult, blockedMeResult] = await Promise.all([
+    supabase
+      .from("blocked_users")
+      .select("blocked_user_id")
+      .eq("blocker_user_id", viewerUserId),
+    supabase
+      .from("blocked_users")
+      .select("blocker_user_id")
+      .eq("blocked_user_id", viewerUserId),
+  ]);
+
+  if (iBlockedResult.error) {
+    console.error("Could not load blocked users:", iBlockedResult.error);
+  } else {
+    ((iBlockedResult.data as { blocked_user_id: string | null }[]) ?? []).forEach(
+      (row) => {
+        if (row.blocked_user_id) blocked.add(row.blocked_user_id);
+      }
+    );
+  }
+
+  if (blockedMeResult.error) {
+    console.error("Could not load users who blocked viewer:", blockedMeResult.error);
+  } else {
+    ((blockedMeResult.data as { blocker_user_id: string | null }[]) ?? []).forEach(
+      (row) => {
+        if (row.blocker_user_id) blocked.add(row.blocker_user_id);
+      }
+    );
+  }
+
+  return blocked;
+}
+
 function toNumber(value: number | string | null | undefined) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -69,7 +108,10 @@ function toNumber(value: number | string | null | undefined) {
   return null;
 }
 
-export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResult> {
+export async function loadPrayerConnectRequests(options?: {
+  /** When set, prayers hidden by this user are excluded at query time. */
+  viewerUserId?: string | null;
+}): Promise<LoadPrayerConnectResult> {
   if (isMockPrayerMode()) {
     return { ok: true, requests: MOCK_PRAYER_REQUESTS };
   }
@@ -92,6 +134,29 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
   }
 
   try {
+    let hiddenStoryIds: string[] = [];
+    let blockedAuthorIds = new Set<string>();
+    if (options?.viewerUserId) {
+      const [hiddenResult, blockedResult] = await Promise.all([
+        supabase
+          .from("prayer_hidden_stories")
+          .select("story_id")
+          .eq("user_id", options.viewerUserId),
+        loadBidirectionalBlockedUserIds(options.viewerUserId),
+      ]);
+
+      blockedAuthorIds = blockedResult;
+
+      const hiddenError = hiddenResult.error;
+      if (!hiddenError) {
+        hiddenStoryIds = ((hiddenResult.data as { story_id: string | null }[]) ?? [])
+          .map((row) => row.story_id)
+          .filter((id): id is string => Boolean(id));
+      } else if (!/relation|does not exist|could not find/i.test(hiddenError.message)) {
+        console.error("Could not load hidden prayers for viewer:", hiddenError);
+      }
+    }
+
     const selectWithGeo =
       "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, created_at, topics, public_lat, public_lng, public_location_label, location_visibility";
     const selectWithTopics =
@@ -105,13 +170,19 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
     const attempts = [selectWithGeo, selectWithTopics, selectBasic];
 
     for (const select of attempts) {
-      const result = await supabase
+      let query = supabase
         .from("stories")
         .select(select)
         .eq("status", "approved")
         .is("removed_at", null)
         .order("created_at", { ascending: false })
         .limit(300);
+
+      if (hiddenStoryIds.length > 0) {
+        query = query.not("id", "in", `(${hiddenStoryIds.join(",")})`);
+      }
+
+      const result = await query;
 
       if (!result.error && result.data) {
         data = result.data as unknown as RawStoryRow[];
@@ -120,12 +191,22 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
 
       // Older schemas may lack removed_at — retry without it once per select shape.
       if (result.error && /removed_at/i.test(result.error.message)) {
-        const fallback = await supabase
+        let fallbackQuery = supabase
           .from("stories")
           .select(select)
           .eq("status", "approved")
           .order("created_at", { ascending: false })
           .limit(300);
+
+        if (hiddenStoryIds.length > 0) {
+          fallbackQuery = fallbackQuery.not(
+            "id",
+            "in",
+            `(${hiddenStoryIds.join(",")})`
+          );
+        }
+
+        const fallback = await fallbackQuery;
         if (!fallback.error && fallback.data) {
           data = fallback.data as unknown as RawStoryRow[];
           break;
@@ -144,7 +225,13 @@ export async function loadPrayerConnectRequests(): Promise<LoadPrayerConnectResu
       };
     }
 
-    const rawStories = data.filter((story) => isPrayerStory(story.story_type));
+    const rawStories = data
+      .filter((story) => isPrayerStory(story.story_type))
+      .filter(
+        (story) =>
+          !story.user_id ||
+          !blockedAuthorIds.has(story.user_id)
+      );
 
     const userIds = [
       ...new Set(

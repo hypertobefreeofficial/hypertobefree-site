@@ -1,6 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
-import { moderatePublicContent } from "../../../lib/server/moderatePublicContent";
 import { getPublicVideoEligibility } from "../../../lib/prayer-connect/eligibility";
+import { areUsersBlocked } from "../../../lib/server/prayerBlocking";
+import {
+  PRAYER_MEDIA_LIMITS,
+  validateUploadedVideoObject,
+} from "../../../lib/server/prayerMediaValidation";
+import {
+  checkPrayerRateLimit,
+  PRAYER_RATE_LIMITS,
+  rateLimitKey,
+  rateLimitResponse,
+} from "../../../lib/server/prayerRateLimit";
 
 type PrayerStoryRow = {
   id: string;
@@ -83,6 +93,14 @@ export async function POST(request: Request) {
     return fail("Please sign in to send a public video prayer.", "unauthorized", 401);
   }
 
+  const rateCheck = checkPrayerRateLimit(
+    rateLimitKey(user.id, "submit_video_response"),
+    PRAYER_RATE_LIMITS.submitVideoResponse
+  );
+  if (rateCheck.allowed === false) {
+    return rateLimitResponse(rateCheck.retryAfterSeconds);
+  }
+
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -141,6 +159,96 @@ export async function POST(request: Request) {
     );
   }
 
+  if (
+    await areUsersBlocked(adminClient, user.id, prayer.user_id!)
+  ) {
+    return fail(
+      "You cannot respond to this prayer.",
+      "blocked",
+      403
+    );
+  }
+
+  const { data: duplicateByStory, error: duplicateStoryError } =
+    await adminClient
+      .from("prayer_video_responses")
+      .select("id, status, removed_at")
+      .eq("story_id", prayerStoryId)
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+  if (duplicateStoryError) {
+    console.error(
+      "Prayer video response: duplicate check failed:",
+      duplicateStoryError
+    );
+    return fail("Could not verify submission eligibility.", "duplicate_check_failed", 500);
+  }
+
+  const duplicateRow = duplicateByStory as {
+    id: string;
+    status: string | null;
+    removed_at: string | null;
+  } | null;
+
+  if (
+    duplicateRow &&
+    duplicateRow.status !== "removed" &&
+    !duplicateRow.removed_at
+  ) {
+    return fail(
+      "You already submitted a video response for this prayer.",
+      "duplicate_submission",
+      409
+    );
+  }
+
+  const { data: duplicateByUrl, error: duplicateUrlError } = await adminClient
+    .from("prayer_video_responses")
+    .select("id, status, removed_at")
+    .eq("user_id", user.id)
+    .eq("video_url", responseVideoUrl)
+    .limit(1)
+    .maybeSingle();
+
+  if (duplicateUrlError) {
+    console.error(
+      "Prayer video response: video URL duplicate check failed:",
+      duplicateUrlError
+    );
+    return fail("Could not verify submission eligibility.", "duplicate_check_failed", 500);
+  }
+
+  const duplicateUrlRow = duplicateByUrl as {
+    id: string;
+    status: string | null;
+    removed_at: string | null;
+  } | null;
+
+  if (
+    duplicateUrlRow &&
+    duplicateUrlRow.status !== "removed" &&
+    !duplicateUrlRow.removed_at
+  ) {
+    return fail(
+      "This video was already submitted.",
+      "duplicate_video",
+      409
+    );
+  }
+
+  const mediaCheck = await validateUploadedVideoObject({
+    adminClient,
+    videoUrl: responseVideoUrl,
+    ownerUserId: user.id,
+    maxBytes: PRAYER_MEDIA_LIMITS.maxVideoBytes,
+  });
+
+  if (mediaCheck.ok !== true) {
+    return fail(mediaCheck.error, mediaCheck.code, 400);
+  }
+
   const { data: insertedData, error: insertError } = await adminClient
     .from("prayer_video_responses")
     .insert({
@@ -149,11 +257,38 @@ export async function POST(request: Request) {
       video_url: responseVideoUrl,
       body: null,
       status: "submitted",
+      duration_verification_status: "unavailable",
     })
     .select("id")
     .single();
 
   if (insertError || !insertedData?.id) {
+    // Retry without duration column when migration is not applied yet.
+    if (
+      insertError &&
+      /duration_verification_status/i.test(insertError.message)
+    ) {
+      const { data: legacyInsert, error: legacyError } = await adminClient
+        .from("prayer_video_responses")
+        .insert({
+          story_id: prayerStoryId,
+          user_id: user.id,
+          video_url: responseVideoUrl,
+          body: null,
+          status: "submitted",
+        })
+        .select("id")
+        .single();
+
+      if (!legacyError && legacyInsert?.id) {
+        return Response.json({
+          ok: true,
+          responseId: String(legacyInsert.id),
+          status: "submitted",
+        });
+      }
+    }
+
     console.error("Prayer video response insert failed:", {
       message: insertError?.message ?? null,
       code: insertError?.code ?? null,
@@ -168,31 +303,10 @@ export async function POST(request: Request) {
   }
 
   const responseId = String(insertedData.id);
-  const decision = await moderatePublicContent({
-    storyType: "public_prayer_response",
-    storyText: prayer.story_text ?? "",
-    hasVideo: true,
-    hasPhoto: false,
-  });
 
-  if (decision.statusToUse !== "approved") {
-    return Response.json({ ok: true, responseId, status: "submitted" });
-  }
-
-  const { error: updateError } = await adminClient
-    .from("prayer_video_responses")
-    .update({
-      status: "approved",
-      moderated_at: new Date().toISOString(),
-    })
-    .eq("id", responseId)
-    .eq("user_id", user.id)
-    .eq("status", "submitted");
-
-  if (updateError) {
-    console.error("Could not apply prayer response AI approval:", updateError);
-    return Response.json({ ok: true, responseId, status: "submitted" });
-  }
-
-  return Response.json({ ok: true, responseId, status: "approved" });
+  // Server-side video duration is NOT verified here — Supabase Storage metadata
+  // does not include duration and probing requires a dedicated worker (ffprobe).
+  // Public video responses remain in `submitted` until moderation / media probe
+  // approves them. Size, MIME, ownership, and bucket are verified above.
+  return Response.json({ ok: true, responseId, status: "submitted" });
 }
