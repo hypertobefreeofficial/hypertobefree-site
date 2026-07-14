@@ -1184,11 +1184,16 @@ export default function PrayerConnectExperience() {
             });
           }}
           onResponseCountChange={(id, count) => {
-            setRequests((current) =>
-              current.map((item) =>
+            setRequests((current) => {
+              // Only produce a new array/object when the count actually
+              // changes, so the detail view's request prop stays stable and
+              // the Video Prayers section never re-loads in a loop.
+              const target = current.find((item) => item.id === id);
+              if (!target || target.responseCount === count) return current;
+              return current.map((item) =>
                 item.id === id ? { ...item, responseCount: count } : item
-              )
-            );
+              );
+            });
           }}
           onEncouraged={(id) => {
             setRequests((current) =>

@@ -169,32 +169,68 @@ export async function deleteWrittenPrayerResponse(
   if (error) throw new Error(error.message);
 }
 
+export type SubmitVideoPrayerResult =
+  | { ok: true; responseId: string; status: "approved" | "submitted" }
+  | { ok: false; error: string; code: string };
+
 export async function submitPublicVideoPrayerResponse(options: {
   prayerStoryId: string;
   responseVideoUrl: string;
   accessToken: string;
-}) {
-  const response = await fetch("/api/submit-prayer-video-response", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${options.accessToken}`,
-    },
-    body: JSON.stringify({
-      prayer_story_id: options.prayerStoryId,
-      response_video_url: options.responseVideoUrl,
-    }),
-  });
-
-  const data = (await response.json().catch(() => ({}))) as {
-    error?: string;
-    response_id?: string;
-    status?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(data.error || "Could not submit your public video prayer.");
+}): Promise<SubmitVideoPrayerResult> {
+  let response: Response;
+  try {
+    response = await fetch("/api/submit-prayer-video-response", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${options.accessToken}`,
+      },
+      body: JSON.stringify({
+        prayer_story_id: options.prayerStoryId,
+        response_video_url: options.responseVideoUrl,
+      }),
+    });
+  } catch {
+    return {
+      ok: false,
+      error:
+        "We couldn't reach the server. Check your connection and try again.",
+      code: "network_error",
+    };
   }
 
-  return data;
+  // Guard against non-JSON (e.g. an HTML error page) so the client never
+  // silently fails while parsing.
+  const data = (await response.json().catch(() => null)) as
+    | {
+        ok?: boolean;
+        error?: string;
+        code?: string;
+        responseId?: string;
+        status?: "approved" | "submitted";
+      }
+    | null;
+
+  if (!data) {
+    return {
+      ok: false,
+      error: "The server returned an unexpected response. Please try again.",
+      code: "bad_response",
+    };
+  }
+
+  if (!response.ok || data.ok === false || !data.responseId) {
+    return {
+      ok: false,
+      error: data.error || "Could not submit your public video prayer.",
+      code: data.code || "submit_failed",
+    };
+  }
+
+  return {
+    ok: true,
+    responseId: data.responseId,
+    status: data.status === "approved" ? "approved" : "submitted",
+  };
 }

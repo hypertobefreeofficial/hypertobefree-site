@@ -32,10 +32,11 @@ export async function resolvePrayerRequestMedia(
     resolveStoryMediaUrl(request.videoUrl, STORY_VIDEO_BUCKET),
   ]);
 
-  const posterUrl =
-    signedThumbnail ||
-    signedImage ||
-    (request.mediaKind === "video" ? signedVideo : null);
+  // The poster must always be an *image* URL. A video file URL must never be
+  // used as an <img> source (it fails to load and falls back to the generic
+  // placeholder). If a video has no thumbnail/image, we leave the poster null
+  // and the card intentionally renders the branded video fallback.
+  const posterUrl = signedThumbnail || signedImage || null;
 
   return {
     posterUrl,
