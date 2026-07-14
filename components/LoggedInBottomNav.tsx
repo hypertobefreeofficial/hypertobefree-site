@@ -65,11 +65,7 @@ export default function LoggedInBottomNav({
   }
 
   return (
-    <nav
-      className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl ${
-        hideOnDesktop ? "lg:hidden" : ""
-      }`}
-    >
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl">
       <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
