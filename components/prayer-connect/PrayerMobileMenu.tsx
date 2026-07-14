@@ -4,6 +4,7 @@ import {
   Bookmark,
   CheckCircle2,
   Compass,
+  EyeOff,
   Heart,
   MapPin,
   Plus,
@@ -22,6 +23,7 @@ type PrayerMobileMenuProps = {
   onSelectTab: (tab: PrayerViewTab) => void;
   onOpenMap: () => void;
   onPost: () => void;
+  onOpenHidden?: () => void;
 };
 
 const TABS: { id: PrayerViewTab; label: string; icon: typeof Compass }[] = [
@@ -40,6 +42,7 @@ export default function PrayerMobileMenu({
   onSelectTab,
   onOpenMap,
   onPost,
+  onOpenHidden,
 }: PrayerMobileMenuProps) {
   return (
     <PrayerMobileSheet
@@ -100,6 +103,20 @@ export default function PrayerMobileMenu({
           Prayer Map
         </button>
       </nav>
+
+      {onOpenHidden ? (
+        <button
+          type="button"
+          className={styles.mobileMenuItem}
+          onClick={() => {
+            onOpenHidden();
+            onClose();
+          }}
+        >
+          <EyeOff className="h-5 w-5" aria-hidden />
+          Hidden prayers
+        </button>
+      ) : null}
 
       <button
         type="button"

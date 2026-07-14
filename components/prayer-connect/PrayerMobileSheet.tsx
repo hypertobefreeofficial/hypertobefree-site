@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import styles from "./PrayerConnect.module.css";
 
 type PrayerMobileSheetProps = {
@@ -10,6 +11,12 @@ type PrayerMobileSheetProps = {
   ariaLabel?: string;
   labelledBy?: string;
   className?: string;
+  /**
+   * Render into <body>. Use when the sheet may be mounted inside an element
+   * with a transform/filter (e.g. a card), which would otherwise trap the
+   * fixed-position overlay. Content should not rely on page-scoped CSS vars.
+   */
+  portal?: boolean;
   children: ReactNode;
 };
 
@@ -23,6 +30,7 @@ export default function PrayerMobileSheet({
   ariaLabel,
   labelledBy,
   className = "",
+  portal = false,
   children,
 }: PrayerMobileSheetProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -77,14 +85,14 @@ export default function PrayerMobileSheet({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const panelClass =
     side === "left" ? styles.mobileSidePanel : styles.mobileBottomPanel;
   const overlayClass =
     side === "left" ? styles.mobileSideOverlay : styles.mobileSheetOverlay;
 
-  return (
+  const content = (
     <div className={overlayClass} onClick={onClose}>
       <div
         ref={panelRef}
@@ -100,4 +108,9 @@ export default function PrayerMobileSheet({
       </div>
     </div>
   );
+
+  // When requested, portal to <body> so the fixed-position overlay is never
+  // trapped by an ancestor with a transform/filter (e.g. a card's hover/focus
+  // transform). Portaled content must use concrete colors, not page-scoped vars.
+  return portal ? createPortal(content, document.body) : content;
 }

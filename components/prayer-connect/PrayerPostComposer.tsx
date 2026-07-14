@@ -43,6 +43,30 @@ import styles from "./PrayerConnect.module.css";
 const STORY_IMAGE_BUCKET = "story-images";
 const STORY_VIDEO_BUCKET = "story-videos";
 const TOTAL_STEPS = 6;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_PRAYER_REQUEST_VIDEO_SECONDS = 120;
+
+function readVideoDurationSeconds(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    try {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        resolve(Number.isFinite(video.duration) ? video.duration : null);
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      video.src = url;
+    } catch {
+      resolve(null);
+    }
+  });
+}
 
 type LocationMode =
   | "none"
@@ -333,12 +357,45 @@ export default function PrayerPostComposer({
       return;
     }
 
-    if (mediaKind === "photo" && !file.type.startsWith("image/")) {
-      setError("Please choose an image file.");
+    if (mediaKind === "photo") {
+      if (!file.type.startsWith("image/")) {
+        setError("Please choose an image file.");
+        return;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        setError("That image is too large. Please choose a file under 10 MB.");
+        return;
+      }
+      setError(null);
+      setMediaFile(file);
       return;
     }
-    if (mediaKind === "video" && !file.type.startsWith("video/")) {
-      setError("Please choose a video file.");
+
+    if (mediaKind === "video") {
+      if (!file.type.startsWith("video/")) {
+        setError("Please choose a video file.");
+        return;
+      }
+      if (file.size > MAX_VIDEO_BYTES) {
+        setError("That video is too large. Please choose a file under 100 MB.");
+        return;
+      }
+      // Duration check (metadata). Server remains the backstop.
+      void (async () => {
+        const duration = await readVideoDurationSeconds(file);
+        if (
+          duration != null &&
+          duration > MAX_PRAYER_REQUEST_VIDEO_SECONDS + 0.5
+        ) {
+          setError(
+            `Prayer request videos must be ${MAX_PRAYER_REQUEST_VIDEO_SECONDS} seconds or shorter.`
+          );
+          setMediaFile(null);
+          return;
+        }
+        setError(null);
+        setMediaFile(file);
+      })();
       return;
     }
 

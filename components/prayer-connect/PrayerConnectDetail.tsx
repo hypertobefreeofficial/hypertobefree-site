@@ -2,14 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Ban,
+  Bell,
   Bookmark,
   CheckCircle2,
+  EyeOff,
   Flag,
   HeartHandshake,
+  Link2,
+  Pencil,
+  Settings2,
   Share2,
+  UserRound,
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
@@ -17,7 +24,9 @@ import {
   submitPublicVideoPrayerResponse,
 } from "../../lib/prayer-connect/communityResponses";
 import { getPrayerInteractionPrefs } from "../../lib/prayer-connect/interactionPrefs";
+import { getPublicVideoEligibility } from "../../lib/prayer-connect/eligibility";
 import { uploadPrayerVideo } from "../../lib/prayer-connect/media";
+import { blockUser } from "../../lib/prayer-connect/blocking";
 import {
   sendPrivatePrayerMessage,
   sendPrivateVideoPrayer,
@@ -29,12 +38,66 @@ import {
   formatApproximateDistance,
   formatRelativeTime,
 } from "../../lib/prayer-connect/utils";
+import PrayerActionMenu, { type PrayerActionItem } from "./PrayerActionMenu";
 import PrayerCommunityResponses from "./PrayerCommunityResponses";
+import PrayerConfirmDialog from "./PrayerConfirmDialog";
 import PrayerMedia from "./PrayerMedia";
+import PrayerReportModal, {
+  type PrayerReportContentType,
+} from "./PrayerReportModal";
 import PrayerResponseChooser, {
   type PrayerResponseChoice,
 } from "./PrayerResponseChooser";
 import styles from "./PrayerConnect.module.css";
+
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_RESPONSE_VIDEO_SECONDS = 30; // public + private video prayer responses
+
+function validateVideoFile(file: File): string | null {
+  const type = file.type || "";
+  const looksLikeVideo =
+    type.startsWith("video/") || /\.(mp4|mov|webm|m4v|ogg)$/i.test(file.name);
+  if (!looksLikeVideo) {
+    return "Please choose a video file (MP4, MOV, or WebM).";
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    return "That video is too large. Please choose a file under 100 MB.";
+  }
+  return null;
+}
+
+// Reads duration from metadata. Returns null if the browser cannot determine it
+// (we do not block on an unknown duration — the server remains the backstop).
+function readVideoDurationSeconds(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    try {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        resolve(Number.isFinite(video.duration) ? video.duration : null);
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      video.src = url;
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function validateResponseVideo(file: File): Promise<string | null> {
+  const base = validateVideoFile(file);
+  if (base) return base;
+  const duration = await readVideoDurationSeconds(file);
+  if (duration != null && duration > MAX_RESPONSE_VIDEO_SECONDS + 0.5) {
+    return `Video prayers must be ${MAX_RESPONSE_VIDEO_SECONDS} seconds or shorter.`;
+  }
+  return null;
+}
 
 type PrayerConnectDetailProps = {
   request: PrayerConnectRequest;
@@ -50,6 +113,16 @@ type PrayerConnectDetailProps = {
   onPrayed: (requestId: string) => void;
   onEncouraged?: (requestId: string) => void;
   onResponseCountChange?: (requestId: string, count: number) => void;
+  onHidePrayer?: (requestId: string) => void;
+  onBlockedUser?: (blockedUserId: string) => void;
+};
+
+type ReportTargetState = {
+  contentType: PrayerReportContentType;
+  reportedUserId: string | null;
+  storyId?: string | null;
+  responseId?: string | null;
+  subjectLabel: string;
 };
 
 export default function PrayerConnectDetail({
@@ -66,9 +139,17 @@ export default function PrayerConnectDetail({
   onPrayed,
   onEncouraged,
   onResponseCountChange,
+  onHidePrayer,
+  onBlockedUser,
 }: PrayerConnectDetailProps) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<ReportTargetState | null>(
+    null
+  );
+  const [blockTargetId, setBlockTargetId] = useState<string | null>(null);
+  const [blocking, setBlocking] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
   const [praying, setPraying] = useState(false);
   const [encouraging, setEncouraging] = useState(false);
   const [localPrayed, setLocalPrayed] = useState(userPrayed);
@@ -81,18 +162,170 @@ export default function PrayerConnectDetail({
   const [publicVideoFile, setPublicVideoFile] = useState<File | null>(null);
   const [publicVideoPreview, setPublicVideoPreview] = useState("");
   const [privateVideoPreview, setPrivateVideoPreview] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitPhase, setSubmitPhase] = useState<
+    "idle" | "uploading" | "submitting"
+  >("idle");
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [modalNotice, setModalNotice] = useState<string | null>(null);
   const [communityRefreshKey, setCommunityRefreshKey] = useState(0);
   const [responseCount, setResponseCount] = useState(request.responseCount);
+  const respondButtonRef = useRef<HTMLButtonElement | null>(null);
+  const publicFileInputRef = useRef<HTMLInputElement | null>(null);
+  const privateFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const submitting = submitPhase !== "idle";
   const prefs = getPrayerInteractionPrefs(request.topics, request.prayerStatus);
+  const eligibility = getPublicVideoEligibility({
+    topics: request.topics,
+    prayerStatus: request.prayerStatus,
+  });
   const sensitive = detectSensitivePersonalInfo(request.body);
   const distance = formatApproximateDistance(request.distanceMiles);
-  const canRespond =
-    prefs.acceptsNewResponses &&
-    (prefs.allowPublicVideo ||
-      prefs.allowPrivateMessage ||
-      prefs.allowPrivateVideo);
+  const canRespond = eligibility.canRespond;
+  const isOwner = Boolean(request.userId) && request.userId === userId;
+
+  function viewProfile(profileUserId: string | null) {
+    if (!profileUserId) return;
+    router.push(`/profile/${profileUserId}`);
+  }
+
+  async function copyPrayerLink() {
+    const url = `${window.location.origin}/prayer?story=${request.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setMessage("Prayer link copied.");
+    } catch {
+      setMessage(url);
+    }
+  }
+
+  async function confirmBlock() {
+    if (!blockTargetId || blocking) return;
+    if (!userId) {
+      setBlockError("Please sign in to block someone.");
+      return;
+    }
+    setBlocking(true);
+    setBlockError(null);
+    try {
+      await blockUser(userId, blockTargetId);
+      onBlockedUser?.(blockTargetId);
+      setBlockTargetId(null);
+      setBlocking(false);
+      setMessage("User blocked. You won't see their prayers or responses.");
+    } catch (error) {
+      console.error("Block user failed:", error);
+      setBlockError(
+        error instanceof Error ? error.message : "Could not block this user."
+      );
+      setBlocking(false);
+    }
+  }
+
+  const prayerMenuItems: PrayerActionItem[] = isOwner
+    ? [
+        {
+          id: "edit",
+          label: "Edit prayer",
+          icon: Pencil,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "manage",
+          label: "Manage response permissions",
+          icon: Settings2,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "update",
+          label: "Post an update",
+          icon: Bell,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "answered",
+          label: "Mark as answered",
+          icon: CheckCircle2,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "delete",
+          label: "Delete prayer",
+          icon: X,
+          danger: true,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+      ]
+    : [
+        {
+          id: "save",
+          label: saved ? "Remove from Saved" : "Save prayer",
+          icon: Bookmark,
+          onSelect: onToggleSave,
+        },
+        ...(followAvailable && onToggleFollow
+          ? [
+              {
+                id: "follow",
+                label: following ? "Unfollow updates" : "Follow updates",
+                icon: Bell,
+                onSelect: onToggleFollow,
+              } satisfies PrayerActionItem,
+            ]
+          : []),
+        ...(prefs.allowSharing
+          ? [
+              {
+                id: "share",
+                label: "Share prayer",
+                icon: Share2,
+                onSelect: () => void handleShare(),
+              } satisfies PrayerActionItem,
+            ]
+          : []),
+        {
+          id: "copy",
+          label: "Copy prayer link",
+          icon: Link2,
+          onSelect: () => void copyPrayerLink(),
+        },
+        {
+          id: "profile",
+          label: "View profile",
+          icon: UserRound,
+          disabled: !request.userId || request.isAnonymous,
+          onSelect: () => viewProfile(request.userId),
+        },
+        {
+          id: "hide",
+          label: "Hide this prayer",
+          icon: EyeOff,
+          onSelect: () => {
+            onHidePrayer?.(request.id);
+            onClose();
+          },
+        },
+        {
+          id: "report",
+          label: "Report to Admin",
+          icon: Flag,
+          onSelect: () =>
+            setReportTarget({
+              contentType: "prayer_request",
+              reportedUserId: request.userId,
+              storyId: request.id,
+              subjectLabel: "this prayer",
+            }),
+        },
+        {
+          id: "block",
+          label: "Block user",
+          icon: Ban,
+          danger: true,
+          disabled: !request.userId,
+          onSelect: () => setBlockTargetId(request.userId),
+        },
+      ];
 
   useEffect(() => {
     setResponseCount(request.responseCount);
@@ -107,6 +340,7 @@ export default function PrayerConnectDetail({
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (activeResponse) {
+        if (submitting) return; // don't dismiss mid-submission
         closeResponseModal();
         return;
       }
@@ -118,7 +352,7 @@ export default function PrayerConnectDetail({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [activeResponse, chooserOpen, onClose]);
+  }, [activeResponse, chooserOpen, onClose, submitting]);
 
   useEffect(() => {
     return () => {
@@ -126,6 +360,15 @@ export default function PrayerConnectDetail({
       if (privateVideoPreview) URL.revokeObjectURL(privateVideoPreview);
     };
   }, [privateVideoPreview, publicVideoPreview]);
+
+  useEffect(() => {
+    if (!activeResponse) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [activeResponse]);
 
   function closeResponseModal() {
     setActiveResponse(null);
@@ -136,12 +379,40 @@ export default function PrayerConnectDetail({
     if (privateVideoPreview) URL.revokeObjectURL(privateVideoPreview);
     setPublicVideoPreview("");
     setPrivateVideoPreview("");
+    setSubmitPhase("idle");
+    setModalError(null);
+    setModalNotice(null);
+    // Return focus to the action that opened the flow.
+    requestAnimationFrame(() => respondButtonRef.current?.focus());
   }
 
   function handleChooseResponse(choice: PrayerResponseChoice) {
     setChooserOpen(false);
+    setModalError(null);
+    setModalNotice(null);
+    setSubmitPhase("idle");
     setActiveResponse(choice);
     setMessage(null);
+  }
+
+  async function selectPublicVideoFile(file: File | null) {
+    setModalError(null);
+    setModalNotice(null);
+    if (publicVideoPreview) URL.revokeObjectURL(publicVideoPreview);
+    if (!file) {
+      setPublicVideoFile(null);
+      setPublicVideoPreview("");
+      return;
+    }
+    const validationError = await validateResponseVideo(file);
+    if (validationError) {
+      setPublicVideoFile(null);
+      setPublicVideoPreview("");
+      setModalError(validationError);
+      return;
+    }
+    setPublicVideoFile(file);
+    setPublicVideoPreview(URL.createObjectURL(file));
   }
 
   async function requireUser() {
@@ -257,58 +528,107 @@ export default function PrayerConnectDetail({
   }
 
   async function submitPublicVideo() {
+    // Prevent duplicate submissions while a request is in flight.
+    if (submitPhase !== "idle") return;
+
     if (!publicVideoFile) {
-      setMessage("Choose a video to upload.");
+      setModalError("Choose a video to upload.");
       return;
     }
-    setSubmitting(true);
-    setMessage(null);
+
+    // Authoritative eligibility guard — never let the upload proceed if the
+    // request is not accepting public responses.
+    if (!eligibility.canPublicVideo) {
+      setModalError(
+        eligibility.reason ??
+          "This prayer request is no longer accepting public responses."
+      );
+      return;
+    }
+
+    const validationError = validateVideoFile(publicVideoFile);
+    if (validationError) {
+      setModalError(validationError);
+      return;
+    }
+
+    setModalError(null);
+    setModalNotice(null);
+
     try {
       const user = await requireUser();
-      if (!user) return;
+      if (!user) {
+        setModalError("Please sign in to send a public video prayer.");
+        return;
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) {
-        setMessage("Sign in to send a public video prayer.");
+        setModalError("Please sign in to send a public video prayer.");
         return;
       }
+
+      setSubmitPhase("uploading");
       const videoUrl = await uploadPrayerVideo(user.id, publicVideoFile);
-      await submitPublicVideoPrayerResponse({
+
+      setSubmitPhase("submitting");
+      const result = await submitPublicVideoPrayerResponse({
         prayerStoryId: request.id,
         responseVideoUrl: videoUrl,
         accessToken: token,
       });
-      closeResponseModal();
+
+      if (result.ok !== true) {
+        // Keep the modal open with a clear, retryable error.
+        setSubmitPhase("idle");
+        setModalError(result.error);
+        return;
+      }
+
+      // Success — refresh the list once and update the visible count.
       setCommunityRefreshKey((value) => value + 1);
-      setResponseCount((count) => {
-        const next = count + 1;
-        onResponseCountChange?.(request.id, next);
-        return next;
-      });
-      setMessage("Your public video prayer was submitted.");
+      if (result.status === "approved") {
+        setResponseCount((count) => {
+          const next = count + 1;
+          onResponseCountChange?.(request.id, next);
+          return next;
+        });
+      }
+
+      const successMessage =
+        result.status === "approved"
+          ? "Your video prayer was submitted."
+          : "Your video prayer was submitted for review.";
+      closeResponseModal();
+      setMessage(successMessage);
     } catch (error) {
-      setMessage(
-        error instanceof Error
+      console.error("Public video prayer submission failed:", error);
+      setSubmitPhase("idle");
+      setModalError(
+        error instanceof Error && error.message
           ? error.message
-          : "Could not submit your video prayer."
+          : "Could not submit your video prayer. Please try again."
       );
-    } finally {
-      setSubmitting(false);
     }
   }
 
   async function submitPrivateMessage() {
-    setSubmitting(true);
-    setMessage(null);
+    if (submitPhase !== "idle") return;
+    setModalError(null);
+    setModalNotice(null);
     try {
       const user = await requireUser();
-      if (!user) return;
-      if (!request.userId) {
-        setMessage("This request cannot receive private messages right now.");
+      if (!user) {
+        setModalError("Please sign in to send a private message.");
         return;
       }
+      if (!request.userId) {
+        setModalError("This request cannot receive private messages right now.");
+        return;
+      }
+      setSubmitPhase("submitting");
       const result = await sendPrivatePrayerMessage({
         storyId: request.id,
         senderUserId: user.id,
@@ -320,28 +640,42 @@ export default function PrayerConnectDetail({
       setMessage("Private message sent.");
       router.push(result.destination);
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not send your message."
+      console.error("Private message submission failed:", error);
+      setSubmitPhase("idle");
+      setModalError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Could not send your message. Please try again."
       );
-    } finally {
-      setSubmitting(false);
     }
   }
 
   async function submitPrivateVideo() {
+    if (submitPhase !== "idle") return;
     if (!privateVideoFile) {
-      setMessage("Choose a video to send.");
+      setModalError("Choose a video to send.");
       return;
     }
-    setSubmitting(true);
-    setMessage(null);
+    const validationError = validateVideoFile(privateVideoFile);
+    if (validationError) {
+      setModalError(validationError);
+      return;
+    }
+    setModalError(null);
+    setModalNotice(null);
     try {
       const user = await requireUser();
-      if (!user) return;
-      if (!request.userId) {
-        setMessage("This request cannot receive private video prayers right now.");
+      if (!user) {
+        setModalError("Please sign in to send a private video prayer.");
         return;
       }
+      if (!request.userId) {
+        setModalError(
+          "This request cannot receive private video prayers right now."
+        );
+        return;
+      }
+      setSubmitPhase("uploading");
       const result = await sendPrivateVideoPrayer({
         storyId: request.id,
         senderUserId: user.id,
@@ -353,11 +687,13 @@ export default function PrayerConnectDetail({
       setMessage("Private video prayer sent.");
       router.push(result.destination);
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not send your video prayer."
+      console.error("Private video prayer submission failed:", error);
+      setSubmitPhase("idle");
+      setModalError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Could not send your video prayer. Please try again."
       );
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -375,14 +711,21 @@ export default function PrayerConnectDetail({
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back
           </button>
-          <button
-            type="button"
-            className={styles.iconButton}
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
+          <div className={styles.detailHeaderActions}>
+            <PrayerActionMenu
+              items={prayerMenuItems}
+              triggerLabel="Prayer options"
+              sheetTitle={isOwner ? "Manage prayer" : "Prayer options"}
+            />
+            <button
+              type="button"
+              className={styles.iconButton}
+              aria-label="Close"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
         </div>
 
         <div className={styles.detailBody}>
@@ -461,11 +804,23 @@ export default function PrayerConnectDetail({
           <PrayerCommunityResponses
             storyId={request.id}
             userId={userId}
+            prayerOwnerId={request.userId}
             refreshKey={communityRefreshKey}
             onCountChange={(count) => {
               setResponseCount(count);
               onResponseCountChange?.(request.id, count);
             }}
+            onReportResponse={({ responseId, authorUserId }) =>
+              setReportTarget({
+                contentType: "video_response",
+                reportedUserId: authorUserId,
+                storyId: request.id,
+                responseId,
+                subjectLabel: "this video prayer",
+              })
+            }
+            onBlockUser={(authorUserId) => setBlockTargetId(authorUserId)}
+            onViewProfile={(authorUserId) => viewProfile(authorUserId)}
           />
 
           {message ? <p className={styles.inlineMessage}>{message}</p> : null}
@@ -485,6 +840,7 @@ export default function PrayerConnectDetail({
 
             {canRespond ? (
               <button
+                ref={respondButtonRef}
                 type="button"
                 className={styles.secondaryButton}
                 onClick={() => setChooserOpen(true)}
@@ -536,10 +892,23 @@ export default function PrayerConnectDetail({
               </button>
             ) : null}
 
-            <Link href={`/feed?story=${request.id}`} className={styles.quietDanger}>
-              <Flag className="h-4 w-4" aria-hidden />
-              Report
-            </Link>
+            {!isOwner ? (
+              <button
+                type="button"
+                className={styles.quietDanger}
+                onClick={() =>
+                  setReportTarget({
+                    contentType: "prayer_request",
+                    reportedUserId: request.userId,
+                    storyId: request.id,
+                    subjectLabel: "this prayer",
+                  })
+                }
+              >
+                <Flag className="h-4 w-4" aria-hidden />
+                Report
+              </button>
+            ) : null}
 
             {request.prayerStatus === "answered" ? (
               <Link
@@ -560,135 +929,275 @@ export default function PrayerConnectDetail({
         onChoose={handleChooseResponse}
       />
 
+      <PrayerReportModal
+        open={Boolean(reportTarget)}
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onBlock={
+          reportTarget?.reportedUserId
+            ? () => setBlockTargetId(reportTarget.reportedUserId)
+            : undefined
+        }
+        onHide={
+          reportTarget?.contentType === "prayer_request"
+            ? () => {
+                onHidePrayer?.(request.id);
+                onClose();
+              }
+            : undefined
+        }
+      />
+
+      <PrayerConfirmDialog
+        open={Boolean(blockTargetId)}
+        danger
+        loading={blocking}
+        errorMessage={blockError}
+        title="Block this person?"
+        body="You won't see their prayers or responses, and they won't be able to send you new private prayers. You can unblock anyone from account settings."
+        confirmLabel="Block user"
+        onCancel={() => {
+          if (blocking) return;
+          setBlockTargetId(null);
+          setBlockError(null);
+        }}
+        onConfirm={() => void confirmBlock()}
+      />
+
       {activeResponse ? (
-        <div className={styles.modalOverlay} onClick={closeResponseModal}>
+        <div
+          className={styles.modalOverlay}
+          onClick={submitting ? undefined : closeResponseModal}
+        >
           <div
-            className={styles.modalCard}
+            className={`${styles.modalCard} ${styles.responseModalCard}`}
             role="dialog"
             aria-modal="true"
+            aria-label={
+              activeResponse === "public-video"
+                ? "Send a public video prayer"
+                : activeResponse === "private-message"
+                  ? "Send a private message"
+                  : "Send a private video prayer"
+            }
             onClick={(event) => event.stopPropagation()}
           >
-            {activeResponse === "public-video" ? (
-              <>
-                <h2>Send a Public Video Prayer</h2>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    setPublicVideoFile(file);
-                    if (publicVideoPreview) URL.revokeObjectURL(publicVideoPreview);
-                    setPublicVideoPreview(file ? URL.createObjectURL(file) : "");
-                  }}
-                />
-                {publicVideoPreview ? (
-                  <video
-                    className={styles.responsePreviewVideo}
-                    src={publicVideoPreview}
-                    controls
-                    playsInline
-                  />
-                ) : null}
-                <div className={styles.emptyActions}>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={closeResponseModal}
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.primaryButton}
-                    disabled={submitting || !publicVideoFile}
-                    onClick={() => void submitPublicVideo()}
-                  >
-                    {submitting ? "Uploading..." : "Submit Video Prayer"}
-                  </button>
-                </div>
-              </>
-            ) : null}
+            <div className={styles.responseModalHeader}>
+              <h2>
+                {activeResponse === "public-video"
+                  ? "Send a Public Video Prayer"
+                  : activeResponse === "private-message"
+                    ? "Send a Private Message"
+                    : "Send a Private Video Prayer"}
+              </h2>
+              <button
+                type="button"
+                className={styles.iconButton}
+                aria-label="Close"
+                onClick={closeResponseModal}
+                disabled={submitting}
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
 
-            {activeResponse === "private-message" ? (
-              <>
-                <h2>Send a Private Message</h2>
-                <p className={styles.detailMeta}>
-                  Only the requester will see this in HTBF Messages.
-                </p>
-                <textarea
-                  className={styles.composerTextarea}
-                  rows={5}
-                  value={privateBody}
-                  onChange={(event) => setPrivateBody(event.target.value)}
-                  placeholder="Share your encouragement privately..."
-                  maxLength={2000}
-                />
-                <div className={styles.emptyActions}>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={closeResponseModal}
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.primaryButton}
-                    disabled={submitting || !privateBody.trim()}
-                    onClick={() => void submitPrivateMessage()}
-                  >
-                    {submitting ? "Sending..." : "Send Message"}
-                  </button>
-                </div>
-              </>
-            ) : null}
-
-            {activeResponse === "private-video" ? (
-              <>
-                <h2>Send a Private Video Prayer</h2>
-                <p className={styles.detailMeta}>
-                  This video is delivered privately through Journey Inbox.
-                </p>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] ?? null;
-                    setPrivateVideoFile(file);
-                    if (privateVideoPreview) URL.revokeObjectURL(privateVideoPreview);
-                    setPrivateVideoPreview(file ? URL.createObjectURL(file) : "");
-                  }}
-                />
-                {privateVideoPreview ? (
-                  <video
-                    className={styles.responsePreviewVideo}
-                    src={privateVideoPreview}
-                    controls
-                    playsInline
+            <div className={styles.responseModalBody}>
+              {activeResponse === "public-video" ? (
+                <>
+                  <p className={styles.detailMeta}>
+                    Public video prayers can be seen by other believers after
+                    approval.
+                  </p>
+                  <input
+                    ref={publicFileInputRef}
+                    type="file"
+                    accept="video/*"
+                    className={styles.visuallyHiddenInput}
+                    onChange={(event) =>
+                      void selectPublicVideoFile(event.target.files?.[0] ?? null)
+                    }
                   />
-                ) : null}
-                <div className={styles.emptyActions}>
                   <button
                     type="button"
-                    className={styles.secondaryButton}
-                    onClick={closeResponseModal}
+                    className={styles.selectMediaButton}
+                    onClick={() => publicFileInputRef.current?.click()}
                     disabled={submitting}
                   >
-                    Cancel
+                    {publicVideoFile ? "Change video" : "Select a video"}
                   </button>
+                  {publicVideoFile ? (
+                    <p className={styles.selectedFileName}>
+                      {publicVideoFile.name}
+                    </p>
+                  ) : null}
+                  {publicVideoPreview ? (
+                    <video
+                      className={styles.responsePreviewVideo}
+                      src={publicVideoPreview}
+                      controls
+                      playsInline
+                    />
+                  ) : null}
+                </>
+              ) : null}
+
+              {activeResponse === "private-message" ? (
+                <>
+                  <p className={styles.detailMeta}>
+                    Only the requester will see this in HTBF Messages.
+                  </p>
+                  <textarea
+                    className={styles.composerTextarea}
+                    rows={5}
+                    value={privateBody}
+                    onChange={(event) => setPrivateBody(event.target.value)}
+                    placeholder="Share your encouragement privately..."
+                    maxLength={2000}
+                    disabled={submitting}
+                  />
+                </>
+              ) : null}
+
+              {activeResponse === "private-video" ? (
+                <>
+                  <p className={styles.detailMeta}>
+                    This video is delivered privately through Journey Inbox.
+                  </p>
+                  <input
+                    ref={privateFileInputRef}
+                    type="file"
+                    accept="video/*"
+                    className={styles.visuallyHiddenInput}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setModalError(null);
+                      if (privateVideoPreview)
+                        URL.revokeObjectURL(privateVideoPreview);
+                      if (!file) {
+                        setPrivateVideoFile(null);
+                        setPrivateVideoPreview("");
+                        return;
+                      }
+                      void (async () => {
+                        const validationError = await validateResponseVideo(file);
+                        if (validationError) {
+                          setPrivateVideoFile(null);
+                          setPrivateVideoPreview("");
+                          setModalError(validationError);
+                          return;
+                        }
+                        setPrivateVideoFile(file);
+                        setPrivateVideoPreview(URL.createObjectURL(file));
+                      })();
+                    }}
+                  />
                   <button
                     type="button"
-                    className={styles.primaryButton}
-                    disabled={submitting || !privateVideoFile}
-                    onClick={() => void submitPrivateVideo()}
+                    className={styles.selectMediaButton}
+                    onClick={() => privateFileInputRef.current?.click()}
+                    disabled={submitting}
                   >
-                    {submitting ? "Sending..." : "Send Private Video"}
+                    {privateVideoFile ? "Change video" : "Select a video"}
                   </button>
-                </div>
-              </>
-            ) : null}
+                  {privateVideoFile ? (
+                    <p className={styles.selectedFileName}>
+                      {privateVideoFile.name}
+                    </p>
+                  ) : null}
+                  {privateVideoPreview ? (
+                    <video
+                      className={styles.responsePreviewVideo}
+                      src={privateVideoPreview}
+                      controls
+                      playsInline
+                    />
+                  ) : null}
+                </>
+              ) : null}
+
+              {modalError ? (
+                <p className={styles.modalError} role="alert">
+                  {modalError}
+                </p>
+              ) : null}
+              {modalNotice ? (
+                <p className={styles.modalNotice} role="status">
+                  {modalNotice}
+                </p>
+              ) : null}
+            </div>
+
+            <div className={styles.responseModalFooter}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={closeResponseModal}
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              {activeResponse === "public-video" ? (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={submitting || !publicVideoFile}
+                  onClick={() => void submitPublicVideo()}
+                >
+                  {submitPhase === "uploading" ? (
+                    <>
+                      <span className={styles.buttonSpinner} aria-hidden />
+                      Uploading video…
+                    </>
+                  ) : submitPhase === "submitting" ? (
+                    <>
+                      <span className={styles.buttonSpinner} aria-hidden />
+                      Submitting for review…
+                    </>
+                  ) : (
+                    "Submit Video Prayer"
+                  )}
+                </button>
+              ) : null}
+              {activeResponse === "private-message" ? (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={submitting || !privateBody.trim()}
+                  onClick={() => void submitPrivateMessage()}
+                >
+                  {submitting ? (
+                    <>
+                      <span className={styles.buttonSpinner} aria-hidden />
+                      Sending…
+                    </>
+                  ) : (
+                    "Send Message"
+                  )}
+                </button>
+              ) : null}
+              {activeResponse === "private-video" ? (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={submitting || !privateVideoFile}
+                  onClick={() => void submitPrivateVideo()}
+                >
+                  {submitPhase === "uploading" ? (
+                    <>
+                      <span className={styles.buttonSpinner} aria-hidden />
+                      Uploading video…
+                    </>
+                  ) : submitPhase === "submitting" ? (
+                    <>
+                      <span className={styles.buttonSpinner} aria-hidden />
+                      Sending…
+                    </>
+                  ) : (
+                    "Send Private Video"
+                  )}
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

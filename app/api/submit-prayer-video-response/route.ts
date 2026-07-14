@@ -1,5 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
-import { moderatePublicContent } from "../../../lib/server/moderatePublicContent";
+import { getPublicVideoEligibility } from "../../../lib/prayer-connect/eligibility";
+import { areUsersBlocked } from "../../../lib/server/prayerBlocking";
+import {
+  PRAYER_MEDIA_LIMITS,
+  validateUploadedVideoObject,
+} from "../../../lib/server/prayerMediaValidation";
+import {
+  checkPrayerRateLimit,
+  PRAYER_RATE_LIMITS,
+  rateLimitKey,
+  rateLimitResponse,
+} from "../../../lib/server/prayerRateLimit";
 
 type PrayerStoryRow = {
   id: string;
@@ -7,6 +18,8 @@ type PrayerStoryRow = {
   story_type: string | null;
   story_text: string | null;
   status: string | null;
+  prayer_status: string | null;
+  topics: string[] | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -20,49 +33,51 @@ function readBearerToken(request: Request) {
     : "";
 }
 
+function fail(error: string, code: string, status: number) {
+  return Response.json({ ok: false, error, code }, { status });
+}
+
 export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-    return Response.json(
-      { error: "Public prayer response submission is unavailable." },
-      { status: 503 }
+    return fail(
+      "Public prayer response submission is unavailable right now.",
+      "service_unavailable",
+      503
     );
   }
 
   const accessToken = readBearerToken(request);
-
   if (!accessToken) {
-    return Response.json({ error: "Unauthorized." }, { status: 401 });
+    return fail("Please sign in to send a public video prayer.", "unauthorized", 401);
   }
 
   let body: unknown;
-
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid request body." }, { status: 400 });
+    return fail("Invalid request body.", "invalid_body", 400);
   }
 
   if (!isRecord(body)) {
-    return Response.json({ error: "Invalid request body." }, { status: 400 });
+    return fail("Invalid request body.", "invalid_body", 400);
   }
 
   const prayerStoryId =
-    typeof body.prayer_story_id === "string"
-      ? body.prayer_story_id.trim()
-      : "";
+    typeof body.prayer_story_id === "string" ? body.prayer_story_id.trim() : "";
   const responseVideoUrl =
     typeof body.response_video_url === "string"
       ? body.response_video_url.trim()
       : "";
 
   if (!prayerStoryId || !responseVideoUrl) {
-    return Response.json(
-      { error: "Prayer ID and response video are required." },
-      { status: 400 }
+    return fail(
+      "Prayer ID and response video are required.",
+      "missing_fields",
+      400
     );
   }
 
@@ -75,28 +90,30 @@ export async function POST(request: Request) {
   } = await userClient.auth.getUser(accessToken);
 
   if (userError || !user) {
-    return Response.json({ error: "Unauthorized." }, { status: 401 });
+    return fail("Please sign in to send a public video prayer.", "unauthorized", 401);
+  }
+
+  const rateCheck = checkPrayerRateLimit(
+    rateLimitKey(user.id, "submit_video_response"),
+    PRAYER_RATE_LIMITS.submitVideoResponse
+  );
+  if (rateCheck.allowed === false) {
+    return rateLimitResponse(rateCheck.retryAfterSeconds);
   }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const serviceRoleDebug = {
-    serviceRoleKeyExists: Boolean(serviceRoleKey),
-    serviceRoleKeyMatchesAnonKey: serviceRoleKey === supabaseAnonKey,
-    adminClientCredentialSource: "SUPABASE_SERVICE_ROLE_KEY",
-  };
+
   const { data: prayerData, error: prayerError } = await adminClient
     .from("stories")
-    .select("id, user_id, story_type, story_text, status")
+    .select("id, user_id, story_type, story_text, status, prayer_status, topics")
     .eq("id", prayerStoryId)
     .maybeSingle();
 
   if (prayerError) {
-    return Response.json(
-      { error: "Could not load the parent prayer." },
-      { status: 500 }
-    );
+    console.error("Prayer video response: parent load failed:", prayerError);
+    return fail("Could not load the parent prayer.", "parent_load_failed", 500);
   }
 
   const prayer = prayerData as PrayerStoryRow | null;
@@ -105,17 +122,131 @@ export async function POST(request: Request) {
     (prayer.story_type?.toLowerCase().includes("prayer") ?? false);
 
   if (!prayer || !isApprovedPrayer) {
-    return Response.json(
-      { error: "The parent prayer is not available for public responses." },
-      { status: 400 }
+    return fail(
+      "This prayer request is not available for public responses.",
+      "parent_unavailable",
+      400
     );
   }
 
   if (!prayer.user_id || prayer.user_id === user.id) {
-    return Response.json(
-      { error: "You cannot submit a public response to this prayer." },
-      { status: 400 }
+    return fail(
+      "You cannot submit a public response to your own prayer.",
+      "self_response",
+      400
     );
+  }
+
+  // Authoritative eligibility — must match the client chooser/modal exactly.
+  const prayerStatus =
+    prayer.prayer_status === "answered"
+      ? "answered"
+      : prayer.prayer_status === "paused"
+        ? "paused"
+        : "active";
+  const eligibility = getPublicVideoEligibility({
+    topics: prayer.topics ?? [],
+    prayerStatus,
+    requestApproved: true,
+  });
+
+  if (!eligibility.canPublicVideo) {
+    return fail(
+      eligibility.reason ??
+        "This prayer request is no longer accepting public responses.",
+      "not_accepting",
+      409
+    );
+  }
+
+  if (
+    await areUsersBlocked(adminClient, user.id, prayer.user_id!)
+  ) {
+    return fail(
+      "You cannot respond to this prayer.",
+      "blocked",
+      403
+    );
+  }
+
+  const { data: duplicateByStory, error: duplicateStoryError } =
+    await adminClient
+      .from("prayer_video_responses")
+      .select("id, status, removed_at")
+      .eq("story_id", prayerStoryId)
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+  if (duplicateStoryError) {
+    console.error(
+      "Prayer video response: duplicate check failed:",
+      duplicateStoryError
+    );
+    return fail("Could not verify submission eligibility.", "duplicate_check_failed", 500);
+  }
+
+  const duplicateRow = duplicateByStory as {
+    id: string;
+    status: string | null;
+    removed_at: string | null;
+  } | null;
+
+  if (
+    duplicateRow &&
+    duplicateRow.status !== "removed" &&
+    !duplicateRow.removed_at
+  ) {
+    return fail(
+      "You already submitted a video response for this prayer.",
+      "duplicate_submission",
+      409
+    );
+  }
+
+  const { data: duplicateByUrl, error: duplicateUrlError } = await adminClient
+    .from("prayer_video_responses")
+    .select("id, status, removed_at")
+    .eq("user_id", user.id)
+    .eq("video_url", responseVideoUrl)
+    .limit(1)
+    .maybeSingle();
+
+  if (duplicateUrlError) {
+    console.error(
+      "Prayer video response: video URL duplicate check failed:",
+      duplicateUrlError
+    );
+    return fail("Could not verify submission eligibility.", "duplicate_check_failed", 500);
+  }
+
+  const duplicateUrlRow = duplicateByUrl as {
+    id: string;
+    status: string | null;
+    removed_at: string | null;
+  } | null;
+
+  if (
+    duplicateUrlRow &&
+    duplicateUrlRow.status !== "removed" &&
+    !duplicateUrlRow.removed_at
+  ) {
+    return fail(
+      "This video was already submitted.",
+      "duplicate_video",
+      409
+    );
+  }
+
+  const mediaCheck = await validateUploadedVideoObject({
+    adminClient,
+    videoUrl: responseVideoUrl,
+    ownerUserId: user.id,
+    maxBytes: PRAYER_MEDIA_LIMITS.maxVideoBytes,
+  });
+
+  if (mediaCheck.ok !== true) {
+    return fail(mediaCheck.error, mediaCheck.code, 400);
   }
 
   const { data: insertedData, error: insertError } = await adminClient
@@ -126,56 +257,56 @@ export async function POST(request: Request) {
       video_url: responseVideoUrl,
       body: null,
       status: "submitted",
+      duration_verification_status: "unavailable",
     })
     .select("id")
     .single();
 
   if (insertError || !insertedData?.id) {
-    const insertDebug = {
-      ...serviceRoleDebug,
+    // Retry without duration column when migration is not applied yet.
+    if (
+      insertError &&
+      /duration_verification_status/i.test(insertError.message)
+    ) {
+      const { data: legacyInsert, error: legacyError } = await adminClient
+        .from("prayer_video_responses")
+        .insert({
+          story_id: prayerStoryId,
+          user_id: user.id,
+          video_url: responseVideoUrl,
+          body: null,
+          status: "submitted",
+        })
+        .select("id")
+        .single();
+
+      if (!legacyError && legacyInsert?.id) {
+        return Response.json({
+          ok: true,
+          responseId: String(legacyInsert.id),
+          status: "submitted",
+        });
+      }
+    }
+
+    console.error("Prayer video response insert failed:", {
       message: insertError?.message ?? null,
       code: insertError?.code ?? null,
       details: insertError?.details ?? null,
       hint: insertError?.hint ?? null,
-    };
-
-    console.error("Prayer video response server insert failed:", insertDebug);
-
-    return Response.json(
-      {
-        error: insertError?.message ?? "Could not create the response.",
-        debug: insertDebug,
-      },
-      { status: 500 }
+    });
+    return fail(
+      "Could not save your video prayer. Please try again.",
+      "insert_failed",
+      500
     );
   }
 
   const responseId = String(insertedData.id);
-  const decision = await moderatePublicContent({
-    storyType: "public_prayer_response",
-    storyText: prayer.story_text ?? "",
-    hasVideo: true,
-    hasPhoto: false,
-  });
 
-  if (decision.statusToUse !== "approved") {
-    return Response.json({ response_id: responseId, status: "submitted" });
-  }
-
-  const { error: updateError } = await adminClient
-    .from("prayer_video_responses")
-    .update({
-      status: "approved",
-      moderated_at: new Date().toISOString(),
-    })
-    .eq("id", responseId)
-    .eq("user_id", user.id)
-    .eq("status", "submitted");
-
-  if (updateError) {
-    console.error("Could not apply prayer response AI approval:", updateError);
-    return Response.json({ response_id: responseId, status: "submitted" });
-  }
-
-  return Response.json({ response_id: responseId, status: "approved" });
+  // Server-side video duration is NOT verified here — Supabase Storage metadata
+  // does not include duration and probing requires a dedicated worker (ffprobe).
+  // Public video responses remain in `submitted` until moderation / media probe
+  // approves them. Size, MIME, ownership, and bucket are verified above.
+  return Response.json({ ok: true, responseId, status: "submitted" });
 }

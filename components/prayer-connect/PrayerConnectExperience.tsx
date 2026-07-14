@@ -36,7 +36,30 @@ import {
   toggleFollowedPrayer,
   toggleSavedStory,
 } from "../../lib/prayer-connect/persistence";
+import { blockUser, loadBlockedUserIds } from "../../lib/prayer-connect/blocking";
+import {
+  hidePrayer,
+  loadHiddenPrayerIds,
+  migrateLegacyHiddenPrayers,
+  readHiddenPrayerCache,
+} from "../../lib/prayer-connect/hiddenPrayers";
 import { isMockPrayerMode } from "../../lib/prayer-connect/mockMode";
+import PrayerConfirmDialog from "./PrayerConfirmDialog";
+import PrayerReportModal, {
+  type PrayerReportContentType,
+} from "./PrayerReportModal";
+import { type PrayerActionItem } from "./PrayerActionMenu";
+import {
+  Ban,
+  Bell,
+  Bookmark,
+  EyeOff,
+  Flag,
+  Link2,
+  Pencil,
+  Share2,
+  UserRound,
+} from "lucide-react";
 import { MOCK_SAVED_STORY_IDS } from "../../lib/prayer-connect/mockPrayerData";
 import {
   buildSearchSummary,
@@ -60,6 +83,7 @@ import { type PrayerViewTab } from "./PrayerSectionNav";
 import { useIsMobile } from "./useIsMobile";
 import PrayerMobileHeader from "./PrayerMobileHeader";
 import PrayerMobileMenu from "./PrayerMobileMenu";
+import PrayerHiddenPanel from "./PrayerHiddenPanel";
 import PrayerMobileOverflowMenu from "./PrayerMobileOverflowMenu";
 import PrayerMobileControls from "./PrayerMobileControls";
 import PrayerMobileCardGrid from "./PrayerMobileCardGrid";
@@ -110,7 +134,18 @@ export default function PrayerConnectExperience() {
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [followAvailable, setFollowAvailable] = useState(true);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [cardReportTarget, setCardReportTarget] = useState<{
+    contentType: PrayerReportContentType;
+    reportedUserId: string | null;
+    storyId: string;
+    subjectLabel: string;
+  } | null>(null);
+  const [cardBlockUserId, setCardBlockUserId] = useState<string | null>(null);
+  const [cardBlocking, setCardBlocking] = useState(false);
+  const [cardBlockError, setCardBlockError] = useState<string | null>(null);
   const [userReactions, setUserReactions] = useState<Map<string, Set<string>>>(
     new Map()
   );
@@ -125,6 +160,7 @@ export default function PrayerConnectExperience() {
   const [debouncedContentQuery, setDebouncedContentQuery] = useState("");
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hiddenPanelOpen, setHiddenPanelOpen] = useState(false);
   const [mobileOverflowOpen, setMobileOverflowOpen] = useState(false);
   const [mobileSearchActive, setMobileSearchActive] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -289,7 +325,9 @@ export default function PrayerConnectExperience() {
   const refresh = useCallback(async () => {
     setLoadState("loading");
     setErrorMessage(null);
-    const result = await loadPrayerConnectRequests();
+    const result = await loadPrayerConnectRequests({
+      viewerUserId: userId,
+    });
     if (result.ok === false) {
       setLoadState("error");
       // Never surface Supabase keys, env-var names, or raw errors to users.
@@ -306,7 +344,7 @@ export default function PrayerConnectExperience() {
     }
     setRequests(result.requests);
     setLoadState("ready");
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     void refresh();
@@ -319,20 +357,29 @@ export default function PrayerConnectExperience() {
       } = await supabase.auth.getUser();
       setUserId(user?.id ?? null);
       if (!user) {
+        setHiddenIds([]);
         setSavedIds(isMockPrayerMode() ? MOCK_SAVED_STORY_IDS : []);
         setFollowingIds([]);
+        setBlockedUserIds([]);
         setUserReactions(new Map());
         return;
       }
 
+      setHiddenIds(readHiddenPrayerCache(user.id));
+
       try {
-        const [saved, followed] = await Promise.all([
+        await migrateLegacyHiddenPrayers(user.id);
+        const [saved, followed, blocked, hidden] = await Promise.all([
           loadSavedStoryIds(user.id),
           loadFollowedPrayerIds(user.id),
+          loadBlockedUserIds(user.id),
+          loadHiddenPrayerIds(user.id),
         ]);
         setSavedIds(saved);
         setFollowingIds(followed.ids);
         setFollowAvailable(followed.available);
+        setBlockedUserIds(blocked);
+        setHiddenIds(hidden.ids);
       } catch (error) {
         console.error("Could not load prayer account state:", error);
       }
@@ -360,6 +407,19 @@ export default function PrayerConnectExperience() {
     void loadReactions();
   }, [userId, requests]);
 
+  // Private per-user filtering: hidden prayers and blocked authors never appear
+  // in any prayer view. This does not affect anyone else's experience.
+  const unhiddenRequests = useMemo(() => {
+    if (hiddenIds.length === 0 && blockedUserIds.length === 0) return requests;
+    const hiddenSet = new Set(hiddenIds);
+    const blockedSet = new Set(blockedUserIds);
+    return requests.filter(
+      (item) =>
+        !hiddenSet.has(item.id) &&
+        !(item.userId && blockedSet.has(item.userId))
+    );
+  }, [requests, hiddenIds, blockedUserIds]);
+
   const discoverFiltered = useMemo(() => {
     const sortForFilter: PrayerConnectSort =
       mediaFilter === "video"
@@ -370,23 +430,27 @@ export default function PrayerConnectExperience() {
             ? "text"
             : sort;
 
-    return filterAndSortPrayerRequests(requests, {
+    return filterAndSortPrayerRequests(unhiddenRequests, {
       center,
       radius,
       category,
       sort: sortForFilter,
       searchMode,
     });
-  }, [requests, center, radius, category, sort, searchMode, mediaFilter]);
+  }, [unhiddenRequests, center, radius, category, sort, searchMode, mediaFilter]);
 
   const tabRequests = useMemo(() => {
     let items: PrayerConnectRequest[];
     if (activeTab === "following") {
-      items = requests.filter((item) => followingIds.includes(item.id));
+      items = unhiddenRequests.filter((item) =>
+        followingIds.includes(item.id)
+      );
     } else if (activeTab === "saved") {
-      items = requests.filter((item) => savedIds.includes(item.id));
+      items = unhiddenRequests.filter((item) => savedIds.includes(item.id));
     } else if (activeTab === "answered") {
-      items = requests.filter((item) => item.prayerStatus === "answered");
+      items = unhiddenRequests.filter(
+        (item) => item.prayerStatus === "answered"
+      );
     } else {
       items = discoverFiltered;
     }
@@ -394,12 +458,159 @@ export default function PrayerConnectExperience() {
     return filterPrayerRequestsByContent(items, debouncedContentQuery);
   }, [
     activeTab,
-    requests,
+    unhiddenRequests,
     followingIds,
     savedIds,
     discoverFiltered,
     debouncedContentQuery,
   ]);
+
+  async function handleHidePrayer(id: string) {
+    if (!userId) {
+      setAuthMessage("Please sign in to hide prayers across your devices.");
+      return;
+    }
+    try {
+      const next = await hidePrayer(userId, id);
+      setHiddenIds(next);
+      setAuthMessage(
+        "Prayer hidden. Open Hidden prayers in the menu to restore it."
+      );
+      await refresh();
+    } catch (error) {
+      console.error("Hide prayer failed:", error);
+      setAuthMessage(
+        error instanceof Error ? error.message : "Could not hide this prayer."
+      );
+    }
+  }
+
+  function handleBlockedUser(blockedUserId: string) {
+    setBlockedUserIds((current) =>
+      current.includes(blockedUserId) ? current : [...current, blockedUserId]
+    );
+  }
+
+  async function confirmCardBlock() {
+    if (!cardBlockUserId || cardBlocking) return;
+    if (!userId) {
+      setCardBlockError("Please sign in to block someone.");
+      return;
+    }
+    setCardBlocking(true);
+    setCardBlockError(null);
+    try {
+      await blockUser(userId, cardBlockUserId);
+      handleBlockedUser(cardBlockUserId);
+      setCardBlockUserId(null);
+      setCardBlocking(false);
+    } catch (error) {
+      console.error("Block user failed:", error);
+      setCardBlockError(
+        error instanceof Error ? error.message : "Could not block this user."
+      );
+      setCardBlocking(false);
+    }
+  }
+
+  async function copyPrayerLink(id: string) {
+    const url = `${window.location.origin}/prayer?story=${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setAuthMessage("Prayer link copied.");
+    } catch {
+      setAuthMessage(url);
+    }
+  }
+
+  async function sharePrayer(request: PrayerConnectRequest) {
+    const url = `${window.location.origin}/prayer?story=${request.id}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: request.title, url });
+        return;
+      } catch {
+        // fall through to clipboard on cancel/failure
+      }
+    }
+    await copyPrayerLink(request.id);
+  }
+
+  function buildCardMenuItems(
+    request: PrayerConnectRequest
+  ): PrayerActionItem[] {
+    const isOwner = Boolean(request.userId) && request.userId === userId;
+    if (isOwner) {
+      return [
+        {
+          id: "edit",
+          label: "Edit prayer",
+          icon: Pencil,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+        {
+          id: "update",
+          label: "Post an update",
+          icon: Bell,
+          onSelect: () => router.push("/prayer?tab=my-requests"),
+        },
+      ];
+    }
+    const isSaved = savedIds.includes(request.id);
+    return [
+      {
+        id: "save",
+        label: isSaved ? "Remove from Saved" : "Save prayer",
+        icon: Bookmark,
+        onSelect: () => void toggleSave(request.id),
+      },
+      {
+        id: "share",
+        label: "Share prayer",
+        icon: Share2,
+        onSelect: () => void sharePrayer(request),
+      },
+      {
+        id: "copy",
+        label: "Copy prayer link",
+        icon: Link2,
+        onSelect: () => void copyPrayerLink(request.id),
+      },
+      {
+        id: "profile",
+        label: "View profile",
+        icon: UserRound,
+        disabled: !request.userId || request.isAnonymous,
+        onSelect: () => request.userId && router.push(`/profile/${request.userId}`),
+      },
+      {
+        id: "hide",
+        label: "Hide this prayer",
+        icon: EyeOff,
+        onSelect: () => handleHidePrayer(request.id),
+      },
+      {
+        id: "report",
+        label: "Report to Admin",
+        icon: Flag,
+        onSelect: () =>
+          setCardReportTarget({
+            contentType: "prayer_request",
+            reportedUserId: request.userId,
+            storyId: request.id,
+            subjectLabel: "this prayer",
+          }),
+      },
+      {
+        id: "block",
+        label: "Block user",
+        icon: Ban,
+        danger: true,
+        disabled: !request.userId,
+        onSelect: () => setCardBlockUserId(request.userId),
+      },
+    ];
+  }
 
   const selected = useMemo(
     () =>
@@ -695,6 +906,7 @@ export default function PrayerConnectExperience() {
             onTabChange={setActiveTab}
             onPost={() => setComposerOpen(true)}
             onHowItWorks={() => setHowOpen(true)}
+            onOpenHidden={userId ? () => setHiddenPanelOpen(true) : undefined}
             compact={searchConfigured}
           />
         )}
@@ -993,6 +1205,7 @@ export default function PrayerConnectExperience() {
                         savedIds={savedIds}
                         onOpen={(id) => openRequest(id)}
                         onToggleSave={(id) => void toggleSave(id)}
+                        buildMenuItems={buildCardMenuItems}
                         hasMore={hasMoreRequests}
                         remainingCount={tabRequests.length - visibleCount}
                         onLoadMore={() =>
@@ -1022,6 +1235,7 @@ export default function PrayerConnectExperience() {
                             saved={savedIds.includes(request.id)}
                             onOpen={() => openRequest(request.id)}
                             onToggleSave={() => void toggleSave(request.id)}
+                            menuItems={buildCardMenuItems(request)}
                           />
                         ))}
                       </div>
@@ -1119,6 +1333,7 @@ export default function PrayerConnectExperience() {
             }}
             onOpenMap={openMapView}
             onPost={() => setComposerOpen(true)}
+            onOpenHidden={userId ? () => setHiddenPanelOpen(true) : undefined}
           />
 
           <PrayerMobileOverflowMenu
@@ -1184,11 +1399,16 @@ export default function PrayerConnectExperience() {
             });
           }}
           onResponseCountChange={(id, count) => {
-            setRequests((current) =>
-              current.map((item) =>
+            setRequests((current) => {
+              // Only produce a new array/object when the count actually
+              // changes, so the detail view's request prop stays stable and
+              // the Video Prayers section never re-loads in a loop.
+              const target = current.find((item) => item.id === id);
+              if (!target || target.responseCount === count) return current;
+              return current.map((item) =>
                 item.id === id ? { ...item, responseCount: count } : item
-              )
-            );
+              );
+            });
           }}
           onEncouraged={(id) => {
             setRequests((current) =>
@@ -1209,6 +1429,8 @@ export default function PrayerConnectExperience() {
               return next;
             });
           }}
+          onHidePrayer={handleHidePrayer}
+          onBlockedUser={handleBlockedUser}
         />
       ) : null}
 
@@ -1221,6 +1443,51 @@ export default function PrayerConnectExperience() {
           void refresh();
           setActiveTab("my-requests");
         }}
+      />
+
+      <PrayerReportModal
+        open={Boolean(cardReportTarget)}
+        target={
+          cardReportTarget
+            ? { ...cardReportTarget, responseId: null }
+            : null
+        }
+        onClose={() => setCardReportTarget(null)}
+        onBlock={
+          cardReportTarget?.reportedUserId
+            ? () => setCardBlockUserId(cardReportTarget.reportedUserId)
+            : undefined
+        }
+        onHide={
+          cardReportTarget
+            ? () => handleHidePrayer(cardReportTarget.storyId)
+            : undefined
+        }
+      />
+
+      <PrayerConfirmDialog
+        open={Boolean(cardBlockUserId)}
+        danger
+        loading={cardBlocking}
+        errorMessage={cardBlockError}
+        title="Block this person?"
+        body="You won't see their prayers or responses, and they won't be able to send you new private prayers. You can unblock anyone from account settings."
+        confirmLabel="Block user"
+        onCancel={() => {
+          if (cardBlocking) return;
+          setCardBlockUserId(null);
+          setCardBlockError(null);
+        }}
+        onConfirm={() => void confirmCardBlock()}
+      />
+
+      <PrayerHiddenPanel
+        open={hiddenPanelOpen}
+        onClose={() => setHiddenPanelOpen(false)}
+        userId={userId}
+        hiddenIds={hiddenIds}
+        onRestored={(_storyId, nextHiddenIds) => setHiddenIds(nextHiddenIds)}
+        onRefreshFeed={() => void refresh()}
       />
 
       {howOpen ? (
