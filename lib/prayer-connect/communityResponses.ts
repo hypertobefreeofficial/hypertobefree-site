@@ -1,5 +1,5 @@
 import { supabase } from "../supabaseClient";
-import { resolveStoryMediaUrl, STORY_VIDEO_BUCKET } from "./media";
+import { resolveStoryMediaUrl, STORY_THUMBNAIL_BUCKET, STORY_VIDEO_BUCKET } from "./media";
 import {
   loadPrayerAuthorProfiles,
   resolveAuthorPresentation,
@@ -21,6 +21,8 @@ export type VideoPrayerResponse = {
   id: string;
   videoUrl: string | null;
   signedVideoUrl: string | null;
+  thumbnailUrl: string | null;
+  signedThumbnailUrl: string | null;
   authorUserId: string;
   author: PrayerAuthorProfile;
   createdAt: string;
@@ -42,9 +44,12 @@ const COMMUNITY_LOAD_ERROR =
   "We couldn't load the community prayers right now.";
 
 async function loadApprovedVideoResponses(storyId: string) {
+  const selectWithThumbnail =
+    "id, user_id, video_url, thumbnail_url, created_at, status";
+
   const withRemovedFilter = await supabase
     .from("prayer_video_responses")
-    .select("id, user_id, video_url, created_at, status")
+    .select(selectWithThumbnail)
     .eq("story_id", storyId)
     .eq("status", "approved")
     .is("removed_at", null)
@@ -55,10 +60,37 @@ async function loadApprovedVideoResponses(storyId: string) {
     return withRemovedFilter;
   }
 
+  if (/thumbnail_url/i.test(withRemovedFilter.error.message)) {
+    const withoutThumbnail = await supabase
+      .from("prayer_video_responses")
+      .select("id, user_id, video_url, created_at, status")
+      .eq("story_id", storyId)
+      .eq("status", "approved")
+      .is("removed_at", null)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (!withoutThumbnail.error) {
+      return withoutThumbnail;
+    }
+
+    if (/removed_at/i.test(withoutThumbnail.error.message)) {
+      return supabase
+        .from("prayer_video_responses")
+        .select("id, user_id, video_url, created_at, status")
+        .eq("story_id", storyId)
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(20);
+    }
+
+    return withoutThumbnail;
+  }
+
   if (/removed_at/i.test(withRemovedFilter.error.message)) {
     return supabase
       .from("prayer_video_responses")
-      .select("id, user_id, video_url, created_at, status")
+      .select(selectWithThumbnail)
       .eq("story_id", storyId)
       .eq("status", "approved")
       .order("created_at", { ascending: false })
@@ -160,6 +192,7 @@ export async function loadCommunityPrayerResponses(
           id: string;
           user_id: string;
           video_url: string | null;
+          thumbnail_url?: string | null;
           created_at: string;
           status: string;
         }[]) ?? []);
@@ -199,14 +232,16 @@ export async function loadCommunityPrayerResponses(
 
     const video: VideoPrayerResponse[] = await Promise.all(
       filteredVideoRows.map(async (row) => {
-        const signedVideoUrl = await resolveStoryMediaUrl(
-          row.video_url,
-          STORY_VIDEO_BUCKET
-        );
+        const [signedVideoUrl, signedThumbnailUrl] = await Promise.all([
+          resolveStoryMediaUrl(row.video_url, STORY_VIDEO_BUCKET),
+          resolveStoryMediaUrl(row.thumbnail_url ?? null, STORY_THUMBNAIL_BUCKET),
+        ]);
         return {
           id: row.id,
           videoUrl: row.video_url,
           signedVideoUrl,
+          thumbnailUrl: row.thumbnail_url ?? null,
+          signedThumbnailUrl,
           authorUserId: row.user_id,
           author: resolveAuthorPresentation(row.user_id, profiles),
           createdAt: row.created_at,
@@ -336,6 +371,7 @@ export type SubmitVideoPrayerResult =
 export async function submitPublicVideoPrayerResponse(options: {
   prayerStoryId: string;
   responseVideoUrl: string;
+  responseThumbnailUrl?: string | null;
   accessToken: string;
 }): Promise<SubmitVideoPrayerResult> {
   let response: Response;
@@ -349,6 +385,7 @@ export async function submitPublicVideoPrayerResponse(options: {
       body: JSON.stringify({
         prayer_story_id: options.prayerStoryId,
         response_video_url: options.responseVideoUrl,
+        response_thumbnail_url: options.responseThumbnailUrl ?? null,
       }),
     });
   } catch {

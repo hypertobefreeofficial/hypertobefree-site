@@ -3,6 +3,7 @@ import { getPublicVideoEligibility } from "../../../lib/prayer-connect/eligibili
 import { areUsersBlocked } from "../../../lib/server/prayerBlocking";
 import {
   PRAYER_MEDIA_LIMITS,
+  validateUploadedThumbnailObject,
   validateUploadedVideoObject,
 } from "../../../lib/server/prayerMediaValidation";
 import {
@@ -71,6 +72,10 @@ export async function POST(request: Request) {
   const responseVideoUrl =
     typeof body.response_video_url === "string"
       ? body.response_video_url.trim()
+      : "";
+  const responseThumbnailUrl =
+    typeof body.response_thumbnail_url === "string"
+      ? body.response_thumbnail_url.trim()
       : "";
 
   if (!prayerStoryId || !responseVideoUrl) {
@@ -249,34 +254,54 @@ export async function POST(request: Request) {
     return fail(mediaCheck.error, mediaCheck.code, 400);
   }
 
+  let validatedThumbnailUrl: string | null = null;
+  if (responseThumbnailUrl) {
+    const thumbnailCheck = await validateUploadedThumbnailObject({
+      adminClient,
+      imagePathOrUrl: responseThumbnailUrl,
+      ownerUserId: user.id,
+      maxBytes: PRAYER_MEDIA_LIMITS.maxImageBytes,
+    });
+
+    if (thumbnailCheck.ok !== true) {
+      return fail(thumbnailCheck.error, thumbnailCheck.code, 400);
+    }
+
+    validatedThumbnailUrl = responseThumbnailUrl;
+  }
+
+  const insertPayload: Record<string, unknown> = {
+    story_id: prayerStoryId,
+    user_id: user.id,
+    video_url: responseVideoUrl,
+    body: null,
+    status: "submitted",
+    duration_verification_status: "unavailable",
+  };
+
+  if (validatedThumbnailUrl) {
+    insertPayload.thumbnail_url = validatedThumbnailUrl;
+  }
+
   const { data: insertedData, error: insertError } = await adminClient
     .from("prayer_video_responses")
-    .insert({
-      story_id: prayerStoryId,
-      user_id: user.id,
-      video_url: responseVideoUrl,
-      body: null,
-      status: "submitted",
-      duration_verification_status: "unavailable",
-    })
+    .insert(insertPayload)
     .select("id")
     .single();
 
   if (insertError || !insertedData?.id) {
-    // Retry without duration column when migration is not applied yet.
+    // Retry without optional columns when migrations are not applied yet.
     if (
       insertError &&
-      /duration_verification_status/i.test(insertError.message)
+      /duration_verification_status|thumbnail_url/i.test(insertError.message)
     ) {
+      const legacyPayload = { ...insertPayload };
+      delete legacyPayload.duration_verification_status;
+      delete legacyPayload.thumbnail_url;
+
       const { data: legacyInsert, error: legacyError } = await adminClient
         .from("prayer_video_responses")
-        .insert({
-          story_id: prayerStoryId,
-          user_id: user.id,
-          video_url: responseVideoUrl,
-          body: null,
-          status: "submitted",
-        })
+        .insert(legacyPayload)
         .select("id")
         .single();
 

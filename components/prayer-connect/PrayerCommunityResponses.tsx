@@ -333,6 +333,7 @@ export default function PrayerCommunityResponses({
                   controls
                   playsInline
                   preload="metadata"
+                  poster={item.signedThumbnailUrl || undefined}
                   aria-label={`Video prayer from ${item.author.displayName}`}
                 />
               ) : (

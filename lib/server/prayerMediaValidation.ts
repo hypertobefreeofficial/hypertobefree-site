@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { STORY_IMAGE_BUCKET, STORY_VIDEO_BUCKET } from "../journey/uploads/media";
+import { STORY_IMAGE_BUCKET, STORY_THUMBNAIL_BUCKET, STORY_VIDEO_BUCKET } from "../journey/uploads/media";
 
 export const PRAYER_MEDIA_LIMITS = {
   originalVideoSeconds: 120,
@@ -249,19 +249,33 @@ export async function validateUploadedImageObject(options: {
   ownerUserId: string;
   maxBytes: number;
 }): Promise<MediaValidationResult> {
+  return validateUploadedThumbnailObject({
+    ...options,
+    bucket: STORY_IMAGE_BUCKET,
+  });
+}
+
+export async function validateUploadedThumbnailObject(options: {
+  adminClient: SupabaseClient;
+  imagePathOrUrl: string;
+  ownerUserId: string;
+  maxBytes: number;
+  bucket?: string;
+}): Promise<MediaValidationResult> {
+  const bucket = options.bucket ?? STORY_THUMBNAIL_BUCKET;
   const parsed =
-    parseSupabaseStorageUrl(options.imagePathOrUrl, STORY_IMAGE_BUCKET) ??
+    parseSupabaseStorageUrl(options.imagePathOrUrl, bucket) ??
     (options.imagePathOrUrl.startsWith("http")
       ? null
       : {
-          bucket: STORY_IMAGE_BUCKET,
+          bucket,
           path: options.imagePathOrUrl.replace(/^\/+/, ""),
         });
 
   if (!parsed) {
     return {
       ok: false,
-      error: "Image must be uploaded through HTBF storage.",
+      error: "Thumbnail must be uploaded through HTBF storage.",
       code: "invalid_storage_url",
     };
   }
@@ -269,7 +283,7 @@ export async function validateUploadedImageObject(options: {
   if (!assertStoragePathOwnedByUser(parsed.path, options.ownerUserId)) {
     return {
       ok: false,
-      error: "You can only attach images you uploaded.",
+      error: "You can only attach thumbnails you uploaded.",
       code: "ownership_mismatch",
     };
   }
@@ -283,7 +297,7 @@ export async function validateUploadedImageObject(options: {
   if (!metadata || metadata.sizeBytes <= 0) {
     return {
       ok: false,
-      error: "Could not verify the uploaded image. Please upload again.",
+      error: "Could not verify the uploaded thumbnail. Please upload again.",
       code: "metadata_unavailable",
     };
   }
@@ -291,7 +305,7 @@ export async function validateUploadedImageObject(options: {
   if (metadata.sizeBytes > options.maxBytes) {
     return {
       ok: false,
-      error: `Images must be ${Math.round(options.maxBytes / (1024 * 1024))} MB or smaller.`,
+      error: `Thumbnails must be ${Math.round(options.maxBytes / (1024 * 1024))} MB or smaller.`,
       code: "file_too_large",
     };
   }
@@ -300,7 +314,7 @@ export async function validateUploadedImageObject(options: {
   if (mime && !IMAGE_MIME_ALLOWLIST.has(mime) && !mime.startsWith("image/")) {
     return {
       ok: false,
-      error: "This file type is not allowed for prayer photos.",
+      error: "This file type is not allowed for video thumbnails.",
       code: "mime_not_allowed",
     };
   }
@@ -321,4 +335,4 @@ export async function validateUploadedImageObject(options: {
  */
 export const VIDEO_DURATION_SERVER_PROBE_REQUIRED = true;
 
-export { STORY_IMAGE_BUCKET, STORY_VIDEO_BUCKET, VIDEO_MIME_ALLOWLIST };
+export { STORY_IMAGE_BUCKET, STORY_THUMBNAIL_BUCKET, STORY_VIDEO_BUCKET, VIDEO_MIME_ALLOWLIST };

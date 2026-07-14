@@ -38,10 +38,9 @@ import {
   detectSensitivePersonalInfo,
   sanitizeCustomPrayerType,
 } from "../../lib/prayer-connect/utils";
+import { uploadPrayerPhoto, uploadPrayerVideoWithThumbnail } from "../../lib/prayer-connect/media";
 import styles from "./PrayerConnect.module.css";
 
-const STORY_IMAGE_BUCKET = "story-images";
-const STORY_VIDEO_BUCKET = "story-videos";
 const TOTAL_STEPS = 6;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
@@ -430,40 +429,7 @@ export default function PrayerPostComposer({
   }
 
   async function uploadPhoto(userId: string, file: File) {
-    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-    const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(STORY_IMAGE_BUCKET)
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type || "image/jpeg",
-      });
-
-    if (uploadError) throw new Error(uploadError.message);
-    return path;
-  }
-
-  async function uploadVideo(userId: string, file: File) {
-    const extension = file.name.split(".").pop()?.toLowerCase() || "mp4";
-    const path = `${userId}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(STORY_VIDEO_BUCKET)
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type || "video/mp4",
-      });
-
-    if (uploadError) throw new Error(uploadError.message);
-
-    const { data } = supabase.storage
-      .from(STORY_VIDEO_BUCKET)
-      .getPublicUrl(path);
-
-    return data.publicUrl;
+    return uploadPrayerPhoto(userId, file);
   }
 
   async function moderateStory(text: string, hasVideo: boolean, hasPhoto: boolean) {
@@ -548,6 +514,7 @@ export default function PrayerPostComposer({
 
       let imageUrl: string | null = null;
       let videoUrl: string | null = null;
+      let thumbnailUrl: string | null = null;
 
       if (hasPhoto && mediaFile) {
         setPublishMessage("Uploading photo…");
@@ -555,8 +522,13 @@ export default function PrayerPostComposer({
       }
 
       if (hasVideo && mediaFile) {
-        setPublishMessage("Uploading video…");
-        videoUrl = await uploadVideo(user.id, mediaFile);
+        setPublishMessage("Uploading video and creating thumbnail…");
+        const upload = await uploadPrayerVideoWithThumbnail(user.id, mediaFile);
+        videoUrl = upload.videoUrl;
+        thumbnailUrl = upload.thumbnailUrl;
+        if (upload.thumbnailFailed) {
+          console.warn("Prayer request thumbnail failed:", upload.thumbnailError);
+        }
       }
 
       const topics = buildInteractionTopics({
@@ -589,6 +561,7 @@ export default function PrayerPostComposer({
         story_text: storyText,
         image_url: imageUrl,
         video_url: videoUrl,
+        thumbnail_url: thumbnailUrl,
         status,
         prayer_status: "active",
         topics,

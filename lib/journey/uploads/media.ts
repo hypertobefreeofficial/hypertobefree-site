@@ -15,6 +15,7 @@ import { supabase } from "../../supabaseClient";
 
 export const STORY_IMAGE_BUCKET = "story-images";
 export const STORY_VIDEO_BUCKET = "story-videos";
+export const STORY_THUMBNAIL_BUCKET = "story-thumbnails";
 
 function getStoragePath(value: string, bucket: string): string | null {
   if (!value || value.startsWith("http")) return null;

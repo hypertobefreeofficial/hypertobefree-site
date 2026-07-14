@@ -34,7 +34,7 @@
 | `20260714_prayer_video_response_removal.sql` | Soft-removal bookkeeping for public video responses (additive) |
 | `20260715_prayer_interaction_persistence.sql` | Server-backed hide (`prayer_hidden_stories`) + optional `content_reports` RLS |
 | `20260716_prayer_video_response_duration_verification.sql` | Duration verification state on public video responses |
-| `20260717_prayer_security_hardening.sql` | Audit-field protection trigger on `prayer_video_responses` |
+| `20260718_prayer_video_response_thumbnails.sql` | Persisted thumbnails on public video responses |
 
 The original unhardened `20260712_prayer_production_readiness.sql` has been
 removed and replaced by the hardened file.

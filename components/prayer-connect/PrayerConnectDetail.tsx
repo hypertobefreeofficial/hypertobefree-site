@@ -25,7 +25,7 @@ import {
 } from "../../lib/prayer-connect/communityResponses";
 import { getPrayerInteractionPrefs } from "../../lib/prayer-connect/interactionPrefs";
 import { getPublicVideoEligibility } from "../../lib/prayer-connect/eligibility";
-import { uploadPrayerVideo } from "../../lib/prayer-connect/media";
+import { uploadPrayerVideoWithThumbnail } from "../../lib/prayer-connect/media";
 import { blockUser } from "../../lib/prayer-connect/blocking";
 import {
   sendPrivatePrayerMessage,
@@ -571,12 +571,13 @@ export default function PrayerConnectDetail({
       }
 
       setSubmitPhase("uploading");
-      const videoUrl = await uploadPrayerVideo(user.id, publicVideoFile);
+      const upload = await uploadPrayerVideoWithThumbnail(user.id, publicVideoFile);
 
       setSubmitPhase("submitting");
       const result = await submitPublicVideoPrayerResponse({
         prayerStoryId: request.id,
-        responseVideoUrl: videoUrl,
+        responseVideoUrl: upload.videoUrl,
+        responseThumbnailUrl: upload.thumbnailUrl,
         accessToken: token,
       });
 

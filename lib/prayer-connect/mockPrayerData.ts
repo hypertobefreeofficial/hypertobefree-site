@@ -374,6 +374,8 @@ export function getMockCommunityResponses(
           "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
         signedVideoUrl:
           "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        thumbnailUrl: "/images/feed/freedom-feed-hero-final.webp",
+        signedThumbnailUrl: "/images/feed/freedom-feed-hero-final.webp",
         authorUserId: "mock-responder-1",
         author: {
           id: "mock-responder-1",
@@ -390,6 +392,8 @@ export function getMockCommunityResponses(
           "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
         signedVideoUrl:
           "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+        thumbnailUrl: "/images/journey/03-reflection-room-desktop.png",
+        signedThumbnailUrl: "/images/journey/03-reflection-room-desktop.png",
         authorUserId: "mock-responder-2",
         author: {
           id: "mock-responder-2",
