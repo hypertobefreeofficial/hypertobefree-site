@@ -1,11 +1,10 @@
 import FreedomFeed from "../../components/FreedomFeed";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 
 export default function FeedPage() {
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
+    <main className="min-h-screen bg-white text-slate-900 md:bg-[#f3f7fc]">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/95 backdrop-blur-xl supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-[720px] items-center justify-between px-4 py-3 md:py-3.5">
           <div className="text-sm font-black text-[#082f63]">HTBF</div>
 
           <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
@@ -14,11 +13,7 @@ export default function FeedPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-4xl px-4 py-6">
-        <FreedomFeed />
-      </div>
-
-      <LoggedInBottomNav />
+      <FreedomFeed />
     </main>
   );
 }

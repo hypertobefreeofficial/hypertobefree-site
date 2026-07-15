@@ -18,9 +18,9 @@ import {
   Eye,
   EyeOff,
   Flag,
-  Globe2,
   Info,
   MoreHorizontal,
+  MoreVertical,
   Video,
   MessageCircleHeart,
   CheckCircle2,
@@ -45,6 +45,42 @@ import CreatorStudioStoryRenderer from "./creation-center/CreatorStudioStoryRend
 import { FeedComposer } from "./FeedComposer";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
+import {
+  COMMUNITY_FEED_PAGE_LIMIT_DEFAULT,
+  filterFeedDisplayItems,
+  loadCommunityFeed,
+  type FeedDisplayItem,
+  type FeedStoryDisplay,
+} from "../lib/community-feed/loadCommunityFeed";
+import { loadBidirectionalBlockedUserIds } from "../lib/community-feed/blockedUsers";
+import { mergeFeedDisplayPages } from "../lib/community-feed/mergeFeedState";
+import { processRealtimeFeedUpdates } from "../lib/community-feed/processRealtimeFeedUpdates";
+import {
+  parseReactionRealtimePayload,
+  parseResponseRealtimePayload,
+  parseStoryRealtimePayload,
+} from "../lib/community-feed/realtimePayload";
+import type {
+  RealtimeFeedSyncBatch,
+  RealtimeResponseChange,
+  RealtimeStoryChange,
+} from "../lib/community-feed/realtimeFeedSync";
+import { getCommunityFeedSchemaCapabilities } from "../lib/community-feed/schemaCapabilities";
+import {
+  feedMediaAspectClassName,
+  getStoryFeedMediaAspect,
+} from "../lib/community-feed/feedMediaAspect";
+import {
+  getCommunityFeedVisualValidationFixtures,
+} from "../lib/community-feed/visualValidationFixtures";
+import {
+  isCommunityFeedVisualValidationEnabled,
+  VISUAL_VALIDATION_PAGE_2_CURSOR,
+} from "../lib/community-feed/visualValidationMode";
+import { formatFeedRelativeTime } from "../lib/community-feed/formatFeedRelativeTime";
+import { hidePrayer } from "../lib/prayer-connect/hiddenPrayers";
+import FeedScrollVideoPreview from "./community-feed/FeedScrollVideoPreview";
+import styles from "./FreedomFeed.module.css";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 type ReportReason =
@@ -123,46 +159,7 @@ type ReactionRow = {
   reaction_type: string | null;
 };
 
-type ApprovedStory = {
-  id: string;
-  user_id: string | null;
-  name: string | null;
-  location: string | null;
-  story_type: string | null;
-  story_text: string | null;
-  overlay_text: string | null;
-  overlay_x: number | null;
-  overlay_y: number | null;
-  caption_style: CaptionStyle | null;
-  caption_font: CaptionFont;
-  caption_background: CaptionBackground;
-  caption_template: CaptionTemplate | null;
-  caption_color: CaptionColor;
-  caption_size: CaptionSize;
-  caption_align: CaptionAlign;
-  video_template: VideoTemplate;
-  htbf_watermark_enabled: boolean;
-  silhouette_watermark_enabled: boolean;
-  shared_htbf_intro_enabled: boolean;
-  image_url: string | null;
-  signed_image_url: string | null;
-  video_url: string | null;
-  signed_video_url: string | null;
-  status: string | null;
-  created_at: string | null;
-  prayer_status: string | null;
-  answered_at: string | null;
-  answered_text: string | null;
-  creation_mode: string | null;
-  ai_suggestions: unknown | null;
-  reaction_counts: {
-    amen: number;
-    praise_god: number;
-    encouraged: number;
-    praying: number;
-  };
-  user_reactions: ReactionType[];
-};
+type ApprovedStory = FeedStoryDisplay;
 
 type CreationTemplateMetadata = {
   id: CreationCenterTemplateId | "generated-creator-studio";
@@ -279,6 +276,162 @@ const reportReasons: { label: string; value: ReportReason }[] = [
   { label: "Other", value: "other" },
 ];
 
+function getCaptionStyle(value: string | null | undefined): CaptionStyle {
+  if (
+    value === "classic-caption" ||
+    value === "bold-center" ||
+    value === "bottom-banner" ||
+    value === "highlight-box" ||
+    value === "scripture-card" ||
+    value === "praise-glow" ||
+    value === "testimony-quote" ||
+    value === "minimal-white" ||
+    value === "black-outline" ||
+    value === "soft-gradient" ||
+    value === "elegant-script"
+  ) {
+    return value;
+  }
+
+  return "classic-caption";
+}
+
+function getCaptionColor(value: string | null | undefined): CaptionColor {
+  if (
+    value === "white" ||
+    value === "black" ||
+    value === "deep-navy" ||
+    value === "soft-gold" ||
+    value === "prayer-blue" ||
+    value === "warm-cream" ||
+    value === "praise-green"
+  ) {
+    return value;
+  }
+
+  if (value && /^#[0-9a-fA-F]{6}$/.test(value)) {
+    return value as `#${string}`;
+  }
+
+  return "white";
+}
+
+function getCaptionSize(value: string | null | undefined): CaptionSize {
+  if (
+    value === "small" ||
+    value === "medium" ||
+    value === "large" ||
+    value === "extra-large"
+  ) {
+    return value;
+  }
+
+  return "medium";
+}
+
+function getCaptionAlign(value: string | null | undefined): CaptionAlign {
+  if (value === "left" || value === "center" || value === "right") {
+    return value;
+  }
+
+  return "center";
+}
+
+function getCaptionFont(
+  value: string | null | undefined,
+  legacyStyle?: CaptionStyle | null
+): CaptionFont {
+  if (
+    value === "classic" ||
+    value === "bold" ||
+    value === "scripture" ||
+    value === "praise" ||
+    value === "testimony" ||
+    value === "minimal" ||
+    value === "grace-script"
+  ) {
+    return value;
+  }
+
+  if (legacyStyle === "bold-center") return "bold";
+  if (legacyStyle === "scripture-card") return "scripture";
+  if (legacyStyle === "praise-glow") return "praise";
+  if (legacyStyle === "testimony-quote") return "testimony";
+  if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
+    return "minimal";
+  }
+  if (legacyStyle === "elegant-script") return "grace-script";
+
+  return "classic";
+}
+
+function getCaptionBackground(
+  value: string | null | undefined,
+  legacyStyle?: CaptionStyle | null
+): CaptionBackground {
+  if (
+    value === "none" ||
+    value === "soft-pill" ||
+    value === "glass-blur" ||
+    value === "dark-banner" ||
+    value === "glow-box" ||
+    value === "scripture-card"
+  ) {
+    return value;
+  }
+
+  if (legacyStyle === "bottom-banner") return "dark-banner";
+  if (legacyStyle === "scripture-card") return "scripture-card";
+  if (legacyStyle === "soft-gradient" || legacyStyle === "praise-glow") {
+    return "glow-box";
+  }
+  if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
+    return "none";
+  }
+
+  return "soft-pill";
+}
+
+function getCaptionTemplate(
+  value: string | null | undefined
+): CaptionTemplate | null {
+  if (
+    value === "testimony-light" ||
+    value === "prayer-calm" ||
+    value === "scripture-focus" ||
+    value === "freedom-glow" ||
+    value === "quiet-strength" ||
+    value === "celebration-praise"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function getVideoTemplate(value: string | null | undefined): VideoTemplate {
+  if (
+    value === "none" ||
+    value === "htbf-logo" ||
+    value === "freedom-silhouette" ||
+    value === "shared-through-htbf" ||
+    value === "freedom-story" ||
+    value === "prayer-moment" ||
+    value === "praise-report" ||
+    value === "god-did-it"
+  ) {
+    return value;
+  }
+
+  if (value === "freedom") return "freedom-story";
+  if (value === "testimony") return "shared-through-htbf";
+  if (value === "prayer_circle") return "prayer-moment";
+  if (value === "revival") return "praise-report";
+  if (value === "kingdom") return "htbf-logo";
+
+  return "none";
+}
+
 export default function FreedomFeed({
   defaultFilter = "all",
   lockedFilter = false,
@@ -286,7 +439,11 @@ export default function FreedomFeed({
   defaultFilter?: FeedFilter;
   lockedFilter?: boolean;
 }) {
-  const [stories, setStories] = useState<ApprovedStory[]>([]);
+  const [feedItems, setFeedItems] = useState<FeedDisplayItem[]>([]);
+  const [feedNextCursor, setFeedNextCursor] = useState<string | null>(null);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [loadingMoreFeed, setLoadingMoreFeed] = useState(false);
+  const [feedLoadError, setFeedLoadError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState("");
   const [activeFilter, setActiveFilter] = useState<FeedFilter>(defaultFilter);
@@ -308,12 +465,32 @@ export default function FreedomFeed({
   const [sendingReport, setSendingReport] = useState(false);
   const [savedStoryIds, setSavedStoryIds] = useState<string[]>([]);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [postOverflowMenuKey, setPostOverflowMenuKey] = useState<string | null>(
+    null
+  );
+  const blockedUserIdsRef = useRef<string[]>([]);
   const [isRestoringFeedPosition, setIsRestoringFeedPosition] = useState(
     () => Boolean(readFreedomFeedReturnState())
   );
   const currentUserIdRef = useRef<string | null>(null);
-  const feedReloadInFlightRef = useRef(false);
-  const feedReloadQueuedRef = useRef(false);
+  const feedRealtimeInFlightRef = useRef(false);
+  const feedRealtimeQueuedRef = useRef(false);
+  const feedLoadMoreInFlightRef = useRef(false);
+  const feedPagesLoadedRef = useRef(1);
+  const feedNextCursorRef = useRef<string | null>(null);
+  const feedItemsRef = useRef<FeedDisplayItem[]>([]);
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const realtimeBatchRef = useRef<RealtimeFeedSyncBatch>({
+    storyChanges: [],
+    responseChanges: [],
+    reactionStoryIds: [],
+  });
+  const feedSchemaCapabilitiesRef = useRef<{
+    stories: { hasRemovedAt: boolean };
+    prayerVideoResponses: { hasRemovedAt: boolean };
+  } | null>(null);
   const restoredReturnPositionRef = useRef(false);
   const photoViewerHistoryPushedRef = useRef(false);
   const photoViewerReturnUrlRef = useRef<string | null>(null);
@@ -327,29 +504,25 @@ export default function FreedomFeed({
   useEffect(() => {
     let cancelled = false;
 
-    async function reloadFeed() {
-      if (cancelled) return;
+    const fixtureEnabled = isCommunityFeedVisualValidationEnabled(
+      new URLSearchParams(window.location.search)
+    );
 
-      if (feedReloadInFlightRef.current) {
-        feedReloadQueuedRef.current = true;
-        return;
-      }
-
-      feedReloadInFlightRef.current = true;
-
-      try {
-        await loadApprovedStories(currentUserIdRef.current);
-      } finally {
-        feedReloadInFlightRef.current = false;
-
-        if (feedReloadQueuedRef.current && !cancelled) {
-          feedReloadQueuedRef.current = false;
-          void reloadFeed();
-        }
-      }
+    async function loadVisualValidationFixtures() {
+      setLoadingFeed(true);
+      setFeedLoadError("");
+      setFeedItems(getCommunityFeedVisualValidationFixtures(1));
+      setFeedNextCursor(VISUAL_VALIDATION_PAGE_2_CURSOR);
+      feedPagesLoadedRef.current = 1;
+      setLoadingFeed(false);
     }
 
     async function loadPage() {
+      if (fixtureEnabled) {
+        await loadVisualValidationFixtures();
+        return;
+      }
+
       if (isSupabaseConfigured) {
         try {
           const {
@@ -364,6 +537,7 @@ export default function FreedomFeed({
           } else {
             setSavedStoryIds([]);
             setBlockedUserIds([]);
+            blockedUserIdsRef.current = [];
           }
         } catch (error) {
           console.warn(
@@ -373,10 +547,16 @@ export default function FreedomFeed({
         }
       }
 
-      await reloadFeed();
+      await loadInitialCommunityFeed();
     }
 
     void loadPage();
+
+    if (fixtureEnabled || !isSupabaseConfigured) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     if (realtimeChannelRef.current) {
       supabase.removeChannel(realtimeChannelRef.current);
@@ -391,8 +571,9 @@ export default function FreedomFeed({
           schema: "public",
           table: "story_reactions",
         },
-        () => {
-          void reloadFeed();
+        (payload) => {
+          queueRealtimeReactionChange(payload);
+          scheduleRealtimeFeedSync();
         }
       )
       .on(
@@ -402,8 +583,21 @@ export default function FreedomFeed({
           schema: "public",
           table: "stories",
         },
-        () => {
-          void reloadFeed();
+        (payload) => {
+          queueRealtimeStoryChange(payload);
+          scheduleRealtimeFeedSync();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "prayer_video_responses",
+        },
+        (payload) => {
+          queueRealtimeResponseChange(payload);
+          scheduleRealtimeFeedSync();
         }
       )
       .subscribe();
@@ -412,8 +606,11 @@ export default function FreedomFeed({
 
     return () => {
       cancelled = true;
-      feedReloadQueuedRef.current = false;
-      feedReloadInFlightRef.current = false;
+      feedRealtimeQueuedRef.current = false;
+      feedRealtimeInFlightRef.current = false;
+      if (realtimeDebounceRef.current) {
+        clearTimeout(realtimeDebounceRef.current);
+      }
       supabase.removeChannel(channel);
       realtimeChannelRef.current = null;
     };
@@ -489,162 +686,6 @@ export default function FreedomFeed({
     return Boolean(userId && story.user_id && story.user_id === userId);
   }
 
-  function getCaptionStyle(value: string | null | undefined): CaptionStyle {
-    if (
-      value === "classic-caption" ||
-      value === "bold-center" ||
-      value === "bottom-banner" ||
-      value === "highlight-box" ||
-      value === "scripture-card" ||
-      value === "praise-glow" ||
-      value === "testimony-quote" ||
-      value === "minimal-white" ||
-      value === "black-outline" ||
-      value === "soft-gradient" ||
-      value === "elegant-script"
-    ) {
-      return value;
-    }
-
-    return "classic-caption";
-  }
-
-  function getCaptionColor(value: string | null | undefined): CaptionColor {
-    if (
-      value === "white" ||
-      value === "black" ||
-      value === "deep-navy" ||
-      value === "soft-gold" ||
-      value === "prayer-blue" ||
-      value === "warm-cream" ||
-      value === "praise-green"
-    ) {
-      return value;
-    }
-
-    if (value && /^#[0-9a-fA-F]{6}$/.test(value)) {
-      return value as `#${string}`;
-    }
-
-    return "white";
-  }
-
-  function getCaptionSize(value: string | null | undefined): CaptionSize {
-    if (
-      value === "small" ||
-      value === "medium" ||
-      value === "large" ||
-      value === "extra-large"
-    ) {
-      return value;
-    }
-
-    return "medium";
-  }
-
-  function getCaptionAlign(value: string | null | undefined): CaptionAlign {
-    if (value === "left" || value === "center" || value === "right") {
-      return value;
-    }
-
-    return "center";
-  }
-
-  function getCaptionFont(
-    value: string | null | undefined,
-    legacyStyle?: CaptionStyle | null
-  ): CaptionFont {
-    if (
-      value === "classic" ||
-      value === "bold" ||
-      value === "scripture" ||
-      value === "praise" ||
-      value === "testimony" ||
-      value === "minimal" ||
-      value === "grace-script"
-    ) {
-      return value;
-    }
-
-    if (legacyStyle === "bold-center") return "bold";
-    if (legacyStyle === "scripture-card") return "scripture";
-    if (legacyStyle === "praise-glow") return "praise";
-    if (legacyStyle === "testimony-quote") return "testimony";
-    if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
-      return "minimal";
-    }
-    if (legacyStyle === "elegant-script") return "grace-script";
-
-    return "classic";
-  }
-
-  function getCaptionBackground(
-    value: string | null | undefined,
-    legacyStyle?: CaptionStyle | null
-  ): CaptionBackground {
-    if (
-      value === "none" ||
-      value === "soft-pill" ||
-      value === "glass-blur" ||
-      value === "dark-banner" ||
-      value === "glow-box" ||
-      value === "scripture-card"
-    ) {
-      return value;
-    }
-
-    if (legacyStyle === "bottom-banner") return "dark-banner";
-    if (legacyStyle === "scripture-card") return "scripture-card";
-    if (legacyStyle === "soft-gradient" || legacyStyle === "praise-glow") {
-      return "glow-box";
-    }
-    if (legacyStyle === "minimal-white" || legacyStyle === "black-outline") {
-      return "none";
-    }
-
-    return "soft-pill";
-  }
-
-  function getCaptionTemplate(
-    value: string | null | undefined
-  ): CaptionTemplate | null {
-    if (
-      value === "testimony-light" ||
-      value === "prayer-calm" ||
-      value === "scripture-focus" ||
-      value === "freedom-glow" ||
-      value === "quiet-strength" ||
-      value === "celebration-praise"
-    ) {
-      return value;
-    }
-
-    return null;
-  }
-
-  function getVideoTemplate(value: string | null | undefined): VideoTemplate {
-    if (
-      value === "none" ||
-      value === "htbf-logo" ||
-      value === "freedom-silhouette" ||
-      value === "shared-through-htbf" ||
-      value === "freedom-story" ||
-      value === "prayer-moment" ||
-      value === "praise-report" ||
-      value === "god-did-it"
-    ) {
-      return value;
-    }
-
-    if (value === "freedom") return "freedom-story";
-    if (value === "testimony") return "shared-through-htbf";
-    if (value === "prayer_circle") return "prayer-moment";
-    if (value === "revival") return "praise-report";
-    if (value === "kingdom") return "htbf-logo";
-
-    return "none";
-  }
-
   function readNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
       return value;
@@ -704,15 +745,12 @@ export default function FreedomFeed({
   }
 
   async function loadAccountSafety(currentUserId: string) {
-    const [savedResult, blockedResult] = await Promise.all([
+    const [savedResult, blockedUserIdsLoaded] = await Promise.all([
       supabase
         .from("saved_content")
         .select("story_id")
         .eq("user_id", currentUserId),
-      supabase
-        .from("blocked_users")
-        .select("blocked_user_id")
-        .eq("blocker_user_id", currentUserId),
+      loadBidirectionalBlockedUserIds(currentUserId),
     ]);
 
     if (savedResult.error) {
@@ -733,23 +771,8 @@ export default function FreedomFeed({
       );
     }
 
-    if (blockedResult.error) {
-      console.error("Could not load blocked users:", blockedResult.error);
-    } else {
-      const blockedRows: unknown[] = Array.isArray(blockedResult.data)
-        ? blockedResult.data
-        : [];
-      setBlockedUserIds(
-        blockedRows.flatMap((row) =>
-          typeof row === "object" &&
-          row !== null &&
-          "blocked_user_id" in row &&
-          typeof row.blocked_user_id === "string"
-            ? [row.blocked_user_id]
-            : []
-        )
-      );
-    }
+    setBlockedUserIds(blockedUserIdsLoaded);
+    blockedUserIdsRef.current = blockedUserIdsLoaded;
   }
 
   function formatFeedLoadError(error: unknown): string {
@@ -769,231 +792,264 @@ export default function FreedomFeed({
     return "Unknown error";
   }
 
-  async function loadApprovedStories(currentUserId: string | null) {
+  useEffect(() => {
+    feedItemsRef.current = feedItems;
+  }, [feedItems]);
+
+  useEffect(() => {
+    feedNextCursorRef.current = feedNextCursor;
+  }, [feedNextCursor]);
+
+  function buildExistingItemsCache(items: FeedDisplayItem[]) {
+    return new Map(items.map((item) => [item.dedupeKey, item]));
+  }
+
+  async function loadCommunityFeedPage(options: {
+    cursor?: string | null;
+    mode: "initial" | "more" | "realtime";
+  }) {
     if (!isSupabaseConfigured) {
       console.warn(
         "Could not load approved stories: Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local, then restart the dev server."
       );
-      return;
+      return null;
     }
 
+    const existingItemsByKey =
+      options.mode === "more" || options.mode === "realtime"
+        ? buildExistingItemsCache(feedItemsRef.current)
+        : undefined;
+
+    const pageLimit =
+      options.mode === "realtime"
+        ? COMMUNITY_FEED_PAGE_LIMIT_DEFAULT * feedPagesLoadedRef.current
+        : COMMUNITY_FEED_PAGE_LIMIT_DEFAULT;
+
+    const result = await loadCommunityFeed({
+      limit: pageLimit,
+      cursor: options.mode === "more" ? options.cursor ?? null : null,
+      viewerUserId: currentUserIdRef.current,
+      blockedUserIds: blockedUserIdsRef.current,
+      includeVideoResponses: true,
+      existingItemsByKey,
+    });
+
+    if (result.ok === false) {
+      console.warn("Could not load community feed:", result.message);
+      setFeedLoadError(result.message);
+      return null;
+    }
+
+    setFeedLoadError("");
+    return result;
+  }
+
+  async function loadInitialCommunityFeed() {
+    setLoadingFeed(true);
     try {
-      const { data, error } = await supabase
-        .from("stories")
-        .select(
-          "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, image_url, video_url, status, created_at, prayer_status, answered_at, answered_text, creation_mode, ai_suggestions"
-        )
-        .eq("status", "approved")
-        .order("created_at", { ascending: false })
-        .limit(40);
+      const result = await loadCommunityFeedPage({ mode: "initial" });
+      if (!result) return;
 
-      if (error || !data) {
-        console.warn(
-          "Could not load approved stories:",
-          error ? formatFeedLoadError(error) : "No data returned"
-        );
-        return;
-      }
-
-      const storyIds = data.map((story) => story.id);
-
-      let reactions: ReactionRow[] = [];
-
-      if (storyIds.length > 0) {
-        const { data: reactionData } = await supabase
-          .from("story_reactions")
-          .select("story_id, user_id, reaction_type")
-          .in("story_id", storyIds);
-
-        reactions = (reactionData as ReactionRow[]) ?? [];
-      }
-
-      const updatedStories: ApprovedStory[] = await Promise.all(
-        data.map(async (story) => {
-        let signedImageUrl: string | null = null;
-        let signedVideoUrl: string | null = null;
-
-        if (story.image_url) {
-          const storagePath = getPhotoStoragePath(story.image_url);
-
-          if (storagePath) {
-            const { data: signedData, error: signedError } =
-              await supabase.storage
-                .from(STORY_IMAGE_BUCKET)
-                .createSignedUrl(storagePath, 60 * 60);
-
-            if (signedError) {
-              console.error("Could not create signed photo URL:", signedError);
-            }
-
-            signedImageUrl = signedData?.signedUrl ?? null;
-          } else if (story.image_url.startsWith("http")) {
-            signedImageUrl = story.image_url;
-          }
-        }
-
-        if (story.video_url) {
-          const storagePath = getVideoStoragePath(story.video_url);
-
-          if (storagePath) {
-            const { data: signedData, error: signedError } =
-              await supabase.storage
-                .from("story-videos")
-                .createSignedUrl(storagePath, 60 * 60);
-
-            if (signedError) {
-              console.error("Could not create signed video URL:", signedError);
-            }
-
-            signedVideoUrl = signedData?.signedUrl ?? null;
-          } else if (story.video_url.startsWith("http")) {
-            signedVideoUrl = story.video_url;
-          }
-        }
-
-        const storyReactions = reactions.filter(
-          (reaction) => reaction.story_id === story.id
-        );
-
-        const userReactions = storyReactions
-          .filter((reaction) => reaction.user_id === currentUserId)
-          .map((reaction) => reaction.reaction_type)
-          .filter(
-            (reaction): reaction is ReactionType =>
-              reaction === "amen" ||
-              reaction === "praise_god" ||
-              reaction === "encouraged" ||
-              reaction === "praying"
-          );
-
-        const captionStyle = getCaptionStyle(story.caption_style);
-
-        return {
-          id: story.id,
-          user_id: story.user_id,
-          name: story.name,
-          location: story.location,
-          story_type: story.story_type,
-          story_text: story.story_text,
-          overlay_text: story.overlay_text ?? null,
-          overlay_x: readNumber(story.overlay_x),
-          overlay_y: readNumber(story.overlay_y),
-          caption_style: captionStyle,
-          caption_font: getCaptionFont(story.caption_font, captionStyle),
-          caption_background: getCaptionBackground(
-            story.caption_background,
-            captionStyle
-          ),
-          caption_template: getCaptionTemplate(story.caption_template),
-          caption_color: getCaptionColor(story.caption_color),
-          caption_size: getCaptionSize(story.caption_size),
-          caption_align: getCaptionAlign(story.caption_align),
-          video_template: getVideoTemplate(story.video_template),
-          htbf_watermark_enabled: story.htbf_watermark_enabled !== false,
-          silhouette_watermark_enabled:
-            story.silhouette_watermark_enabled === true,
-          shared_htbf_intro_enabled:
-            story.shared_htbf_intro_enabled === true,
-          image_url: story.image_url,
-          signed_image_url: signedImageUrl,
-          video_url: story.video_url,
-          signed_video_url: signedVideoUrl,
-          status: story.status,
-          created_at: story.created_at,
-          prayer_status: story.prayer_status ?? "active",
-          answered_at: story.answered_at,
-          answered_text: story.answered_text,
-          creation_mode:
-            typeof story.creation_mode === "string" ? story.creation_mode : null,
-          ai_suggestions: story.ai_suggestions ?? null,
-          reaction_counts: {
-            amen: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "amen"
-            ).length,
-            praise_god: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "praise_god"
-            ).length,
-            encouraged: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "encouraged"
-            ).length,
-            praying: storyReactions.filter(
-              (reaction) => reaction.reaction_type === "praying"
-            ).length,
-          },
-          user_reactions: userReactions,
-        };
-      })
-    );
-
-    setStories(updatedStories);
-    } catch (error) {
-      console.warn(
-        "Could not load approved stories:",
-        formatFeedLoadError(error)
-      );
+      feedPagesLoadedRef.current = 1;
+      setFeedItems(result.items);
+      setFeedNextCursor(result.nextCursor);
+    } finally {
+      setLoadingFeed(false);
     }
   }
 
-  const filteredStories = useMemo(() => {
-    const visibleStories = stories.filter(
-      (story) =>
-        !story.user_id || !blockedUserIds.includes(story.user_id)
+  async function loadMoreCommunityFeed() {
+    const cursor = feedNextCursorRef.current;
+    if (!cursor || feedLoadMoreInFlightRef.current || loadingMoreFeed) {
+      return;
+    }
+
+    if (
+      isCommunityFeedVisualValidationEnabled(
+        new URLSearchParams(window.location.search)
+      ) &&
+      cursor === VISUAL_VALIDATION_PAGE_2_CURSOR
+    ) {
+      feedLoadMoreInFlightRef.current = true;
+      setLoadingMoreFeed(true);
+
+      try {
+        setFeedItems((current) =>
+          mergeFeedDisplayPages(
+            current,
+            getCommunityFeedVisualValidationFixtures(2)
+          )
+        );
+        setFeedNextCursor(null);
+        feedPagesLoadedRef.current += 1;
+      } finally {
+        feedLoadMoreInFlightRef.current = false;
+        setLoadingMoreFeed(false);
+      }
+
+      return;
+    }
+
+    feedLoadMoreInFlightRef.current = true;
+    setLoadingMoreFeed(true);
+
+    try {
+      const result = await loadCommunityFeedPage({
+        mode: "more",
+        cursor,
+      });
+      if (!result || result.items.length === 0) {
+        setFeedNextCursor(null);
+        return;
+      }
+
+      setFeedItems((current) => mergeFeedDisplayPages(current, result.items));
+      setFeedNextCursor(result.nextCursor);
+      feedPagesLoadedRef.current += 1;
+    } finally {
+      feedLoadMoreInFlightRef.current = false;
+      setLoadingMoreFeed(false);
+    }
+  }
+
+  async function refreshCommunityFeedRealtime() {
+    if (feedRealtimeInFlightRef.current) {
+      feedRealtimeQueuedRef.current = true;
+      return;
+    }
+
+    feedRealtimeInFlightRef.current = true;
+
+    try {
+      const preserveScrollY =
+        typeof window !== "undefined" && !restoredReturnPositionRef.current
+          ? window.scrollY
+          : null;
+
+      const batch = realtimeBatchRef.current;
+      realtimeBatchRef.current = {
+        storyChanges: [],
+        responseChanges: [],
+        reactionStoryIds: [],
+      };
+
+      if (!feedSchemaCapabilitiesRef.current) {
+        feedSchemaCapabilitiesRef.current =
+          await getCommunityFeedSchemaCapabilities();
+      }
+
+      const capabilities = feedSchemaCapabilitiesRef.current;
+      const result = await processRealtimeFeedUpdates({
+        loaded: feedItemsRef.current,
+        batch,
+        pagesLoaded: feedPagesLoadedRef.current,
+        viewerUserId: currentUserIdRef.current,
+        blockedUserIds: blockedUserIdsRef.current,
+        existingItemsByKey: buildExistingItemsCache(feedItemsRef.current),
+        context: {
+          blockedUserIds: new Set(blockedUserIdsRef.current),
+          removedAtFilterAvailable:
+            capabilities.stories.hasRemovedAt &&
+            capabilities.prayerVideoResponses.hasRemovedAt,
+        },
+      });
+
+      setFeedItems(result.items);
+
+      if (
+        preserveScrollY != null &&
+        typeof window !== "undefined" &&
+        !restoredReturnPositionRef.current
+      ) {
+        window.requestAnimationFrame(() => {
+          window.scrollTo(0, preserveScrollY);
+        });
+      }
+    } finally {
+      feedRealtimeInFlightRef.current = false;
+
+      if (feedRealtimeQueuedRef.current) {
+        feedRealtimeQueuedRef.current = false;
+        void refreshCommunityFeedRealtime();
+      }
+    }
+  }
+
+  function queueRealtimeStoryChange(payload: unknown) {
+    const parsed = parseStoryRealtimePayload(
+      payload as {
+        eventType?: string;
+        new?: Record<string, unknown> | null;
+        old?: Record<string, unknown> | null;
+      }
     );
+    realtimeBatchRef.current.storyChanges.push(parsed as RealtimeStoryChange);
+  }
 
-    if (activeFilter === "all") return visibleStories;
+  function queueRealtimeResponseChange(payload: unknown) {
+    const parsed = parseResponseRealtimePayload(
+      payload as {
+        eventType?: string;
+        new?: Record<string, unknown> | null;
+        old?: Record<string, unknown> | null;
+      }
+    );
+    realtimeBatchRef.current.responseChanges.push(
+      parsed as RealtimeResponseChange
+    );
+  }
 
-    if (activeFilter === "videos") {
-      return visibleStories.filter(
-        (story) => story.signed_video_url || story.video_url
-      );
+  function queueRealtimeReactionChange(payload: unknown) {
+    const storyId = parseReactionRealtimePayload(
+      payload as {
+        new?: Record<string, unknown> | null;
+        old?: Record<string, unknown> | null;
+      }
+    );
+    if (storyId) {
+      realtimeBatchRef.current.reactionStoryIds.push(storyId);
     }
+  }
 
-    if (activeFilter === "testimony") {
-      return visibleStories.filter((story) =>
-        story.story_type?.toLowerCase().includes("testimony")
-      );
+  function scheduleRealtimeFeedSync() {
+    if (realtimeDebounceRef.current) {
+      clearTimeout(realtimeDebounceRef.current);
     }
+    realtimeDebounceRef.current = setTimeout(() => {
+      void refreshCommunityFeedRealtime();
+    }, 400);
+  }
 
-    if (activeFilter === "praise") {
-      return visibleStories.filter((story) =>
-        story.story_type?.toLowerCase().includes("praise")
-      );
-    }
+  const filteredFeedItems = useMemo(
+    () => filterFeedDisplayItems(feedItems, activeFilter, blockedUserIds),
+    [activeFilter, blockedUserIds, feedItems]
+  );
 
-    if (activeFilter === "prayer") {
-      return visibleStories.filter((story) =>
-        story.story_type?.toLowerCase().includes("prayer")
-      );
-    }
-
-    if (activeFilter === "answered") {
-      return visibleStories.filter(
-        (story) =>
-          story.story_type?.toLowerCase().includes("prayer") &&
-          story.prayer_status === "answered"
-      );
-    }
-
-    return visibleStories;
-  }, [activeFilter, blockedUserIds, stories]);
+  const storyFeedItems = useMemo(
+    () =>
+      feedItems.filter(
+        (item): item is FeedStoryDisplay => item.kind === "story"
+      ),
+    [feedItems]
+  );
 
   const miniReelStories = useMemo(
     () =>
-      stories
+      storyFeedItems
         .filter(
           (story) =>
             Boolean(story.signed_video_url) &&
             (!story.user_id || !blockedUserIds.includes(story.user_id))
         )
         .slice(0, 12),
-    [blockedUserIds, stories]
+    [blockedUserIds, storyFeedItems]
   );
 
   const showMiniReelsInFeed =
     !lockedFilter && activeFilter === "all" && miniReelStories.length > 0;
 
   useEffect(() => {
-    if (restoredReturnPositionRef.current || filteredStories.length === 0) return;
+    if (restoredReturnPositionRef.current || filteredFeedItems.length === 0) return;
 
     const returnState = readFreedomFeedReturnState();
 
@@ -1010,11 +1066,14 @@ export default function FreedomFeed({
         clearAfterRestore: true,
       });
 
-      window.requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        restoreFreedomFeedReturnPosition(returnState, {
+          clearAfterRestore: false,
+        });
         setIsRestoringFeedPosition(false);
-      });
+      }, 120);
     });
-  }, [filteredStories]);
+  }, [filteredFeedItems]);
 
   async function toggleSavedStory(story: ApprovedStory) {
     setReactionMessage("");
@@ -1051,6 +1110,7 @@ export default function FreedomFeed({
   }
 
   async function blockStoryUser(story: ApprovedStory) {
+    setPostOverflowMenuKey(null);
     setReactionMessage("");
 
     if (!userId || !story.user_id) {
@@ -1073,13 +1133,146 @@ export default function FreedomFeed({
       return;
     }
 
-    setBlockedUserIds((current) =>
-      current.includes(story.user_id as string)
+    setBlockedUserIds((current) => {
+      const next = current.includes(story.user_id as string)
         ? current
-        : [...current, story.user_id as string]
-    );
+        : [...current, story.user_id as string];
+      blockedUserIdsRef.current = next;
+      return next;
+    });
+
+    void loadBidirectionalBlockedUserIds(userId).then((next) => {
+      blockedUserIdsRef.current = next;
+      setBlockedUserIds(next);
+    });
     setReactionMessage("User blocked. Their content is now hidden.");
   }
+
+  async function blockFeedUser(targetUserId: string | null | undefined) {
+    setPostOverflowMenuKey(null);
+    setReactionMessage("");
+
+    if (!userId || !targetUserId) {
+      setReactionMessage("Please sign in to block users.");
+      return;
+    }
+
+    if (targetUserId === userId) return;
+
+    const { error } = await supabase.from("blocked_users").upsert(
+      {
+        blocker_user_id: userId,
+        blocked_user_id: targetUserId,
+      },
+      { onConflict: "blocker_user_id,blocked_user_id" }
+    );
+
+    if (error) {
+      setReactionMessage(`Could not block user: ${error.message}`);
+      return;
+    }
+
+    setBlockedUserIds((current) => {
+      const next = current.includes(targetUserId)
+        ? current
+        : [...current, targetUserId];
+      blockedUserIdsRef.current = next;
+      return next;
+    });
+
+    void loadBidirectionalBlockedUserIds(userId).then((next) => {
+      blockedUserIdsRef.current = next;
+      setBlockedUserIds(next);
+    });
+    setReactionMessage("User blocked. Their content is now hidden.");
+  }
+
+  function formatAuthorMeta(
+    location: string | null | undefined,
+    createdAt: string | null | undefined
+  ) {
+    const time = formatFeedRelativeTime(createdAt);
+    const place = location?.trim() || "Location not shared";
+    return time ? `${place} · ${time}` : place;
+  }
+
+  function openFeedReport(story: ApprovedStory) {
+    setPostOverflowMenuKey(null);
+
+    if (!userId) {
+      setReactionMessage("Please sign in to report a post.");
+      return;
+    }
+
+    setReportStory(story);
+    setReportReason("inappropriate");
+    setReportDetails("");
+  }
+
+  async function hideFeedItem(item: FeedDisplayItem) {
+    setPostOverflowMenuKey(null);
+    setReactionMessage("");
+
+    if (!userId) {
+      setReactionMessage("Please sign in to hide posts.");
+      return;
+    }
+
+    if (item.kind === "story" && isPrayerStory(item)) {
+      try {
+        await hidePrayer(userId, item.id);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Could not hide post.";
+        setReactionMessage(message);
+        return;
+      }
+    }
+
+    setFeedItems((current) =>
+      current.filter((entry) => entry.dedupeKey !== item.dedupeKey)
+    );
+    setReactionMessage("Post hidden.");
+  }
+
+  function buildEngagementSummary(story: ApprovedStory) {
+    const parts: string[] = [];
+
+    if (story.reaction_counts.amen > 0) {
+      parts.push(`🙏 ${story.reaction_counts.amen} Amen`);
+    }
+
+    if (story.reaction_counts.praise_god > 0) {
+      parts.push(`✨ ${story.reaction_counts.praise_god} Praise God`);
+    }
+
+    if (story.reaction_counts.encouraged > 0) {
+      parts.push(`💙 ${story.reaction_counts.encouraged} Encouraged`);
+    }
+
+    return parts.join(" · ");
+  }
+
+  useEffect(() => {
+    if (!postOverflowMenuKey) return;
+
+    function handlePointerDown(event: Event) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) return;
+      if (target.closest("[data-feed-post-overflow-root='true']")) return;
+
+      setPostOverflowMenuKey(null);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [postOverflowMenuKey]);
 
   async function toggleReaction(storyId: string, reactionType: ReactionType) {
     setReactionMessage("");
@@ -1089,7 +1282,10 @@ export default function FreedomFeed({
       return;
     }
 
-    const story = stories.find((item) => item.id === storyId);
+    const story = feedItems.find(
+      (item): item is FeedStoryDisplay =>
+        item.kind === "story" && item.id === storyId
+    );
     const alreadyReacted = story?.user_reactions.includes(reactionType);
 
     if (alreadyReacted) {
@@ -1128,26 +1324,26 @@ export default function FreedomFeed({
     reactionType: ReactionType,
     action: "add" | "remove"
   ) {
-    setStories((currentStories) =>
-      currentStories.map((story) => {
-        if (story.id !== storyId) return story;
+    setFeedItems((currentItems) =>
+      currentItems.map((item) => {
+        if (item.kind !== "story" || item.id !== storyId) return item;
 
         const nextCount =
           action === "add"
-            ? story.reaction_counts[reactionType] + 1
-            : Math.max(story.reaction_counts[reactionType] - 1, 0);
+            ? item.reaction_counts[reactionType] + 1
+            : Math.max(item.reaction_counts[reactionType] - 1, 0);
 
         const nextUserReactions =
           action === "add"
-            ? [...story.user_reactions, reactionType]
-            : story.user_reactions.filter(
+            ? [...item.user_reactions, reactionType]
+            : item.user_reactions.filter(
                 (reaction) => reaction !== reactionType
               );
 
         return {
-          ...story,
+          ...item,
           reaction_counts: {
-            ...story.reaction_counts,
+            ...item.reaction_counts,
             [reactionType]: nextCount,
           },
           user_reactions: nextUserReactions,
@@ -1170,7 +1366,10 @@ export default function FreedomFeed({
       return;
     }
 
-    const story = stories.find((item) => item.id === storyId);
+    const story = feedItems.find(
+      (item): item is FeedStoryDisplay =>
+        item.kind === "story" && item.id === storyId
+    );
 
     if (!story) {
       setReactionMessage("Could not find this prayer request.");
@@ -1210,16 +1409,16 @@ export default function FreedomFeed({
       return;
     }
 
-    setStories((currentStories) =>
-      currentStories.map((currentStory) =>
-        currentStory.id === storyId
+    setFeedItems((currentItems) =>
+      currentItems.map((item) =>
+        item.kind === "story" && item.id === storyId
           ? {
-              ...currentStory,
+              ...item,
               prayer_status: "answered",
               answered_at: answeredAt,
               answered_text: cleanAnsweredText,
             }
-          : currentStory
+          : item
       )
     );
 
@@ -1676,67 +1875,222 @@ export default function FreedomFeed({
   return (
     <section
       id="stories"
-      aria-busy={isRestoringFeedPosition}
-      className={`mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10 ${
-        isRestoringFeedPosition ? "pointer-events-none opacity-0" : "opacity-100"
+      aria-busy={isRestoringFeedPosition || loadingFeed}
+      className={`${styles.feedRoot} ${
+        isRestoringFeedPosition ? styles.restoring : ""
       }`}
     >
-      <div className="mx-auto max-w-3xl">
-        {!lockedFilter && <FeedComposer />}
-
-        <div className="mb-6">
-          <div className="mb-4">
-            <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-              {feedLabel}
+      <div className={styles.feedColumn}>
+        <div className={styles.feedTop}>
+          {!lockedFilter && (
+            <div className={styles.heroWrap}>
+              <FeedComposer />
             </div>
+          )}
 
-            <h2 className="mt-1 text-3xl font-black tracking-tight text-[#062a57] sm:text-4xl">
-              {feedHeading}
-            </h2>
+          <div className={styles.feedHeadingBlock}>
+            <div className={styles.feedEyebrow}>{feedLabel}</div>
+            <h2 className={styles.feedTitle}>{feedHeading}</h2>
           </div>
 
           {!lockedFilter && (
-            <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <FilterButton
-                label="All"
-                active={activeFilter === "all"}
-                onClick={() => setActiveFilter("all")}
-              />
-
-              <FilterButton
-                label="Testimonies"
-                active={activeFilter === "testimony"}
-                onClick={() => setActiveFilter("testimony")}
-              />
-
-              <FilterButton
-                label="Praise"
-                active={activeFilter === "praise"}
-                onClick={() => setActiveFilter("praise")}
-              />
-
-              <FilterButton
-                label="Prayer"
-                active={activeFilter === "prayer"}
-                onClick={() => setActiveFilter("prayer")}
-              />
+            <div className={styles.filterShell}>
+              <div className={styles.filterRow}>
+                <FilterButton
+                  label="All"
+                  active={activeFilter === "all"}
+                  onClick={() => setActiveFilter("all")}
+                />
+                <FilterButton
+                  label="Testimonies"
+                  active={activeFilter === "testimony"}
+                  onClick={() => setActiveFilter("testimony")}
+                />
+                <FilterButton
+                  label="Praise"
+                  active={activeFilter === "praise"}
+                  onClick={() => setActiveFilter("praise")}
+                />
+                <FilterButton
+                  label="Prayer"
+                  active={activeFilter === "prayer"}
+                  onClick={() => setActiveFilter("prayer")}
+                />
+              </div>
+              <div aria-hidden className={styles.filterFade} />
             </div>
           )}
         </div>
 
-        {reactionMessage && (
-          <div className="mb-5 rounded-2xl bg-blue-50 p-4 text-sm font-semibold text-[#082f63]">
+        {reactionMessage ? (
+          <div className={styles.bannerMessage} role="status">
             {reactionMessage}
           </div>
-        )}
+        ) : null}
 
-        <div className="space-y-5">
-          {filteredStories.length === 0 ? (
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 text-slate-600 shadow-sm">
-              {emptyMessage}
-            </div>
+        {loadingFeed && filteredFeedItems.length === 0 ? (
+          <div className={styles.skeletonPost} aria-live="polite">
+            <div className={styles.skeletonLine} style={{ width: "42%" }} />
+            <div
+              className={styles.skeletonLine}
+              style={{ width: "68%", marginTop: "0.5rem" }}
+            />
+            <div className={styles.skeletonMedia} aria-hidden />
+          </div>
+        ) : null}
+
+        <div className={styles.feedList}>
+          {!loadingFeed && filteredFeedItems.length === 0 ? (
+            <p className={styles.emptyState}>{emptyMessage}</p>
           ) : (
-            filteredStories.map((story, index) => {
+            filteredFeedItems.map((feedItem, index) => {
+              const postSeparator =
+                index > 0 ? (
+                  <div
+                    key={`sep-${feedItem.dedupeKey}`}
+                    className={styles.postSeparator}
+                    role="separator"
+                    aria-hidden
+                  />
+                ) : null;
+
+              if (feedItem.kind === "prayer_video_response") {
+                const shouldShowMiniReels =
+                  showMiniReelsInFeed &&
+                  (index + 1) % 12 === 0 &&
+                  index < filteredFeedItems.length - 1;
+                const miniReelAnchorId = `freedom-feed-mini-reels-${index + 1}`;
+
+                return (
+                  <Fragment key={feedItem.dedupeKey}>
+                    {postSeparator}
+                    <article
+                      id={`freedom-feed-response-${feedItem.id}`}
+                      className={styles.post}
+                    >
+                      <div className={`${styles.postInset} ${styles.postHeader}`}>
+                        <div className={styles.postHeaderRow}>
+                          <div className={styles.authorRow}>
+                            <div className={styles.avatar}>
+                              {(feedItem.name || "H").charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className={styles.authorName}>
+                                {feedItem.name || "HTBF Community"}
+                              </div>
+                              <div className={styles.authorMeta}>
+                                {formatAuthorMeta(
+                                  feedItem.location,
+                                  feedItem.created_at
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            className={styles.postHeaderActions}
+                            data-feed-post-overflow-root="true"
+                          >
+                            <button
+                              type="button"
+                              className={styles.overflowTrigger}
+                              aria-label="Post options"
+                              aria-haspopup="menu"
+                              aria-expanded={
+                                postOverflowMenuKey === feedItem.dedupeKey
+                              }
+                              onClick={() =>
+                                setPostOverflowMenuKey((current) =>
+                                  current === feedItem.dedupeKey
+                                    ? null
+                                    : feedItem.dedupeKey
+                                )
+                              }
+                            >
+                              <MoreVertical className="h-5 w-5" aria-hidden />
+                            </button>
+
+                            {postOverflowMenuKey === feedItem.dedupeKey ? (
+                              <div className={styles.postOverflowMenu} role="menu">
+                                {feedItem.user_id &&
+                                  feedItem.user_id !== userId && (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      className={`${styles.postOverflowItem} ${styles.postOverflowItemDanger}`}
+                                      onClick={() =>
+                                        void blockFeedUser(feedItem.user_id)
+                                      }
+                                    >
+                                      <UserX className="h-4 w-4 shrink-0" />
+                                      Block user
+                                    </button>
+                                  )}
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className={styles.postOverflowItem}
+                                  onClick={() => void hideFeedItem(feedItem)}
+                                >
+                                  <EyeOff className="h-4 w-4 shrink-0" />
+                                  Hide post
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <p className={styles.responseContext}>
+                          Responded with a video prayer for{" "}
+                          <span className="font-semibold text-slate-900">
+                            {feedItem.parentStoryTitle}
+                          </span>
+                          {feedItem.parentStoryAuthor
+                            ? ` by ${feedItem.parentStoryAuthor}`
+                            : ""}
+                          .
+                        </p>
+                      </div>
+
+                      {feedItem.signed_video_url ||
+                      feedItem.signed_thumbnail_url ? (
+                        <FeedScrollVideoPreview
+                          posterUrl={feedItem.signed_thumbnail_url}
+                          fallbackLabel="Video prayer"
+                          frameClassName={`${styles.mediaFrame} ${styles.mediaFramePortrait}`}
+                          ariaLabel={`Video prayer response for ${feedItem.parentStoryTitle}`}
+                          onClick={() => {
+                            if (feedItem.parentStoryId) {
+                              window.location.href = `/prayer?story=${feedItem.parentStoryId}`;
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className={styles.mediaUnavailable}>
+                          Video unavailable right now.
+                        </div>
+                      )}
+                    </article>
+                    {shouldShowMiniReels ? (
+                      <MiniReelsCarousel
+                        anchorId={miniReelAnchorId}
+                        stories={miniReelStories}
+                        onOpen={(storyId) => {
+                          const target = storyFeedItems.find(
+                            (item) => item.id === storyId
+                          );
+                          if (target) openStoryDetail(target);
+                        }}
+                        onViewAll={() => {
+                          window.location.href = "/video-feed";
+                        }}
+                      />
+                    ) : null}
+                  </Fragment>
+                );
+              }
+
+              const story = feedItem;
               const prayerStory = isPrayerStory(story);
               const originalPoster = isOriginalPoster(story);
               const prayerAnswered = story.prayer_status === "answered";
@@ -1778,67 +2132,136 @@ export default function FreedomFeed({
                 Boolean(story.story_text) &&
                 hasVideoMedia &&
                 !showCreatorStudioCard;
+              const storyMediaAspect = getStoryFeedMediaAspect(story);
+              const storyVideoFrameClass = feedMediaAspectClassName(
+                storyMediaAspect,
+                {
+                  auto: styles.mediaFrameAuto,
+                  portrait: `${styles.mediaFrame} ${styles.mediaFramePortrait}`,
+                  landscape: `${styles.mediaFrame} ${styles.mediaFrameLandscape}`,
+                }
+              );
               const miniReelAnchorId = `freedom-feed-mini-reels-${index + 1}`;
               const shouldShowMiniReels =
                 showMiniReelsInFeed &&
                 (index + 1) % 12 === 0 &&
-                index < filteredStories.length - 1;
+                index < filteredFeedItems.length - 1;
 
               return (
-                <Fragment key={story.id}>
+                <Fragment key={story.dedupeKey}>
+                {postSeparator}
                 <article
                   id={`freedom-feed-story-${story.id}`}
-                  className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm"
+                  className={styles.post}
                 >
-                  <div className="p-5">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-lg font-black text-[#0b63ce]">
-                        {(story.name || "H").charAt(0).toUpperCase()}
-                      </div>
+                  <div className={`${styles.postInset} ${styles.postHeader}`}>
+                    <div className={styles.postHeaderRow}>
+                      <div className={styles.authorRow}>
+                        <div className={styles.avatar}>
+                          {(story.name || "H").charAt(0).toUpperCase()}
+                        </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                          <div className="min-w-0 max-w-full break-words font-black text-slate-900">
-                            {story.name || "HTBF Community"}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                            <div className={styles.authorName}>
+                              {story.name || "HTBF Community"}
+                            </div>
+
+                            {prayerStory && prayerAnswered && (
+                              <span className={styles.badgeAnswered}>
+                                Answered
+                              </span>
+                            )}
                           </div>
 
-                          {prayerStory && prayerAnswered && (
-                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700">
-                              Answered
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-medium text-slate-500">
-                          <Globe2 className="h-4 w-4 shrink-0" />
-                          <span className="min-w-0 break-words">
-                            {story.location || "Location not shared"}
-                          </span>
+                          <div className={styles.authorMeta}>
+                            {formatAuthorMeta(story.location, story.created_at)}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {story.signed_image_url && !showCreatorStudioCard && (
-                      <button
-                        type="button"
-                        onClick={() => openStoryDetail(story)}
-                        className="mt-4 block w-full max-w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-slate-100 text-left ring-1 ring-slate-200 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                        aria-label="Open post"
+                      <div
+                        className={styles.postHeaderActions}
+                        data-feed-post-overflow-root="true"
                       >
+                        <button
+                          type="button"
+                          className={styles.overflowTrigger}
+                          aria-label="Post options"
+                          aria-haspopup="menu"
+                          aria-expanded={postOverflowMenuKey === story.dedupeKey}
+                          onClick={() =>
+                            setPostOverflowMenuKey((current) =>
+                              current === story.dedupeKey ? null : story.dedupeKey
+                            )
+                          }
+                        >
+                          <MoreVertical className="h-5 w-5" aria-hidden />
+                        </button>
+
+                        {postOverflowMenuKey === story.dedupeKey ? (
+                          <div className={styles.postOverflowMenu} role="menu">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className={styles.postOverflowItem}
+                              onClick={() => openFeedReport(story)}
+                            >
+                              <Flag className="h-4 w-4 shrink-0" />
+                              Report post
+                            </button>
+
+                            {!originalPoster && story.user_id ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className={`${styles.postOverflowItem} ${styles.postOverflowItemDanger}`}
+                                onClick={() => void blockStoryUser(story)}
+                              >
+                                <UserX className="h-4 w-4 shrink-0" />
+                                Block user
+                              </button>
+                            ) : null}
+
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className={styles.postOverflowItem}
+                              onClick={() => void hideFeedItem(story)}
+                            >
+                              <EyeOff className="h-4 w-4 shrink-0" />
+                              Hide post
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  {story.signed_image_url && !showCreatorStudioCard && (
+                    <button
+                      type="button"
+                      onClick={() => openStoryDetail(story)}
+                      className={`${styles.mediaOpenButton} ${styles.mediaBleed}`}
+                      aria-label="Open post"
+                    >
+                      <div className={styles.mediaFrameAuto}>
                         <ComposedFeedPostVisual
                           captionStyle={captionStyle}
                           story={story}
                         />
-                      </button>
-                    )}
+                      </div>
+                    </button>
+                  )}
 
-                    {showCreatorStudioCard && creatorStudioDesign && (
-                      <button
-                        type="button"
-                        onClick={() => openStoryDetail(story)}
-                        className="mt-4 block w-full max-w-full cursor-pointer overflow-hidden rounded-[1.5rem] text-left ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
-                        aria-label="Open Creator Studio post"
-                      >
+                  {showCreatorStudioCard && creatorStudioDesign && (
+                    <button
+                      type="button"
+                      onClick={() => openStoryDetail(story)}
+                      className={`${styles.mediaOpenButton} ${styles.mediaBleed}`}
+                      aria-label="Open Creator Studio post"
+                    >
+                      <div className={styles.mediaFrameAuto}>
                         {(() => {
                           console.log(
                             "[CreatorStudio/pipeline] feed render design JSON",
@@ -1862,86 +2285,92 @@ export default function FreedomFeed({
                           }
                           variant="feed"
                         />
-                      </button>
-                    )}
+                      </div>
+                    </button>
+                  )}
 
-                    {showCreationTemplateCard && creationTemplate && (
+                  {showCreationTemplateCard && creationTemplate && (
+                    <div className={`${styles.postInset} ${styles.postBody}`}>
                       <ComposedFeedPostButton
                         onOpen={() => openStoryDetail(story)}
                         captionStyle={captionStyle}
                         story={story}
                         template={creationTemplate}
                       />
-                    )}
-
-                    {showInlineStoryText && (
-                      <CollapsibleStoryText
-                        onOpen={() => openStoryDetail(story)}
-                        text={story.story_text}
-                      />
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {story.signed_video_url && !showCreatorStudioCard && (
-                    <button
-                      type="button"
+                    <FeedScrollVideoPreview
+                      posterUrl={story.signed_thumbnail_url}
+                      fallbackLabel={
+                        prayerStory ? "Video prayer" : "Video testimony"
+                      }
+                      frameClassName={storyVideoFrameClass}
+                      ariaLabel="Open video in Video Feed"
                       onClick={() => openStoryDetail(story)}
-                      className="relative flex aspect-[4/5] max-h-[60vh] w-full cursor-pointer items-center justify-center overflow-hidden rounded-[1.5rem] bg-black text-left focus:outline-none focus:ring-4 focus:ring-blue-200 md:aspect-[16/10] md:max-h-[560px]"
-                      aria-label="Open video in Video Feed"
-                    >
-                      <FreedomFeedVideoMediaFrame
-                        stamp={story.video_template}
-                        videoUrl={story.signed_video_url}
-                      >
-                        {overlayText && (
+                      overlay={
+                        overlayText ? (
                           <FeedCaptionOverlay
-                            alignment={story.caption_align}
-                            background={story.caption_background}
-                            color={story.caption_color}
-                            font={story.caption_font}
+                            alignment={getCaptionAlign(story.caption_align)}
+                            background={getCaptionBackground(
+                              story.caption_background,
+                              captionStyle
+                            )}
+                            color={getCaptionColor(story.caption_color)}
+                            font={getCaptionFont(
+                              story.caption_font,
+                              captionStyle
+                            )}
                             overlayX={story.overlay_x}
                             overlayY={story.overlay_y}
-                            reserveBottomAction
-                            size={story.caption_size}
+                            size={getCaptionSize(story.caption_size)}
                             style={captionStyle}
                             text={overlayText}
                           />
-                        )}
-                      </FreedomFeedVideoMediaFrame>
-
-                      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                        <span className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
-                          Watch in Video Feed
-                        </span>
-                      </div>
-                    </button>
+                        ) : null
+                      }
+                    />
                   )}
 
                   {!story.signed_video_url && story.video_url && (
                     <button
                       type="button"
                       onClick={() => openStoryDetail(story)}
-                      className="mx-5 mb-5 flex h-48 w-[calc(100%-2.5rem)] cursor-pointer items-center justify-center rounded-[1.5rem] border border-blue-100 bg-blue-50 p-4 text-center text-sm font-bold text-[#082f63] transition hover:bg-blue-100 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                      className={`${styles.mediaOpenButton} w-full`}
                     >
-                      Video found, but the secure video link could not be
-                      created. Tap to open in Video Feed.
+                      <div className={styles.mediaUnavailable}>
+                        Video found, but the secure video link could not be
+                        created. Tap to open in Video Feed.
+                      </div>
                     </button>
                   )}
 
-                  {showVideoCaptionText && (
-                    <div className="px-5 pt-4">
-                      <CollapsibleStoryText
-                        className="mt-0"
-                        text={story.story_text}
-                      />
+                  {(showInlineStoryText || showVideoCaptionText) && (
+                    <div className={`${styles.postInset} ${styles.postBody}`}>
+                      {showInlineStoryText && (
+                        <CollapsibleStoryText
+                          onOpen={() => openStoryDetail(story)}
+                          text={story.story_text}
+                        />
+                      )}
+
+                      {showVideoCaptionText && (
+                        <CollapsibleStoryText
+                          className="mt-0"
+                          text={story.story_text}
+                        />
+                      )}
                     </div>
                   )}
 
-                  <div className="border-t border-slate-100 px-5 py-3">
+                  <div className={styles.actionsDivider} aria-hidden />
+
+                  <div className={`${styles.postInset} ${styles.postActions}`}>
                     {prayerStory ? (
                       <>
                         {prayerAnswered ? (
-                          <div className="mb-3 rounded-2xl bg-emerald-50 p-4">
+                          <div className={styles.panelAnswered}>
                             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
                               <CheckCircle2 className="h-4 w-4" />
                               Answered Prayer
@@ -2007,7 +2436,7 @@ export default function FreedomFeed({
                           </div>
                         ) : (
                           <>
-                            <div className="mb-3 rounded-2xl bg-blue-50 p-4">
+                            <div className={styles.panelPrayer}>
                               <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
                                 Prayer Chain
                               </div>
@@ -2065,19 +2494,16 @@ export default function FreedomFeed({
                       </>
                     ) : (
                       <>
-                        <div className="mb-3 grid grid-cols-3 gap-2 text-center text-sm font-semibold text-slate-500 sm:flex sm:flex-wrap sm:items-center sm:gap-4 sm:text-left">
-                          <span className="min-w-0 break-words">
-                            {story.reaction_counts.amen} Amen
-                          </span>
-                          <span className="min-w-0 break-words">
-                            {story.reaction_counts.praise_god} Praise God
-                          </span>
-                          <span className="min-w-0 break-words">
-                            {story.reaction_counts.encouraged} Encouraged
-                          </span>
-                        </div>
+                        {buildEngagementSummary(story) ? (
+                          <p
+                            className={styles.engagementSummary}
+                            data-testid="feed-engagement-summary"
+                          >
+                            {buildEngagementSummary(story)}
+                          </p>
+                        ) : null}
 
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div className={styles.actionGridRow}>
                           <ReactionButton
                             active={story.user_reactions.includes("amen")}
                             label="Amen"
@@ -2106,49 +2532,57 @@ export default function FreedomFeed({
                               toggleReaction(story.id, "encouraged")
                             }
                           />
+                        </div>
+
+                        <div
+                          className={`${styles.actionGridRow} mt-2 ${
+                            prayerStory && !prayerAnswered
+                              ? ""
+                              : styles.actionGridRowTwo
+                          }`}
+                        >
+                          {prayerStory && !prayerAnswered ? (
+                            <Link
+                              href="/prayer"
+                              className={styles.actionSecondaryButton}
+                            >
+                              <Video className="h-4 w-4 shrink-0" aria-hidden />
+                              Video response
+                            </Link>
+                          ) : null}
 
                           <button
+                            type="button"
                             onClick={() => shareStory(story)}
-                            className="inline-flex min-w-0 items-center justify-center gap-1 rounded-2xl bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce] sm:text-sm"
+                            className={styles.actionSecondaryButton}
                           >
-                            <Share2 className="h-4 w-4 shrink-0" />
+                            <Share2 className="h-4 w-4 shrink-0" aria-hidden />
                             Share
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleSavedStory(story)}
+                            className={`${styles.actionSecondaryButton} ${
+                              savedStoryIds.includes(story.id)
+                                ? styles.actionSecondaryActive
+                                : ""
+                            }`}
+                          >
+                            <Bookmark
+                              className={`h-4 w-4 shrink-0 ${
+                                savedStoryIds.includes(story.id)
+                                  ? "fill-current"
+                                  : ""
+                              }`}
+                              aria-hidden
+                            />
+                            {savedStoryIds.includes(story.id) ? "Saved" : "Save"}
                           </button>
                         </div>
                       </>
                     )}
 
-                    <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-                      <button
-                        type="button"
-                        onClick={() => toggleSavedStory(story)}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black ring-1 transition ${
-                          savedStoryIds.includes(story.id)
-                            ? "bg-blue-50 text-[#0b63ce] ring-blue-100"
-                            : "bg-white text-slate-600 ring-slate-200 hover:bg-blue-50"
-                        }`}
-                      >
-                        <Bookmark
-                          className={`h-4 w-4 ${
-                            savedStoryIds.includes(story.id)
-                              ? "fill-current"
-                              : ""
-                          }`}
-                        />
-                        {savedStoryIds.includes(story.id) ? "Saved" : "Save"}
-                      </button>
-
-                      {!originalPoster && story.user_id && (
-                        <button
-                          type="button"
-                          onClick={() => blockStoryUser(story)}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-black text-red-700 ring-1 ring-red-100 transition hover:bg-red-50"
-                        >
-                          <UserX className="h-4 w-4" />
-                          Block User
-                        </button>
-                      )}
-                    </div>
                   </div>
                 </article>
                 {shouldShowMiniReels && (
@@ -2171,6 +2605,46 @@ export default function FreedomFeed({
             })
           )}
         </div>
+
+        {feedLoadError ? (
+          <div role="alert" className={styles.alertError}>
+            {feedLoadError}
+          </div>
+        ) : null}
+
+        {loadingFeed && filteredFeedItems.length > 0 ? (
+          <div aria-live="polite" className={styles.loadingState}>
+            Loading community feed…
+          </div>
+        ) : null}
+
+        {!loadingFeed && feedNextCursor ? (
+          <div className={styles.loadMoreWrap}>
+            <button
+              type="button"
+              onClick={() => void loadMoreCommunityFeed()}
+              disabled={loadingMoreFeed}
+              aria-busy={loadingMoreFeed}
+              className={styles.loadMoreButton}
+            >
+              {loadingMoreFeed ? "Loading more…" : "Load more"}
+            </button>
+            {loadingMoreFeed ? (
+              <span className="sr-only" aria-live="polite">
+                Loading more community feed items
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!loadingFeed &&
+        !feedNextCursor &&
+        feedItems.length > 0 &&
+        filteredFeedItems.length > 0 ? (
+          <p aria-live="polite" className={styles.endOfFeed}>
+            You&apos;ve reached the end of the feed.
+          </p>
+        ) : null}
 
         {photoViewerStory && (
           <div
@@ -2208,7 +2682,7 @@ export default function FreedomFeed({
               <div className="w-full max-w-[calc(100vw-0.75rem)] sm:max-w-2xl">
                 <PinchZoomResetFrame>
                   <ComposedFeedPostVisual
-                    captionStyle={photoViewerStory.caption_style}
+                    captionStyle={getCaptionStyle(photoViewerStory.caption_style)}
                     story={photoViewerStory}
                     template={getCreationTemplateMetadata(
                       photoViewerStory.ai_suggestions
@@ -2567,11 +3041,11 @@ function FilterButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-black transition ${
-        active
-          ? "bg-[#0b63ce] text-white shadow-sm"
-          : "bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-blue-50 hover:text-[#0b63ce]"
+      aria-pressed={active}
+      className={`${styles.filterButton} ${
+        active ? styles.filterButtonActive : styles.filterButtonInactive
       }`}
     >
       {label}
@@ -2590,11 +3064,11 @@ function ReactionButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`min-w-0 rounded-2xl px-2 py-2.5 text-xs font-black transition sm:px-3 sm:text-sm ${
-        active
-          ? "bg-[#0b63ce] text-white"
-          : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-[#0b63ce]"
+      aria-pressed={active}
+      className={`${styles.reactionButton} ${
+        active ? styles.reactionActive : styles.reactionInactive
       }`}
     >
       <span
@@ -2797,56 +3271,29 @@ function CollapsibleStoryText({
   const visibleText =
     !isLong || expanded ? cleanText : `${cleanText.slice(0, 180).trim()}...`;
 
-  if (onOpen) {
-    return (
-      <div className={className}>
+  return (
+    <div className={className}>
+      <p className={styles.postCaption}>{visibleText}</p>
+
+      {isLong && onOpen ? (
         <button
           type="button"
           onClick={onOpen}
-          className="block w-full cursor-pointer rounded-[1.25rem] bg-slate-50 p-4 text-left ring-1 ring-slate-200 transition hover:bg-blue-50 hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
-          aria-label="Open story"
+          className="mt-2 inline-flex min-h-[2.75rem] items-center rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
         >
-          <p
-            className="max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
-            style={{
-              overflowWrap: "anywhere",
-              wordBreak: "break-word",
-            }}
-          >
-            {visibleText}
-          </p>
-
-          {isLong && (
-            <span className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100">
-              Open full post
-            </span>
-          )}
+          Open full post
         </button>
-      </div>
-    );
-  }
+      ) : null}
 
-  return (
-    <div className={className}>
-      <p
-        className="max-w-full overflow-hidden whitespace-pre-wrap break-words text-[17px] leading-7 text-slate-800"
-        style={{
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-        }}
-      >
-        {visibleText}
-      </p>
-
-      {isLong && (
+      {isLong && !onOpen ? (
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
-          className="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
+          className="mt-2 inline-flex min-h-[2.75rem] items-center rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#0b63ce] ring-1 ring-blue-100"
         >
           {expanded ? "See less" : "See more"}
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -2990,15 +3437,18 @@ function ComposedFeedPostVisual({
           className={imageClass}
         />
 
-        <StoryMediaStamp stamp={story.video_template} />
+        <StoryMediaStamp stamp={getVideoTemplate(story.video_template)} />
 
         {cleanText && captionStyle !== "classic-caption" && (
           <FeedCaptionOverlay
-            alignment={story.caption_align}
-            background={story.caption_background}
-            color={story.caption_color}
-            font={story.caption_font}
-            size={story.caption_size}
+            alignment={getCaptionAlign(story.caption_align)}
+            background={getCaptionBackground(
+              story.caption_background,
+              captionStyle
+            )}
+            color={getCaptionColor(story.caption_color)}
+            font={getCaptionFont(story.caption_font, captionStyle)}
+            size={getCaptionSize(story.caption_size)}
             style={captionStyle}
             text={cleanText}
           />
@@ -3198,10 +3648,12 @@ function FreedomFeedVideoMediaFrame({
   children,
   stamp,
   videoUrl,
+  posterUrl,
 }: {
   children?: ReactNode;
   stamp: VideoTemplate;
   videoUrl: string;
+  posterUrl?: string | null;
 }) {
   const [shouldLoadPreview, setShouldLoadPreview] = useState(false);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -3270,6 +3722,12 @@ function FreedomFeedVideoMediaFrame({
         >
           Your browser does not support the video tag.
         </video>
+      ) : posterUrl ? (
+        <img
+          src={posterUrl}
+          alt=""
+          className={`pointer-events-none bg-black ${FEED_MEDIA_EL_CLASS}`}
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-black text-white/60">
           <Video className="h-10 w-10" />
