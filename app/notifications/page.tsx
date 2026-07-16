@@ -11,7 +11,6 @@ import {
   Settings,
   Trash2,
 } from "lucide-react";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import { supabase } from "../../lib/supabaseClient";
 
 type InboxNotification = {
@@ -195,7 +194,7 @@ function NotificationsContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-4">
           <Link
@@ -368,7 +367,6 @@ function NotificationsContent() {
         )}
       </div>
 
-      <LoggedInBottomNav />
     </main>
   );
 }

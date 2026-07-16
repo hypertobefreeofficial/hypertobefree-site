@@ -14,7 +14,7 @@ export default defineConfig({
   timeout: 120000,
   expect: { timeout: 20000 },
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3492",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3492",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
@@ -28,6 +28,31 @@ export default defineConfig({
       name: "prayer-auth",
       testMatch: /(persistence|reporting|removal|blocking|video-limits)\.spec\.ts/,
       dependencies: ["prayer-smoke"],
+    },
+    {
+      name: "feed-shell",
+      testDir: "./tests/feed",
+      testMatch: /shell\.spec\.ts/,
+    },
+    {
+      name: "feed-phase-2",
+      testDir: "./tests/feed",
+      testMatch: /phase-2\.spec\.ts/,
+    },
+    {
+      name: "feed-responsive-shell",
+      testDir: "./tests/feed",
+      testMatch: /responsive-shell\.spec\.ts/,
+    },
+    {
+      name: "feed-shell-production",
+      testDir: "./tests/feed",
+      testMatch: /shell-production\.spec\.ts/,
+    },
+    {
+      name: "app-shell-desktop",
+      testDir: "./tests/app-shell",
+      testMatch: /desktop-shell\.spec\.ts/,
     },
   ],
 });

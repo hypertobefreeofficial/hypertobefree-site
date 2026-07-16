@@ -7,6 +7,23 @@
 :root {
   --background: #f8fbff;
   --foreground: #0f172a;
+  /* Logged-in app navigation — single source for shell clearance */
+  --app-mobile-bottom-nav-height: 4.75rem;
+  --app-mobile-bottom-nav-breathing: 0.75rem;
+  --app-mobile-bottom-nav-safe-clearance: calc(
+    var(--app-mobile-bottom-nav-height) + env(safe-area-inset-bottom, 0px) +
+      var(--app-mobile-bottom-nav-breathing)
+  );
+  --app-desktop-nav-height: 3.25rem;
+  --app-desktop-shell-max: 80rem;
+  --app-desktop-content-gutter: 1.5rem;
+  --app-feed-column-max: 50rem;
+  --app-workspace-max: 80rem;
+  --app-desktop-sticky-top: var(--app-desktop-nav-height);
+  --app-feed-sticky-header-height: 3.25rem;
+  --app-feed-scroll-padding-top: calc(
+    var(--app-feed-sticky-header-height) + env(safe-area-inset-top, 0px)
+  );
   --font-creator-clean-modern: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-creator-bold-testimony: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-creator-elegant-scripture: var(--font-eb-garamond), Georgia, serif;
@@ -49,6 +66,51 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --app-feed-scroll-padding-top: calc(
+      var(--app-desktop-nav-height) + env(safe-area-inset-top, 0px)
+    );
+  }
+
+  .logged-in-app-shell {
+    padding-top: var(--app-desktop-nav-height);
+  }
+
+  .logged-in-app-shell .app-sticky-below-desktop-nav,
+  .logged-in-app-shell :is(header, section).sticky.top-0,
+  .logged-in-app-shell .sticky.top-0 {
+    top: var(--app-desktop-sticky-top);
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --app-desktop-content-gutter: 2rem;
+  }
+}
+
+.app-desktop-shell-inner {
+  width: 100%;
+  max-width: var(--app-desktop-shell-max);
+  margin-inline: auto;
+  padding-inline: var(--app-desktop-content-gutter);
+}
+
+.pb-mobile-nav-clearance {
+  padding-bottom: var(--app-mobile-bottom-nav-safe-clearance);
+}
+
+@media (min-width: 1024px) {
+  .pb-mobile-nav-clearance {
+    padding-bottom: 1.5rem;
+  }
+}
+
+.feed-page {
+  scroll-padding-top: var(--app-feed-scroll-padding-top);
 }
 
 body {

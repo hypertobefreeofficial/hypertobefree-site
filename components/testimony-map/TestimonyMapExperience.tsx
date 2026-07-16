@@ -14,7 +14,6 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import LoggedInBottomNav from "../LoggedInBottomNav";
 import { MAP_FILTER_OPTIONS, getCategoryLabel } from "../../lib/testimonyMap/categories";
 import { loadMapStories } from "../../lib/testimonyMap/loadMapStories";
 import type { MapFilterId, MapStoryRecord } from "../../lib/testimonyMap/types";
@@ -424,7 +423,6 @@ export default function TestimonyMapExperience() {
         </div>
       )}
 
-      <LoggedInBottomNav />
     </main>
   );
 }

@@ -34,7 +34,6 @@ import {
   Video,
   X,
 } from "lucide-react";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import { supabase } from "../../lib/supabaseClient";
 
 type ProfileRow = {
@@ -536,9 +535,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+        <div className="app-desktop-shell-inner flex max-w-3xl items-center justify-between py-4">
           <Link
             href="/journey"
             className="inline-flex items-center gap-2 text-sm font-black text-[#082f63]"
@@ -848,7 +847,6 @@ export default function ProfilePage() {
         </section>
       </div>
 
-      <LoggedInBottomNav />
 
       {viewingStory && (
         <StoryPreviewModal

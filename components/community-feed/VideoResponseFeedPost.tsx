@@ -1,0 +1,119 @@
+import Link from "next/link";
+import { Share2, Video } from "lucide-react";
+import type { ReactNode } from "react";
+import CommunityFeedPostShell from "./CommunityFeedPostShell";
+import CommunityFeedPostHeader from "./CommunityFeedPostHeader";
+import { CommunityFeedResponseOverflowMenu } from "./CommunityFeedPostOverflowMenu";
+import type {
+  CommunityFeedPostCallbacks,
+  FeedVideoResponseDisplay,
+} from "./types";
+import styles from "../FreedomFeed.module.css";
+
+type VideoResponseFeedPostProps = {
+  item: FeedVideoResponseDisplay;
+  callbacks: CommunityFeedPostCallbacks;
+  media: ReactNode;
+  parentHref?: string;
+};
+
+export default function VideoResponseFeedPost({
+  item,
+  callbacks,
+  media,
+  parentHref,
+}: VideoResponseFeedPostProps) {
+  const menuOpen = callbacks.postOverflowMenuKey === item.dedupeKey;
+  const parentExcerpt = item.parentStoryTitle
+    ? item.parentStoryTitle.length > 72
+      ? `${item.parentStoryTitle.slice(0, 72).trim()}…`
+      : item.parentStoryTitle
+    : null;
+
+  const header = (
+    <CommunityFeedPostHeader
+      avatarLabel={(item.name || "H").charAt(0).toUpperCase()}
+      name={item.name || "HTBF Community"}
+      meta={callbacks.formatAuthorMeta(item.location, item.created_at)}
+      dedupeKey={item.dedupeKey}
+      menuOpen={menuOpen}
+      onToggleMenu={() =>
+        callbacks.setPostOverflowMenuKey(menuOpen ? null : item.dedupeKey)
+      }
+      menu={
+        <CommunityFeedResponseOverflowMenu
+          canBlock={Boolean(item.user_id && item.user_id !== callbacks.userId)}
+          onBlockUser={
+            item.user_id
+              ? () => void callbacks.onBlockFeedUser(item.user_id)
+              : undefined
+          }
+        />
+      }
+    />
+  );
+
+  const body = (
+    <div className={`${styles.postInset} ${styles.postBody}`}>
+      <p className={styles.responseContext}>
+        Responded with a video prayer for{" "}
+        {item.parentStoryAuthor ? (
+          <>
+            <span className="font-semibold text-slate-900">
+              {item.parentStoryAuthor}&apos;s request
+            </span>
+          </>
+        ) : (
+          "this prayer request"
+        )}
+      </p>
+
+      {parentExcerpt ? (
+        parentHref ? (
+          <Link href={parentHref} className={styles.responseParentExcerpt}>
+            &ldquo;{parentExcerpt}&rdquo;
+          </Link>
+        ) : (
+          <p className={styles.responseParentExcerpt}>&ldquo;{parentExcerpt}&rdquo;</p>
+        )
+      ) : null}
+    </div>
+  );
+
+  const actions = (
+    <div className={styles.primaryActionRow}>
+      {parentHref ? (
+        <Link href={parentHref} className={styles.primaryActionButton}>
+          <Video className="h-4 w-4 shrink-0" aria-hidden />
+          <span className={styles.primaryActionLabelShort}>Video</span>
+          <span className={styles.primaryActionLabelFull}>Video response</span>
+        </Link>
+      ) : (
+        <span className={styles.primaryActionButton} aria-disabled="true">
+          <Video className="h-4 w-4 shrink-0" aria-hidden />
+          Video response
+        </span>
+      )}
+
+      <button
+        type="button"
+        className={styles.primaryActionButton}
+        onClick={() => callbacks.onShareVideoResponse(item)}
+      >
+        <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+        Share
+      </button>
+    </div>
+  );
+
+  return (
+    <CommunityFeedPostShell
+      id={`freedom-feed-response-${item.id}`}
+      dedupeKey={item.dedupeKey}
+      header={header}
+      body={body}
+      media={media}
+      actions={actions}
+    />
+  );
+}

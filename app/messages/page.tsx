@@ -15,8 +15,6 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
-
 type MessageTab = "inbox" | "sent" | "all";
 
 type ReplyRow = {
@@ -360,7 +358,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
       <div className="mx-auto max-w-3xl px-4 pt-5">
         <div className="mb-5 flex items-center justify-between">
           <Link
@@ -563,7 +561,6 @@ export default function MessagesPage() {
         </div>
       )}
 
-      <LoggedInBottomNav />
     </main>
   );
 }
