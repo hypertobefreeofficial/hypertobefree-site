@@ -10,6 +10,11 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { getPrayerTitle } from "../../lib/prayer-connect/utils";
+import {
+  markMyPrayerAnswered,
+  type MarkedAnsweredStory,
+} from "../../lib/prayer-connect/markMyPrayerAnswered";
+import { MARK_PRAYER_ANSWERED_TEXT_MAX_LENGTH } from "../../lib/community-feed/markPrayerAnsweredAuthorization";
 import styles from "./PrayerConnect.module.css";
 
 type MyPrayerRow = {
@@ -37,6 +42,9 @@ export default function PrayerMyRequestsPanel({
   const [rows, setRows] = useState<MyPrayerRow[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [updateDrafts, setUpdateDrafts] = useState<Record<string, string>>({});
+  const [markingAnsweredId, setMarkingAnsweredId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     async function load() {
@@ -89,28 +97,47 @@ export default function PrayerMyRequestsPanel({
     };
   }, [rows]);
 
-  async function markAnswered(id: string) {
-    const { error } = await supabase
-      .from("stories")
-      .update({
-        prayer_status: "answered",
-        answered_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("user_id", userId);
+  async function markAnswered(row: MyPrayerRow) {
+    if (!userId || markingAnsweredId) return;
 
-    if (error) {
-      setMessage(error.message);
+    setMessage(null);
+    setMarkingAnsweredId(row.id);
+
+    const result = await markMyPrayerAnswered({
+      supabase,
+      storyId: row.id,
+      answeredText: updateDrafts[row.id] ?? "",
+      authUserId: userId,
+      storyForValidation: {
+        id: row.id,
+        user_id: userId,
+        story_type: row.story_type,
+        status: row.status,
+        prayer_status: row.prayer_status,
+        removed_at: null,
+      },
+    });
+
+    setMarkingAnsweredId(null);
+
+    if (result.ok === false) {
+      setMessage(result.message);
       return;
     }
 
+    applyAnsweredStory(result.story);
+    setUpdateDrafts((current) => ({ ...current, [row.id]: "" }));
+    setMessage("Prayer marked answered.");
+  }
+
+  function applyAnsweredStory(story: MarkedAnsweredStory) {
     setRows((current) =>
       current.map((row) =>
-        row.id === id
+        row.id === story.id
           ? {
               ...row,
-              prayer_status: "answered",
-              answered_at: new Date().toISOString(),
+              prayer_status: story.prayer_status,
+              answered_at: story.answered_at,
             }
           : row
       )
@@ -234,6 +261,8 @@ export default function PrayerMyRequestsPanel({
                 id={`update-${row.id}`}
                 className={styles.composerTextarea}
                 rows={2}
+                maxLength={MARK_PRAYER_ANSWERED_TEXT_MAX_LENGTH}
+                disabled={markingAnsweredId === row.id}
                 value={updateDrafts[row.id] || ""}
                 onChange={(event) =>
                   setUpdateDrafts((current) => ({
@@ -241,7 +270,11 @@ export default function PrayerMyRequestsPanel({
                     [row.id]: event.target.value,
                   }))
                 }
-                placeholder="Share how people can keep praying..."
+                placeholder={
+                  row.prayer_status !== "answered"
+                    ? "Describe how God answered before marking this request answered..."
+                    : "Share how people can keep praying..."
+                }
               />
 
               <div className={styles.cardFooter}>
@@ -257,10 +290,11 @@ export default function PrayerMyRequestsPanel({
                   <button
                     type="button"
                     className={styles.secondaryButton}
-                    onClick={() => void markAnswered(row.id)}
+                    disabled={markingAnsweredId === row.id}
+                    onClick={() => void markAnswered(row)}
                   >
                     <CheckCircle2 className="h-4 w-4" aria-hidden />
-                    Mark Answered
+                    {markingAnsweredId === row.id ? "Marking…" : "Mark Answered"}
                   </button>
                 ) : (
                   <Link

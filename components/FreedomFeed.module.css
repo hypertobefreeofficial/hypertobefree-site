@@ -761,7 +761,407 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeletonLine {
+  .skeletonLine,
+  .videoPosterSkeleton {
     animation: none;
+  }
+
+  .reactionSelectorMenu {
+    animation: none;
+  }
+}
+
+/* Phase 2 — type-specific post treatments */
+.postLeadWrap {
+  padding-bottom: 0.375rem;
+}
+
+.postLead,
+.testimonyLead,
+.praiseLead,
+.prayerLead {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.45;
+  color: var(--feed-text);
+}
+
+.testimonyEditorial {
+  position: relative;
+  padding-left: 0.875rem;
+}
+
+.testimonyEditorial::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.2rem;
+  bottom: 0.2rem;
+  width: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #0b63ce, #7db7ff);
+}
+
+.praiseAccentWrap {
+  padding-top: 0.125rem;
+  border-top: 2px solid rgba(180, 132, 31, 0.28);
+}
+
+.praiseOpening,
+.prayerStatement {
+  font-size: 1rem;
+  line-height: 1.625;
+}
+
+.readMoreButton {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  border: none;
+  border-radius: 9999px;
+  background: #eff6ff;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--feed-accent);
+  cursor: pointer;
+}
+
+.readMoreButton:focus-visible {
+  outline: 2px solid var(--feed-accent);
+  outline-offset: 2px;
+}
+
+.postStatus {
+  padding-top: 0.25rem;
+  padding-bottom: 0.5rem;
+}
+
+.panelPrayerCompact {
+  border-radius: 0.875rem;
+  background: #eff6ff;
+  padding: 0.875rem 1rem;
+}
+
+.panelPrayerLabel {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #0b63ce;
+}
+
+.panelPrayerCount {
+  margin-top: 0.375rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #062a57;
+}
+
+.panelPrayerSupport {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.prayerPrimaryButton {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.625rem;
+  border: none;
+  border-radius: 0.875rem;
+  background: var(--feed-accent);
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+}
+
+.prayerPrimaryButtonActive {
+  background: #0956b3;
+}
+
+.prayerPrimaryButton:focus-visible {
+  outline: 2px solid #062a57;
+  outline-offset: 2px;
+}
+
+.ownerSection {
+  margin-top: 0.875rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  padding-top: 0.875rem;
+}
+
+.ownerSectionLabel {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #047857;
+}
+
+.ownerSectionCopy {
+  margin: 0.375rem 0 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.godDidItButton {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0.875rem;
+  background: #059669;
+  padding: 0.75rem 1.125rem;
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+}
+
+.godDidItButton:hover {
+  background: #047857;
+}
+
+.godDidItButton:focus-visible {
+  outline: 2px solid #065f46;
+  outline-offset: 2px;
+}
+
+.answeredPanel {
+  border-radius: 0.875rem;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f8fafc 100%);
+  padding: 1rem;
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.14);
+}
+
+.answeredHeading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #047857;
+}
+
+.answeredIntro {
+  margin: 0.375rem 0 0.875rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.answeredBlock {
+  margin-top: 0.75rem;
+}
+
+.answeredBlockLabel {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.answeredQuote {
+  margin: 0.375rem 0 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid rgba(16, 185, 129, 0.35);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #334155;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.answeredFallback {
+  margin: 0.375rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.answeredDate,
+.answeredPrayerCount {
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.responseParentExcerpt {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #64748b;
+  text-decoration: none;
+}
+
+.responseParentExcerpt:hover {
+  color: var(--feed-accent);
+}
+
+.primaryActionRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.primaryActionRowThree {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.primaryActionButton {
+  display: inline-flex;
+  min-height: 2.75rem;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 0.625rem 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: #475569;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+@media (min-width: 390px) {
+  .primaryActionButton {
+    font-size: 0.75rem;
+    padding-inline: 0.5rem;
+  }
+}
+
+.primaryActionButton:hover:not(:disabled) {
+  background: #eff6ff;
+  color: var(--feed-accent);
+}
+
+.primaryActionButtonActive {
+  background: #eff6ff;
+  color: var(--feed-accent);
+}
+
+.primaryActionButton:focus-visible {
+  outline: 2px solid var(--feed-accent);
+  outline-offset: 2px;
+}
+
+.primaryActionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.primaryActionLabelFull {
+  display: none;
+}
+
+@media (min-width: 430px) {
+  .primaryActionLabelShort {
+    display: none;
+  }
+
+  .primaryActionLabelFull {
+    display: inline;
+  }
+}
+
+.reactionSelectorRoot {
+  position: relative;
+}
+
+.reactionSelectorBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  border: none;
+  background: rgba(15, 23, 42, 0.28);
+  cursor: pointer;
+}
+
+.reactionSelectorMenu {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  border-radius: 1rem 1rem 0 0;
+  background: #fff;
+  padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.16);
+  animation: feedSheetUp 220ms ease-out;
+}
+
+@media (min-width: 768px) {
+  .reactionSelectorMenu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 0.375rem);
+    left: auto;
+    min-width: 12rem;
+    border-radius: 0.875rem;
+    padding: 0.375rem;
+    animation: none;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  }
+
+  .reactionSelectorBackdrop {
+    display: none;
+  }
+}
+
+.reactionSelectorOption {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.625rem;
+  border: none;
+  border-radius: 0.625rem;
+  background: transparent;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+}
+
+.reactionSelectorOption:hover,
+.reactionSelectorOptionActive {
+  background: #eff6ff;
+  color: var(--feed-accent);
+}
+
+.reactionSelectorOption:focus-visible {
+  outline: 2px solid var(--feed-accent);
+  outline-offset: 2px;
+}
+
+@keyframes feedSheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
   }
 }

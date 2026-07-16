@@ -35,6 +35,11 @@ export default defineConfig({
       testMatch: /shell\.spec\.ts/,
     },
     {
+      name: "feed-phase-2",
+      testDir: "./tests/feed",
+      testMatch: /phase-2\.spec\.ts/,
+    },
+    {
       name: "feed-shell-production",
       testDir: "./tests/feed",
       testMatch: /shell-production\.spec\.ts/,

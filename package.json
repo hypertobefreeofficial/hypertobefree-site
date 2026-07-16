@@ -4,6 +4,8 @@
     "build": "next build",
     "start": "next start",
     "test:unit": "vitest run",
+    "test:community-feed-auth": "node scripts/test-community-feed-auth.mjs",
+    "test:community-feed-auth:apply": "node scripts/apply-community-feed-auth-migration.mjs",
     "test:prayer": "playwright test --config=playwright.config.ts",
     "test:prayer:auth": "playwright test --config=playwright.config.ts --grep @auth",
     "test:prayer:headed": "playwright test --config=playwright.config.ts --headed"

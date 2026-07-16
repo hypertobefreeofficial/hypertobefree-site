@@ -20,7 +20,6 @@ import {
   Flag,
   Info,
   MoreHorizontal,
-  MoreVertical,
   Video,
   MessageCircleHeart,
   CheckCircle2,
@@ -51,7 +50,15 @@ import {
   loadCommunityFeed,
   type FeedDisplayItem,
   type FeedStoryDisplay,
+  type FeedVideoResponseDisplay,
 } from "../lib/community-feed/loadCommunityFeed";
+import { canPersistentlyHideFeedItem } from "../lib/community-feed/canHideFeedItem";
+import { buildVideoResponseSharePayload } from "../lib/community-feed/shareVideoResponse";
+import {
+  hidePrayer,
+  loadHiddenPrayerIds,
+  migrateLegacyHiddenPrayers,
+} from "../lib/prayer-connect/hiddenPrayers";
 import { loadBidirectionalBlockedUserIds } from "../lib/community-feed/blockedUsers";
 import { mergeFeedDisplayPages } from "../lib/community-feed/mergeFeedState";
 import { processRealtimeFeedUpdates } from "../lib/community-feed/processRealtimeFeedUpdates";
@@ -71,18 +78,29 @@ import {
   getStoryFeedMediaAspect,
 } from "../lib/community-feed/feedMediaAspect";
 import {
-  getCommunityFeedVisualValidationFixtures,
-} from "../lib/community-feed/visualValidationFixtures";
-import {
   isCommunityFeedVisualValidationEnabled,
   VISUAL_VALIDATION_PAGE_2_CURSOR,
 } from "../lib/community-feed/visualValidationMode";
 import { formatFeedRelativeTime } from "../lib/community-feed/formatFeedRelativeTime";
-import { hidePrayer } from "../lib/prayer-connect/hiddenPrayers";
+import {
+  MARK_PRAYER_ANSWERED_TEXT_MAX_LENGTH,
+} from "../lib/community-feed/markPrayerAnsweredAuthorization";
+import { markMyPrayerAnswered } from "../lib/prayer-connect/markMyPrayerAnswered";
 import FeedScrollVideoPreview from "./community-feed/FeedScrollVideoPreview";
+import FeedListItem from "./community-feed/FeedListItem";
+import type { CommunityFeedPostCallbacks } from "./community-feed/types";
+import {
+  getCommunityFeedVisualValidationFixtures,
+  FIXTURE_VIEWER_USER_ID,
+} from "../lib/community-feed/visualValidationFixtures";
 import styles from "./FreedomFeed.module.css";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
+const SELECTOR_REACTION_TYPES: ReactionType[] = [
+  "amen",
+  "praise_god",
+  "encouraged",
+];
 type ReportReason =
   | "inappropriate"
   | "harassment_hate"
@@ -450,6 +468,8 @@ export default function FreedomFeed({
   const [answeringPrayerStory, setAnsweringPrayerStory] =
     useState<ApprovedStory | null>(null);
   const [answeredPrayerText, setAnsweredPrayerText] = useState("");
+  const [markingPrayerAnsweredPending, setMarkingPrayerAnsweredPending] =
+    useState(false);
   const [photoViewerStory, setPhotoViewerStory] =
     useState<ApprovedStory | null>(null);
   const [photoActionSheetOpen, setPhotoActionSheetOpen] = useState(false);
@@ -464,6 +484,9 @@ export default function FreedomFeed({
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
   const [savedStoryIds, setSavedStoryIds] = useState<string[]>([]);
+  const [hiddenPrayerStoryIds, setHiddenPrayerStoryIds] = useState<string[]>(
+    []
+  );
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [postOverflowMenuKey, setPostOverflowMenuKey] = useState<string | null>(
     null
@@ -511,6 +534,8 @@ export default function FreedomFeed({
     async function loadVisualValidationFixtures() {
       setLoadingFeed(true);
       setFeedLoadError("");
+      currentUserIdRef.current = FIXTURE_VIEWER_USER_ID;
+      setUserId(FIXTURE_VIEWER_USER_ID);
       setFeedItems(getCommunityFeedVisualValidationFixtures(1));
       setFeedNextCursor(VISUAL_VALIDATION_PAGE_2_CURSOR);
       feedPagesLoadedRef.current = 1;
@@ -536,6 +561,7 @@ export default function FreedomFeed({
             await loadAccountSafety(currentUserIdRef.current);
           } else {
             setSavedStoryIds([]);
+            setHiddenPrayerStoryIds([]);
             setBlockedUserIds([]);
             blockedUserIdsRef.current = [];
           }
@@ -745,13 +771,20 @@ export default function FreedomFeed({
   }
 
   async function loadAccountSafety(currentUserId: string) {
-    const [savedResult, blockedUserIdsLoaded] = await Promise.all([
+    const [savedResult, blockedUserIdsLoaded, hiddenResult] = await Promise.all([
       supabase
         .from("saved_content")
         .select("story_id")
         .eq("user_id", currentUserId),
       loadBidirectionalBlockedUserIds(currentUserId),
+      loadHiddenPrayerIds(currentUserId),
     ]);
+
+    try {
+      await migrateLegacyHiddenPrayers(currentUserId);
+    } catch (error) {
+      console.warn("Could not migrate legacy hidden prayers:", error);
+    }
 
     if (savedResult.error) {
       console.error("Could not load saved stories:", savedResult.error);
@@ -773,6 +806,7 @@ export default function FreedomFeed({
 
     setBlockedUserIds(blockedUserIdsLoaded);
     blockedUserIdsRef.current = blockedUserIdsLoaded;
+    setHiddenPrayerStoryIds(hiddenResult.ids);
   }
 
   function formatFeedLoadError(error: unknown): string {
@@ -1020,9 +1054,18 @@ export default function FreedomFeed({
     }, 400);
   }
 
+  const visibleFeedItems = useMemo(() => {
+    if (hiddenPrayerStoryIds.length === 0) return feedItems;
+
+    const hidden = new Set(hiddenPrayerStoryIds);
+    return feedItems.filter(
+      (item) => !(item.kind === "story" && hidden.has(item.id))
+    );
+  }, [feedItems, hiddenPrayerStoryIds]);
+
   const filteredFeedItems = useMemo(
-    () => filterFeedDisplayItems(feedItems, activeFilter, blockedUserIds),
-    [activeFilter, blockedUserIds, feedItems]
+    () => filterFeedDisplayItems(visibleFeedItems, activeFilter, blockedUserIds),
+    [activeFilter, blockedUserIds, visibleFeedItems]
   );
 
   const storyFeedItems = useMemo(
@@ -1218,39 +1261,26 @@ export default function FreedomFeed({
       return;
     }
 
-    if (item.kind === "story" && isPrayerStory(item)) {
-      try {
-        await hidePrayer(userId, item.id);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Could not hide post.";
-        setReactionMessage(message);
-        return;
-      }
+    if (!canPersistentlyHideFeedItem(item)) {
+      return;
+    }
+
+    try {
+      await hidePrayer(userId, item.id);
+      setHiddenPrayerStoryIds((current) =>
+        current.includes(item.id) ? current : [...current, item.id]
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not hide post.";
+      setReactionMessage(message);
+      return;
     }
 
     setFeedItems((current) =>
       current.filter((entry) => entry.dedupeKey !== item.dedupeKey)
     );
     setReactionMessage("Post hidden.");
-  }
-
-  function buildEngagementSummary(story: ApprovedStory) {
-    const parts: string[] = [];
-
-    if (story.reaction_counts.amen > 0) {
-      parts.push(`🙏 ${story.reaction_counts.amen} Amen`);
-    }
-
-    if (story.reaction_counts.praise_god > 0) {
-      parts.push(`✨ ${story.reaction_counts.praise_god} Praise God`);
-    }
-
-    if (story.reaction_counts.encouraged > 0) {
-      parts.push(`💙 ${story.reaction_counts.encouraged} Encouraged`);
-    }
-
-    return parts.join(" · ");
   }
 
   useEffect(() => {
@@ -1305,6 +1335,33 @@ export default function FreedomFeed({
       return;
     }
 
+    const replacingSelectorReaction = SELECTOR_REACTION_TYPES.includes(
+      reactionType
+    );
+    const existingSelectorReactions =
+      story?.user_reactions.filter(
+        (existing) =>
+          SELECTOR_REACTION_TYPES.includes(existing) && existing !== reactionType
+      ) ?? [];
+
+    if (replacingSelectorReaction && existingSelectorReactions.length > 0) {
+      const { error: clearError } = await supabase
+        .from("story_reactions")
+        .delete()
+        .eq("story_id", storyId)
+        .eq("user_id", userId)
+        .in("reaction_type", existingSelectorReactions);
+
+      if (clearError) {
+        setReactionMessage(`Could not update reaction: ${clearError.message}`);
+        return;
+      }
+
+      for (const existing of existingSelectorReactions) {
+        updateLocalReaction(storyId, existing, "remove");
+      }
+    }
+
     const { error } = await supabase.from("story_reactions").insert({
       story_id: storyId,
       user_id: userId,
@@ -1353,12 +1410,15 @@ export default function FreedomFeed({
   }
 
   function closeAnsweredPrayerModal() {
+    if (markingPrayerAnsweredPending) return;
     setAnsweringPrayerStory(null);
     setAnsweredPrayerText("");
     setReactionMessage("");
   }
 
   async function markPrayerAnswered(storyId: string, answeredText: string) {
+    if (markingPrayerAnsweredPending) return;
+
     setReactionMessage("");
 
     if (!userId) {
@@ -1371,41 +1431,29 @@ export default function FreedomFeed({
         item.kind === "story" && item.id === storyId
     );
 
-    if (!story) {
-      setReactionMessage("Could not find this prayer request.");
-      return;
-    }
+    setMarkingPrayerAnsweredPending(true);
 
-    if (story.user_id !== userId) {
-      setReactionMessage(
-        "Only the person who shared this prayer request can mark it answered."
-      );
-      return;
-    }
+    const result = await markMyPrayerAnswered({
+      supabase,
+      storyId,
+      answeredText,
+      authUserId: userId,
+      storyForValidation: story
+        ? {
+            id: story.id,
+            user_id: story.user_id,
+            story_type: story.story_type,
+            status: story.status,
+            prayer_status: story.prayer_status,
+            removed_at: null,
+          }
+        : null,
+    });
 
-    const cleanAnsweredText = answeredText.trim();
+    setMarkingPrayerAnsweredPending(false);
 
-    if (!cleanAnsweredText) {
-      setReactionMessage(
-        "Please add a short answered prayer update before marking this answered."
-      );
-      return;
-    }
-
-    const answeredAt = new Date().toISOString();
-
-    const { error } = await supabase
-      .from("stories")
-      .update({
-        prayer_status: "answered",
-        answered_at: answeredAt,
-        answered_text: cleanAnsweredText,
-      })
-      .eq("id", storyId)
-      .eq("user_id", userId);
-
-    if (error) {
-      setReactionMessage(`Could not mark prayer answered: ${error.message}`);
+    if (result.ok === false) {
+      setReactionMessage(result.message);
       return;
     }
 
@@ -1414,16 +1462,51 @@ export default function FreedomFeed({
         item.kind === "story" && item.id === storyId
           ? {
               ...item,
-              prayer_status: "answered",
-              answered_at: answeredAt,
-              answered_text: cleanAnsweredText,
+              prayer_status: result.story.prayer_status,
+              answered_at: result.story.answered_at,
+              answered_text: result.story.answered_text,
             }
           : item
       )
     );
 
-    closeAnsweredPrayerModal();
+    setAnsweringPrayerStory(null);
+    setAnsweredPrayerText("");
     setReactionMessage("Praise shared with the community.");
+  }
+
+  async function shareVideoResponse(item: FeedVideoResponseDisplay) {
+    setReactionMessage("");
+
+    const sharePayload = buildVideoResponseSharePayload(
+      item,
+      window.location.origin
+    );
+
+    if (sharePayload.parentStoryId) {
+      saveFreedomFeedReturnState(
+        sharePayload.parentStoryId,
+        `freedom-feed-response-${item.id}`
+      );
+    }
+
+    const shareData = {
+      title: sharePayload.title,
+      text: sharePayload.text,
+      url: sharePayload.url,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+      setReactionMessage("Share link copied.");
+    } catch (error) {
+      console.error("Share failed:", error);
+    }
   }
 
   async function shareStory(story: ApprovedStory) {
@@ -1872,6 +1955,32 @@ export default function FreedomFeed({
     photoViewerText.length > 80 ||
     photoViewerText.split(/\r\n|\r|\n/).length > 2;
 
+  const communityFeedCallbacks = useMemo<CommunityFeedPostCallbacks>(
+    () => ({
+      userId,
+      savedStoryIds,
+      postOverflowMenuKey,
+      setPostOverflowMenuKey,
+      formatAuthorMeta,
+      isOriginalPoster,
+      onOpenStory: openStoryDetail,
+      onShareStory: shareStory,
+      onShareVideoResponse: shareVideoResponse,
+      onToggleReaction: toggleReaction,
+      onToggleSaved: toggleSavedStory,
+      onReportStory: openFeedReport,
+      onBlockStoryUser: blockStoryUser,
+      onHideFeedItem: hideFeedItem,
+      onBlockFeedUser: blockFeedUser,
+      onGodDidIt: (story) => {
+        setAnsweringPrayerStory(story);
+        setAnsweredPrayerText("");
+        setReactionMessage("");
+      },
+    }),
+    [userId, savedStoryIds, postOverflowMenuKey]
+  );
+
   return (
     <section
       id="stories"
@@ -1953,194 +2062,6 @@ export default function FreedomFeed({
                     aria-hidden
                   />
                 ) : null;
-
-              if (feedItem.kind === "prayer_video_response") {
-                const shouldShowMiniReels =
-                  showMiniReelsInFeed &&
-                  (index + 1) % 12 === 0 &&
-                  index < filteredFeedItems.length - 1;
-                const miniReelAnchorId = `freedom-feed-mini-reels-${index + 1}`;
-
-                return (
-                  <Fragment key={feedItem.dedupeKey}>
-                    {postSeparator}
-                    <article
-                      id={`freedom-feed-response-${feedItem.id}`}
-                      className={styles.post}
-                    >
-                      <div className={`${styles.postInset} ${styles.postHeader}`}>
-                        <div className={styles.postHeaderRow}>
-                          <div className={styles.authorRow}>
-                            <div className={styles.avatar}>
-                              {(feedItem.name || "H").charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className={styles.authorName}>
-                                {feedItem.name || "HTBF Community"}
-                              </div>
-                              <div className={styles.authorMeta}>
-                                {formatAuthorMeta(
-                                  feedItem.location,
-                                  feedItem.created_at
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div
-                            className={styles.postHeaderActions}
-                            data-feed-post-overflow-root="true"
-                          >
-                            <button
-                              type="button"
-                              className={styles.overflowTrigger}
-                              aria-label="Post options"
-                              aria-haspopup="menu"
-                              aria-expanded={
-                                postOverflowMenuKey === feedItem.dedupeKey
-                              }
-                              onClick={() =>
-                                setPostOverflowMenuKey((current) =>
-                                  current === feedItem.dedupeKey
-                                    ? null
-                                    : feedItem.dedupeKey
-                                )
-                              }
-                            >
-                              <MoreVertical className="h-5 w-5" aria-hidden />
-                            </button>
-
-                            {postOverflowMenuKey === feedItem.dedupeKey ? (
-                              <div className={styles.postOverflowMenu} role="menu">
-                                {feedItem.user_id &&
-                                  feedItem.user_id !== userId && (
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      className={`${styles.postOverflowItem} ${styles.postOverflowItemDanger}`}
-                                      onClick={() =>
-                                        void blockFeedUser(feedItem.user_id)
-                                      }
-                                    >
-                                      <UserX className="h-4 w-4 shrink-0" />
-                                      Block user
-                                    </button>
-                                  )}
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className={styles.postOverflowItem}
-                                  onClick={() => void hideFeedItem(feedItem)}
-                                >
-                                  <EyeOff className="h-4 w-4 shrink-0" />
-                                  Hide post
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <p className={styles.responseContext}>
-                          Responded with a video prayer for{" "}
-                          <span className="font-semibold text-slate-900">
-                            {feedItem.parentStoryTitle}
-                          </span>
-                          {feedItem.parentStoryAuthor
-                            ? ` by ${feedItem.parentStoryAuthor}`
-                            : ""}
-                          .
-                        </p>
-                      </div>
-
-                      {feedItem.signed_video_url ||
-                      feedItem.signed_thumbnail_url ? (
-                        <FeedScrollVideoPreview
-                          posterUrl={feedItem.signed_thumbnail_url}
-                          fallbackLabel="Video prayer"
-                          frameClassName={`${styles.mediaFrame} ${styles.mediaFramePortrait}`}
-                          ariaLabel={`Video prayer response for ${feedItem.parentStoryTitle}`}
-                          onClick={() => {
-                            if (feedItem.parentStoryId) {
-                              window.location.href = `/prayer?story=${feedItem.parentStoryId}`;
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div className={styles.mediaUnavailable}>
-                          Video unavailable right now.
-                        </div>
-                      )}
-                    </article>
-                    {shouldShowMiniReels ? (
-                      <MiniReelsCarousel
-                        anchorId={miniReelAnchorId}
-                        stories={miniReelStories}
-                        onOpen={(storyId) => {
-                          const target = storyFeedItems.find(
-                            (item) => item.id === storyId
-                          );
-                          if (target) openStoryDetail(target);
-                        }}
-                        onViewAll={() => {
-                          window.location.href = "/video-feed";
-                        }}
-                      />
-                    ) : null}
-                  </Fragment>
-                );
-              }
-
-              const story = feedItem;
-              const prayerStory = isPrayerStory(story);
-              const originalPoster = isOriginalPoster(story);
-              const prayerAnswered = story.prayer_status === "answered";
-              const captionStyle = getCaptionStyle(story.caption_style);
-              const hasVideoMedia = Boolean(
-                story.signed_video_url || story.video_url
-              );
-              const hasImageMedia = Boolean(story.signed_image_url);
-              const overlayText = story.overlay_text?.trim() ?? "";
-              const creationTemplate = getCreationTemplateMetadata(
-                story.ai_suggestions
-              );
-              const creatorStudioDesign = readStoredCreatorStudioDesignFromStory(
-                story
-              );
-              const showCreatorStudioDesignCard = isCreatorStudioFeedPost({
-                aiSuggestions: story.ai_suggestions,
-                creationMode: story.creation_mode,
-                hasVideoMedia,
-                hasImageMedia,
-              });
-              const showCreationTemplateCard = Boolean(
-                creationTemplate &&
-                  story.story_text &&
-                  !hasVideoMedia &&
-                  !hasImageMedia &&
-                  !showCreatorStudioDesignCard
-              );
-              const showCreatorStudioCard = Boolean(
-                showCreatorStudioDesignCard && creatorStudioDesign
-              );
-              const showInlineStoryText =
-                Boolean(story.story_text) &&
-                !showCreationTemplateCard &&
-                !showCreatorStudioCard &&
-                !hasVideoMedia &&
-                (!hasImageMedia || captionStyle === "classic-caption");
-              const showVideoCaptionText =
-                Boolean(story.story_text) &&
-                hasVideoMedia &&
-                !showCreatorStudioCard;
-              const storyMediaAspect = getStoryFeedMediaAspect(story);
-              const storyVideoFrameClass = feedMediaAspectClassName(
-                storyMediaAspect,
-                {
-                  auto: styles.mediaFrameAuto,
-                  portrait: `${styles.mediaFrame} ${styles.mediaFramePortrait}`,
-                  landscape: `${styles.mediaFrame} ${styles.mediaFrameLandscape}`,
-                }
-              );
               const miniReelAnchorId = `freedom-feed-mini-reels-${index + 1}`;
               const shouldShowMiniReels =
                 showMiniReelsInFeed &&
@@ -2148,459 +2069,69 @@ export default function FreedomFeed({
                 index < filteredFeedItems.length - 1;
 
               return (
-                <Fragment key={story.dedupeKey}>
-                {postSeparator}
-                <article
-                  id={`freedom-feed-story-${story.id}`}
-                  className={styles.post}
-                >
-                  <div className={`${styles.postInset} ${styles.postHeader}`}>
-                    <div className={styles.postHeaderRow}>
-                      <div className={styles.authorRow}>
-                        <div className={styles.avatar}>
-                          {(story.name || "H").charAt(0).toUpperCase()}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                            <div className={styles.authorName}>
-                              {story.name || "HTBF Community"}
-                            </div>
-
-                            {prayerStory && prayerAnswered && (
-                              <span className={styles.badgeAnswered}>
-                                Answered
-                              </span>
-                            )}
-                          </div>
-
-                          <div className={styles.authorMeta}>
-                            {formatAuthorMeta(story.location, story.created_at)}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        className={styles.postHeaderActions}
-                        data-feed-post-overflow-root="true"
-                      >
-                        <button
-                          type="button"
-                          className={styles.overflowTrigger}
-                          aria-label="Post options"
-                          aria-haspopup="menu"
-                          aria-expanded={postOverflowMenuKey === story.dedupeKey}
-                          onClick={() =>
-                            setPostOverflowMenuKey((current) =>
-                              current === story.dedupeKey ? null : story.dedupeKey
-                            )
-                          }
-                        >
-                          <MoreVertical className="h-5 w-5" aria-hidden />
-                        </button>
-
-                        {postOverflowMenuKey === story.dedupeKey ? (
-                          <div className={styles.postOverflowMenu} role="menu">
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className={styles.postOverflowItem}
-                              onClick={() => openFeedReport(story)}
-                            >
-                              <Flag className="h-4 w-4 shrink-0" />
-                              Report post
-                            </button>
-
-                            {!originalPoster && story.user_id ? (
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className={`${styles.postOverflowItem} ${styles.postOverflowItemDanger}`}
-                                onClick={() => void blockStoryUser(story)}
-                              >
-                                <UserX className="h-4 w-4 shrink-0" />
-                                Block user
-                              </button>
-                            ) : null}
-
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className={styles.postOverflowItem}
-                              onClick={() => void hideFeedItem(story)}
-                            >
-                              <EyeOff className="h-4 w-4 shrink-0" />
-                              Hide post
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-
-                  {story.signed_image_url && !showCreatorStudioCard && (
-                    <button
-                      type="button"
-                      onClick={() => openStoryDetail(story)}
-                      className={`${styles.mediaOpenButton} ${styles.mediaBleed}`}
-                      aria-label="Open post"
-                    >
-                      <div className={styles.mediaFrameAuto}>
-                        <ComposedFeedPostVisual
-                          captionStyle={captionStyle}
-                          story={story}
-                        />
-                      </div>
-                    </button>
-                  )}
-
-                  {showCreatorStudioCard && creatorStudioDesign && (
-                    <button
-                      type="button"
-                      onClick={() => openStoryDetail(story)}
-                      className={`${styles.mediaOpenButton} ${styles.mediaBleed}`}
-                      aria-label="Open Creator Studio post"
-                    >
-                      <div className={styles.mediaFrameAuto}>
-                        {(() => {
-                          console.log(
-                            "[CreatorStudio/pipeline] feed render design JSON",
-                            {
-                              storyId: story.id,
-                              creation_mode: story.creation_mode,
-                              selectedDesignId: creatorStudioDesign.id,
-                              templateId: creatorStudioDesign.templateId,
-                              layoutType: creatorStudioDesign.layoutType,
-                              layerStyles: creatorStudioDesign.layerStyles,
-                              feedRenderDesignJson: creatorStudioDesign,
-                            }
-                          );
-                          return null;
-                        })()}
-                        <CreatorStudioStoryRenderer
-                          design={creatorStudioDesign}
-                          photoPreviewUrl={story.signed_image_url}
-                          videoPreviewUrl={
-                            story.signed_video_url ?? story.video_url
-                          }
-                          variant="feed"
-                        />
-                      </div>
-                    </button>
-                  )}
-
-                  {showCreationTemplateCard && creationTemplate && (
-                    <div className={`${styles.postInset} ${styles.postBody}`}>
-                      <ComposedFeedPostButton
-                        onOpen={() => openStoryDetail(story)}
-                        captionStyle={captionStyle}
-                        story={story}
-                        template={creationTemplate}
-                      />
-                    </div>
-                  )}
-
-                  {story.signed_video_url && !showCreatorStudioCard && (
-                    <FeedScrollVideoPreview
-                      posterUrl={story.signed_thumbnail_url}
-                      fallbackLabel={
-                        prayerStory ? "Video prayer" : "Video testimony"
+                <FeedListItem
+                  key={feedItem.dedupeKey}
+                  feedItem={feedItem}
+                  index={index}
+                  totalItems={filteredFeedItems.length}
+                  callbacks={communityFeedCallbacks}
+                  postSeparator={postSeparator}
+                  shouldShowMiniReels={shouldShowMiniReels}
+                  miniReelAnchorId={miniReelAnchorId}
+                  miniReelsSlot={
+                    <MiniReelsCarousel
+                      anchorId={miniReelAnchorId}
+                      stories={miniReelStories}
+                      onOpen={(storyId) =>
+                        openVideoStory(storyId, miniReelAnchorId)
                       }
-                      frameClassName={storyVideoFrameClass}
-                      ariaLabel="Open video in Video Feed"
-                      onClick={() => openStoryDetail(story)}
-                      overlay={
-                        overlayText ? (
-                          <FeedCaptionOverlay
-                            alignment={getCaptionAlign(story.caption_align)}
-                            background={getCaptionBackground(
-                              story.caption_background,
-                              captionStyle
-                            )}
-                            color={getCaptionColor(story.caption_color)}
-                            font={getCaptionFont(
-                              story.caption_font,
-                              captionStyle
-                            )}
-                            overlayX={story.overlay_x}
-                            overlayY={story.overlay_y}
-                            size={getCaptionSize(story.caption_size)}
-                            style={captionStyle}
-                            text={overlayText}
-                          />
-                        ) : null
+                      onViewAll={() =>
+                        saveFreedomFeedReturnState(
+                          miniReelStories[0].id,
+                          miniReelAnchorId
+                        )
                       }
                     />
+                  }
+                  isPrayerStory={isPrayerStory}
+                  getCaptionStyle={getCaptionStyle}
+                  getCreationTemplateMetadata={getCreationTemplateMetadata}
+                  getCaptionAlign={getCaptionAlign}
+                  getCaptionBackground={getCaptionBackground}
+                  getCaptionColor={getCaptionColor}
+                  getCaptionFont={getCaptionFont}
+                  getCaptionSize={getCaptionSize}
+                  renderComposedFeedPostVisual={({ captionStyle, story, template }) => (
+                    <ComposedFeedPostVisual
+                      captionStyle={captionStyle}
+                      story={story}
+                      template={template}
+                    />
                   )}
-
-                  {!story.signed_video_url && story.video_url && (
-                    <button
-                      type="button"
-                      onClick={() => openStoryDetail(story)}
-                      className={`${styles.mediaOpenButton} w-full`}
-                    >
-                      <div className={styles.mediaUnavailable}>
-                        Video found, but the secure video link could not be
-                        created. Tap to open in Video Feed.
-                      </div>
-                    </button>
+                  renderComposedFeedPostButton={({ captionStyle, story, template, onOpen }) => (
+                    <ComposedFeedPostButton
+                      onOpen={onOpen}
+                      captionStyle={captionStyle}
+                      story={story}
+                      template={template}
+                    />
                   )}
-
-                  {(showInlineStoryText || showVideoCaptionText) && (
-                    <div className={`${styles.postInset} ${styles.postBody}`}>
-                      {showInlineStoryText && (
-                        <CollapsibleStoryText
-                          onOpen={() => openStoryDetail(story)}
-                          text={story.story_text}
-                        />
-                      )}
-
-                      {showVideoCaptionText && (
-                        <CollapsibleStoryText
-                          className="mt-0"
-                          text={story.story_text}
-                        />
-                      )}
-                    </div>
+                  renderCaptionOverlay={(props) => (
+                    <FeedCaptionOverlay
+                      {...(props as {
+                        alignment?: CaptionAlign;
+                        background?: CaptionBackground;
+                        color?: CaptionColor;
+                        font?: CaptionFont;
+                        overlayX?: number | null;
+                        overlayY?: number | null;
+                        size?: CaptionSize;
+                        style: CaptionStyle;
+                        text: string;
+                      })}
+                    />
                   )}
-
-                  <div className={styles.actionsDivider} aria-hidden />
-
-                  <div className={`${styles.postInset} ${styles.postActions}`}>
-                    {prayerStory ? (
-                      <>
-                        {prayerAnswered ? (
-                          <div className={styles.panelAnswered}>
-                            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
-                              <CheckCircle2 className="h-4 w-4" />
-                              Answered Prayer
-                            </div>
-
-                            {story.story_text && (
-                              <div className="mt-4">
-                                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                                  Original Prayer Request
-                                </div>
-
-                                <div
-                                  className="mt-2 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
-                                  style={{
-                                    overflowWrap: "anywhere",
-                                    wordBreak: "break-word",
-                                    whiteSpace: "pre-wrap",
-                                  }}
-                                >
-                                  {story.story_text}
-                                </div>
-                              </div>
-                            )}
-
-                            {story.reaction_counts.praying > 0 && (
-                              <div className="mt-4 inline-flex rounded-full bg-emerald-100 px-3.5 py-2 text-sm font-black text-emerald-800 ring-1 ring-emerald-200">
-                                🙏{" "}
-                                {story.reaction_counts.praying === 1
-                                  ? "1 believer prayed with this request"
-                                  : `${story.reaction_counts.praying} believers prayed with this request`}
-                              </div>
-                            )}
-
-                            <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                              How God Answered
-                            </div>
-
-                            {story.answered_text ? (
-                              <div
-                                className="mt-2 rounded-2xl bg-white p-4 text-sm leading-6 text-slate-700 ring-1 ring-emerald-100"
-                                style={{
-                                  overflowWrap: "anywhere",
-                                  wordBreak: "break-word",
-                                  whiteSpace: "pre-wrap",
-                                }}
-                              >
-                                {story.answered_text}
-                              </div>
-                            ) : (
-                              <p className="mt-2 text-sm leading-6 text-slate-600">
-                                This prayer request was marked answered by the
-                                person who shared it.
-                              </p>
-                            )}
-
-                            <button
-                              onClick={() => shareStory(story)}
-                              className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 ring-1 ring-emerald-100 transition hover:bg-emerald-100"
-                            >
-                              <Share2 className="h-4 w-4" />
-                              Share Testimony
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <div className={styles.panelPrayer}>
-                              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                                Prayer Chain
-                              </div>
-
-                              <div className="mt-1 text-base font-black text-[#062a57]">
-                                {story.reaction_counts.praying === 0
-                                  ? "Be the first to pray"
-                                  : story.reaction_counts.praying === 1
-                                    ? "1 person is praying"
-                                    : `${story.reaction_counts.praying} people are praying`}
-                              </div>
-
-                              <p className="mt-2 text-sm leading-6 text-slate-600">
-                                Stand with this prayer request and let them know
-                                they are not praying alone.
-                              </p>
-                            </div>
-
-                            <div className="flex flex-col gap-2 sm:flex-row">
-                              <ReactionButton
-                                active={story.user_reactions.includes("praying")}
-                                label={
-                                  story.user_reactions.includes("praying")
-                                    ? "Praying"
-                                    : "I’m Praying"
-                                }
-                                onClick={() =>
-                                  toggleReaction(story.id, "praying")
-                                }
-                              />
-
-                              <button
-                                onClick={() => shareStory(story)}
-                                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-slate-50 px-3 py-2.5 text-sm font-black text-slate-600 transition hover:bg-blue-50 hover:text-[#0b63ce]"
-                              >
-                                <Share2 className="h-4 w-4 shrink-0" />
-                                Share
-                              </button>
-
-                              {originalPoster && (
-                                <button
-                                  onClick={() => {
-                                    setAnsweringPrayerStory(story);
-                                    setAnsweredPrayerText("");
-                                    setReactionMessage("");
-                                  }}
-                                  className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
-                                >
-                                  God Did It
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {buildEngagementSummary(story) ? (
-                          <p
-                            className={styles.engagementSummary}
-                            data-testid="feed-engagement-summary"
-                          >
-                            {buildEngagementSummary(story)}
-                          </p>
-                        ) : null}
-
-                        <div className={styles.actionGridRow}>
-                          <ReactionButton
-                            active={story.user_reactions.includes("amen")}
-                            label="Amen"
-                            onClick={() => toggleReaction(story.id, "amen")}
-                          />
-
-                          <ReactionButton
-                            active={story.user_reactions.includes("praise_god")}
-                            label={
-                              <>
-                                <span className="sm:hidden">Praise</span>
-                                <span className="hidden sm:inline">
-                                  Praise God
-                                </span>
-                              </>
-                            }
-                            onClick={() =>
-                              toggleReaction(story.id, "praise_god")
-                            }
-                          />
-
-                          <ReactionButton
-                            active={story.user_reactions.includes("encouraged")}
-                            label="Encouraged"
-                            onClick={() =>
-                              toggleReaction(story.id, "encouraged")
-                            }
-                          />
-                        </div>
-
-                        <div
-                          className={`${styles.actionGridRow} mt-2 ${
-                            prayerStory && !prayerAnswered
-                              ? ""
-                              : styles.actionGridRowTwo
-                          }`}
-                        >
-                          {prayerStory && !prayerAnswered ? (
-                            <Link
-                              href="/prayer"
-                              className={styles.actionSecondaryButton}
-                            >
-                              <Video className="h-4 w-4 shrink-0" aria-hidden />
-                              Video response
-                            </Link>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            onClick={() => shareStory(story)}
-                            className={styles.actionSecondaryButton}
-                          >
-                            <Share2 className="h-4 w-4 shrink-0" aria-hidden />
-                            Share
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleSavedStory(story)}
-                            className={`${styles.actionSecondaryButton} ${
-                              savedStoryIds.includes(story.id)
-                                ? styles.actionSecondaryActive
-                                : ""
-                            }`}
-                          >
-                            <Bookmark
-                              className={`h-4 w-4 shrink-0 ${
-                                savedStoryIds.includes(story.id)
-                                  ? "fill-current"
-                                  : ""
-                              }`}
-                              aria-hidden
-                            />
-                            {savedStoryIds.includes(story.id) ? "Saved" : "Save"}
-                          </button>
-                        </div>
-                      </>
-                    )}
-
-                  </div>
-                </article>
-                {shouldShowMiniReels && (
-                  <MiniReelsCarousel
-                    anchorId={miniReelAnchorId}
-                    stories={miniReelStories}
-                    onOpen={(storyId) =>
-                      openVideoStory(storyId, miniReelAnchorId)
-                    }
-                    onViewAll={() =>
-                      saveFreedomFeedReturnState(
-                        miniReelStories[0].id,
-                        miniReelAnchorId
-                      )
-                    }
-                  />
-                )}
-                </Fragment>
+                />
               );
             })
           )}
@@ -2990,6 +2521,8 @@ export default function FreedomFeed({
                 value={answeredPrayerText}
                 onChange={(event) => setAnsweredPrayerText(event.target.value)}
                 rows={7}
+                maxLength={MARK_PRAYER_ANSWERED_TEXT_MAX_LENGTH}
+                disabled={markingPrayerAnsweredPending}
                 placeholder="Share what God did…"
                 className="mt-4 min-h-[11rem] w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-50 sm:min-h-[10rem]"
               />
@@ -3004,22 +2537,24 @@ export default function FreedomFeed({
                 <button
                   type="button"
                   onClick={closeAnsweredPrayerModal}
-                  className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                  disabled={markingPrayerAnsweredPending}
+                  className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Not Yet
                 </button>
 
                 <button
                   type="button"
+                  disabled={markingPrayerAnsweredPending}
                   onClick={() =>
                     markPrayerAnswered(
                       answeringPrayerStory.id,
                       answeredPrayerText
                     )
                   }
-                  className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+                  className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Share Praise
+                  {markingPrayerAnsweredPending ? "Sharing…" : "Share Praise"}
                 </button>
               </div>
             </div>

@@ -65,7 +65,8 @@ test.describe("Community Feed shell — fixture render path", () => {
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
     await expect(danielPost.getByTestId("feed-engagement-summary")).toHaveCount(1);
-    await expect(danielPost.getByRole("button", { name: "Amen" })).toBeVisible();
+    await expect(danielPost.getByRole("button", { name: "Amen" })).toHaveCount(0);
+    await expect(danielPost.getByRole("button", { name: /^React/ })).toBeVisible();
   });
 
   test("no unexplained plus control is rendered", async ({ page }) => {
@@ -215,12 +216,12 @@ test.describe("Community Feed shell — fixture render path", () => {
     await openFixtureFeed(page);
     await expect(page.getByText(FIRST_POST_SNIPPET).first()).toBeVisible();
     await expect(
-      page.getByText("We asked for provision during a difficult month.").first()
+      page.getByText("Please pray for my daughter's procedure tomorrow morning.").first()
     ).not.toBeVisible();
 
     await page.getByRole("button", { name: "Load more" }).click();
     await expect(
-      page.getByText("We asked for provision during a difficult month.").first()
+      page.getByText("Please pray for my daughter's procedure tomorrow morning.").first()
     ).toBeVisible();
     await expect(page.getByText(FIRST_POST_SNIPPET).first()).toBeVisible();
   });

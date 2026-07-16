@@ -5,11 +5,14 @@ import type {
   FeedVideoResponseDisplay,
 } from "./enrichFeedItems";
 
+export const FIXTURE_VIEWER_USER_ID = "fixture-viewer-user";
+
 const FIXTURE_MEDIA = {
   landscapePhoto: "/images/feed/freedom-feed-composer-wide-v2.webp",
   portraitPoster: "/images/journey/01-journey-hero-mobile.png",
   landscapePoster: "/images/feed/freedom-feed-hero-final.webp",
   praisePoster: "/images/journey/04-keep-going-mobile.png",
+  praisePortraitPoster: "/images/journey/01-journey-hero-mobile.png",
   responsePoster: "/images/journey/03-reflection-room-mobile.png",
 } as const;
 
@@ -89,7 +92,7 @@ const creatorStudioDesign = prepareCreatorStudioForEditing({
   studioPath: "create-design",
   sourceMode: "upload-photo",
   title: "He makes all things new",
-  overlayText: "Creator Studio visual testimony",
+  overlayText: "He makes all things new",
   caption: "Every detail reminded us that renewal is still possible.",
   category: "testimony",
   topic: "renewal",
@@ -190,11 +193,35 @@ export function getCommunityFeedVisualValidationFixturesPage1(): FeedDisplayItem
       name: "Jordan C.",
       story_type: "Praise Report",
       story_text:
-        "Praise God—celebrating how he opened doors we never expected.",
+        "Praise God—the doctor gave us a report we had been praying for.",
       signed_video_url: FIXTURE_VIDEO_SAMPLE,
-      signed_thumbnail_url: FIXTURE_MEDIA.praisePoster,
+      signed_thumbnail_url: FIXTURE_MEDIA.landscapePoster,
       created_at: "2026-07-14T16:30:00.000Z",
       ai_suggestions: { feedMediaAspect: "landscape" },
+      reaction_counts: {
+        amen: 18,
+        praise_god: 12,
+        encouraged: 6,
+        praying: 0,
+      },
+    }),
+    storyFixture({
+      id: "fixture-praise-portrait-video",
+      dedupeKey: "story:fixture-praise-portrait-video",
+      name: "Leah T.",
+      story_type: "Praise Report",
+      story_text:
+        "Praise God for open doors we never expected this season.",
+      signed_video_url: FIXTURE_VIDEO_SAMPLE,
+      signed_thumbnail_url: FIXTURE_MEDIA.praisePortraitPoster,
+      created_at: "2026-07-14T16:20:00.000Z",
+      ai_suggestions: { feedMediaAspect: "portrait" },
+      reaction_counts: {
+        amen: 9,
+        praise_god: 7,
+        encouraged: 4,
+        praying: 0,
+      },
     }),
   ];
 }
@@ -208,11 +235,11 @@ export function getCommunityFeedVisualValidationFixturesPage2(): FeedDisplayItem
       name: "Ruth A.",
       story_type: "Prayer Request",
       story_text:
-        "We asked for provision during a difficult month.",
+        "Please pray for my daughter's procedure tomorrow morning.",
       prayer_status: "answered",
       answered_at: "2026-07-14T12:00:00.000Z",
       answered_text:
-        "God provided through unexpected kindness from our church family.",
+        "Praise God—the procedure went perfectly and she is resting peacefully.",
       reaction_counts: {
         amen: 0,
         praise_god: 0,
@@ -220,6 +247,23 @@ export function getCommunityFeedVisualValidationFixturesPage2(): FeedDisplayItem
         praying: 18,
       },
       created_at: "2026-07-14T16:00:00.000Z",
+    }),
+    storyFixture({
+      id: "fixture-prayer-owner",
+      dedupeKey: "story:fixture-prayer-owner",
+      name: "Sarah W.",
+      user_id: FIXTURE_VIEWER_USER_ID,
+      story_type: "Prayer Request",
+      story_text:
+        "Please pray for wisdom as we care for my aging parents.",
+      prayer_status: "active",
+      reaction_counts: {
+        amen: 0,
+        praise_god: 0,
+        encouraged: 0,
+        praying: 6,
+      },
+      created_at: "2026-07-14T15:45:00.000Z",
     }),
     responseFixture({
       id: "fixture-video-response",

@@ -96,4 +96,114 @@ describe("community feed display filtering", () => {
     expect(JSON.stringify(storyItem)).not.toMatch(/originSurface|prayer_connect|profile_upload/i);
     expect(JSON.stringify(responseItem)).not.toMatch(/originSurface|From Prayer|From Profile/i);
   });
+
+  function makeStory(
+    id: string,
+    storyType: string,
+    overrides: Partial<FeedDisplayItem> = {}
+  ): FeedDisplayItem {
+    return {
+      ...storyItem,
+      dedupeKey: `story:${id}`,
+      id,
+      user_id: `author-${id}`,
+      story_type: storyType,
+      ...overrides,
+    };
+  }
+
+  it("classifies Phase 2 render types under intended filters without duplicate rows", () => {
+    const textTestimony = makeStory("text-testimony", "Testimony");
+    const photoTestimony = makeStory("photo-testimony", "Healing Testimony", {
+      signed_image_url: "https://signed.example/image",
+    });
+    const creatorStudio = makeStory("creator", "Testimony", {
+      creation_mode: "creator_studio",
+      ai_suggestions: { selectedTemplate: { id: "generated-creator-studio" } },
+    });
+    const praiseText = makeStory("praise-text", "Praise Report");
+    const praiseVideo = makeStory("praise-video", "Praise Report", {
+      signed_video_url: "https://signed.example/praise",
+    });
+    const activePrayer = makeStory("active-prayer", "Prayer Request", {
+      prayer_status: "active",
+    });
+    const answeredPrayer = makeStory("answered-prayer", "Prayer Request", {
+      prayer_status: "answered",
+      answered_at: "2026-07-14T12:00:00.000Z",
+      answered_text: "God did it.",
+    });
+    const standaloneResponse: FeedVideoResponseDisplay = {
+      ...responseItem,
+      dedupeKey: "prayer_video_response:standalone",
+      id: "standalone-response",
+      user_id: "responder-standalone",
+      parentStoryUserId: "parent-author",
+    };
+
+    const allItems: FeedDisplayItem[] = [
+      textTestimony,
+      photoTestimony,
+      creatorStudio,
+      praiseText,
+      praiseVideo,
+      activePrayer,
+      answeredPrayer,
+      standaloneResponse,
+    ];
+
+    const dedupeKeys = (items: FeedDisplayItem[]) =>
+      items.map((item) => item.dedupeKey);
+
+    expect(dedupeKeys(filterFeedDisplayItems(allItems, "testimony", []))).toEqual(
+      expect.arrayContaining([
+        "story:text-testimony",
+        "story:photo-testimony",
+        "story:creator",
+      ])
+    );
+    expect(
+      dedupeKeys(filterFeedDisplayItems(allItems, "testimony", []))
+    ).not.toContain("story:praise-text");
+
+    expect(dedupeKeys(filterFeedDisplayItems(allItems, "praise", []))).toEqual([
+      "story:praise-text",
+      "story:praise-video",
+    ]);
+
+    expect(dedupeKeys(filterFeedDisplayItems(allItems, "videos", []))).toEqual(
+      expect.arrayContaining([
+        "story:praise-video",
+        "prayer_video_response:standalone",
+      ])
+    );
+
+    expect(dedupeKeys(filterFeedDisplayItems(allItems, "prayer", []))).toEqual(
+      expect.arrayContaining([
+        "story:active-prayer",
+        "prayer_video_response:standalone",
+      ])
+    );
+    expect(
+      dedupeKeys(filterFeedDisplayItems(allItems, "prayer", []))
+    ).not.toContain("story:answered-prayer");
+
+    expect(dedupeKeys(filterFeedDisplayItems(allItems, "answered", []))).toEqual([
+      "story:answered-prayer",
+    ]);
+
+    for (const filter of [
+      "all",
+      "videos",
+      "testimony",
+      "praise",
+      "prayer",
+      "answered",
+    ] as const) {
+      const visible = filterFeedDisplayItems(allItems, filter, []);
+      expect(new Set(visible.map((item) => item.dedupeKey)).size).toBe(
+        visible.length
+      );
+    }
+  });
 });
