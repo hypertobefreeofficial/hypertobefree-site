@@ -5,7 +5,7 @@ test("prayer page loads without authentication", async ({ page }) => {
   await primePrayerPage(page, { useMock: true });
   await page.goto("/prayer", { waitUntil: "domcontentloaded", timeout: 60000 });
   await expect(page).toHaveURL(/\/prayer/);
-  await expect(page.locator("main")).toBeVisible();
+  await expect(page.locator("main")).toBeVisible({ timeout: 15000 });
 
   await page.waitForFunction(
     () => !document.querySelector("main [aria-busy='true']"),

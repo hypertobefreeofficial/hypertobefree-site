@@ -66,7 +66,7 @@ test.describe("Community Feed shell — fixture render path", () => {
     await danielPost.scrollIntoViewIfNeeded();
     await expect(danielPost.getByTestId("feed-engagement-summary")).toHaveCount(1);
     await expect(danielPost.getByRole("button", { name: "Amen" })).toHaveCount(0);
-    await expect(danielPost.getByRole("button", { name: /^React/ })).toBeVisible();
+    await expect(danielPost.getByRole("button", { name: /^Respond/ })).toBeVisible();
   });
 
   test("no unexplained plus control is rendered", async ({ page }) => {

@@ -2,12 +2,13 @@ import Link from "next/link";
 import { Bookmark, Share2, Video } from "lucide-react";
 import type { FeedStoryDisplay } from "./types";
 import CommunityFeedEngagementSummary from "./CommunityFeedEngagementSummary";
-import CommunityFeedReactionSelector from "./CommunityFeedReactionSelector";
+import CommunityFeedRespondLauncher from "./CommunityFeedRespondLauncher";
 import styles from "../FreedomFeed.module.css";
 
 type CommunityFeedStandardActionsProps = {
   story: FeedStoryDisplay;
   savedStoryIds: string[];
+  currentUserId?: string | null;
   showVideoResponse?: boolean;
   onToggleReaction: (
     storyId: string,
@@ -15,16 +16,21 @@ type CommunityFeedStandardActionsProps = {
   ) => void;
   onShare: () => void;
   onToggleSaved: () => void;
+  onPrepareReturn?: () => void;
+  onResponseMessage?: (message: string) => void;
   videoResponseHref?: string;
 };
 
 export default function CommunityFeedStandardActions({
   story,
   savedStoryIds,
+  currentUserId = null,
   showVideoResponse = false,
   onToggleReaction,
   onShare,
   onToggleSaved,
+  onPrepareReturn,
+  onResponseMessage,
   videoResponseHref = "/prayer",
 }: CommunityFeedStandardActionsProps) {
   const isSaved = savedStoryIds.includes(story.id);
@@ -38,10 +44,13 @@ export default function CommunityFeedStandardActions({
           showVideoResponse ? "" : styles.primaryActionRowThree
         }`}
       >
-        <CommunityFeedReactionSelector
-          storyId={story.id}
+        <CommunityFeedRespondLauncher
+          story={story}
+          currentUserId={currentUserId}
           userReactions={story.user_reactions}
           onToggleReaction={onToggleReaction}
+          onPrepareReturn={onPrepareReturn}
+          onResponseMessage={onResponseMessage}
         />
 
         {showVideoResponse ? (

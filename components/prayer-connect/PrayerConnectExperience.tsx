@@ -872,8 +872,8 @@ export default function PrayerConnectExperience() {
   };
 
   return (
-    <main className={styles.page}>
-      <div className={styles.prayerViewport}>
+    <>
+    <div className={styles.prayerViewport}>
         {isMobile ? (
           <>
             <PrayerMobileHeader
@@ -1615,6 +1615,6 @@ export default function PrayerConnectExperience() {
           </div>
         </div>
       ) : null}
-    </main>
+    </>
   );
 }

@@ -214,7 +214,7 @@ export default function FeedListItem({
     );
   } else if (showCreationTemplateCard && creationTemplate) {
     media = (
-      <div className={`${styles.postInset} ${styles.postBody}`}>
+      <div className={styles.mediaBleed}>
         {renderComposedFeedPostButton({
           captionStyle,
           story,

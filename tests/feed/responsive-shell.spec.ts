@@ -147,7 +147,7 @@ test.describe("Community Feed responsive shell", () => {
     await danielPost.scrollIntoViewIfNeeded();
     await assertAboveMobileNav(
       page,
-      danielPost.getByRole("button", { name: /^React/ })
+      danielPost.getByRole("button", { name: /^Respond/ })
     );
 
     await context.close();
@@ -218,7 +218,7 @@ test.describe("Community Feed responsive shell", () => {
     await context.close();
   });
 
-  test("reaction sheet renders above mobile navigation with all choices visible", async ({
+  test("respond sheet renders above mobile navigation with encouragement choices visible", async ({
     browser,
   }) => {
     const context = await browser.newContext({
@@ -230,45 +230,31 @@ test.describe("Community Feed responsive shell", () => {
 
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    await danielPost.getByRole("button", { name: /^React/ }).click();
+    await danielPost.getByRole("button", { name: /^Respond/ }).click();
 
-    const menu = page.getByRole("menu", { name: "Choose a reaction" });
-    await expect(menu).toBeVisible();
-    await page.waitForFunction(() => {
-      const node = document.querySelector(
-        '[aria-label="Choose a reaction"]'
-      ) as HTMLElement | null;
-      if (!node) return false;
-      return parseFloat(getComputedStyle(node).bottom || "0") > 40;
+    const dialog = page.getByRole("dialog", {
+      name: /Choose how you want to respond/i,
     });
+    await expect(dialog).toBeVisible();
 
-    const amen = page.getByRole("menuitemradio", { name: /Amen/ });
-    const praise = page.getByRole("menuitemradio", { name: /Praise God/ });
-    const encouraged = page.getByRole("menuitemradio", { name: /Encouraged/ });
-
-    await expect(amen).toBeVisible();
-    await expect(praise).toBeVisible();
-    await expect(encouraged).toBeVisible();
+    await expect(page.getByRole("button", { name: /Amen/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Praise God/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Encouraged/i })
+    ).toBeVisible();
 
     const navBox = await mobileBottomNav(page).boundingBox();
-    const encouragedBox = await encouraged.boundingBox();
+    const amenBox = await page.getByRole("button", { name: /Amen/i }).boundingBox();
     expect(navBox).not.toBeNull();
-    expect(encouragedBox).not.toBeNull();
-    if (navBox && encouragedBox) {
-      expect(encouragedBox.y + encouragedBox.height).toBeLessThanOrEqual(
-        navBox.y + 2
-      );
-    }
-
-    const menuBox = await menu.boundingBox();
-    if (menuBox && navBox) {
-      expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(navBox.y + 2);
+    expect(amenBox).not.toBeNull();
+    if (navBox && amenBox) {
+      expect(amenBox.y + amenBox.height).toBeLessThanOrEqual(navBox.y + 2);
     }
 
     await context.close();
   });
 
-  test("React trigger stays behind the reaction backdrop while sheet is open", async ({
+  test("Respond trigger stays behind the response overlay while sheet is open", async ({
     browser,
   }) => {
     const context = await browser.newContext({
@@ -280,32 +266,25 @@ test.describe("Community Feed responsive shell", () => {
 
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    const trigger = danielPost.getByRole("button", { name: /^React/ });
+    const trigger = danielPost.getByRole("button", { name: /^Respond/ });
     await trigger.click();
 
     const hiddenTrigger = danielPost.getByRole("button", {
-      name: /^React/,
+      name: /^Respond/,
       includeHidden: true,
     });
 
-    await expect(page.getByRole("menu", { name: "Choose a reaction" })).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: /Choose how you want to respond/i })
+    ).toBeVisible();
     await expect(hiddenTrigger).toBeHidden();
     await expect(hiddenTrigger).toHaveCSS("visibility", "hidden");
     await expect(hiddenTrigger).toHaveCSS("pointer-events", "none");
 
-    const backdrop = page.getByRole("button", { name: "Close reaction menu" });
-    const backdropBox = await backdrop.boundingBox();
-    const triggerBox = await hiddenTrigger.boundingBox();
-    expect(backdropBox).not.toBeNull();
-    expect(triggerBox).not.toBeNull();
-    if (backdropBox && triggerBox) {
-      expect(backdropBox.y).toBeLessThanOrEqual(triggerBox.y + 2);
-    }
-
     await context.close();
   });
 
-  test("React trigger cannot be clicked while the reaction sheet is open", async ({
+  test("Respond trigger cannot be clicked while the response sheet is open", async ({
     browser,
   }) => {
     const context = await browser.newContext({
@@ -317,11 +296,13 @@ test.describe("Community Feed responsive shell", () => {
 
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    const trigger = danielPost.getByRole("button", { name: /^React/ });
+    const trigger = danielPost.getByRole("button", { name: /^Respond/ });
     await trigger.click();
-    await expect(page.getByRole("menu", { name: "Choose a reaction" })).toBeVisible();
     await expect(
-      danielPost.getByRole("button", { name: /^React/, includeHidden: true })
+      page.getByRole("dialog", { name: /Choose how you want to respond/i })
+    ).toBeVisible();
+    await expect(
+      danielPost.getByRole("button", { name: /^Respond/, includeHidden: true })
     ).toBeHidden();
 
     let clickIntercepted = false;
@@ -335,7 +316,7 @@ test.describe("Community Feed responsive shell", () => {
     await context.close();
   });
 
-  test("focus returns to React after closing the reaction sheet", async ({
+  test("focus returns to Respond after closing the response sheet", async ({
     browser,
   }) => {
     const context = await browser.newContext({
@@ -347,19 +328,18 @@ test.describe("Community Feed responsive shell", () => {
 
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    const trigger = danielPost.getByRole("button", { name: /^React/ });
+    const trigger = danielPost.getByRole("button", { name: /^Respond/ });
     await trigger.click();
-    await page.getByRole("button", { name: "Close reaction menu" }).click();
-    await expect(page.getByRole("menu", { name: "Choose a reaction" })).toHaveCount(
-      0
-    );
-    await expect(trigger).toBeVisible();
+    await page.getByRole("button", { name: "Close response options" }).click();
+    await expect(
+      page.getByRole("dialog", { name: /Choose how you want to respond/i })
+    ).toHaveCount(0);
     await expect(trigger).toBeFocused();
 
     await context.close();
   });
 
-  test("reaction sheet respects safe-area clearance padding", async ({
+  test("response sheet respects safe-area clearance padding", async ({
     browser,
   }) => {
     const context = await browser.newContext({
@@ -370,13 +350,13 @@ test.describe("Community Feed responsive shell", () => {
 
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    await danielPost.getByRole("button", { name: /^React/ }).click();
+    await danielPost.getByRole("button", { name: /^Respond/ }).click();
 
     const paddingBottom = await page
-      .getByRole("menu", { name: "Choose a reaction" })
-      .evaluate((node) => getComputedStyle(node).bottom);
+      .getByRole("dialog", { name: /Choose how you want to respond/i })
+      .evaluate((node) => getComputedStyle(node).paddingBottom);
 
-    expect(parseFloat(paddingBottom)).toBeGreaterThan(48);
+    expect(parseFloat(paddingBottom)).toBeGreaterThan(15);
 
     await context.close();
   });

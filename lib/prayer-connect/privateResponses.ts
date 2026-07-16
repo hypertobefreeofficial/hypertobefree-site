@@ -1,5 +1,6 @@
 import { supabase } from "../supabaseClient";
 import { uploadPrayerVideo } from "./media";
+import type { ResponseContextLabels } from "../responses/responseContext";
 
 const MAX_PRIVATE_VIDEO_SECONDS = 30;
 
@@ -31,6 +32,7 @@ export async function sendPrivatePrayerMessage(options: {
   recipientUserId: string;
   body: string;
   storyTitle: string;
+  messagePreviewPrefix?: string;
 }) {
   const clean = options.body.trim();
   if (!clean) throw new Error("Please write a message first.");
@@ -46,7 +48,8 @@ export async function sendPrivatePrayerMessage(options: {
     .order("created_at", { ascending: false })
     .limit(1);
 
-  const preview = `Prayer request: ${options.storyTitle}`;
+  const previewPrefix = options.messagePreviewPrefix ?? "Prayer request";
+  const preview = `${previewPrefix}: ${options.storyTitle}`;
   const message = `${preview}\n\n${clean}`;
 
   const { error } = await supabase.from("story_video_replies").insert({
@@ -72,13 +75,19 @@ export async function sendPrivateVideoPrayer(options: {
   videoFile: File;
   note?: string;
   storyTitle: string;
+  labels?: Pick<
+    ResponseContextLabels,
+    | "privateVideoTitleRecipient"
+    | "privateVideoTitleSender"
+    | "privateVideoBodyFallback"
+  >;
 }) {
   await assertUsersNotBlocked(options.senderUserId, options.recipientUserId);
 
   const duration = await readVideoDuration(options.videoFile);
   if (duration > MAX_PRIVATE_VIDEO_SECONDS) {
     throw new Error(
-      `Private video prayers must be ${MAX_PRIVATE_VIDEO_SECONDS} seconds or shorter.`
+      `Private videos must be ${MAX_PRIVATE_VIDEO_SECONDS} seconds or shorter.`
     );
   }
 
@@ -86,14 +95,16 @@ export async function sendPrivateVideoPrayer(options: {
   const threadId = crypto.randomUUID();
   const body =
     options.note?.trim() ||
-    `A private video prayer for: ${options.storyTitle}`;
+    `${options.labels?.privateVideoBodyFallback ?? "A private video prayer for"}: ${options.storyTitle}`;
 
   const rows = [
     {
       user_id: options.recipientUserId,
       sender_user_id: options.senderUserId,
       thread_id: threadId,
-      title: "Someone sent you a private video prayer",
+      title:
+        options.labels?.privateVideoTitleRecipient ??
+        "Someone sent you a private video prayer",
       body,
       category: "prayer",
       message_type: "prayer_video_reply",
@@ -107,7 +118,9 @@ export async function sendPrivateVideoPrayer(options: {
       user_id: options.senderUserId,
       sender_user_id: options.senderUserId,
       thread_id: threadId,
-      title: "You sent a private video prayer",
+      title:
+        options.labels?.privateVideoTitleSender ??
+        "You sent a private video prayer",
       body,
       category: "prayer",
       message_type: "prayer_video_reply",

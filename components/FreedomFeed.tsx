@@ -1980,6 +1980,8 @@ export default function FreedomFeed({
         setAnsweredPrayerText("");
         setReactionMessage("");
       },
+      onPrepareFeedReturn: (storyId) => saveFreedomFeedReturnState(storyId),
+      onResponseMessage: (message) => setReactionMessage(message),
     }),
     [userId, savedStoryIds, postOverflowMenuKey]
   );
@@ -2853,7 +2855,7 @@ function ComposedFeedPostButton({
     <button
       type="button"
       onClick={onOpen}
-      className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#062a57] text-left shadow-sm ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+      className="block w-full cursor-pointer overflow-hidden rounded-none bg-[#062a57] text-left shadow-sm ring-0 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100 md:rounded-[0.625rem] md:ring-1 md:ring-blue-100"
       aria-label="Open post"
     >
       <ComposedFeedPostVisual
@@ -2907,7 +2909,7 @@ function ComposedFeedPostVisual({
   const templateFrameClass =
     variant === "detail"
       ? "relative min-h-[68dvh] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-4 text-white sm:min-h-[42rem] sm:p-6"
-      : "relative min-h-[22rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white sm:min-h-[25rem] sm:p-6";
+      : "relative min-h-[22rem] overflow-hidden rounded-none bg-[#062a57] p-5 text-white sm:min-h-[25rem] md:rounded-[0.625rem] sm:p-6";
   const templateInnerClass =
     variant === "detail"
       ? "relative z-10 flex min-h-[calc(68dvh-2rem)] flex-col justify-between sm:min-h-[39rem]"
@@ -2919,11 +2921,11 @@ function ComposedFeedPostVisual({
   const imageFrameClass =
     variant === "detail"
       ? "relative overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10"
-      : "relative overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
+      : "relative overflow-hidden rounded-none bg-slate-100 ring-0 md:rounded-[0.625rem] md:ring-1 md:ring-slate-200";
   const imageClass =
     variant === "detail"
       ? "pointer-events-none block max-h-[74dvh] w-full max-w-full rounded-[1.5rem] object-contain"
-      : "pointer-events-none block max-h-[520px] w-full max-w-full rounded-[1.5rem] object-cover";
+      : "pointer-events-none block max-h-[520px] w-full max-w-full rounded-none object-cover md:rounded-[0.625rem]";
 
   if (template && cleanText) {
     return (
@@ -2999,7 +3001,7 @@ function ComposedFeedPostVisual({
 
   return (
     <div
-      className="max-w-full whitespace-pre-wrap break-words rounded-[1.5rem] bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-1 ring-slate-200"
+      className="max-w-full whitespace-pre-wrap break-words rounded-none bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-0 md:rounded-[0.625rem] md:ring-1 md:ring-slate-200"
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",
