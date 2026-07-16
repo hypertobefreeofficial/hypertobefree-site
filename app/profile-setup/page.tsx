@@ -12,8 +12,6 @@ import {
   UserCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
-
 type Profile = {
   email: string | null;
   real_name: string | null;
@@ -81,17 +79,16 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f8fbff] px-4 py-8 pb-28 text-slate-900">
+      <main className="min-h-screen bg-[#f8fbff] px-4 py-8 pb-mobile-nav-clearance text-slate-900">
         <div className="mx-auto max-w-3xl rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
           Loading profile...
         </div>
-        <LoggedInBottomNav />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] px-4 py-8 pb-28 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] px-4 py-8 pb-mobile-nav-clearance text-slate-900">
       <div className="mx-auto max-w-3xl">
         <section className="rounded-[2rem] bg-gradient-to-br from-[#082f63] to-[#0b63ce] p-6 text-white shadow-sm">
           <div className="flex items-center gap-4">
@@ -190,7 +187,6 @@ export default function ProfilePage() {
         </section>
       </div>
 
-      <LoggedInBottomNav />
     </main>
   );
 }

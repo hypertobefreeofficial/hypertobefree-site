@@ -15,7 +15,7 @@
 
 .shell {
   margin-inline: auto;
-  max-width: 76rem;
+  max-width: var(--app-workspace-max);
   padding-inline: 1rem;
   padding-top: 2rem;
 }
@@ -35,10 +35,16 @@
   backdrop-filter: blur(14px);
 }
 
+@media (min-width: 1024px) {
+  .header {
+    top: var(--app-desktop-sticky-top);
+  }
+}
+
 .headerInner {
   margin-inline: auto;
   display: flex;
-  max-width: 76rem;
+  max-width: var(--app-workspace-max);
   align-items: center;
   justify-content: space-between;
   padding: 1rem;

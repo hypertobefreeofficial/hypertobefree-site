@@ -23,7 +23,9 @@ export default function LoggedInBottomNav({
 
   void onToggleHaptics;
 
-  if (pathname?.startsWith("/video-feed")) return null;
+  if (pathname?.startsWith("/video-feed") || pathname?.startsWith("/videos")) {
+    return null;
+  }
 
   if (variant === "video") {
     return (

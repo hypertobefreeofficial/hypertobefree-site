@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import JourneyHeader from "../../components/journey/JourneyHeader";
 import JourneyHero from "../../components/journey/JourneyHero";
 import JourneyMetrics from "../../components/journey/JourneyMetrics";
@@ -696,7 +695,6 @@ export default function JourneyPage() {
         </div>
       </div>
 
-      {!controlCenterOpen ? <LoggedInBottomNav /> : null}
 
       <JourneyUploadsWorkspace
         open={controlCenterOpen}

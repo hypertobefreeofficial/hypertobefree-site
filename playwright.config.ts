@@ -49,5 +49,10 @@ export default defineConfig({
       testDir: "./tests/feed",
       testMatch: /shell-production\.spec\.ts/,
     },
+    {
+      name: "app-shell-desktop",
+      testDir: "./tests/app-shell",
+      testMatch: /desktop-shell\.spec\.ts/,
+    },
   ],
 });

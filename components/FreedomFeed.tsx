@@ -1992,7 +1992,8 @@ export default function FreedomFeed({
         isRestoringFeedPosition ? styles.restoring : ""
       }`}
     >
-      <div className={styles.feedColumn}>
+      <div className={styles.feedShell}>
+        <div className={styles.feedColumn}>
         <div className={styles.feedTop}>
           {!lockedFilter && (
             <div className={styles.heroWrap}>
@@ -2563,6 +2564,7 @@ export default function FreedomFeed({
             </div>
           </div>
         )}
+      </div>
       </div>
     </section>
   );

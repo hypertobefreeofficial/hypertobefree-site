@@ -13,7 +13,6 @@ import {
   UserX,
   UserCircle,
 } from "lucide-react";
-import LoggedInBottomNav from "../../../components/LoggedInBottomNav";
 import { supabase } from "../../../lib/supabaseClient";
 
 type PlaceholderContent = {
@@ -542,7 +541,7 @@ export default function ProfileAccountCenterPlaceholderPage() {
     };
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
@@ -590,7 +589,6 @@ export default function ProfileAccountCenterPlaceholderPage() {
         </section>
       </div>
 
-      <LoggedInBottomNav />
     </main>
   );
 }
@@ -1167,7 +1165,7 @@ function AccountCenterDataShell({
   title: string;
 }) {
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
@@ -1200,7 +1198,6 @@ function AccountCenterDataShell({
         </section>
       </div>
 
-      <LoggedInBottomNav />
     </main>
   );
 }
@@ -1225,7 +1222,7 @@ function AccountCenterCategoryPage({ content }: { content: CategoryContent }) {
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
@@ -1270,7 +1267,6 @@ function AccountCenterCategoryPage({ content }: { content: CategoryContent }) {
         </section>
       </div>
 
-      <LoggedInBottomNav />
 
       {deleteAccountOpen && (
         <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -1491,7 +1487,7 @@ function EditProfileSection() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-24 text-slate-900">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link
@@ -1614,7 +1610,6 @@ function EditProfileSection() {
         </section>
       </div>
 
-      <LoggedInBottomNav />
     </main>
   );
 }

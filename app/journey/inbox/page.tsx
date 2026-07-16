@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import LoggedInBottomNav from "../../../components/LoggedInBottomNav";
 import JourneyInboxShell from "../../../components/journey/inbox/JourneyInboxShell";
 import JourneyInboxHeader from "../../../components/journey/inbox/JourneyInboxHeader";
 import JourneyConversationList from "../../../components/journey/inbox/JourneyConversationList";
@@ -784,7 +783,6 @@ export default function JourneyInboxPage() {
         }
       />
 
-      {!hideBottomNav && !showMobileDetail ? <LoggedInBottomNav /> : null}
 
       {clearMessageRequest ? (
         <div className={styles.modalOverlay}>

@@ -16,14 +16,16 @@ export default function LoggedInDesktopNav({
 }: LoggedInDesktopNavProps) {
   const pathname = usePathname();
 
-  if (pathname?.startsWith("/video-feed")) return null;
+  if (pathname?.startsWith("/video-feed") || pathname?.startsWith("/videos")) {
+    return null;
+  }
 
   return (
     <nav
       aria-label="Primary"
       className="logged-in-desktop-nav fixed inset-x-0 top-0 z-[60] hidden border-b border-slate-200/70 bg-white/95 backdrop-blur-xl supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)] lg:block"
     >
-      <div className="mx-auto flex h-[var(--app-desktop-nav-height)] w-full max-w-[760px] items-center justify-between gap-3 px-4 md:px-5">
+      <div className="app-desktop-shell-inner flex h-[var(--app-desktop-nav-height)] w-full items-center justify-between gap-3">
         <Link
           href="/feed"
           className="shrink-0 text-sm font-black text-[#082f63] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce]"

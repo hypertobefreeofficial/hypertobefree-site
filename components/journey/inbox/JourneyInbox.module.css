@@ -20,7 +20,7 @@
 
 .shell {
   margin-inline: auto;
-  max-width: 92rem;
+  max-width: var(--app-workspace-max);
   min-height: calc(100vh - 6.5rem);
 }
 

@@ -9,7 +9,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
-import LoggedInBottomNav from "../../components/LoggedInBottomNav";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
 
@@ -484,8 +483,9 @@ export default function SearchPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] pb-28 text-slate-900">
-      <div className="mx-auto max-w-4xl px-3 pt-4">
+    <main className="min-h-screen bg-[#f8fbff] pb-mobile-nav-clearance text-slate-900">
+      <div className="app-desktop-shell-inner pt-4">
+        <div className="mx-auto max-w-4xl">
         <section className="sticky top-0 z-40 -mx-3 bg-[#f8fbff]/95 px-3 pb-4 pt-2 backdrop-blur-xl">
           <div className="mb-4 rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <div className="text-xs font-black uppercase tracking-[0.22em] text-[#0b63ce]">
@@ -598,9 +598,9 @@ export default function SearchPage() {
             </div>
           )}
         </section>
+        </div>
       </div>
 
-      <LoggedInBottomNav />
     </main>
   );
 }

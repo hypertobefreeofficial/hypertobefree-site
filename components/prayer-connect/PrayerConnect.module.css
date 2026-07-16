@@ -33,7 +33,7 @@
   --prayer-space-md: 1rem;
   --prayer-space-lg: 1.5rem;
   --prayer-space-xl: 2rem;
-  --prayer-canvas-max: 90rem;
+  --prayer-canvas-max: var(--app-workspace-max);
 
   min-height: 100dvh;
   background:
@@ -1710,8 +1710,25 @@
 }
 
 @media (min-width: 1024px) {
+  .page {
+    padding-bottom: 2rem;
+  }
+
   .workspaceWithOnboarding {
     min-height: calc(100dvh - 17.5rem);
+  }
+
+  .searchOnboardingCompact {
+    top: calc(var(--app-desktop-sticky-top) + 0.35rem);
+  }
+
+  .appHeader {
+    top: var(--app-desktop-sticky-top);
+  }
+
+  .mapColumn {
+    top: calc(var(--app-desktop-sticky-top) + 0.9rem);
+    height: calc(100dvh - var(--app-desktop-nav-height) - 9.5rem);
   }
 }
 

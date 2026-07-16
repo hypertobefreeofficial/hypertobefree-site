@@ -3,7 +3,7 @@
 .feedRoot {
   --feed-inset: 16px;
   --feed-inset-min: 12px;
-  --feed-max-width: 760px;
+  --feed-max-width: var(--app-feed-column-max);
   --feed-separator-band: #eef4fb;
   --feed-page-bg: #f3f7fc;
   --feed-surface: #ffffff;
@@ -34,15 +34,26 @@
   margin-inline: auto;
 }
 
+.feedShell {
+  width: 100%;
+}
+
 @media (min-width: 768px) {
   .feedRoot {
     background: var(--feed-page-bg);
     padding-top: 0.5rem;
   }
 
+  .feedShell {
+    max-width: var(--app-desktop-shell-max);
+    margin-inline: auto;
+    padding-inline: var(--app-desktop-content-gutter);
+  }
+
   .feedColumn {
     max-width: var(--feed-max-width);
-    padding-inline: 1rem;
+    margin-inline: auto;
+    padding-inline: 0;
   }
 }
 
@@ -52,7 +63,7 @@
   }
 
   .feedColumn {
-    padding-inline: 1.25rem;
+    padding-inline: 0;
   }
 }
 
