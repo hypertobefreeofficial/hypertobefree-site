@@ -84,11 +84,11 @@ const PRAYER_LABELS: ResponseContextLabels = {
 const FEED_LABELS: ResponseContextLabels = {
   sheetEyebrow: "Respond to this post",
   sheetTitle: "Choose how you want to respond",
-  publicVideoTitle: "Post a public video response",
+  publicVideoTitle: "Public video response",
   publicVideoDetail: "Recorded or uploaded video attached to this post.",
-  privateMessageTitle: "Send a private message",
+  privateMessageTitle: "Private message",
   privateMessageDetail: "Only the author can read this in HTBF Messages.",
-  privateVideoTitle: "Record a private video response",
+  privateVideoTitle: "Private video response",
   privateVideoDetail: "A personal video delivered privately through Journey Inbox.",
   publicGroupHint:
     "Public video responses can be seen by the community after approval.",

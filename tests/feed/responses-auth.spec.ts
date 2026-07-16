@@ -174,9 +174,9 @@ test.describe("@auth Feed response flows", () => {
       page.getByRole("dialog", { name: /Choose how you want to respond/i })
     ).toBeVisible();
     await expect(page.getByText(/Respond to this post/i)).toBeVisible();
-    await expect(page.getByText(/Post a public video response/i)).toBeVisible();
-    await expect(page.getByText(/Send a private message/i)).toBeVisible();
-    await expect(page.getByText(/private video response/i)).toBeVisible();
+    await expect(page.getByText(/Public video response/i)).toBeVisible();
+    await expect(page.getByText(/Private message/i)).toBeVisible();
+    await expect(page.getByText(/Private video response/i)).toBeVisible();
     await expect(page.getByText(/prayer message/i)).toHaveCount(0);
     await expect(page.getByRole("textbox", { name: /comment/i })).toHaveCount(0);
 
@@ -211,7 +211,7 @@ test.describe("@auth Feed response flows", () => {
 
     const post = page.locator(`#freedom-feed-story-${fixture.storyId}`);
     await post.getByRole("button", { name: /^Respond/ }).click();
-    await page.getByRole("button", { name: /Send a private message/i }).click();
+    await page.getByRole("button", { name: /Private message/i }).click();
     await page
       .getByRole("textbox")
       .fill("Private feed response verification message.");
@@ -422,7 +422,7 @@ test.describe("@auth Feed response flows", () => {
 
     const post = page.locator(`#freedom-feed-story-${fixture.storyId}`);
     await post.getByRole("button", { name: /^Respond/ }).click();
-    await page.getByRole("button", { name: /Record a private video response/i }).click();
+    await page.getByRole("button", { name: /Private video response/i }).click();
 
     const fileInput = page.locator('input[type="file"][accept*="video"]').first();
     await fileInput.setInputFiles(media.validVideo!);
@@ -486,7 +486,7 @@ test.describe("@auth Feed response flows", () => {
 
     const post = page.locator(`#freedom-feed-story-${fixture!.storyId}`);
     await post.getByRole("button", { name: /^Respond/ }).click();
-    await page.getByRole("button", { name: /Record a private video response/i }).click();
+    await page.getByRole("button", { name: /Private video response/i }).click();
     const fileInput = page.locator('input[type="file"][accept*="video"]').first();
     await fileInput.setInputFiles(media.validVideo!);
     await page.getByRole("button", { name: "Cancel" }).click();

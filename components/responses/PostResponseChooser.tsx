@@ -1,19 +1,13 @@
 "use client";
 
-import {
-  HeartHandshake,
-  Lock,
-  MessageCircle,
-  Video,
-  X,
-} from "lucide-react";
+import { HeartHandshake, Lock, MessageCircle, Video, X } from "lucide-react";
 import type { FeedReactionType } from "../community-feed/types";
 import type {
   ResponseChoice,
   ResponseContextLabels,
 } from "../../lib/responses/responseContext";
 import type { PrayerInteractionPrefs } from "../../lib/prayer-connect/interactionPrefs";
-import styles from "../prayer-connect/PrayerConnect.module.css";
+import styles from "./PostResponseChooser.module.css";
 
 const REACTION_OPTIONS: {
   type: Exclude<FeedReactionType, "praying">;
@@ -48,53 +42,52 @@ export default function PostResponseChooser({
 }: PostResponseChooserProps) {
   if (!open) return null;
 
-  const publicOptions = [
+  const primaryOptions = [
     prefs.allowPublicVideo
       ? {
           id: "public-video" as const,
           title: labels.publicVideoTitle,
-          detail: labels.publicVideoDetail,
           icon: Video,
+          testId: "feed-response-public-video",
         }
       : null,
-  ].filter(Boolean);
-
-  const privateOptions = [
     prefs.allowPrivateMessage
       ? {
           id: "private-message" as const,
           title: labels.privateMessageTitle,
-          detail: labels.privateMessageDetail,
           icon: MessageCircle,
+          testId: "feed-response-private-message",
         }
       : null,
     prefs.allowPrivateVideo
       ? {
           id: "private-video" as const,
           title: labels.privateVideoTitle,
-          detail: labels.privateVideoDetail,
           icon: Lock,
+          testId: "feed-response-private-video",
         }
       : null,
   ].filter(Boolean);
 
   return (
-    <div className={styles.responseOverlay} onClick={onClose}>
+    <div className={styles.overlay} onClick={onClose}>
       <div
-        className={styles.responseSheet}
+        className={styles.sheet}
         role="dialog"
         aria-modal="true"
         aria-labelledby="response-chooser-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className={styles.responseSheetHeader}>
+        <div className={styles.header}>
           <div>
             <p className={styles.eyebrow}>{labels.sheetEyebrow}</p>
-            <h2 id="response-chooser-title">{labels.sheetTitle}</h2>
+            <h2 id="response-chooser-title" className={styles.title}>
+              {labels.sheetTitle}
+            </h2>
           </div>
           <button
             type="button"
-            className={styles.iconButton}
+            className={styles.closeButton}
             aria-label="Close response options"
             onClick={onClose}
           >
@@ -103,94 +96,59 @@ export default function PostResponseChooser({
         </div>
 
         {!prefs.acceptsNewResponses ? (
-          <p className={styles.responseNotice}>{labels.notAcceptingResponses}</p>
+          <p className={styles.notice}>{labels.notAcceptingResponses}</p>
         ) : null}
 
-        {publicOptions.length > 0 ? (
-          <div className={styles.responseGroup}>
-            <h3>Public</h3>
-            <p className={styles.responseGroupHint}>{labels.publicGroupHint}</p>
-            <div className={styles.responseOptions}>
-              {publicOptions.map((option) => {
-                if (!option) return null;
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={styles.responseOption}
-                    onClick={() => onChoose(option.id)}
-                  >
-                    <Icon className="h-5 w-5" aria-hidden />
-                    <span>
-                      <strong>{option.title}</strong>
-                      <small>{option.detail}</small>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+        {primaryOptions.length > 0 ? (
+          <div className={styles.primaryOptions}>
+            {primaryOptions.map((option) => {
+              if (!option) return null;
+              const Icon = option.icon;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  data-testid={option.testId}
+                  className={styles.primaryOption}
+                  onClick={() => onChoose(option.id)}
+                >
+                  <span className={styles.primaryOptionIcon} aria-hidden>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className={styles.primaryOptionLabel}>{option.title}</span>
+                </button>
+              );
+            })}
           </div>
-        ) : null}
-
-        {privateOptions.length > 0 ? (
-          <div className={styles.responseGroup}>
-            <h3>Private</h3>
-            <p className={styles.responseGroupHint}>{labels.privateGroupHint}</p>
-            <div className={styles.responseOptions}>
-              {privateOptions.map((option) => {
-                if (!option) return null;
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    className={styles.responseOption}
-                    onClick={() => onChoose(option.id)}
-                  >
-                    <Icon className="h-5 w-5" aria-hidden />
-                    <span>
-                      <strong>{option.title}</strong>
-                      <small>{option.detail}</small>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        {publicOptions.length === 0 && privateOptions.length === 0 ? (
-          <div className={styles.responseEmpty}>
+        ) : (
+          <div className={styles.emptyState}>
             <HeartHandshake className="h-5 w-5" aria-hidden />
             <p>No response options are available for this post right now.</p>
           </div>
-        ) : null}
+        )}
 
         {showReactions && onToggleReaction ? (
-          <div className={styles.responseGroup}>
-            <h3>Quick encouragement</h3>
-            <div className={styles.responseOptions}>
+          <>
+            <div className={styles.reactionsDivider} aria-hidden />
+            <h3 className={styles.reactionsHeading}>Quick encouragement</h3>
+            <div className={styles.reactionOptions}>
               {REACTION_OPTIONS.map((option) => {
                 const active = userReactions.includes(option.type);
                 return (
                   <button
                     key={option.type}
                     type="button"
-                    className={styles.responseOption}
+                    className={styles.reactionOption}
                     aria-pressed={active}
                     onClick={() => onToggleReaction(option.type)}
                   >
                     <span aria-hidden>{option.emoji}</span>
-                    <span>
-                      <strong>{option.label}</strong>
-                      <small>{active ? "Selected" : "Tap to react"}</small>
-                    </span>
+                    <span>{option.label}</span>
                   </button>
                 );
               })}
             </div>
-          </div>
+          </>
         ) : null}
       </div>
     </div>

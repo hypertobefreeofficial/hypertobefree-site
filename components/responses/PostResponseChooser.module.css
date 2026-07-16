@@ -1,0 +1,178 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.sheet {
+  width: min(100%, 42rem);
+  max-height: 88dvh;
+  overflow: auto;
+  padding: 1.1rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
+  border-radius: 1.35rem 1.35rem 0 0;
+  background: #fff;
+  box-shadow: 0 -18px 50px rgba(15, 23, 42, 0.18);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #0b63ce;
+}
+
+.title {
+  margin: 0.35rem 0 0;
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: #062a57;
+}
+
+.closeButton {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+  cursor: pointer;
+}
+
+.notice {
+  margin: 0 0 0.85rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.primaryOptions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.primaryOption {
+  display: flex;
+  width: 100%;
+  min-height: 3.25rem;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid rgba(11, 99, 206, 0.18);
+  border-radius: 1rem;
+  background: #f8fbff;
+  padding: 0.95rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.primaryOption:hover {
+  background: #eff6ff;
+  border-color: rgba(11, 99, 206, 0.35);
+}
+
+.primaryOption:focus-visible {
+  outline: 2px solid #0b63ce;
+  outline-offset: 2px;
+}
+
+.primaryOptionIcon {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #dbeafe;
+  color: #0b63ce;
+}
+
+.primaryOptionLabel {
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #062a57;
+}
+
+.reactionsDivider {
+  margin: 1.1rem 0 0.75rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.reactionsHeading {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.reactionOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.reactionOption {
+  display: flex;
+  min-height: 2.75rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 0.85rem;
+  background: #fff;
+  padding: 0.55rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #475569;
+  cursor: pointer;
+}
+
+.reactionOption[aria-pressed="true"] {
+  background: #eff6ff;
+  border-color: rgba(11, 99, 206, 0.35);
+  color: #0b63ce;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 1rem;
+  background: #f8fafc;
+  padding: 0.95rem 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 900px) {
+  .overlay {
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .sheet {
+    border-radius: 1.35rem;
+  }
+}

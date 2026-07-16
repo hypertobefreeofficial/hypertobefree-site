@@ -41,6 +41,9 @@ test.describe("Community Feed Phase 2 — type-specific posts", () => {
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
     await danielPost.getByRole("button", { name: /^Respond/ }).click();
+    await expect(page.getByTestId("feed-response-public-video")).toBeVisible();
+    await expect(page.getByTestId("feed-response-private-message")).toBeVisible();
+    await expect(page.getByTestId("feed-response-private-video")).toBeVisible();
     await expect(page.getByRole("button", { name: /Amen/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Praise God/i })).toBeVisible();
     await expect(

@@ -20,15 +20,9 @@ test.describe("Dedicated video feed — shared response flow", () => {
     await respondButton.click();
 
     await expect(page.getByText("Respond to this post")).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Post a public video response/i })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Send a private message/i })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Record a private video response/i })
-    ).toBeVisible();
+    await expect(page.getByTestId("feed-response-public-video")).toBeVisible();
+    await expect(page.getByTestId("feed-response-private-message")).toBeVisible();
+    await expect(page.getByTestId("feed-response-private-video")).toBeVisible();
     await expect(page.getByText(/Respond with Prayer/i)).toHaveCount(0);
     await expect(page.getByText(/public video prayer/i)).toHaveCount(0);
     await expect(page.locator("textarea")).toHaveCount(0);
