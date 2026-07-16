@@ -86,6 +86,7 @@ import {
   MARK_PRAYER_ANSWERED_TEXT_MAX_LENGTH,
 } from "../lib/community-feed/markPrayerAnsweredAuthorization";
 import { markMyPrayerAnswered } from "../lib/prayer-connect/markMyPrayerAnswered";
+import { ensureElementBelowFeedStickyHeader } from "../lib/navigation/feedScrollPadding";
 import FeedScrollVideoPreview from "./community-feed/FeedScrollVideoPreview";
 import FeedListItem from "./community-feed/FeedListItem";
 import type { CommunityFeedPostCallbacks } from "./community-feed/types";
@@ -266,6 +267,8 @@ function restoreFreedomFeedReturnPosition(
       if (Math.abs(topDifference) > 12) {
         window.scrollTo(0, Math.max(0, window.scrollY + topDifference));
       }
+
+      ensureElementBelowFeedStickyHeader(storyElement);
     }
 
     if (clearAfterRestore) {

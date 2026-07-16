@@ -40,6 +40,11 @@ export default defineConfig({
       testMatch: /phase-2\.spec\.ts/,
     },
     {
+      name: "feed-responsive-shell",
+      testDir: "./tests/feed",
+      testMatch: /responsive-shell\.spec\.ts/,
+    },
+    {
       name: "feed-shell-production",
       testDir: "./tests/feed",
       testMatch: /shell-production\.spec\.ts/,

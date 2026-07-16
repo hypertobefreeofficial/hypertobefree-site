@@ -104,7 +104,7 @@ test.describe("Community Feed shell — fixture render path", () => {
     const page = await context.newPage();
     await openFixtureFeed(page);
 
-    const feedNav = page.locator("nav.fixed.bottom-0").getByRole("link", {
+    const feedNav = page.locator("nav.logged-in-bottom-nav").getByRole("link", {
       name: "Feed",
     }).first();
     await expect(feedNav).toBeVisible();
@@ -201,7 +201,7 @@ test.describe("Community Feed shell — fixture render path", () => {
     await page.waitForTimeout(300);
 
     const buttonBox = await loadMore.boundingBox();
-    const nav = page.locator("nav.fixed.bottom-0").first();
+    const nav = page.locator("nav.logged-in-bottom-nav").first();
     const navBox = await nav.boundingBox();
     expect(buttonBox).not.toBeNull();
     expect(navBox).not.toBeNull();

@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import LoggedInBottomNav from "./LoggedInBottomNav";
+import LoggedInDesktopNav from "./LoggedInDesktopNav";
 
 const publicRoutesWithoutBottomNav = [
   "/",
@@ -23,5 +24,10 @@ export default function AppBottomNav() {
 
   if (shouldHideBottomNav) return null;
 
-  return <LoggedInBottomNav />;
+  return (
+    <>
+      <LoggedInDesktopNav />
+      <LoggedInBottomNav />
+    </>
+  );
 }
