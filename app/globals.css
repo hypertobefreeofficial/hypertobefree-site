@@ -66,8 +66,7 @@ html {
 @media (min-width: 1024px) {
   :root {
     --app-feed-scroll-padding-top: calc(
-      var(--app-desktop-nav-height) + var(--app-feed-sticky-header-height) +
-        env(safe-area-inset-top, 0px)
+      var(--app-desktop-nav-height) + env(safe-area-inset-top, 0px)
     );
   }
 }

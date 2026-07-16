@@ -21,9 +21,9 @@ export default function LoggedInDesktopNav({
   return (
     <nav
       aria-label="Primary"
-      className="logged-in-desktop-nav sticky top-0 z-[60] hidden border-b border-slate-200/70 bg-white/95 backdrop-blur-xl supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)] lg:block"
+      className="logged-in-desktop-nav fixed inset-x-0 top-0 z-[60] hidden border-b border-slate-200/70 bg-white/95 backdrop-blur-xl supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)] lg:block"
     >
-      <div className="mx-auto flex h-[var(--app-desktop-nav-height)] max-w-[760px] items-center justify-between gap-4 px-4 md:px-5">
+      <div className="mx-auto flex h-[var(--app-desktop-nav-height)] w-full max-w-[760px] items-center justify-between gap-3 px-4 md:px-5">
         <Link
           href="/feed"
           className="shrink-0 text-sm font-black text-[#082f63] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce]"
@@ -31,7 +31,7 @@ export default function LoggedInDesktopNav({
           HTBF
         </Link>
 
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-0.5 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5 overflow-x-auto sm:justify-center">
           {loggedInNavItems.map((item) => {
             const Icon = item.icon;
             const active = isLoggedInNavItemActive(pathname, item.href);

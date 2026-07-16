@@ -55,6 +55,7 @@ export default function CommunityFeedReactionSelector({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const restoreFocusRef = useRef(false);
   const menuId = useId();
 
   const activeReaction = REACTION_OPTIONS.find((option) =>
@@ -62,9 +63,18 @@ export default function CommunityFeedReactionSelector({
   );
 
   const closeMenu = useCallback(() => {
+    restoreFocusRef.current = true;
     setOpen(false);
-    triggerRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (open || !restoreFocusRef.current) return;
+
+    restoreFocusRef.current = false;
+    requestAnimationFrame(() => {
+      triggerRef.current?.focus();
+    });
+  }, [open]);
 
   const updateMenuPosition = useCallback(() => {
     if (!open || !triggerRef.current) return;
@@ -198,6 +208,12 @@ export default function CommunityFeedReactionSelector({
         role="menu"
         aria-label="Choose a reaction"
       >
+        {isMobileSheet ? (
+          <>
+            <div className={styles.reactionSelectorSheetHandle} aria-hidden />
+            <p className={styles.reactionSelectorSheetTitle}>Choose a reaction</p>
+          </>
+        ) : null}
         {REACTION_OPTIONS.map((option) => {
           const active = userReactions.includes(option.type);
           return (
@@ -226,9 +242,7 @@ export default function CommunityFeedReactionSelector({
   return (
     <div
       ref={rootRef}
-      className={`${styles.reactionSelectorRoot} ${
-        open ? styles.reactionSelectorRootOpen : ""
-      }`}
+      className={styles.reactionSelectorRoot}
       data-feed-reaction-selector-root="true"
     >
       <button
@@ -236,7 +250,7 @@ export default function CommunityFeedReactionSelector({
         type="button"
         className={`${styles.primaryActionButton} ${
           activeReaction ? styles.primaryActionButtonActive : ""
-        }`}
+        } ${open && isMobileSheet ? styles.reactionSelectorTriggerSheetOpen : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

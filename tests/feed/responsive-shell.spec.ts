@@ -20,6 +20,26 @@ function desktopNav(page: import("@playwright/test").Page) {
   return page.locator("nav.logged-in-desktop-nav");
 }
 
+const DESKTOP_NAV_DESTINATIONS = [
+  "Feed",
+  "Videos",
+  "Prayer",
+  "Journey",
+  "Search",
+  "Profile",
+] as const;
+
+async function assertDesktopNavInViewport(
+  page: import("@playwright/test").Page
+) {
+  const navBox = await desktopNav(page).boundingBox();
+  expect(navBox).not.toBeNull();
+  if (navBox) {
+    expect(navBox.y).toBeLessThanOrEqual(8);
+    expect(navBox.height).toBeGreaterThan(40);
+  }
+}
+
 async function assertAboveMobileNav(
   page: import("@playwright/test").Page,
   locator: import("@playwright/test").Locator
@@ -61,19 +81,32 @@ test.describe("Community Feed responsive shell", () => {
       await context.close();
     });
 
-    test(`desktop navigation available at ${width}px`, async ({ browser }) => {
+    for (const destination of DESKTOP_NAV_DESTINATIONS) {
+      test(`desktop nav shows ${destination} at ${width}px`, async ({
+        browser,
+      }) => {
+        const context = await browser.newContext({
+          viewport: { width, height: 900 },
+        });
+        const page = await context.newPage();
+        await openFixtureFeed(page);
+        await assertDesktopNavInViewport(page);
+        await expect(
+          desktopNav(page).getByRole("link", { name: destination })
+        ).toBeVisible();
+        await context.close();
+      });
+    }
+
+    test(`Feed is active in desktop nav at ${width}px`, async ({ browser }) => {
       const context = await browser.newContext({
         viewport: { width, height: 900 },
       });
       const page = await context.newPage();
       await openFixtureFeed(page);
-      await expect(desktopNav(page)).toBeVisible();
       await expect(
         desktopNav(page).getByRole("link", { name: "Feed" })
-      ).toBeVisible();
-      await expect(
-        desktopNav(page).getByRole("link", { name: "Prayer" })
-      ).toBeVisible();
+      ).toHaveAttribute("aria-current", "page");
       await context.close();
     });
   }
@@ -231,6 +264,97 @@ test.describe("Community Feed responsive shell", () => {
     if (menuBox && navBox) {
       expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(navBox.y + 2);
     }
+
+    await context.close();
+  });
+
+  test("React trigger stays behind the reaction backdrop while sheet is open", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 430, height: 844 },
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await openFixtureFeed(page);
+
+    const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
+    await danielPost.scrollIntoViewIfNeeded();
+    const trigger = danielPost.getByRole("button", { name: /^React/ });
+    await trigger.click();
+
+    const hiddenTrigger = danielPost.getByRole("button", {
+      name: /^React/,
+      includeHidden: true,
+    });
+
+    await expect(page.getByRole("menu", { name: "Choose a reaction" })).toBeVisible();
+    await expect(hiddenTrigger).toBeHidden();
+    await expect(hiddenTrigger).toHaveCSS("visibility", "hidden");
+    await expect(hiddenTrigger).toHaveCSS("pointer-events", "none");
+
+    const backdrop = page.getByRole("button", { name: "Close reaction menu" });
+    const backdropBox = await backdrop.boundingBox();
+    const triggerBox = await hiddenTrigger.boundingBox();
+    expect(backdropBox).not.toBeNull();
+    expect(triggerBox).not.toBeNull();
+    if (backdropBox && triggerBox) {
+      expect(backdropBox.y).toBeLessThanOrEqual(triggerBox.y + 2);
+    }
+
+    await context.close();
+  });
+
+  test("React trigger cannot be clicked while the reaction sheet is open", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 430, height: 844 },
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await openFixtureFeed(page);
+
+    const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
+    await danielPost.scrollIntoViewIfNeeded();
+    const trigger = danielPost.getByRole("button", { name: /^React/ });
+    await trigger.click();
+    await expect(page.getByRole("menu", { name: "Choose a reaction" })).toBeVisible();
+    await expect(
+      danielPost.getByRole("button", { name: /^React/, includeHidden: true })
+    ).toBeHidden();
+
+    let clickIntercepted = false;
+    try {
+      await trigger.click({ timeout: 1000 });
+    } catch {
+      clickIntercepted = true;
+    }
+    expect(clickIntercepted).toBe(true);
+
+    await context.close();
+  });
+
+  test("focus returns to React after closing the reaction sheet", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      viewport: { width: 430, height: 844 },
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await openFixtureFeed(page);
+
+    const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
+    await danielPost.scrollIntoViewIfNeeded();
+    const trigger = danielPost.getByRole("button", { name: /^React/ });
+    await trigger.click();
+    await page.getByRole("button", { name: "Close reaction menu" }).click();
+    await expect(page.getByRole("menu", { name: "Choose a reaction" })).toHaveCount(
+      0
+    );
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toBeFocused();
 
     await context.close();
   });
