@@ -282,3 +282,13 @@ export function getCommunityFeedVisualValidationFixtures(
     ? getCommunityFeedVisualValidationFixturesPage1()
     : getCommunityFeedVisualValidationFixturesPage2();
 }
+
+/** Non-prayer video stories for /videos fixture mode (dev-only). */
+export function getVideoFeedVisualValidationStoryRows(): FeedStoryDisplay[] {
+  return getCommunityFeedVisualValidationFixturesPage1().filter(
+    (item): item is FeedStoryDisplay =>
+      item.kind === "story" &&
+      Boolean(item.signed_video_url) &&
+      !(item.story_type || "").toLowerCase().includes("prayer")
+  );
+}

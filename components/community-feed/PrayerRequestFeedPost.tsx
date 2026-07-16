@@ -74,11 +74,11 @@ export default function PrayerRequestFeedPost({
   );
 
   const actions = (
-    <>
+    <div className={styles.primaryActionRow}>
       <button
         type="button"
-        className={`${styles.prayerPrimaryButton} ${
-          isPraying ? styles.prayerPrimaryButtonActive : ""
+        className={`${styles.primaryActionButton} ${
+          isPraying ? styles.prayerCompactActionActive : ""
         }`}
         aria-pressed={isPraying}
         onClick={() => callbacks.onToggleReaction(story.id, "praying")}
@@ -86,37 +86,35 @@ export default function PrayerRequestFeedPost({
         {isPraying ? "Praying" : "I'm Praying"}
       </button>
 
-      <div className={styles.primaryActionRow}>
-        <Link href="/prayer" className={styles.primaryActionButton}>
-          <Video className="h-4 w-4 shrink-0" aria-hidden />
-          <span className={styles.primaryActionLabelShort}>Video</span>
-          <span className={styles.primaryActionLabelFull}>Video response</span>
-        </Link>
+      <Link href="/prayer" className={styles.primaryActionButton}>
+        <Video className="h-4 w-4 shrink-0" aria-hidden />
+        <span className={styles.primaryActionLabelShort}>Video</span>
+        <span className={styles.primaryActionLabelFull}>Video response</span>
+      </Link>
 
-        <button
-          type="button"
-          className={styles.primaryActionButton}
-          onClick={() => callbacks.onShareStory(story)}
-        >
-          <Share2 className="h-4 w-4 shrink-0" aria-hidden />
-          Share
-        </button>
+      <button
+        type="button"
+        className={styles.primaryActionButton}
+        onClick={() => callbacks.onShareStory(story)}
+      >
+        <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+        Share
+      </button>
 
-        <button
-          type="button"
-          className={`${styles.primaryActionButton} ${
-            isSaved ? styles.primaryActionButtonActive : ""
-          }`}
-          onClick={() => void callbacks.onToggleSaved(story)}
-        >
-          <Bookmark
-            className={`h-4 w-4 shrink-0 ${isSaved ? "fill-current" : ""}`}
-            aria-hidden
-          />
-          {isSaved ? "Saved" : "Save"}
-        </button>
-      </div>
-    </>
+      <button
+        type="button"
+        className={`${styles.primaryActionButton} ${
+          isSaved ? styles.primaryActionButtonActive : ""
+        }`}
+        onClick={() => void callbacks.onToggleSaved(story)}
+      >
+        <Bookmark
+          className={`h-4 w-4 shrink-0 ${isSaved ? "fill-current" : ""}`}
+          aria-hidden
+        />
+        {isSaved ? "Saved" : "Save"}
+      </button>
+    </div>
   );
 
   const ownerSection = isOwner ? (

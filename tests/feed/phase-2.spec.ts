@@ -58,6 +58,19 @@ test.describe("Community Feed Phase 2 — type-specific posts", () => {
     await expect(prayerPost.getByTestId("god-did-it-button")).toHaveCount(0);
   });
 
+  test("prayer post uses compact action row without full-width prayer bar", async ({
+    page,
+  }) => {
+    await openFixtureFeed(page);
+    const prayerPost = page.locator("#freedom-feed-story-fixture-prayer-request");
+    await prayerPost.scrollIntoViewIfNeeded();
+    await expect(prayerPost.locator('[class*="prayerPrimaryButton"]')).toHaveCount(0);
+    await expect(
+      prayerPost.getByRole("link", { name: /Video response/i })
+    ).toBeVisible();
+    await expect(prayerPost.getByRole("button", { name: /^Respond/ })).toHaveCount(0);
+  });
+
   test("prayer owner sees God Did It after load more", async ({ page }) => {
     await openFixtureFeed(page);
     await page.getByRole("button", { name: "Load more" }).click();
