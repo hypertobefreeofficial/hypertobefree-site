@@ -5,7 +5,7 @@ import { areUsersBlocked } from "./prayerBlocking";
 import { responseContextFromSourceType } from "../responses/publicVideoResponseContext";
 import {
   buildUnavailableVideoResponseAiUpdate,
-  buildVideoResponseAiUpdate,
+  buildVideoResponseModerationUpdate,
 } from "../responses/videoResponseAiReview";
 import {
   PRAYER_MEDIA_LIMITS,
@@ -44,7 +44,7 @@ export type SubmitPublicVideoResponseFailure = {
 export type SubmitPublicVideoResponseSuccess = {
   ok: true;
   responseId: string;
-  status: "submitted";
+  status: "approved" | "submitted";
   sourceType: PublicVideoResponseSourceType;
   sourcePostId: string;
   sourceAuthorUserId: string;
@@ -398,6 +398,8 @@ export async function submitPublicVideoResponse(
     return true;
   }
 
+  let finalStatus: "approved" | "submitted" = "submitted";
+
   try {
     const moderation = await moderatePublicContent({
       storyType: approvedSource.story_type ?? sourceType,
@@ -414,8 +416,12 @@ export async function submitPublicVideoResponse(
       hasPhoto: Boolean(validatedThumbnailUrl),
     });
 
-    const persisted = await persistAiReview(buildVideoResponseAiUpdate(moderation));
-    if (!persisted) {
+    const persisted = await persistAiReview(
+      buildVideoResponseModerationUpdate(moderation)
+    );
+    if (persisted) {
+      finalStatus = moderation.statusToUse;
+    } else {
       await persistAiReview(
         buildUnavailableVideoResponseAiUpdate(
           "AI review metadata could not be saved. Manual review is required."
@@ -434,7 +440,7 @@ export async function submitPublicVideoResponse(
   return {
     ok: true,
     responseId,
-    status: "submitted",
+    status: finalStatus,
     sourceType,
     sourcePostId,
     sourceAuthorUserId: approvedSource.user_id,

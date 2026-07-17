@@ -32,6 +32,19 @@ export function buildVideoResponseAiUpdate(
   };
 }
 
+export function buildVideoResponseModerationUpdate(
+  moderation: PublicModerationDecision
+): Record<string, unknown> {
+  const update = buildVideoResponseAiUpdate(moderation);
+  update.status = moderation.statusToUse;
+
+  if (moderation.statusToUse === "approved") {
+    update.moderated_at = new Date().toISOString();
+  }
+
+  return update;
+}
+
 export function buildUnavailableVideoResponseAiUpdate(
   summary: string
 ): Record<string, unknown> {

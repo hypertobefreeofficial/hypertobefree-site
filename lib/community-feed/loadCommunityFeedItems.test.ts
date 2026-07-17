@@ -142,4 +142,28 @@ describe("loadCommunityFeedItems integration-style", () => {
     if (!result.ok) return;
     expect(result.items).toHaveLength(0);
   });
+
+  it("includes approved public video responses once in the merged feed", async () => {
+    const parent = buildStory({ id: "parent-1", story_text: "Help me" });
+    const approvedResponse = buildVideoResponse({
+      id: "approved-resp",
+      story_id: "parent-1",
+      status: "approved",
+    });
+
+    mockFrom
+      .mockReturnValueOnce(queryResult([]))
+      .mockReturnValueOnce(queryResult([approvedResponse]))
+      .mockReturnValueOnce(queryResult([parent]));
+
+    const result = await loadCommunityFeedItems({ limit: 40, blockedUserIds: [] });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const responseItems = result.items.filter(
+      (item) => item.canonicalType === "prayer_video_response"
+    );
+    expect(responseItems).toHaveLength(1);
+    expect(responseItems[0]?.canonicalId).toBe("approved-resp");
+  });
 });
