@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPublicVideoEligibility } from "../prayer-connect/eligibility";
 import { moderatePublicContent } from "./moderatePublicContent";
 import { areUsersBlocked } from "./prayerBlocking";
-import { resolveResponseContextFromStory } from "../responses/publicVideoResponseContext";
+import { responseContextFromSourceType } from "../responses/publicVideoResponseContext";
 import {
   PRAYER_MEDIA_LIMITS,
   validateUploadedThumbnailObject,
@@ -292,7 +292,7 @@ export async function submitPublicVideoResponse(
     validatedThumbnailUrl = responseThumbnailUrl;
   }
 
-  const responseContext = resolveResponseContextFromStory(approvedSource);
+  const responseContext = responseContextFromSourceType(sourceType);
 
   const insertPayload: Record<string, unknown> = {
     story_id: sourcePostId,

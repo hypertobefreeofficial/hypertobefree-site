@@ -37,12 +37,12 @@ export function adminResponseTypeLabel(
 ): string {
   switch (context) {
     case "prayer_request":
-      return "Prayer response";
+      return "Prayer Response";
     case "video_post":
-      return "Video response";
+      return "Video Response";
     case "feed_post":
     default:
-      return "Feed response";
+      return "Feed Response";
   }
 }
 
