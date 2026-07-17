@@ -524,7 +524,7 @@
   padding: 0.625rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 800;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
 @media (min-width: 640px) {
@@ -552,6 +552,121 @@
 .reactionInactive:hover {
   background: #eff6ff;
   color: var(--feed-accent);
+}
+
+.reactionPending {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.reactionButton:disabled {
+  pointer-events: none;
+}
+
+.parentVideoResponsesSection {
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.parentVideoResponsesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.625rem;
+}
+
+.parentVideoResponsesTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--feed-accent);
+}
+
+.parentVideoResponsesTitle {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.parentVideoResponsesCount {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--feed-muted);
+}
+
+.parentVideoResponsesRail {
+  display: flex;
+  gap: 0.625rem;
+  overflow-x: auto;
+  padding-bottom: 0.125rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.parentVideoResponseCard {
+  flex: 0 0 auto;
+  width: 5.5rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.parentVideoResponseThumbWrap {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: #0f172a;
+}
+
+.parentVideoResponseThumb,
+.parentVideoResponseThumbFallback {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.parentVideoResponseThumbFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.72);
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+}
+
+.parentVideoResponsePlayBadge {
+  position: absolute;
+  right: 0.375rem;
+  bottom: 0.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+}
+
+.parentVideoResponseAuthor {
+  display: block;
+  margin-top: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--feed-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parentVideoResponsesViewAll {
+  display: inline-flex;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: var(--feed-accent);
+  text-decoration: none;
 }
 
 .engagementSummary {

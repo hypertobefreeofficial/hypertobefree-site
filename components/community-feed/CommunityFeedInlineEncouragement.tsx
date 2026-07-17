@@ -26,6 +26,7 @@ const ENCOURAGEMENT_OPTIONS: {
 type CommunityFeedInlineEncouragementProps = {
   storyId: string;
   userReactions: FeedReactionType[];
+  pendingReactionKey?: string | null;
   onToggleReaction: (storyId: string, reactionType: FeedReactionType) => void;
 };
 
@@ -34,21 +35,25 @@ function EncouragementButton({
   label,
   onClick,
   testId,
+  disabled,
 }: {
   active: boolean;
   label: ReactNode;
   onClick: () => void;
   testId: string;
+  disabled: boolean;
 }) {
   return (
     <button
       type="button"
       data-testid={testId}
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
+      aria-busy={disabled || undefined}
       className={`${styles.reactionButton} ${
         active ? styles.reactionActive : styles.reactionInactive
-      }`}
+      } ${disabled ? styles.reactionPending : ""}`}
     >
       <span
         style={{
@@ -65,19 +70,26 @@ function EncouragementButton({
 export default function CommunityFeedInlineEncouragement({
   storyId,
   userReactions,
+  pendingReactionKey = null,
   onToggleReaction,
 }: CommunityFeedInlineEncouragementProps) {
   return (
     <div className={styles.actionGridRow} data-testid="feed-encouragement-row">
-      {ENCOURAGEMENT_OPTIONS.map((option) => (
-        <EncouragementButton
-          key={option.type}
-          active={userReactions.includes(option.type)}
-          label={option.label}
-          testId={option.testId}
-          onClick={() => onToggleReaction(storyId, option.type)}
-        />
-      ))}
+      {ENCOURAGEMENT_OPTIONS.map((option) => {
+        const pendingKey = `${storyId}:${option.type}`;
+        const pending = pendingReactionKey === pendingKey;
+
+        return (
+          <EncouragementButton
+            key={option.type}
+            active={userReactions.includes(option.type)}
+            label={option.label}
+            testId={option.testId}
+            disabled={pending}
+            onClick={() => onToggleReaction(storyId, option.type)}
+          />
+        );
+      })}
     </div>
   );
 }

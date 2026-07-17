@@ -16,7 +16,13 @@ import {
   Video,
   XCircle,
 } from "lucide-react";
-import { moderatorDurationNotice } from "../../lib/prayer-connect/responsePublication";
+import { moderatorDurationNotice, MANUAL_DURATION_ACK_COPY } from "../../lib/prayer-connect/responsePublication";
+import {
+  adminParentContentLabel,
+  adminParentOwnerLabel,
+  adminResponseTypeLabel,
+  resolveResponseContextFromStory,
+} from "../../lib/responses/publicVideoResponseContext";
 import { supabase } from "../../lib/supabaseClient";
 
 const storyFilters: { label: string; value: StoryFilter }[] = [
@@ -113,6 +119,12 @@ type PrayerVideoResponse = {
   response_author_display_name: string | null;
   response_author_username: string | null;
   response_author_avatar_url: string | null;
+  response_context?: string | null;
+  parent_story_type?: string | null;
+  ai_review_status?: string | null;
+  ai_risk_level?: string | null;
+  ai_suggested_action?: string | null;
+  ai_summary?: string | null;
 };
 
 export default function AdminPage() {
@@ -137,6 +149,9 @@ export default function AdminPage() {
   const [activeFilter, setActiveFilter] = useState<StoryFilter>("pending");
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedStoryId, setExpandedStoryId] = useState<string | null>(null);
+  const [moderatingResponseId, setModeratingResponseId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     loadAdminPage();
@@ -232,20 +247,51 @@ export default function AdminPage() {
 
     const responseIds = loadedResponses.map((item) => item.response_id);
     if (responseIds.length > 0) {
-      const { data: durationRows } = await supabase
+      const { data: moderationRows } = await supabase
         .from("prayer_video_responses")
-        .select("id, duration_verification_status")
+        .select(
+          "id, duration_verification_status, response_context, ai_review_status, ai_risk_level, ai_suggested_action, ai_summary"
+        )
         .in("id", responseIds);
 
-      const durationMap = new Map(
-        ((durationRows as { id: string; duration_verification_status: string | null }[]) ??
-          []
-        ).map((row) => [row.id, row.duration_verification_status])
+      const moderationMap = new Map(
+        ((moderationRows as {
+          id: string;
+          duration_verification_status: string | null;
+          response_context: string | null;
+          ai_review_status: string | null;
+          ai_risk_level: string | null;
+          ai_suggested_action: string | null;
+          ai_summary: string | null;
+        }[]) ?? []).map((row) => [row.id, row])
+      );
+
+      const storyIds = [...new Set(loadedResponses.map((item) => item.story_id))];
+      const { data: parentStories } = await supabase
+        .from("stories")
+        .select("id, story_type")
+        .in("id", storyIds);
+
+      const parentTypeMap = new Map(
+        ((parentStories as { id: string; story_type: string | null }[]) ?? []).map(
+          (story) => [story.id, story.story_type]
+        )
       );
 
       loadedResponses.forEach((response) => {
+        const moderation = moderationMap.get(response.response_id);
         response.duration_verification_status =
-          durationMap.get(response.response_id) ?? "unavailable";
+          moderation?.duration_verification_status ?? "unavailable";
+        response.response_context =
+          moderation?.response_context ??
+          resolveResponseContextFromStory({
+            story_type: parentTypeMap.get(response.story_id) ?? null,
+          });
+        response.parent_story_type = parentTypeMap.get(response.story_id) ?? null;
+        response.ai_review_status = moderation?.ai_review_status ?? null;
+        response.ai_risk_level = moderation?.ai_risk_level ?? null;
+        response.ai_suggested_action = moderation?.ai_suggested_action ?? null;
+        response.ai_summary = moderation?.ai_summary ?? null;
       });
     }
 
@@ -504,95 +550,107 @@ export default function AdminPage() {
 
   async function moderatePrayerVideoResponse(
     responseId: string,
-    nextStatus: PrayerVideoResponseStatus
+    nextStatus: PrayerVideoResponseStatus,
+    options?: { acknowledgeUnverifiedDuration?: boolean }
   ) {
+    if (moderatingResponseId) return;
+
+    const target = prayerVideoResponses.find(
+      (response) => response.response_id === responseId
+    );
+    const responseLabel = adminResponseTypeLabel(target?.response_context).toLowerCase();
+
     if (
       nextStatus === "removed" &&
-      !window.confirm("Remove this public prayer video response?")
+      !window.confirm(`Remove this public ${responseLabel}?`)
     ) {
       return;
     }
 
-    setMessage("");
+    let acknowledgeUnverifiedDuration =
+      options?.acknowledgeUnverifiedDuration === true;
 
-    if (nextStatus === "approved") {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        setMessage("Please sign in again to approve responses.");
-        return;
-      }
-
-      let payload: {
-        ok?: boolean;
-        error?: string;
-        status?: string;
-        durationVerificationStatus?: string;
-      } | null = null;
-
-      try {
-        const response = await fetch("/api/moderate-prayer-video-response", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            response_id: responseId,
-            next_status: "approved",
-          }),
-        });
-        payload = (await response.json().catch(() => null)) as typeof payload;
-        if (!response.ok || payload?.ok === false) {
-          setMessage(
-            payload?.error ??
-              "Could not approve this response. Duration verification may have failed."
-          );
-          return;
-        }
-      } catch {
-        setMessage("Could not reach the moderation server.");
-        return;
-      }
-
-      const moderatedAt = new Date().toISOString();
-      setPrayerVideoResponses((currentResponses) =>
-        currentResponses.map((response) =>
-          response.response_id === responseId
-            ? {
-                ...response,
-                status: "approved",
-                moderated_at: moderatedAt,
-                duration_verification_status:
-                  payload?.durationVerificationStatus ??
-                  response.duration_verification_status,
-              }
-            : response
-        )
-      );
-      setMessage("Prayer video response marked as approved.");
+    if (
+      nextStatus === "approved" &&
+      !acknowledgeUnverifiedDuration &&
+      (target?.duration_verification_status ?? "unavailable") === "unavailable" &&
+      !window.confirm(MANUAL_DURATION_ACK_COPY)
+    ) {
       return;
     }
 
-    const { error } = await supabase.rpc(
-      "moderate_prayer_video_response",
-      {
-        response_id: responseId,
-        next_status: nextStatus,
-      }
-    );
+    if (
+      nextStatus === "approved" &&
+      (target?.duration_verification_status ?? "unavailable") === "unavailable"
+    ) {
+      acknowledgeUnverifiedDuration = true;
+    }
 
-    if (error) {
-      setMessage(
-        `Could not moderate prayer video response: ${error.message}`
-      );
+    setMessage("");
+    setModeratingResponseId(responseId);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) {
+      setModeratingResponseId(null);
+      setMessage("Please sign in again to moderate responses.");
       return;
+    }
+
+    let payload: {
+      ok?: boolean;
+      error?: string;
+      status?: string;
+      durationVerificationStatus?: string;
+      requiresManualAck?: boolean;
+      manualAckCopy?: string;
+    } | null = null;
+
+    try {
+      const response = await fetch("/api/moderate-prayer-video-response", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          response_id: responseId,
+          next_status: nextStatus,
+          acknowledge_unverified_duration: acknowledgeUnverifiedDuration,
+        }),
+      });
+      payload = (await response.json().catch(() => null)) as typeof payload;
+
+      if (!response.ok || payload?.ok === false) {
+        if (payload?.requiresManualAck && nextStatus === "approved") {
+          const acknowledged = window.confirm(
+            payload.manualAckCopy ?? MANUAL_DURATION_ACK_COPY
+          );
+          if (acknowledged) {
+            setModeratingResponseId(null);
+            await moderatePrayerVideoResponse(responseId, nextStatus, {
+              acknowledgeUnverifiedDuration: true,
+            });
+            return;
+          }
+        }
+
+        setMessage(
+          payload?.error ??
+            "Could not update this response. Please review duration verification and try again."
+        );
+        return;
+      }
+    } catch {
+      setMessage("Could not reach the moderation server.");
+      return;
+    } finally {
+      setModeratingResponseId(null);
     }
 
     const moderatedAt = new Date().toISOString();
-
     setPrayerVideoResponses((currentResponses) =>
       currentResponses.map((response) =>
         response.response_id === responseId
@@ -600,14 +658,17 @@ export default function AdminPage() {
               ...response,
               status: nextStatus,
               moderated_at: moderatedAt,
-              removed_at:
-                nextStatus === "removed" ? moderatedAt : null,
+              duration_verification_status:
+                payload?.durationVerificationStatus ??
+                response.duration_verification_status,
+              removed_at: nextStatus === "removed" ? moderatedAt : response.removed_at,
             }
           : response
       )
     );
+
     setMessage(
-      `Prayer video response marked as ${nextStatus.replace("_", " ")}.`
+      `${adminResponseTypeLabel(target?.response_context)} marked as ${nextStatus.replace("_", " ")}.`
     );
   }
 
@@ -1500,10 +1561,10 @@ export default function AdminPage() {
           <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.22em] text-[#0b63ce]">
-                Prayer Video Responses
+                Public Video Responses
               </div>
               <h2 className="mt-1 text-3xl font-black text-[#062a57]">
-                Public response review
+                Feed, prayer, and video response review
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                 Review public video responses separately from stories and
@@ -1518,7 +1579,7 @@ export default function AdminPage() {
 
           {prayerVideoResponses.length === 0 ? (
             <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
-              No public prayer video responses yet.
+              No public video responses yet.
             </div>
           ) : (
             <div className="grid gap-4">
@@ -1529,11 +1590,21 @@ export default function AdminPage() {
                   response.response_author_display_name ||
                   response.response_author_username ||
                   "HTBF community member";
-                const prayerOwner =
+                const parentOwner =
                   response.prayer_owner_display_name ||
                   response.prayer_owner_name ||
                   response.prayer_owner_username ||
-                  "Prayer owner";
+                  "Parent owner";
+                const responseContext =
+                  response.response_context ??
+                  resolveResponseContextFromStory({
+                    story_type: response.parent_story_type ?? null,
+                  });
+                const responseTypeLabel = adminResponseTypeLabel(responseContext);
+                const parentContentLabel = adminParentContentLabel(responseContext);
+                const parentOwnerLabel = adminParentOwnerLabel(responseContext);
+                const isModerating =
+                  moderatingResponseId === response.response_id;
 
                 return (
                   <article
@@ -1544,7 +1615,7 @@ export default function AdminPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-                            Public Prayer Response
+                            Public {responseTypeLabel}
                           </span>
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
@@ -1572,10 +1643,10 @@ export default function AdminPage() {
 
                           <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
                             <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-                              Prayer Owner
+                              {parentOwnerLabel}
                             </div>
                             <div className="mt-1 break-words font-black text-[#062a57]">
-                              {prayerOwner}
+                              {parentOwner}
                             </div>
                             <div className="mt-1 text-sm font-bold text-slate-500">
                               Submitted {formatDate(response.created_at)}
@@ -1585,7 +1656,7 @@ export default function AdminPage() {
 
                         <div className="mt-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
                           <div className="text-xs font-black uppercase tracking-[0.14em] text-[#0b63ce]">
-                            Parent Prayer
+                            {parentContentLabel}
                           </div>
                           <p
                             className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700"
@@ -1595,9 +1666,32 @@ export default function AdminPage() {
                             }}
                           >
                             {response.prayer_text ||
-                              "Prayer request text unavailable."}
+                              "Parent content unavailable."}
                           </p>
                         </div>
+
+                        {(response.ai_review_status ||
+                          response.ai_suggested_action ||
+                          response.ai_summary) && (
+                          <div className="mt-4 rounded-2xl bg-violet-50 p-4 ring-1 ring-violet-100">
+                            <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-700">
+                              AI Review
+                            </div>
+                            <div className="mt-2 text-sm font-bold text-violet-950">
+                              {response.ai_suggested_action
+                                ? `Suggested action: ${response.ai_suggested_action}`
+                                : "Review completed"}
+                              {response.ai_risk_level
+                                ? ` · Risk: ${response.ai_risk_level}`
+                                : ""}
+                            </div>
+                            {response.ai_summary ? (
+                              <p className="mt-2 text-sm leading-6 text-violet-900">
+                                {response.ai_summary}
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
 
                         {response.body && (
                           <div className="mt-4 rounded-2xl bg-blue-50 p-4 ring-1 ring-blue-100">
@@ -1660,64 +1754,66 @@ export default function AdminPage() {
                           </div>
                           <button
                             type="button"
+                            disabled={isModerating}
                             onClick={() =>
                               void moderatePrayerVideoResponse(
                                 response.response_id,
                                 "rejected"
                               )
                             }
-                            className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-70"
                           >
                             <XCircle className="h-4 w-4" />
-                            Revoke / Reject
+                            {isModerating ? "Working…" : "Revoke / Reject"}
                           </button>
                         </>
                       ) : (
                         <>
                           <button
                             type="button"
+                            disabled={isModerating}
                             onClick={() =>
                               void moderatePrayerVideoResponse(
                                 response.response_id,
                                 "approved"
                               )
                             }
-                            className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-wait disabled:opacity-70"
                           >
                             <CheckCircle className="h-4 w-4" />
-                            Approve
+                            {isModerating ? "Approving…" : "Approve"}
                           </button>
 
                           <button
                             type="button"
+                            disabled={isModerating || response.status === "rejected"}
                             onClick={() =>
                               void moderatePrayerVideoResponse(
                                 response.response_id,
                                 "rejected"
                               )
                             }
-                            disabled={response.status === "rejected"}
                             className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <XCircle className="h-4 w-4" />
-                            Reject
+                            {isModerating ? "Working…" : "Reject"}
                           </button>
                         </>
                       )}
 
                       <button
                         type="button"
+                        disabled={isModerating || response.status === "removed"}
                         onClick={() =>
                           void moderatePrayerVideoResponse(
                             response.response_id,
                             "removed"
                           )
                         }
-                        disabled={response.status === "removed"}
                         className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-700 px-5 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <EyeOff className="h-4 w-4" />
-                        Remove
+                        {isModerating ? "Working…" : "Remove"}
                       </button>
                     </div>
                   </article>

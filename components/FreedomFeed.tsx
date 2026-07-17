@@ -467,6 +467,9 @@ export default function FreedomFeed({
   const [feedLoadError, setFeedLoadError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState("");
+  const [pendingReactionKey, setPendingReactionKey] = useState<string | null>(
+    null
+  );
   const [activeFilter, setActiveFilter] = useState<FeedFilter>(defaultFilter);
   const [answeringPrayerStory, setAnsweringPrayerStory] =
     useState<ApprovedStory | null>(null);
@@ -1315,68 +1318,54 @@ export default function FreedomFeed({
       return;
     }
 
+    const pendingKey = `${storyId}:${reactionType}`;
+    if (pendingReactionKey === pendingKey) return;
+
     const story = feedItems.find(
       (item): item is FeedStoryDisplay =>
         item.kind === "story" && item.id === storyId
     );
-    const alreadyReacted = story?.user_reactions.includes(reactionType);
+    if (!story) return;
 
-    if (alreadyReacted) {
-      const { error } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("user_id", userId)
-        .eq("reaction_type", reactionType);
+    const alreadyReacted = story.user_reactions.includes(reactionType);
+    const optimisticAction: "add" | "remove" = alreadyReacted ? "remove" : "add";
+
+    setPendingReactionKey(pendingKey);
+    updateLocalReaction(storyId, reactionType, optimisticAction);
+
+    try {
+      if (alreadyReacted) {
+        const { error } = await supabase
+          .from("story_reactions")
+          .delete()
+          .eq("story_id", storyId)
+          .eq("user_id", userId)
+          .eq("reaction_type", reactionType);
+
+        if (error) {
+          updateLocalReaction(storyId, reactionType, "add");
+          setReactionMessage(`Could not remove reaction: ${error.message}`);
+          return;
+        }
+        return;
+      }
+
+      const { error } = await supabase.from("story_reactions").insert({
+        story_id: storyId,
+        user_id: userId,
+        reaction_type: reactionType,
+      });
 
       if (error) {
-        setReactionMessage(`Could not remove reaction: ${error.message}`);
-        return;
+        updateLocalReaction(storyId, reactionType, "remove");
+        if (/duplicate|unique/i.test(error.message)) {
+          return;
+        }
+        setReactionMessage(`Could not add reaction: ${error.message}`);
       }
-
-      updateLocalReaction(storyId, reactionType, "remove");
-      return;
+    } finally {
+      setPendingReactionKey((current) => (current === pendingKey ? null : current));
     }
-
-    const replacingSelectorReaction = SELECTOR_REACTION_TYPES.includes(
-      reactionType
-    );
-    const existingSelectorReactions =
-      story?.user_reactions.filter(
-        (existing) =>
-          SELECTOR_REACTION_TYPES.includes(existing) && existing !== reactionType
-      ) ?? [];
-
-    if (replacingSelectorReaction && existingSelectorReactions.length > 0) {
-      const { error: clearError } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("user_id", userId)
-        .in("reaction_type", existingSelectorReactions);
-
-      if (clearError) {
-        setReactionMessage(`Could not update reaction: ${clearError.message}`);
-        return;
-      }
-
-      for (const existing of existingSelectorReactions) {
-        updateLocalReaction(storyId, existing, "remove");
-      }
-    }
-
-    const { error } = await supabase.from("story_reactions").insert({
-      story_id: storyId,
-      user_id: userId,
-      reaction_type: reactionType,
-    });
-
-    if (error) {
-      setReactionMessage(`Could not add reaction: ${error.message}`);
-      return;
-    }
-
-    updateLocalReaction(storyId, reactionType, "add");
   }
 
   function updateLocalReaction(
@@ -1970,6 +1959,7 @@ export default function FreedomFeed({
       onShareStory: shareStory,
       onShareVideoResponse: shareVideoResponse,
       onToggleReaction: toggleReaction,
+      pendingReactionKey,
       onToggleSaved: toggleSavedStory,
       onReportStory: openFeedReport,
       onBlockStoryUser: blockStoryUser,
@@ -1983,7 +1973,7 @@ export default function FreedomFeed({
       onPrepareFeedReturn: (storyId) => saveFreedomFeedReturnState(storyId),
       onResponseMessage: (message) => setReactionMessage(message),
     }),
-    [userId, savedStoryIds, postOverflowMenuKey]
+    [userId, savedStoryIds, postOverflowMenuKey, pendingReactionKey]
   );
 
   return (

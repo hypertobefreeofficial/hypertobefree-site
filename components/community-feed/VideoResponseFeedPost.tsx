@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Share2, Video } from "lucide-react";
 import type { ReactNode } from "react";
+import {
+  isPrayerResponseContext,
+  parentHrefForResponseContext,
+} from "../../lib/responses/publicVideoResponseContext";
 import CommunityFeedPostShell from "./CommunityFeedPostShell";
 import CommunityFeedPostHeader from "./CommunityFeedPostHeader";
 import { CommunityFeedResponseOverflowMenu } from "./CommunityFeedPostOverflowMenu";
@@ -29,6 +33,12 @@ export default function VideoResponseFeedPost({
       ? `${item.parentStoryTitle.slice(0, 72).trim()}…`
       : item.parentStoryTitle
     : null;
+  const isPrayerParent = isPrayerResponseContext(item.parentResponseContext);
+  const resolvedParentHref =
+    parentHref ??
+    (item.parentStoryId
+      ? parentHrefForResponseContext(item.parentStoryId, item.parentResponseContext)
+      : undefined);
 
   const header = (
     <CommunityFeedPostHeader
@@ -56,21 +66,34 @@ export default function VideoResponseFeedPost({
   const body = (
     <div className={`${styles.postInset} ${styles.postBody}`}>
       <p className={styles.responseContext}>
-        Responded with a video prayer for{" "}
-        {item.parentStoryAuthor ? (
+        {isPrayerParent ? (
           <>
-            <span className="font-semibold text-slate-900">
-              {item.parentStoryAuthor}&apos;s request
-            </span>
+            Responded with a video prayer for{" "}
+            {item.parentStoryAuthor ? (
+              <span className="font-semibold text-slate-900">
+                {item.parentStoryAuthor}&apos;s request
+              </span>
+            ) : (
+              "this prayer request"
+            )}
           </>
         ) : (
-          "this prayer request"
+          <>
+            Video response to{" "}
+            {item.parentStoryAuthor ? (
+              <span className="font-semibold text-slate-900">
+                {item.parentStoryAuthor}&apos;s post
+              </span>
+            ) : (
+              "this post"
+            )}
+          </>
         )}
       </p>
 
       {parentExcerpt ? (
-        parentHref ? (
-          <Link href={parentHref} className={styles.responseParentExcerpt}>
+        resolvedParentHref ? (
+          <Link href={resolvedParentHref} className={styles.responseParentExcerpt}>
             &ldquo;{parentExcerpt}&rdquo;
           </Link>
         ) : (
@@ -82,8 +105,8 @@ export default function VideoResponseFeedPost({
 
   const actions = (
     <div className={styles.primaryActionRow}>
-      {parentHref ? (
-        <Link href={parentHref} className={styles.primaryActionButton}>
+      {resolvedParentHref ? (
+        <Link href={resolvedParentHref} className={styles.primaryActionButton}>
           <Video className="h-4 w-4 shrink-0" aria-hidden />
           <span className={styles.primaryActionLabelShort}>Video</span>
           <span className={styles.primaryActionLabelFull}>Video response</span>

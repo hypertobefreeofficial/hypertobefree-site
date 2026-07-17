@@ -3,6 +3,7 @@ import { Bookmark, Share2, Video } from "lucide-react";
 import type { FeedStoryDisplay } from "./types";
 import CommunityFeedEngagementSummary from "./CommunityFeedEngagementSummary";
 import CommunityFeedInlineEncouragement from "./CommunityFeedInlineEncouragement";
+import CommunityFeedParentVideoResponses from "./CommunityFeedParentVideoResponses";
 import CommunityFeedRespondLauncher from "./CommunityFeedRespondLauncher";
 import styles from "../FreedomFeed.module.css";
 
@@ -15,6 +16,7 @@ type CommunityFeedStandardActionsProps = {
     storyId: string,
     reactionType: import("./types").FeedReactionType
   ) => void;
+  pendingReactionKey?: string | null;
   onShare: () => void;
   onToggleSaved: () => void;
   onPrepareReturn?: () => void;
@@ -28,6 +30,7 @@ export default function CommunityFeedStandardActions({
   currentUserId = null,
   showVideoResponse = false,
   onToggleReaction,
+  pendingReactionKey = null,
   onShare,
   onToggleSaved,
   onPrepareReturn,
@@ -43,6 +46,7 @@ export default function CommunityFeedStandardActions({
       <CommunityFeedInlineEncouragement
         storyId={story.id}
         userReactions={story.user_reactions}
+        pendingReactionKey={pendingReactionKey}
         onToggleReaction={onToggleReaction}
       />
 
@@ -90,6 +94,11 @@ export default function CommunityFeedStandardActions({
           {isSaved ? "Saved" : "Save"}
         </button>
       </div>
+
+      <CommunityFeedParentVideoResponses
+        storyId={story.id}
+        responses={story.approved_video_responses}
+      />
     </>
   );
 }

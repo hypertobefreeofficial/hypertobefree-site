@@ -18,6 +18,7 @@ import type {
 import FeedScrollVideoPreview from "./FeedScrollVideoPreview";
 import CommunityFeedStoryItem from "./CommunityFeedStoryItem";
 import VideoResponseFeedPost from "./VideoResponseFeedPost";
+import { parentHrefForResponseContext } from "../../lib/responses/publicVideoResponseContext";
 import type { CommunityFeedPostCallbacks } from "./types";
 import styles from "../FreedomFeed.module.css";
 
@@ -129,7 +130,10 @@ export default function FeedListItem({
           media={responseMedia}
           parentHref={
             feedItem.parentStoryId
-              ? `/prayer?story=${feedItem.parentStoryId}`
+              ? parentHrefForResponseContext(
+                  feedItem.parentStoryId,
+                  feedItem.parentResponseContext
+                )
               : undefined
           }
         />

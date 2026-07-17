@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getPublicVideoEligibility } from "../prayer-connect/eligibility";
+import { moderatePublicContent } from "./moderatePublicContent";
 import { areUsersBlocked } from "./prayerBlocking";
+import { resolveResponseContextFromStory } from "../responses/publicVideoResponseContext";
 import {
   PRAYER_MEDIA_LIMITS,
   validateUploadedThumbnailObject,
@@ -290,6 +292,8 @@ export async function submitPublicVideoResponse(
     validatedThumbnailUrl = responseThumbnailUrl;
   }
 
+  const responseContext = resolveResponseContextFromStory(approvedSource);
+
   const insertPayload: Record<string, unknown> = {
     story_id: sourcePostId,
     user_id: responderUserId,
@@ -297,6 +301,7 @@ export async function submitPublicVideoResponse(
     body: null,
     status: "submitted",
     duration_verification_status: "unavailable",
+    response_context: responseContext,
   };
 
   if (validatedThumbnailUrl) {
@@ -312,11 +317,19 @@ export async function submitPublicVideoResponse(
   if (insertError || !insertedData?.id) {
     if (
       insertError &&
-      /duration_verification_status|thumbnail_url/i.test(insertError.message)
+      /duration_verification_status|thumbnail_url|response_context|ai_/i.test(
+        insertError.message
+      )
     ) {
       const legacyPayload = { ...insertPayload };
       delete legacyPayload.duration_verification_status;
       delete legacyPayload.thumbnail_url;
+      delete legacyPayload.response_context;
+      delete legacyPayload.ai_review_status;
+      delete legacyPayload.ai_risk_level;
+      delete legacyPayload.ai_suggested_action;
+      delete legacyPayload.ai_summary;
+      delete legacyPayload.ai_flags;
 
       const { data: legacyInsert, error: legacyError } = await adminClient
         .from("prayer_video_responses")
@@ -351,9 +364,42 @@ export async function submitPublicVideoResponse(
     );
   }
 
+  const responseId = String(insertedData.id);
+
+  try {
+    const moderation = await moderatePublicContent({
+      storyType: approvedSource.story_type ?? sourceType,
+      storyText: [
+        approvedSource.story_text?.trim() || "No parent caption was provided.",
+        "Public video response submitted.",
+      ].join("\n"),
+      hasVideo: true,
+      hasPhoto: Boolean(validatedThumbnailUrl),
+    });
+
+    const aiUpdate: Record<string, unknown> = {
+      ai_review_status: moderation.aiReviewStatus,
+      ai_risk_level: moderation.aiRiskLevel,
+      ai_suggested_action: moderation.aiSuggestedAction,
+      ai_summary: moderation.aiSummary,
+      ai_flags: moderation.aiFlags,
+    };
+
+    const { error: aiError } = await adminClient
+      .from("prayer_video_responses")
+      .update(aiUpdate)
+      .eq("id", responseId);
+
+    if (aiError && !/ai_/i.test(aiError.message)) {
+      console.error("Public video response AI metadata update failed:", aiError);
+    }
+  } catch (error) {
+    console.error("Public video response AI moderation failed:", error);
+  }
+
   return {
     ok: true,
-    responseId: String(insertedData.id),
+    responseId,
     status: "submitted",
     sourceType,
     sourcePostId,

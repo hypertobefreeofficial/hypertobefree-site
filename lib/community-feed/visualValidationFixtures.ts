@@ -61,6 +61,8 @@ function storyFixture(
       praying: 0,
     },
     user_reactions: [],
+    approved_video_responses: [],
+    video_response_count: 0,
     ...overrides,
   };
 }
@@ -83,6 +85,8 @@ function responseFixture(
     created_at: "2026-07-14T10:30:00.000Z",
     parentStoryId: "fixture-prayer-parent",
     parentStoryUserId: "fixture-user-2",
+    parentStoryType: "prayer_request",
+    parentResponseContext: "prayer_request",
     ...overrides,
   };
 }
