@@ -17,6 +17,15 @@ import type {
   CommunityFeedItem,
   CommunityFeedStoryRecord,
 } from "./types";
+import {
+  loadApprovedVideoResponsesByStoryIds,
+  type FeedApprovedVideoResponsePreview,
+} from "./loadParentApprovedVideoResponses";
+import {
+  loadViewerPendingVideoResponsesByStoryIds,
+  type FeedPendingVideoResponsePreview,
+} from "./loadViewerPendingVideoResponses";
+import { resolveResponseContextFromStory } from "../responses/publicVideoResponseContext";
 
 export type FeedReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 
@@ -63,6 +72,10 @@ export type FeedStoryDisplay = {
     praying: number;
   };
   user_reactions: FeedReactionType[];
+  approved_video_responses: FeedApprovedVideoResponsePreview[];
+  video_response_count: number;
+  viewer_pending_response: FeedPendingVideoResponsePreview | null;
+  response_context: string | null;
 };
 
 export type FeedVideoResponseDisplay = {
@@ -80,6 +93,8 @@ export type FeedVideoResponseDisplay = {
   parentStoryUserId: string | null;
   parentStoryTitle: string;
   parentStoryAuthor: string | null;
+  parentStoryType: string | null;
+  parentResponseContext: string | null;
 };
 
 export type FeedDisplayItem = FeedStoryDisplay | FeedVideoResponseDisplay;
@@ -243,6 +258,8 @@ async function enrichStoryItem(
   item: CommunityFeedItem,
   reactions: ReactionRow[],
   viewerUserId: string | null,
+  approvedResponsesByStoryId: Map<string, FeedApprovedVideoResponsePreview[]>,
+  pendingResponsesByStoryId: Map<string, FeedPendingVideoResponsePreview | null>,
   existing?: FeedStoryDisplay | null
 ): Promise<FeedStoryDisplay | null> {
   const story = item.story;
@@ -267,6 +284,18 @@ async function enrichStoryItem(
     story.id,
     viewerUserId
   );
+
+  const approved_video_responses =
+    approvedResponsesByStoryId.get(story.id) ??
+    existing?.approved_video_responses ??
+    [];
+
+  const viewer_pending_response =
+    pendingResponsesByStoryId.get(story.id) ??
+    existing?.viewer_pending_response ??
+    null;
+
+  const response_context = resolveResponseContextFromStory(story);
 
   return {
     kind: "story",
@@ -307,6 +336,10 @@ async function enrichStoryItem(
     ai_suggestions: story.ai_suggestions ?? null,
     reaction_counts,
     user_reactions,
+    approved_video_responses,
+    video_response_count: approved_video_responses.length,
+    viewer_pending_response,
+    response_context,
   };
 }
 
@@ -362,6 +395,8 @@ async function enrichVideoResponseItem(
     parentStoryUserId: parent.user_id,
     parentStoryTitle: prayerTitleFromBody(parent.story_text),
     parentStoryAuthor: parent.name,
+    parentStoryType: parent.story_type,
+    parentResponseContext: resolveResponseContextFromStory(parent),
   };
 }
 
@@ -405,6 +440,13 @@ export async function enrichFeedItems(
 
   const authorNames = await loadAuthorNames(responseAuthorIds);
 
+  const approvedResponsesByStoryId = await loadApprovedVideoResponsesByStoryIds(
+    storyIds
+  );
+
+  const pendingResponsesByStoryId =
+    await loadViewerPendingVideoResponsesByStoryIds(storyIds, viewerUserId);
+
   let reactions: ReactionRow[] = [];
   const reactionStoryIds = [...new Set([...storyIds, ...responseParentIds])];
   if (reactionStoryIds.length > 0) {
@@ -424,6 +466,8 @@ export async function enrichFeedItems(
         item,
         reactions,
         viewerUserId,
+        approvedResponsesByStoryId,
+        pendingResponsesByStoryId,
         cached?.kind === "story" ? cached : null
       );
       if (storyDisplay) enriched.push(storyDisplay);

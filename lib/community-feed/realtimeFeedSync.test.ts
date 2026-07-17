@@ -365,4 +365,34 @@ describe("realtime feed sync across loaded pages", () => {
       "tail-response",
     ]);
   });
+
+  it("requests head refresh when a response becomes publicly approved", () => {
+    const plan = planRealtimeFeedSync(
+      {
+        storyChanges: [],
+        responseChanges: [
+          {
+            eventType: "UPDATE",
+            record: {
+              id: "response-1",
+              status: "approved",
+              removed_at: null,
+              user_id: "responder-1",
+            },
+            oldRecord: {
+              id: "response-1",
+              status: "submitted",
+              removed_at: null,
+              user_id: "responder-1",
+            },
+          },
+        ],
+        reactionStoryIds: [],
+      },
+      loaded,
+      context
+    );
+
+    expect(plan.needsHeadRefresh).toBe(true);
+  });
 });

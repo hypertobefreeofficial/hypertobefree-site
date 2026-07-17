@@ -23,31 +23,53 @@ test.describe("Community Feed Phase 2 — type-specific posts", () => {
     ).toHaveCount(0);
   });
 
-  test("reaction summary is not duplicated with permanent named controls", async ({
+  test("feed shows inline encouragement controls and summary without a React button", async ({
     page,
   }) => {
     await openFixtureFeed(page);
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
     await expect(danielPost.getByTestId("feed-engagement-summary")).toHaveCount(1);
-    await expect(danielPost.getByRole("button", { name: "Amen" })).toHaveCount(0);
-    await expect(danielPost.getByRole("button", { name: /^React/ })).toBeVisible();
+    await expect(danielPost.getByTestId("feed-encouragement-row")).toBeVisible();
+    await expect(danielPost.getByTestId("feed-encouragement-amen")).toBeVisible();
+    await expect(danielPost.getByTestId("feed-encouragement-praise-god")).toBeVisible();
+    await expect(danielPost.getByTestId("feed-encouragement-encouraged")).toBeVisible();
+    await expect(danielPost.getByRole("button", { name: /^React/ })).toHaveCount(0);
+    await expect(danielPost.getByRole("button", { name: /^Respond/ })).toBeVisible();
   });
 
-  test("react selector exposes Amen, Praise God, and Encouraged", async ({
+  test("inline encouragement and Respond open separate interactions", async ({
     page,
   }) => {
     await openFixtureFeed(page);
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    await danielPost.getByRole("button", { name: /^React/ }).click();
-    await expect(page.getByRole("menuitemradio", { name: /Amen/ })).toBeVisible();
+
+    await danielPost.getByTestId("feed-encouragement-amen").click();
+    await expect(danielPost.getByTestId("feed-encouragement-amen")).toBeVisible();
     await expect(
-      page.getByRole("menuitemradio", { name: /Praise God/ })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("menuitemradio", { name: /Encouraged/ })
-    ).toBeVisible();
+      page.getByRole("dialog", { name: /Choose how you want to respond/i })
+    ).toHaveCount(0);
+
+    await danielPost.getByRole("button", { name: /^Respond/ }).click();
+    await expect(page.getByTestId("feed-response-public-video")).toBeVisible();
+    await expect(page.getByTestId("feed-response-private-message")).toBeVisible();
+    await expect(page.getByTestId("feed-response-private-video")).toBeVisible();
+    await expect(page.getByText(/Quick encouragement/i)).toHaveCount(0);
+    await expect(page.getByRole("menu", { name: /Choose a reaction/i })).toHaveCount(0);
+  });
+
+  test("feed action row exposes Respond, Share, and Save without React", async ({
+    page,
+  }) => {
+    await openFixtureFeed(page);
+    const photoPost = page.locator("#freedom-feed-story-fixture-landscape-photo");
+    await photoPost.scrollIntoViewIfNeeded();
+    await expect(photoPost.getByTestId("feed-encouragement-row")).toBeVisible();
+    await expect(photoPost.getByRole("button", { name: /^React/ })).toHaveCount(0);
+    await expect(photoPost.getByRole("button", { name: /^Respond/ })).toBeVisible();
+    await expect(photoPost.getByRole("button", { name: /^Share$/ })).toBeVisible();
+    await expect(photoPost.getByRole("button", { name: /^Save$/ })).toBeVisible();
   });
 
   test("prayer viewer sees I'm Praying and not God Did It", async ({ page }) => {
@@ -58,6 +80,20 @@ test.describe("Community Feed Phase 2 — type-specific posts", () => {
       prayerPost.getByRole("button", { name: /I'm Praying|Praying/ })
     ).toBeVisible();
     await expect(prayerPost.getByTestId("god-did-it-button")).toHaveCount(0);
+  });
+
+  test("prayer post uses compact action row without full-width prayer bar", async ({
+    page,
+  }) => {
+    await openFixtureFeed(page);
+    const prayerPost = page.locator("#freedom-feed-story-fixture-prayer-request");
+    await prayerPost.scrollIntoViewIfNeeded();
+    await expect(prayerPost.locator('[class*="prayerPrimaryButton"]')).toHaveCount(0);
+    await expect(
+      prayerPost.getByRole("link", { name: /Video response/i })
+    ).toBeVisible();
+    await expect(prayerPost.getByRole("button", { name: /^Respond/ })).toHaveCount(0);
+    await expect(prayerPost.getByTestId("feed-encouragement-row")).toHaveCount(0);
   });
 
   test("prayer owner sees God Did It after load more", async ({ page }) => {
@@ -131,13 +167,17 @@ test.describe("Community Feed Phase 2 — type-specific posts", () => {
     await expect(page.getByRole("menuitem", { name: "Hide post" })).toBeVisible();
   });
 
-  test("reaction selector closes after choosing a reaction", async ({ page }) => {
+  test("inline encouragement toggles without opening Respond", async ({
+    page,
+  }) => {
     await openFixtureFeed(page);
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    await danielPost.getByRole("button", { name: /^React/ }).click();
-    await page.getByRole("menuitemradio", { name: /Amen/ }).click();
-    await expect(page.getByRole("menuitemradio", { name: /Amen/ })).toHaveCount(0);
+    await danielPost.getByTestId("feed-encouragement-praise-god").click();
+    await expect(danielPost.getByTestId("feed-encouragement-praise-god")).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: /Choose how you want to respond/i })
+    ).toHaveCount(0);
   });
 
   test("Block User is only inside overflow", async ({ page }) => {

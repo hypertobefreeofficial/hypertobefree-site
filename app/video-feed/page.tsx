@@ -29,7 +29,6 @@ import {
   Pause,
   Play,
   Search,
-  Send,
   Share2,
   Sparkles,
   Trash2,
@@ -47,6 +46,14 @@ import {
   FEED_MEDIA_EL_CLASS,
 } from "../../lib/feedMediaClasses";
 import { supabase } from "../../lib/supabaseClient";
+import PostResponseFlow from "../../components/responses/PostResponseFlow";
+import { buildResponseSourceContext } from "../../lib/responses/responseContext";
+import type { FeedStoryDisplay } from "../../lib/community-feed/enrichFeedItems";
+import {
+  FIXTURE_VIEWER_USER_ID,
+  getVideoFeedVisualValidationStoryRows,
+} from "../../lib/community-feed/visualValidationFixtures";
+import { isCommunityFeedVisualValidationEnabled } from "../../lib/community-feed/visualValidationMode";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 type VideoLanguage = "spanish" | "english";
@@ -604,6 +611,47 @@ function triggerHaptic(enabled: boolean) {
   }
 }
 
+function mapFixtureStoryToVideoStory(story: FeedStoryDisplay): VideoStory {
+  return {
+    id: story.id,
+    user_id: story.user_id,
+    name: story.name,
+    location: story.location,
+    story_type: story.story_type,
+    story_text: story.story_text,
+    overlay_text: story.overlay_text,
+    overlay_x: story.overlay_x,
+    overlay_y: story.overlay_y,
+    caption_style: (story.caption_style as CaptionStyle | null) ?? null,
+    caption_font: (story.caption_font as CaptionFont) ?? null,
+    caption_background: (story.caption_background as CaptionBackground) ?? null,
+    caption_template: (story.caption_template as CaptionTemplate | null) ?? null,
+    caption_color: (story.caption_color as CaptionColor) ?? null,
+    caption_size: (story.caption_size as CaptionSize) ?? null,
+    caption_align: (story.caption_align as CaptionAlign) ?? null,
+    video_template: (story.video_template as VideoTemplate) ?? null,
+    htbf_watermark_enabled: story.htbf_watermark_enabled ?? false,
+    silhouette_watermark_enabled: story.silhouette_watermark_enabled ?? false,
+    shared_htbf_intro_enabled: story.shared_htbf_intro_enabled ?? false,
+    video_url: story.video_url,
+    status: story.status,
+    created_at: story.created_at,
+    prayer_status: story.prayer_status,
+    answered_at: story.answered_at,
+    answered_text: story.answered_text,
+    signed_video_url: story.signed_video_url,
+    reaction_counts: story.reaction_counts,
+    user_reactions: story.user_reactions,
+    reply_count: 0,
+  };
+}
+
+function videoStoryTitle(story: VideoStory) {
+  const text = story.story_text?.trim();
+  if (text) return text.slice(0, 120);
+  return story.name?.trim() || "HTBF post";
+}
+
 export function VideoFeedExperience({
   sourceContext = "search",
   returnPath = "/search",
@@ -623,9 +671,10 @@ export function VideoFeedExperience({
   const [entrySource, setEntrySource] =
     useState<VideoSourceContext>(sourceContext);
 
-  const [replyStory, setReplyStory] = useState<VideoStory | null>(null);
-  const [replyText, setReplyText] = useState("");
-  const [sendingReply, setSendingReply] = useState(false);
+  const [responseFlowStory, setResponseFlowStory] = useState<VideoStory | null>(
+    null
+  );
+  const [responseFlowOpen, setResponseFlowOpen] = useState(false);
 
   const [reportStory, setReportStory] = useState<VideoStory | null>(null);
   const [reportReason, setReportReason] =
@@ -733,6 +782,7 @@ export function VideoFeedExperience({
 
   useEffect(() => {
     let currentUserId: string | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     async function loadPage() {
       setCheckingUser(true);
@@ -741,6 +791,16 @@ export function VideoFeedExperience({
       const params = new URLSearchParams(window.location.search);
       setSelectedStoryId(params.get("story"));
       setEntrySource(sourceContext);
+
+      if (isCommunityFeedVisualValidationEnabled(params)) {
+        currentUserId = FIXTURE_VIEWER_USER_ID;
+        setUserId(FIXTURE_VIEWER_USER_ID);
+        setStories(
+          getVideoFeedVisualValidationStoryRows().map(mapFixtureStoryToVideoStory)
+        );
+        setCheckingUser(false);
+        return;
+      }
 
       const {
         data: { user },
@@ -756,37 +816,39 @@ export function VideoFeedExperience({
 
       await Promise.all([loadVideoStories(user.id), loadAccountSafety(user.id)]);
       setCheckingUser(false);
+
+      channel = supabase
+        .channel("video-feed-live-updates")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "story_reactions" },
+          async () => {
+            await loadVideoStories(currentUserId);
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "story_video_replies" },
+          async () => {
+            await loadVideoStories(currentUserId);
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "stories" },
+          async () => {
+            await loadVideoStories(currentUserId);
+          }
+        )
+        .subscribe();
     }
 
-    loadPage();
-
-    const channel = supabase
-      .channel("video-feed-live-updates")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "story_reactions" },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "story_video_replies" },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "stories" },
-        async () => {
-          await loadVideoStories(currentUserId);
-        }
-      )
-      .subscribe();
+    void loadPage();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
@@ -1352,52 +1414,6 @@ export function VideoFeedExperience({
     );
   }
 
-  async function sendVideoReply() {
-    if (!userId || !replyStory) {
-      setMessage(copy.signInToRespond);
-      return;
-    }
-
-    const cleanReply = replyText.trim();
-
-    if (!cleanReply) {
-      setMessage(copy.writeResponseFirst);
-      return;
-    }
-
-    setSendingReply(true);
-    setMessage("");
-
-    const { error } = await supabase.from("story_video_replies").insert({
-      story_id: replyStory.id,
-      user_id: userId,
-      recipient_user_id: replyStory.user_id,
-      message: cleanReply,
-    });
-
-    if (error) {
-      setMessage(`${copy.sendResponseError}: ${error.message}`);
-      setSendingReply(false);
-      return;
-    }
-
-    setStories((currentStories) =>
-      currentStories.map((story) =>
-        story.id === replyStory.id
-          ? {
-              ...story,
-              reply_count: story.reply_count + 1,
-            }
-          : story
-      )
-    );
-
-    setReplyText("");
-    setReplyStory(null);
-    setSendingReply(false);
-    setMessage(copy.responseSent);
-  }
-
   async function toggleSavedVideo(story: VideoStory) {
     if (!userId) {
       setMessage(copy.signInToSave);
@@ -1487,9 +1503,9 @@ export function VideoFeedExperience({
       setSelectedStoryId(null);
     }
 
-    if (replyStory?.id === story.id) {
-      setReplyStory(null);
-      setReplyText("");
+    if (responseFlowStory?.id === story.id) {
+      setResponseFlowStory(null);
+      setResponseFlowOpen(false);
     }
 
     setMessage(copy.videoRemoved);
@@ -1848,8 +1864,8 @@ export function VideoFeedExperience({
                       count={story.reply_count}
                       active={false}
                       onClick={() => {
-                        setReplyStory(story);
-                        setReplyText("");
+                        setResponseFlowStory(story);
+                        setResponseFlowOpen(true);
                         setMessage("");
                       }}
                       icon={<MessageCircleHeart className="h-5 w-5" />}
@@ -1890,53 +1906,29 @@ export function VideoFeedExperience({
         />
       )}
 
-      {replyStory && (
-        <div className="fixed inset-0 z-[80] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                  {copy.replyEyebrow}
-                </div>
-
-                <h2 className="mt-1 text-xl font-black text-[#062a57]">
-                  {copy.replyTitle}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setReplyStory(null);
-                  setReplyText("");
-                }}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                aria-label={copy.closeResponseBox}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <textarea
-              value={replyText}
-              onChange={(event) => setReplyText(event.target.value)}
-              rows={5}
-              placeholder={copy.replyPlaceholder}
-              className="w-full resize-none rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-base leading-7 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-            />
-
-            <button
-              type="button"
-              disabled={sendingReply}
-              onClick={sendVideoReply}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-5 py-3 text-base font-black text-white shadow-sm hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {sendingReply ? copy.sending : copy.sendResponse}
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      {responseFlowStory ? (
+        <PostResponseFlow
+          context={buildResponseSourceContext({
+            sourceType: "feed",
+            storyId: responseFlowStory.id,
+            authorUserId: responseFlowStory.user_id,
+            storyTitle: videoStoryTitle(responseFlowStory),
+            requestApproved:
+              (responseFlowStory.status || "approved") === "approved",
+          })}
+          open={responseFlowOpen}
+          onClose={() => {
+            setResponseFlowOpen(false);
+            setResponseFlowStory(null);
+          }}
+          returnBehavior="stay"
+          onComplete={({ success, message: completionMessage }) => {
+            if (success && completionMessage) {
+              setMessage(completionMessage);
+            }
+          }}
+        />
+      ) : null}
 
       {reportStory && (
         <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">

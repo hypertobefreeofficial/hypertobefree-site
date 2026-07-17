@@ -1,4 +1,5 @@
 import {
+  COMMUNITY_FEED_RESPONSE_PUBLIC_STATUS,
   evaluateCommunityFeedResponseEligibility,
   evaluateCommunityFeedStoryEligibility,
 } from "./eligibility";
@@ -213,10 +214,18 @@ export function collectRemovalKeysForResponseChange(
     return { removalKeys, uncertainResponseIds, needsHeadRefresh: false };
   }
 
+  const oldStatus =
+    change.eventType === "UPDATE" ? change.oldRecord?.status ?? null : null;
+  const newStatus = record?.status ?? null;
+  const becamePubliclyApproved =
+    change.eventType === "UPDATE" &&
+    oldStatus !== COMMUNITY_FEED_RESPONSE_PUBLIC_STATUS &&
+    newStatus === COMMUNITY_FEED_RESPONSE_PUBLIC_STATUS;
+
   return {
     removalKeys,
     uncertainResponseIds,
-    needsHeadRefresh: change.eventType === "INSERT",
+    needsHeadRefresh: change.eventType === "INSERT" || becamePubliclyApproved,
   };
 }
 

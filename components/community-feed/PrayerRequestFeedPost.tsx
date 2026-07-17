@@ -1,10 +1,11 @@
-import Link from "next/link";
-import { Bookmark, Share2, Video } from "lucide-react";
+import { Bookmark, Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 import CommunityFeedPostShell from "./CommunityFeedPostShell";
 import CommunityFeedPostHeader from "./CommunityFeedPostHeader";
 import { CommunityFeedStoryOverflowMenu } from "./CommunityFeedPostOverflowMenu";
+import CommunityFeedRespondLauncher from "./CommunityFeedRespondLauncher";
 import FeedStoryText from "./FeedStoryText";
+import PublicVideoResponseModule from "../public-video-responses/PublicVideoResponseModule";
 import type { CommunityFeedPostCallbacks, FeedStoryDisplay } from "./types";
 import { canPersistentlyHideFeedItem } from "../../lib/community-feed/canHideFeedItem";
 import styles from "../FreedomFeed.module.css";
@@ -75,23 +76,25 @@ export default function PrayerRequestFeedPost({
 
   const actions = (
     <>
-      <button
-        type="button"
-        className={`${styles.prayerPrimaryButton} ${
-          isPraying ? styles.prayerPrimaryButtonActive : ""
-        }`}
-        aria-pressed={isPraying}
-        onClick={() => callbacks.onToggleReaction(story.id, "praying")}
-      >
-        {isPraying ? "Praying" : "I'm Praying"}
-      </button>
-
       <div className={styles.primaryActionRow}>
-        <Link href="/prayer" className={styles.primaryActionButton}>
-          <Video className="h-4 w-4 shrink-0" aria-hidden />
-          <span className={styles.primaryActionLabelShort}>Video</span>
-          <span className={styles.primaryActionLabelFull}>Video response</span>
-        </Link>
+        <button
+          type="button"
+          className={`${styles.primaryActionButton} ${
+            isPraying ? styles.prayerCompactActionActive : ""
+          }`}
+          aria-pressed={isPraying}
+          onClick={() => callbacks.onToggleReaction(story.id, "praying")}
+        >
+          {isPraying ? "Praying" : "I'm Praying"}
+        </button>
+
+        <CommunityFeedRespondLauncher
+          story={story}
+          currentUserId={callbacks.userId}
+          onPrepareReturn={() => callbacks.onPrepareFeedReturn?.(story.id)}
+          onResponseMessage={callbacks.onResponseMessage}
+          onRefreshStoryVideoResponses={callbacks.onRefreshStoryVideoResponses}
+        />
 
         <button
           type="button"
@@ -116,6 +119,20 @@ export default function PrayerRequestFeedPost({
           {isSaved ? "Saved" : "Save"}
         </button>
       </div>
+
+      <PublicVideoResponseModule
+        storyId={story.id}
+        parentOwnerUserId={story.user_id}
+        currentUserId={callbacks.userId}
+        responseContext={story.response_context}
+        approvedResponses={story.approved_video_responses}
+        pendingResponse={story.viewer_pending_response}
+        returnAnchorId={`freedom-feed-story-${story.id}`}
+        onPendingRemoved={() =>
+          callbacks.onRefreshStoryVideoResponses?.(story.id)
+        }
+        onResponseMessage={callbacks.onResponseMessage}
+      />
     </>
   );
 

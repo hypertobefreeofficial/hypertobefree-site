@@ -61,6 +61,10 @@ function storyFixture(
       praying: 0,
     },
     user_reactions: [],
+    approved_video_responses: [],
+    video_response_count: 0,
+    viewer_pending_response: null,
+    response_context: null,
     ...overrides,
   };
 }
@@ -83,6 +87,8 @@ function responseFixture(
     created_at: "2026-07-14T10:30:00.000Z",
     parentStoryId: "fixture-prayer-parent",
     parentStoryUserId: "fixture-user-2",
+    parentStoryType: "prayer_request",
+    parentResponseContext: "prayer_request",
     ...overrides,
   };
 }
@@ -139,6 +145,63 @@ export function getCommunityFeedVisualValidationFixturesPage1(): FeedDisplayItem
       caption_style: "bold-center",
       created_at: "2026-07-14T17:30:00.000Z",
       ai_suggestions: { feedMediaAspect: "portrait" },
+      response_context: "feed_post",
+      approved_video_responses: [
+        {
+          id: "fixture-parent-response-1",
+          user_id: "fixture-responder-1",
+          authorName: "James R.",
+          authorUsername: "jamesr",
+          body: "Standing with you in prayer. God is faithful.",
+          signed_video_url: FIXTURE_VIDEO_SAMPLE,
+          signed_thumbnail_url: FIXTURE_MEDIA.responsePoster,
+          created_at: "2026-07-14T17:40:00.000Z",
+          response_context: "feed_post",
+        },
+        {
+          id: "fixture-parent-response-2",
+          user_id: "fixture-responder-2",
+          authorName: "Maya S.",
+          authorUsername: "mayas",
+          body: "This encouraged my heart today.",
+          signed_video_url: FIXTURE_VIDEO_SAMPLE,
+          signed_thumbnail_url: FIXTURE_MEDIA.praisePortraitPoster,
+          created_at: "2026-07-14T17:35:00.000Z",
+          response_context: "feed_post",
+        },
+      ],
+      video_response_count: 2,
+    }),
+    storyFixture({
+      id: "fixture-prayer-with-responses",
+      dedupeKey: "story:fixture-prayer-with-responses",
+      name: "Grace M.",
+      story_type: "Prayer Request",
+      story_text:
+        "Please pray for healing and peace for our family this week.",
+      prayer_status: "active",
+      response_context: "prayer_request",
+      reaction_counts: {
+        amen: 0,
+        praise_god: 0,
+        encouraged: 0,
+        praying: 9,
+      },
+      approved_video_responses: [
+        {
+          id: "fixture-prayer-response-1",
+          user_id: "fixture-responder-3",
+          authorName: "Leah T.",
+          authorUsername: "leaht",
+          body: "Lifting your family before the Lord tonight.",
+          signed_video_url: FIXTURE_VIDEO_SAMPLE,
+          signed_thumbnail_url: FIXTURE_MEDIA.praisePortraitPoster,
+          created_at: "2026-07-14T17:05:00.000Z",
+          response_context: "prayer_request",
+        },
+      ],
+      video_response_count: 1,
+      created_at: "2026-07-14T17:00:00.000Z",
     }),
     storyFixture({
       id: "fixture-prayer-request",
@@ -148,11 +211,20 @@ export function getCommunityFeedVisualValidationFixturesPage1(): FeedDisplayItem
       story_text:
         "Please pray for my daughter's courage as she starts a new school.",
       prayer_status: "active",
+      response_context: "prayer_request",
       reaction_counts: {
         amen: 0,
         praise_god: 0,
         encouraged: 0,
         praying: 12,
+      },
+      viewer_pending_response: {
+        id: "fixture-pending-response",
+        story_id: "fixture-prayer-request",
+        status: "submitted",
+        signed_thumbnail_url: FIXTURE_MEDIA.responsePoster,
+        created_at: "2026-07-14T17:20:00.000Z",
+        ai_review_status: null,
       },
       created_at: "2026-07-14T17:15:00.000Z",
     }),
@@ -257,11 +329,20 @@ export function getCommunityFeedVisualValidationFixturesPage2(): FeedDisplayItem
       story_text:
         "Please pray for wisdom as we care for my aging parents.",
       prayer_status: "active",
+      response_context: "prayer_request",
       reaction_counts: {
         amen: 0,
         praise_god: 0,
         encouraged: 0,
         praying: 6,
+      },
+      viewer_pending_response: {
+        id: "fixture-pending-response",
+        story_id: "fixture-prayer-owner",
+        status: "submitted",
+        signed_thumbnail_url: FIXTURE_MEDIA.responsePoster,
+        created_at: "2026-07-14T15:50:00.000Z",
+        ai_review_status: null,
       },
       created_at: "2026-07-14T15:45:00.000Z",
     }),
@@ -281,4 +362,14 @@ export function getCommunityFeedVisualValidationFixtures(
   return page === 1
     ? getCommunityFeedVisualValidationFixturesPage1()
     : getCommunityFeedVisualValidationFixturesPage2();
+}
+
+/** Non-prayer video stories for /videos fixture mode (dev-only). */
+export function getVideoFeedVisualValidationStoryRows(): FeedStoryDisplay[] {
+  return getCommunityFeedVisualValidationFixturesPage1().filter(
+    (item): item is FeedStoryDisplay =>
+      item.kind === "story" &&
+      Boolean(item.signed_video_url) &&
+      !(item.story_type || "").toLowerCase().includes("prayer")
+  );
 }

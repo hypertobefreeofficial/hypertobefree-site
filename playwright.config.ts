@@ -45,6 +45,16 @@ export default defineConfig({
       testMatch: /responsive-shell\.spec\.ts/,
     },
     {
+      name: "feed-responses-auth",
+      testDir: "./tests/feed",
+      testMatch: /responses-auth\.spec\.ts/,
+    },
+    {
+      name: "feed-video-response",
+      testDir: "./tests/feed",
+      testMatch: /video-feed-response\.spec\.ts/,
+    },
+    {
       name: "feed-shell-production",
       testDir: "./tests/feed",
       testMatch: /shell-production\.spec\.ts/,

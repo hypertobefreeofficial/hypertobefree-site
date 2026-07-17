@@ -368,6 +368,84 @@ export type SubmitVideoPrayerResult =
   | { ok: true; responseId: string; status: "approved" | "submitted" }
   | { ok: false; error: string; code: string };
 
+type SubmitVideoResponsePayload = {
+  ok?: boolean;
+  error?: string;
+  code?: string;
+  responseId?: string;
+  status?: "approved" | "submitted";
+};
+
+async function parseSubmitVideoResponse(
+  response: Response,
+  fallbackError: string
+): Promise<SubmitVideoPrayerResult> {
+  const data = (await response.json().catch(() => null)) as
+    | SubmitVideoResponsePayload
+    | null;
+
+  if (!data) {
+    return {
+      ok: false,
+      error: "The server returned an unexpected response. Please try again.",
+      code: "bad_response",
+    };
+  }
+
+  if (!response.ok || data.ok === false || !data.responseId) {
+    return {
+      ok: false,
+      error: data.error || fallbackError,
+      code: data.code || "submit_failed",
+    };
+  }
+
+  return {
+    ok: true,
+    responseId: data.responseId,
+    status: data.status === "approved" ? "approved" : "submitted",
+  };
+}
+
+export async function submitPublicVideoResponse(options: {
+  sourceType: "prayer" | "feed";
+  sourcePostId: string;
+  responseVideoUrl: string;
+  responseThumbnailUrl?: string | null;
+  accessToken: string;
+}): Promise<SubmitVideoPrayerResult> {
+  let response: Response;
+  try {
+    response = await fetch("/api/responses/public-video", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${options.accessToken}`,
+      },
+      body: JSON.stringify({
+        source_type: options.sourceType,
+        source_post_id: options.sourcePostId,
+        response_video_url: options.responseVideoUrl,
+        response_thumbnail_url: options.responseThumbnailUrl ?? null,
+      }),
+    });
+  } catch {
+    return {
+      ok: false,
+      error:
+        "We couldn't reach the server. Check your connection and try again.",
+      code: "network_error",
+    };
+  }
+
+  return parseSubmitVideoResponse(
+    response,
+    options.sourceType === "prayer"
+      ? "Could not submit your public video prayer."
+      : "Could not submit your public video response."
+  );
+}
+
 export async function submitPublicVideoPrayerResponse(options: {
   prayerStoryId: string;
   responseVideoUrl: string;
@@ -397,37 +475,8 @@ export async function submitPublicVideoPrayerResponse(options: {
     };
   }
 
-  // Guard against non-JSON (e.g. an HTML error page) so the client never
-  // silently fails while parsing.
-  const data = (await response.json().catch(() => null)) as
-    | {
-        ok?: boolean;
-        error?: string;
-        code?: string;
-        responseId?: string;
-        status?: "approved" | "submitted";
-      }
-    | null;
-
-  if (!data) {
-    return {
-      ok: false,
-      error: "The server returned an unexpected response. Please try again.",
-      code: "bad_response",
-    };
-  }
-
-  if (!response.ok || data.ok === false || !data.responseId) {
-    return {
-      ok: false,
-      error: data.error || "Could not submit your public video prayer.",
-      code: data.code || "submit_failed",
-    };
-  }
-
-  return {
-    ok: true,
-    responseId: data.responseId,
-    status: data.status === "approved" ? "approved" : "submitted",
-  };
+  return parseSubmitVideoResponse(
+    response,
+    "Could not submit your public video prayer."
+  );
 }

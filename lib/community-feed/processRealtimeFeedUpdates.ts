@@ -46,6 +46,9 @@ export function mergeReactionCountsAcrossLoadedPages(
       ...item,
       reaction_counts: refreshed.reaction_counts,
       user_reactions: refreshed.user_reactions,
+      approved_video_responses: refreshed.approved_video_responses,
+      video_response_count: refreshed.video_response_count,
+      viewer_pending_response: refreshed.viewer_pending_response,
     };
   });
 }

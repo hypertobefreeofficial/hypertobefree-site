@@ -2,29 +2,41 @@ import Link from "next/link";
 import { Bookmark, Share2, Video } from "lucide-react";
 import type { FeedStoryDisplay } from "./types";
 import CommunityFeedEngagementSummary from "./CommunityFeedEngagementSummary";
-import CommunityFeedReactionSelector from "./CommunityFeedReactionSelector";
+import CommunityFeedInlineEncouragement from "./CommunityFeedInlineEncouragement";
+import PublicVideoResponseModule from "../public-video-responses/PublicVideoResponseModule";
+import CommunityFeedRespondLauncher from "./CommunityFeedRespondLauncher";
 import styles from "../FreedomFeed.module.css";
 
 type CommunityFeedStandardActionsProps = {
   story: FeedStoryDisplay;
   savedStoryIds: string[];
+  currentUserId?: string | null;
   showVideoResponse?: boolean;
   onToggleReaction: (
     storyId: string,
     reactionType: import("./types").FeedReactionType
   ) => void;
+  pendingReactionKey?: string | null;
   onShare: () => void;
   onToggleSaved: () => void;
+  onPrepareReturn?: () => void;
+  onResponseMessage?: (message: string) => void;
+  onRefreshStoryVideoResponses?: (storyId: string) => void;
   videoResponseHref?: string;
 };
 
 export default function CommunityFeedStandardActions({
   story,
   savedStoryIds,
+  currentUserId = null,
   showVideoResponse = false,
   onToggleReaction,
+  pendingReactionKey = null,
   onShare,
   onToggleSaved,
+  onPrepareReturn,
+  onResponseMessage,
+  onRefreshStoryVideoResponses,
   videoResponseHref = "/prayer",
 }: CommunityFeedStandardActionsProps) {
   const isSaved = savedStoryIds.includes(story.id);
@@ -33,15 +45,25 @@ export default function CommunityFeedStandardActions({
     <>
       <CommunityFeedEngagementSummary story={story} />
 
+      <CommunityFeedInlineEncouragement
+        storyId={story.id}
+        userReactions={story.user_reactions}
+        pendingReactionKey={pendingReactionKey}
+        onToggleReaction={onToggleReaction}
+      />
+
       <div
-        className={`${styles.primaryActionRow} ${
-          showVideoResponse ? "" : styles.primaryActionRowThree
+        className={`${styles.primaryActionRow} mt-2 ${
+          showVideoResponse ? styles.primaryActionRowFive : styles.primaryActionRowThree
         }`}
+        data-testid="feed-main-action-row"
       >
-        <CommunityFeedReactionSelector
-          storyId={story.id}
-          userReactions={story.user_reactions}
-          onToggleReaction={onToggleReaction}
+        <CommunityFeedRespondLauncher
+          story={story}
+          currentUserId={currentUserId}
+          onPrepareReturn={onPrepareReturn}
+          onResponseMessage={onResponseMessage}
+          onRefreshStoryVideoResponses={onRefreshStoryVideoResponses}
         />
 
         {showVideoResponse ? (
@@ -75,6 +97,21 @@ export default function CommunityFeedStandardActions({
           {isSaved ? "Saved" : "Save"}
         </button>
       </div>
+
+      <PublicVideoResponseModule
+        storyId={story.id}
+        parentOwnerUserId={story.user_id}
+        currentUserId={currentUserId}
+        responseContext={story.response_context}
+        approvedResponses={story.approved_video_responses}
+        pendingResponse={story.viewer_pending_response}
+        returnAnchorId={`freedom-feed-story-${story.id}`}
+        onPendingRemoved={() => onRefreshStoryVideoResponses?.(story.id)}
+        onResponseMessage={(message) => {
+          onResponseMessage?.(message);
+          onRefreshStoryVideoResponses?.(story.id);
+        }}
+      />
     </>
   );
 }

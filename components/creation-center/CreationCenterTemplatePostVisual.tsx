@@ -22,7 +22,7 @@ export default function CreationCenterTemplatePostVisual({
     variant === "detail"
       ? "relative min-h-[68dvh] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-4 text-white shadow-lg shadow-blue-950/10 ring-1 ring-blue-100 sm:min-h-[42rem] sm:p-6"
       : variant === "feed"
-        ? "relative min-h-[20rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white shadow-lg shadow-blue-950/10 ring-1 ring-blue-100 sm:min-h-[26rem] sm:p-7"
+        ? "relative min-h-[20rem] overflow-hidden rounded-none bg-[#062a57] p-5 text-white shadow-lg shadow-blue-950/10 ring-0 sm:min-h-[26rem] md:rounded-[0.625rem] md:ring-1 md:ring-blue-100 sm:p-7"
         : "relative min-h-[20rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white shadow-lg shadow-blue-950/10 ring-1 ring-blue-100 sm:min-h-[26rem] sm:p-7";
   const innerClass =
     variant === "detail"

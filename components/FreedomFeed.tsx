@@ -90,10 +90,11 @@ import { ensureElementBelowFeedStickyHeader } from "../lib/navigation/feedScroll
 import FeedScrollVideoPreview from "./community-feed/FeedScrollVideoPreview";
 import FeedListItem from "./community-feed/FeedListItem";
 import type { CommunityFeedPostCallbacks } from "./community-feed/types";
-import {
-  getCommunityFeedVisualValidationFixtures,
+import { getCommunityFeedVisualValidationFixtures,
   FIXTURE_VIEWER_USER_ID,
 } from "../lib/community-feed/visualValidationFixtures";
+import { loadApprovedVideoResponsesByStoryIds } from "../lib/community-feed/loadParentApprovedVideoResponses";
+import { loadViewerPendingVideoResponsesByStoryIds } from "../lib/community-feed/loadViewerPendingVideoResponses";
 import styles from "./FreedomFeed.module.css";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -467,6 +468,9 @@ export default function FreedomFeed({
   const [feedLoadError, setFeedLoadError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState("");
+  const [pendingReactionKey, setPendingReactionKey] = useState<string | null>(
+    null
+  );
   const [activeFilter, setActiveFilter] = useState<FeedFilter>(defaultFilter);
   const [answeringPrayerStory, setAnsweringPrayerStory] =
     useState<ApprovedStory | null>(null);
@@ -1315,68 +1319,54 @@ export default function FreedomFeed({
       return;
     }
 
+    const pendingKey = `${storyId}:${reactionType}`;
+    if (pendingReactionKey === pendingKey) return;
+
     const story = feedItems.find(
       (item): item is FeedStoryDisplay =>
         item.kind === "story" && item.id === storyId
     );
-    const alreadyReacted = story?.user_reactions.includes(reactionType);
+    if (!story) return;
 
-    if (alreadyReacted) {
-      const { error } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("user_id", userId)
-        .eq("reaction_type", reactionType);
+    const alreadyReacted = story.user_reactions.includes(reactionType);
+    const optimisticAction: "add" | "remove" = alreadyReacted ? "remove" : "add";
+
+    setPendingReactionKey(pendingKey);
+    updateLocalReaction(storyId, reactionType, optimisticAction);
+
+    try {
+      if (alreadyReacted) {
+        const { error } = await supabase
+          .from("story_reactions")
+          .delete()
+          .eq("story_id", storyId)
+          .eq("user_id", userId)
+          .eq("reaction_type", reactionType);
+
+        if (error) {
+          updateLocalReaction(storyId, reactionType, "add");
+          setReactionMessage(`Could not remove reaction: ${error.message}`);
+          return;
+        }
+        return;
+      }
+
+      const { error } = await supabase.from("story_reactions").insert({
+        story_id: storyId,
+        user_id: userId,
+        reaction_type: reactionType,
+      });
 
       if (error) {
-        setReactionMessage(`Could not remove reaction: ${error.message}`);
-        return;
+        updateLocalReaction(storyId, reactionType, "remove");
+        if (/duplicate|unique/i.test(error.message)) {
+          return;
+        }
+        setReactionMessage(`Could not add reaction: ${error.message}`);
       }
-
-      updateLocalReaction(storyId, reactionType, "remove");
-      return;
+    } finally {
+      setPendingReactionKey((current) => (current === pendingKey ? null : current));
     }
-
-    const replacingSelectorReaction = SELECTOR_REACTION_TYPES.includes(
-      reactionType
-    );
-    const existingSelectorReactions =
-      story?.user_reactions.filter(
-        (existing) =>
-          SELECTOR_REACTION_TYPES.includes(existing) && existing !== reactionType
-      ) ?? [];
-
-    if (replacingSelectorReaction && existingSelectorReactions.length > 0) {
-      const { error: clearError } = await supabase
-        .from("story_reactions")
-        .delete()
-        .eq("story_id", storyId)
-        .eq("user_id", userId)
-        .in("reaction_type", existingSelectorReactions);
-
-      if (clearError) {
-        setReactionMessage(`Could not update reaction: ${clearError.message}`);
-        return;
-      }
-
-      for (const existing of existingSelectorReactions) {
-        updateLocalReaction(storyId, existing, "remove");
-      }
-    }
-
-    const { error } = await supabase.from("story_reactions").insert({
-      story_id: storyId,
-      user_id: userId,
-      reaction_type: reactionType,
-    });
-
-    if (error) {
-      setReactionMessage(`Could not add reaction: ${error.message}`);
-      return;
-    }
-
-    updateLocalReaction(storyId, reactionType, "add");
   }
 
   function updateLocalReaction(
@@ -1958,6 +1948,27 @@ export default function FreedomFeed({
     photoViewerText.length > 80 ||
     photoViewerText.split(/\r\n|\r|\n/).length > 2;
 
+  async function refreshStoryVideoResponses(storyId: string) {
+    const [approvedMap, pendingMap] = await Promise.all([
+      loadApprovedVideoResponsesByStoryIds([storyId]),
+      loadViewerPendingVideoResponsesByStoryIds([storyId], userId),
+    ]);
+    const approved = approvedMap.get(storyId) ?? [];
+    const pending = pendingMap.get(storyId) ?? null;
+
+    setFeedItems((current) =>
+      current.map((item) => {
+        if (item.kind !== "story" || item.id !== storyId) return item;
+        return {
+          ...item,
+          approved_video_responses: approved,
+          video_response_count: approved.length,
+          viewer_pending_response: pending,
+        };
+      })
+    );
+  }
+
   const communityFeedCallbacks = useMemo<CommunityFeedPostCallbacks>(
     () => ({
       userId,
@@ -1970,6 +1981,7 @@ export default function FreedomFeed({
       onShareStory: shareStory,
       onShareVideoResponse: shareVideoResponse,
       onToggleReaction: toggleReaction,
+      pendingReactionKey,
       onToggleSaved: toggleSavedStory,
       onReportStory: openFeedReport,
       onBlockStoryUser: blockStoryUser,
@@ -1980,8 +1992,13 @@ export default function FreedomFeed({
         setAnsweredPrayerText("");
         setReactionMessage("");
       },
+      onPrepareFeedReturn: (storyId) => saveFreedomFeedReturnState(storyId),
+      onResponseMessage: (message) => setReactionMessage(message),
+      onRefreshStoryVideoResponses: (storyId) => {
+        void refreshStoryVideoResponses(storyId);
+      },
     }),
-    [userId, savedStoryIds, postOverflowMenuKey]
+    [userId, savedStoryIds, postOverflowMenuKey, pendingReactionKey]
   );
 
   return (
@@ -2853,7 +2870,7 @@ function ComposedFeedPostButton({
     <button
       type="button"
       onClick={onOpen}
-      className="mt-4 block w-full cursor-pointer overflow-hidden rounded-[1.5rem] bg-[#062a57] text-left shadow-sm ring-1 ring-blue-100 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100"
+      className="block w-full cursor-pointer overflow-hidden rounded-none bg-[#062a57] text-left shadow-sm ring-0 transition hover:ring-blue-200 focus:outline-none focus:ring-4 focus:ring-blue-100 md:rounded-[0.625rem] md:ring-1 md:ring-blue-100"
       aria-label="Open post"
     >
       <ComposedFeedPostVisual
@@ -2907,7 +2924,7 @@ function ComposedFeedPostVisual({
   const templateFrameClass =
     variant === "detail"
       ? "relative min-h-[68dvh] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-4 text-white sm:min-h-[42rem] sm:p-6"
-      : "relative min-h-[22rem] overflow-hidden rounded-[1.5rem] bg-[#062a57] p-5 text-white sm:min-h-[25rem] sm:p-6";
+      : "relative min-h-[22rem] overflow-hidden rounded-none bg-[#062a57] p-5 text-white sm:min-h-[25rem] md:rounded-[0.625rem] sm:p-6";
   const templateInnerClass =
     variant === "detail"
       ? "relative z-10 flex min-h-[calc(68dvh-2rem)] flex-col justify-between sm:min-h-[39rem]"
@@ -2919,11 +2936,11 @@ function ComposedFeedPostVisual({
   const imageFrameClass =
     variant === "detail"
       ? "relative overflow-hidden rounded-[1.5rem] bg-black ring-1 ring-white/10"
-      : "relative overflow-hidden rounded-[1.5rem] bg-slate-100 ring-1 ring-slate-200";
+      : "relative overflow-hidden rounded-none bg-slate-100 ring-0 md:rounded-[0.625rem] md:ring-1 md:ring-slate-200";
   const imageClass =
     variant === "detail"
       ? "pointer-events-none block max-h-[74dvh] w-full max-w-full rounded-[1.5rem] object-contain"
-      : "pointer-events-none block max-h-[520px] w-full max-w-full rounded-[1.5rem] object-cover";
+      : "pointer-events-none block max-h-[520px] w-full max-w-full rounded-none object-cover md:rounded-[0.625rem]";
 
   if (template && cleanText) {
     return (
@@ -2999,7 +3016,7 @@ function ComposedFeedPostVisual({
 
   return (
     <div
-      className="max-w-full whitespace-pre-wrap break-words rounded-[1.5rem] bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-1 ring-slate-200"
+      className="max-w-full whitespace-pre-wrap break-words rounded-none bg-slate-50 p-5 text-[18px] leading-8 text-slate-800 ring-0 md:rounded-[0.625rem] md:ring-1 md:ring-slate-200"
       style={{
         overflowWrap: "anywhere",
         wordBreak: "break-word",

@@ -1,3 +1,5 @@
+import { PRAYER_MEDIA_LIMITS } from "../server/prayerMediaValidation";
+
 export type DurationVerificationStatus =
   | "pending"
   | "verified"
@@ -18,10 +20,19 @@ Vercel. Recommended architecture:
 6. Rows with 'failed' must never become publicly approved.
 `.trim();
 
-export function canPublishPrayerVideoResponse(response: {
-  duration_verification_status?: string | null;
-}): { allowed: boolean; reason: string | null; code: string } {
+export const MANUAL_DURATION_ACK_COPY =
+  "Trusted duration has not been verified. Confirm that you reviewed this video before approving it.";
+
+export function canPublishPublicVideoResponse(
+  response: {
+    duration_verification_status?: string | null;
+    duration_seconds?: number | null;
+  },
+  options?: { acknowledgeUnverifiedDuration?: boolean }
+): { allowed: boolean; reason: string | null; code: string; requiresManualAck?: boolean } {
   const status = response.duration_verification_status ?? "unavailable";
+  const durationSeconds =
+    typeof response.duration_seconds === "number" ? response.duration_seconds : null;
 
   if (status === "failed") {
     return {
@@ -32,7 +43,39 @@ export function canPublishPrayerVideoResponse(response: {
     };
   }
 
+  if (
+    status === "verified" &&
+    durationSeconds !== null &&
+    durationSeconds > PRAYER_MEDIA_LIMITS.publicResponseVideoSeconds
+  ) {
+    return {
+      allowed: false,
+      reason:
+        "Verified duration exceeds the allowed limit. This response cannot be published.",
+      code: "duration_verification_failed",
+    };
+  }
+
+  if (status === "unavailable" && options?.acknowledgeUnverifiedDuration !== true) {
+    return {
+      allowed: false,
+      reason: MANUAL_DURATION_ACK_COPY,
+      code: "duration_ack_required",
+      requiresManualAck: true,
+    };
+  }
+
   return { allowed: true, reason: null, code: "ok" };
+}
+
+/** @deprecated Use canPublishPublicVideoResponse */
+export function canPublishPrayerVideoResponse(response: {
+  duration_verification_status?: string | null;
+  duration_seconds?: number | null;
+}): { allowed: boolean; reason: string | null; code: string } {
+  return canPublishPublicVideoResponse(response, {
+    acknowledgeUnverifiedDuration: true,
+  });
 }
 
 export function moderatorDurationNotice(

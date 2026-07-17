@@ -152,7 +152,13 @@ export default function CreatorStudioStoryRenderer({
 
   return (
     <div
-      className={`relative isolate w-full max-w-full min-w-0 overflow-hidden rounded-[1.75rem] text-white shadow-xl shadow-blue-950/10 ring-1 ring-blue-100 ${frameHeight}`}
+      className={`relative isolate w-full max-w-full min-w-0 overflow-hidden text-white shadow-xl shadow-blue-950/10 ${
+        variant === "feed"
+          ? "rounded-none ring-0 md:rounded-[0.625rem] md:ring-1 md:ring-blue-100"
+          : variant === "detail"
+            ? "rounded-[1.5rem] ring-1 ring-blue-100"
+            : "rounded-[1.75rem] ring-1 ring-blue-100"
+      } ${frameHeight}`}
       style={shellStyle}
     >
       <StoryMediaLayer

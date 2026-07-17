@@ -18,6 +18,10 @@ import type {
 import FeedScrollVideoPreview from "./FeedScrollVideoPreview";
 import CommunityFeedStoryItem from "./CommunityFeedStoryItem";
 import VideoResponseFeedPost from "./VideoResponseFeedPost";
+import {
+  buildFaithResponsesHref,
+} from "../../lib/responses/faithResponsesNavigation";
+import { parentHrefForResponseContext } from "../../lib/responses/publicVideoResponseContext";
 import type { CommunityFeedPostCallbacks } from "./types";
 import styles from "../FreedomFeed.module.css";
 
@@ -109,10 +113,13 @@ export default function FeedListItem({
           posterUrl={feedItem.signed_thumbnail_url}
           fallbackLabel="Video prayer"
           frameClassName={`${styles.mediaFrame} ${styles.mediaFramePortrait}`}
-          ariaLabel={`Video prayer response for ${feedItem.parentStoryTitle}`}
+          ariaLabel={`Video response for ${feedItem.parentStoryTitle}`}
           onClick={() => {
             if (feedItem.parentStoryId) {
-              window.location.href = `/prayer?story=${feedItem.parentStoryId}`;
+              window.location.href = buildFaithResponsesHref({
+                parentStoryId: feedItem.parentStoryId,
+                responseId: feedItem.id,
+              });
             }
           }}
         />
@@ -129,7 +136,10 @@ export default function FeedListItem({
           media={responseMedia}
           parentHref={
             feedItem.parentStoryId
-              ? `/prayer?story=${feedItem.parentStoryId}`
+              ? parentHrefForResponseContext(
+                  feedItem.parentStoryId,
+                  feedItem.parentResponseContext
+                )
               : undefined
           }
         />
@@ -214,7 +224,7 @@ export default function FeedListItem({
     );
   } else if (showCreationTemplateCard && creationTemplate) {
     media = (
-      <div className={`${styles.postInset} ${styles.postBody}`}>
+      <div className={styles.mediaBleed}>
         {renderComposedFeedPostButton({
           captionStyle,
           story,

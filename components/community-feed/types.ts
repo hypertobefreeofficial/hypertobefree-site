@@ -21,7 +21,11 @@ export type CommunityFeedPostCallbacks = {
   onShareStory: (story: FeedStoryDisplay) => void;
   onShareVideoResponse: (item: FeedVideoResponseDisplay) => void;
   onToggleReaction: (storyId: string, reactionType: FeedReactionType) => void;
+  pendingReactionKey?: string | null;
   onToggleSaved: (story: FeedStoryDisplay) => void;
+  onPrepareFeedReturn?: (storyId: string) => void;
+  onResponseMessage?: (message: string) => void;
+  onRefreshStoryVideoResponses?: (storyId: string) => void;
   onReportStory: (story: FeedStoryDisplay) => void;
   onBlockStoryUser: (story: FeedStoryDisplay) => void;
   onHideFeedItem: (item: FeedDisplayItem) => void;

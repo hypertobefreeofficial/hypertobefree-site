@@ -61,9 +61,14 @@ export default function CreatorStudioFeedPost({
         <CommunityFeedStandardActions
           story={story}
           savedStoryIds={callbacks.savedStoryIds}
+          currentUserId={callbacks.userId}
           onToggleReaction={callbacks.onToggleReaction}
+          pendingReactionKey={callbacks.pendingReactionKey}
           onShare={() => callbacks.onShareStory(story)}
           onToggleSaved={() => void callbacks.onToggleSaved(story)}
+          onPrepareReturn={() => callbacks.onPrepareFeedReturn?.(story.id)}
+          onResponseMessage={callbacks.onResponseMessage}
+          onRefreshStoryVideoResponses={callbacks.onRefreshStoryVideoResponses}
         />
       }
     />
