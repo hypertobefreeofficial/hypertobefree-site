@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildVideoResponseAiUpdate,
+  buildVideoResponseModerationUpdate,
   presentVideoResponseAiReview,
   resolveAdminParentContentText,
   VIDEO_RESPONSE_AI_SCOPE_FLAG,
@@ -40,6 +41,36 @@ describe("buildVideoResponseAiUpdate", () => {
     expect(update.ai_flags).toEqual(
       expect.arrayContaining(["text_metadata_only", "video_not_analyzed"])
     );
+  });
+});
+
+describe("buildVideoResponseModerationUpdate", () => {
+  it("maps auto-approve decisions onto canonical response status", () => {
+    const update = buildVideoResponseModerationUpdate({
+      statusToUse: "approved",
+      aiReviewStatus: "completed",
+      aiRiskLevel: "low",
+      aiSuggestedAction: "approve",
+      aiSummary: "ok",
+      aiFlags: [],
+    });
+
+    expect(update.status).toBe("approved");
+    expect(update.moderated_at).toEqual(expect.any(String));
+  });
+
+  it("keeps needs-review decisions on submitted status", () => {
+    const update = buildVideoResponseModerationUpdate({
+      statusToUse: "submitted",
+      aiReviewStatus: "completed",
+      aiRiskLevel: "high",
+      aiSuggestedAction: "review",
+      aiSummary: "flagged",
+      aiFlags: ["violence"],
+    });
+
+    expect(update.status).toBe("submitted");
+    expect(update.moderated_at).toBeUndefined();
   });
 });
 

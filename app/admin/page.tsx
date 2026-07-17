@@ -27,6 +27,7 @@ import {
   presentVideoResponseAiReview,
   resolveAdminParentContentText,
 } from "../../lib/responses/videoResponseAiReview";
+import { responseNeedsAdminAttention } from "../../lib/responses/videoResponseAdminQueue";
 import { supabase } from "../../lib/supabaseClient";
 
 const storyFilters: { label: string; value: StoryFilter }[] = [
@@ -1127,13 +1128,22 @@ export default function AdminPage() {
     [deletionRequests]
   );
 
-  const pendingPrayerVideoResponses = useMemo(
-    () =>
-      prayerVideoResponses.filter((response) =>
-        isPendingStatus(response.status)
-      ),
-    [prayerVideoResponses]
-  );
+  const attentionPrayerVideoResponses = useMemo(() => {
+    const reportedResponseIds = new Set(
+      openReports
+        .map((report) => report.prayer_video_response_id)
+        .filter((id): id is string => Boolean(id))
+    );
+
+    return prayerVideoResponses.filter((response) =>
+      responseNeedsAdminAttention(response, {
+        responseId: response.response_id,
+        reportedResponseIds,
+      })
+    );
+  }, [openReports, prayerVideoResponses]);
+
+  const pendingPrayerVideoResponses = attentionPrayerVideoResponses;
 
   const aiReviewNeededCount = useMemo(
     () =>
@@ -1669,9 +1679,14 @@ export default function AdminPage() {
             <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
               No public video responses yet.
             </div>
+          ) : attentionPrayerVideoResponses.length === 0 ? (
+            <div className="rounded-[1.5rem] bg-slate-50 p-5 text-slate-600">
+              No public video responses need admin attention right now. Auto-approved
+              responses are live without appearing in this queue.
+            </div>
           ) : (
             <div className="grid gap-4">
-              {prayerVideoResponses.map((response) => {
+              {attentionPrayerVideoResponses.map((response) => {
                 const videoPreviewUrl =
                   prayerResponseVideoUrls[response.response_id] ?? null;
                 const responseAuthor =
