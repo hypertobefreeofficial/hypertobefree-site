@@ -68,6 +68,7 @@ export default function CreatorStudioFeedPost({
           onToggleSaved={() => void callbacks.onToggleSaved(story)}
           onPrepareReturn={() => callbacks.onPrepareFeedReturn?.(story.id)}
           onResponseMessage={callbacks.onResponseMessage}
+          onRefreshStoryVideoResponses={callbacks.onRefreshStoryVideoResponses}
         />
       }
     />

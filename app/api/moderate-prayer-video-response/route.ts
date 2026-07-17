@@ -116,6 +116,22 @@ export async function POST(request: Request) {
     return fail("This response no longer exists.", "not_found", 404);
   }
 
+  if (response.removed_at && nextStatus === "approved") {
+    return fail(
+      "Removed responses cannot be approved.",
+      "response_removed",
+      409
+    );
+  }
+
+  if (response.status === "removed" && nextStatus === "approved") {
+    return fail(
+      "Removed responses cannot be approved.",
+      "response_removed",
+      409
+    );
+  }
+
   if (nextStatus === "approved") {
     const publication = canPublishPublicVideoResponse(response, {
       acknowledgeUnverifiedDuration: acknowledgeUnverifiedDuration,
@@ -136,61 +152,83 @@ export async function POST(request: Request) {
   }
 
   const moderatedAt = new Date().toISOString();
-  const updatePayload: Record<string, unknown> = {
-    status: nextStatus,
-    moderated_at: moderatedAt,
-    moderated_by: user.id,
-  };
+  const updatePayloads: Record<string, unknown>[] = [
+    {
+      status: nextStatus,
+      moderated_at: moderatedAt,
+      moderated_by: user.id,
+      ...(nextStatus === "removed"
+        ? {
+            removed_at: moderatedAt,
+            removed_by_user_id: user.id,
+            removal_source: "administrator",
+          }
+        : {}),
+    },
+    {
+      status: nextStatus,
+      moderated_at: moderatedAt,
+      ...(nextStatus === "removed" ? { removed_at: moderatedAt } : {}),
+    },
+    { status: nextStatus },
+  ];
 
-  if (nextStatus === "removed") {
-    updatePayload.removed_at = moderatedAt;
-    updatePayload.removed_by_user_id = user.id;
-    updatePayload.removal_source = "administrator";
+  let persistedStatus: string | null = null;
+  let lastUpdateError: string | null = null;
+
+  for (const updatePayload of updatePayloads) {
+    const { data, error } = await adminClient
+      .from("prayer_video_responses")
+      .update(updatePayload)
+      .eq("id", responseId)
+      .select("id, status")
+      .maybeSingle();
+
+    if (!error && data?.status === nextStatus) {
+      persistedStatus = data.status;
+      break;
+    }
+
+    if (error) {
+      lastUpdateError = error.message;
+      if (!/column|schema|does not exist|could not find/i.test(error.message)) {
+        console.error("Moderate response: update failed:", error);
+        return fail(
+          "Could not update the response in the database.",
+          "update_failed",
+          500
+        );
+      }
+      continue;
+    }
+
+    lastUpdateError = "update_matched_no_rows";
   }
 
-  const { error: updateError } = await adminClient
+  const { data: verifiedRow, error: verifyError } = await adminClient
     .from("prayer_video_responses")
-    .update(updatePayload)
-    .eq("id", responseId);
+    .select("status, removed_at")
+    .eq("id", responseId)
+    .maybeSingle();
 
-  if (updateError) {
-    if (/duration_verification|removal_source|moderated_by/i.test(updateError.message)) {
-      if (nextStatus === "approved") {
-        const publication = canPublishPublicVideoResponse(response, {
-          acknowledgeUnverifiedDuration: acknowledgeUnverifiedDuration,
-        });
-        if (!publication.allowed) {
-          return fail(
-            publication.reason ?? "Cannot publish this response.",
-            publication.code,
-            409,
-            publication.requiresManualAck
-              ? {
-                  requiresManualAck: true,
-                  manualAckCopy: MANUAL_DURATION_ACK_COPY,
-                }
-              : undefined
-          );
-        }
-      }
+  if (verifyError || !verifiedRow) {
+    console.error("Moderate response: verification read failed:", verifyError);
+    return fail("Could not verify the moderation update.", "verify_failed", 500);
+  }
 
-      const minimal: Record<string, unknown> = {
-        status: nextStatus,
-        moderated_at: moderatedAt,
-      };
-      const { error: minimalError } = await adminClient
-        .from("prayer_video_responses")
-        .update(minimal)
-        .eq("id", responseId);
-
-      if (minimalError) {
-        console.error("Moderate response: minimal update failed:", minimalError);
-        return fail("Could not update the response.", "update_failed", 500);
-      }
-    } else {
-      console.error("Moderate response: update failed:", updateError);
-      return fail("Could not update the response.", "update_failed", 500);
-    }
+  if (verifiedRow.status !== nextStatus) {
+    console.error("Moderate response: status mismatch after update", {
+      responseId,
+      expected: nextStatus,
+      actual: verifiedRow.status,
+      lastUpdateError,
+      persistedStatus,
+    });
+    return fail(
+      "The response status did not update in the database. Refresh Admin and try again.",
+      "status_mismatch",
+      500
+    );
   }
 
   return Response.json({

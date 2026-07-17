@@ -92,6 +92,7 @@ export default function PraiseFeedPost({
           onToggleSaved={() => void callbacks.onToggleSaved(story)}
           onPrepareReturn={() => callbacks.onPrepareFeedReturn?.(story.id)}
           onResponseMessage={callbacks.onResponseMessage}
+          onRefreshStoryVideoResponses={callbacks.onRefreshStoryVideoResponses}
         />
       }
     />

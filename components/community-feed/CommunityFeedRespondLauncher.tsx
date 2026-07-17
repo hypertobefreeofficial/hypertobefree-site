@@ -11,6 +11,7 @@ type CommunityFeedRespondLauncherProps = {
   currentUserId: string | null;
   onPrepareReturn?: () => void;
   onResponseMessage?: (message: string) => void;
+  onRefreshStoryVideoResponses?: (storyId: string) => void;
 };
 
 function storyTitleFromFeed(story: FeedStoryDisplay) {
@@ -24,20 +25,31 @@ export default function CommunityFeedRespondLauncher({
   currentUserId,
   onPrepareReturn,
   onResponseMessage,
+  onRefreshStoryVideoResponses,
 }: CommunityFeedRespondLauncherProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
+  const isPrayerStory = (story.story_type || "")
+    .toLowerCase()
+    .includes("prayer");
+
   const context = useMemo(
     () =>
       buildResponseSourceContext({
-        sourceType: "feed",
+        sourceType: isPrayerStory ? "prayer" : "feed",
         storyId: story.id,
         authorUserId: story.user_id,
         storyTitle: storyTitleFromFeed(story),
         requestApproved: true,
+        prayerStatus:
+          story.prayer_status === "answered"
+            ? "answered"
+            : story.prayer_status === "paused"
+              ? "paused"
+              : "active",
       }),
-    [story]
+    [isPrayerStory, story]
   );
 
   const isOwner =
@@ -73,7 +85,12 @@ export default function CommunityFeedRespondLauncher({
         onClose={() => setOpen(false)}
         returnBehavior="stay"
         onComplete={({ success, message }) => {
-          if (success && message) onResponseMessage?.(message);
+          if (success) {
+            onResponseMessage?.(
+              message ?? "Your video response was submitted for review."
+            );
+            onRefreshStoryVideoResponses?.(story.id);
+          }
         }}
       />
     </>

@@ -28,6 +28,7 @@ describe("classifySourceForPublicVideoResponse", () => {
     status: "approved",
     prayer_status: null,
     topics: [],
+    removed_at: null,
   };
 
   it("returns 404 when the source post does not exist", () => {
@@ -64,6 +65,18 @@ describe("classifySourceForPublicVideoResponse", () => {
     });
     expect(result?.code).toBe("source_unapproved");
     expect(result?.status).toBe(400);
+  });
+
+  it("returns 410 when the source has been removed", () => {
+    const result = classifySourceForPublicVideoResponse({
+      source: {
+        ...baseStory,
+        removed_at: "2026-07-16T00:00:00.000Z",
+      },
+      sourceType: "feed",
+    });
+    expect(result?.code).toBe("source_removed");
+    expect(result?.status).toBe(410);
   });
 
   it("accepts approved feed stories for feed responses", () => {

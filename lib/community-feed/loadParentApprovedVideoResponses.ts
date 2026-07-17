@@ -14,9 +14,12 @@ export type FeedApprovedVideoResponsePreview = {
   id: string;
   user_id: string;
   authorName: string | null;
+  authorUsername: string | null;
+  body: string | null;
   signed_video_url: string | null;
   signed_thumbnail_url: string | null;
   created_at: string;
+  response_context?: string | null;
 };
 
 async function signVideoUrl(videoUrl: string | null): Promise<string | null> {
@@ -54,7 +57,9 @@ export async function loadApprovedVideoResponsesByStoryIds(
   const capabilities = await getCommunityFeedSchemaCapabilities();
   let query = supabase
     .from("prayer_video_responses")
-    .select("id, story_id, user_id, video_url, thumbnail_url, created_at, status, removed_at")
+    .select(
+      "id, story_id, user_id, video_url, thumbnail_url, body, created_at, status, removed_at, response_context"
+    )
     .in("story_id", storyIds)
     .eq("status", "approved")
     .order("created_at", { ascending: false });
@@ -76,11 +81,14 @@ export async function loadApprovedVideoResponsesByStoryIds(
     user_id: string;
     video_url: string | null;
     thumbnail_url: string | null;
+    body: string | null;
     created_at: string;
+    response_context?: string | null;
   }[]) ?? [];
 
   const authorIds = [...new Set(rows.map((row) => row.user_id))];
   const authorNames = new Map<string, string>();
+  const authorUsernames = new Map<string, string>();
 
   if (authorIds.length > 0) {
     const { data: profiles } = await supabase
@@ -97,6 +105,9 @@ export async function loadApprovedVideoResponsesByStoryIds(
           profile.username?.trim() ||
           "HTBF community member"
       );
+      if (profile.username?.trim()) {
+        authorUsernames.set(profile.id, profile.username.trim());
+      }
     });
   }
 
@@ -110,9 +121,12 @@ export async function loadApprovedVideoResponsesByStoryIds(
       id: row.id,
       user_id: row.user_id,
       authorName: authorNames.get(row.user_id) ?? null,
+      authorUsername: authorUsernames.get(row.user_id) ?? null,
+      body: row.body,
       signed_video_url,
       signed_thumbnail_url,
       created_at: row.created_at,
+      response_context: row.response_context ?? null,
     };
 
     const existing = grouped.get(row.story_id) ?? [];

@@ -23,6 +23,10 @@ import {
   adminResponseTypeLabel,
   resolveResponseContextFromStory,
 } from "../../lib/responses/publicVideoResponseContext";
+import {
+  presentVideoResponseAiReview,
+  resolveAdminParentContentText,
+} from "../../lib/responses/videoResponseAiReview";
 import { supabase } from "../../lib/supabaseClient";
 
 const storyFilters: { label: string; value: StoryFilter }[] = [
@@ -121,10 +125,15 @@ type PrayerVideoResponse = {
   response_author_avatar_url: string | null;
   response_context?: string | null;
   parent_story_type?: string | null;
+  parent_story_text?: string | null;
+  parent_story_missing?: boolean;
+  parent_owner_display_name?: string | null;
+  parent_owner_username?: string | null;
   ai_review_status?: string | null;
   ai_risk_level?: string | null;
   ai_suggested_action?: string | null;
   ai_summary?: string | null;
+  ai_flags?: string[] | null;
 };
 
 export default function AdminPage() {
@@ -228,14 +237,14 @@ export default function AdminPage() {
     setBlockedUsersCount(count ?? 0);
   }
 
-  async function loadPrayerVideoResponses() {
+  async function loadPrayerVideoResponses(): Promise<PrayerVideoResponse[]> {
     const { data, error } = await supabase.rpc(
       "list_prayer_video_responses_for_admin"
     );
 
     if (error) {
       setMessage(`Could not load prayer video responses: ${error.message}`);
-      return;
+      return [];
     }
 
     const rawResponses: unknown[] = Array.isArray(data) ? data : [];
@@ -247,12 +256,19 @@ export default function AdminPage() {
 
     const responseIds = loadedResponses.map((item) => item.response_id);
     if (responseIds.length > 0) {
-      const { data: moderationRows } = await supabase
+      const { data: moderationRows, error: moderationError } = await supabase
         .from("prayer_video_responses")
         .select(
-          "id, duration_verification_status, response_context, ai_review_status, ai_risk_level, ai_suggested_action, ai_summary"
+          "id, duration_verification_status, response_context, ai_review_status, ai_risk_level, ai_suggested_action, ai_summary, ai_flags"
         )
         .in("id", responseIds);
+
+      if (moderationError) {
+        console.error(
+          "Could not load response moderation fields:",
+          moderationError.message
+        );
+      }
 
       const moderationMap = new Map(
         ((moderationRows as {
@@ -263,40 +279,111 @@ export default function AdminPage() {
           ai_risk_level: string | null;
           ai_suggested_action: string | null;
           ai_summary: string | null;
+          ai_flags: string[] | null;
         }[]) ?? []).map((row) => [row.id, row])
       );
 
       const storyIds = [...new Set(loadedResponses.map((item) => item.story_id))];
-      const { data: parentStories } = await supabase
+      const { data: parentStories, error: parentStoriesError } = await supabase
         .from("stories")
-        .select("id, story_type")
+        .select("id, story_type, story_text, user_id, name, status, removed_at")
         .in("id", storyIds);
 
-      const parentTypeMap = new Map(
-        ((parentStories as { id: string; story_type: string | null }[]) ?? []).map(
-          (story) => [story.id, story.story_type]
-        )
+      if (parentStoriesError) {
+        console.error(
+          "Could not load parent stories for video responses:",
+          parentStoriesError.message
+        );
+      }
+
+      const parentStoryMap = new Map(
+        ((parentStories as {
+          id: string;
+          story_type: string | null;
+          story_text: string | null;
+          user_id: string | null;
+          name: string | null;
+          status: string | null;
+          removed_at: string | null;
+        }[]) ?? []).map((story) => [story.id, story])
       );
+
+      const parentOwnerIds = [
+        ...new Set(
+          [...parentStoryMap.values()]
+            .map((story) => story.user_id)
+            .filter((id): id is string => Boolean(id))
+        ),
+      ];
+
+      const parentOwnerMap = new Map<
+        string,
+        { display_name: string | null; username: string | null }
+      >();
+
+      if (parentOwnerIds.length > 0) {
+        const { data: parentProfiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, username")
+          .in("id", parentOwnerIds);
+
+        ((parentProfiles as {
+          id: string;
+          display_name: string | null;
+          username: string | null;
+        }[]) ?? []).forEach((profile) => {
+          parentOwnerMap.set(profile.id, {
+            display_name: profile.display_name,
+            username: profile.username,
+          });
+        });
+      }
 
       loadedResponses.forEach((response) => {
         const moderation = moderationMap.get(response.response_id);
+        const parentStory = parentStoryMap.get(response.story_id);
+
         response.duration_verification_status =
           moderation?.duration_verification_status ?? "unavailable";
         response.response_context =
           moderation?.response_context ??
           resolveResponseContextFromStory({
-            story_type: parentTypeMap.get(response.story_id) ?? null,
+            story_type: parentStory?.story_type ?? response.parent_story_type ?? null,
           });
-        response.parent_story_type = parentTypeMap.get(response.story_id) ?? null;
+        response.parent_story_type =
+          parentStory?.story_type ?? response.parent_story_type ?? null;
+        response.parent_story_text = parentStory?.story_text ?? null;
+        response.parent_story_missing = false;
         response.ai_review_status = moderation?.ai_review_status ?? null;
         response.ai_risk_level = moderation?.ai_risk_level ?? null;
         response.ai_suggested_action = moderation?.ai_suggested_action ?? null;
         response.ai_summary = moderation?.ai_summary ?? null;
+        response.ai_flags = Array.isArray(moderation?.ai_flags)
+          ? moderation.ai_flags.filter(
+              (flag): flag is string => typeof flag === "string"
+            )
+          : null;
+
+        const parentOwnerId =
+          parentStory?.user_id ?? response.prayer_owner_user_id ?? null;
+        const parentOwnerProfile = parentOwnerId
+          ? parentOwnerMap.get(parentOwnerId)
+          : null;
+
+        response.parent_owner_display_name =
+          parentOwnerProfile?.display_name ??
+          response.prayer_owner_display_name ??
+          parentStory?.name ??
+          response.prayer_owner_name ??
+          null;
+        response.parent_owner_username =
+          parentOwnerProfile?.username ?? response.prayer_owner_username ?? null;
       });
     }
 
     setPrayerVideoResponses(loadedResponses);
     await loadPrayerResponseVideoUrls(loadedResponses);
+    return loadedResponses;
   }
 
   async function loadReports() {
@@ -650,22 +737,23 @@ export default function AdminPage() {
       setModeratingResponseId(null);
     }
 
-    const moderatedAt = new Date().toISOString();
-    setPrayerVideoResponses((currentResponses) =>
-      currentResponses.map((response) =>
-        response.response_id === responseId
-          ? {
-              ...response,
-              status: nextStatus,
-              moderated_at: moderatedAt,
-              duration_verification_status:
-                payload?.durationVerificationStatus ??
-                response.duration_verification_status,
-              removed_at: nextStatus === "removed" ? moderatedAt : response.removed_at,
-            }
-          : response
-      )
-    );
+    if (payload?.status !== nextStatus) {
+      setMessage(
+        "Approval did not persist. The server did not confirm the new status."
+      );
+      await loadPrayerVideoResponses();
+      return;
+    }
+
+    const reloaded = await loadPrayerVideoResponses();
+    const verified = reloaded.find((entry) => entry.response_id === responseId);
+
+    if (verified?.status !== nextStatus) {
+      setMessage(
+        `Approval did not persist. Database still shows "${verified?.status ?? "unknown"}".`
+      );
+      return;
+    }
 
     setMessage(
       `${adminResponseTypeLabel(target?.response_context)} marked as ${nextStatus.replace("_", " ")}.`
@@ -1591,8 +1679,10 @@ export default function AdminPage() {
                   response.response_author_username ||
                   "HTBF community member";
                 const parentOwner =
+                  response.parent_owner_display_name ||
                   response.prayer_owner_display_name ||
                   response.prayer_owner_name ||
+                  response.parent_owner_username ||
                   response.prayer_owner_username ||
                   "Parent owner";
                 const responseContext =
@@ -1605,6 +1695,12 @@ export default function AdminPage() {
                 const parentOwnerLabel = adminParentOwnerLabel(responseContext);
                 const isModerating =
                   moderatingResponseId === response.response_id;
+                const aiReview = presentVideoResponseAiReview(response);
+                const parentContentText = resolveAdminParentContentText(response);
+                const canApprove =
+                  response.status !== "approved" &&
+                  response.status !== "removed" &&
+                  !response.removed_at;
 
                 return (
                   <article
@@ -1651,6 +1747,14 @@ export default function AdminPage() {
                             <div className="mt-1 text-sm font-bold text-slate-500">
                               Submitted {formatDate(response.created_at)}
                             </div>
+                            <div className="mt-1 break-all text-xs font-semibold text-slate-400">
+                              Parent story ID: {response.story_id}
+                            </div>
+                            {response.parent_story_type ? (
+                              <div className="mt-1 text-xs font-semibold text-slate-400">
+                                Parent type: {response.parent_story_type}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
 
@@ -1665,33 +1769,29 @@ export default function AdminPage() {
                               wordBreak: "break-word",
                             }}
                           >
-                            {response.prayer_text ||
-                              "Parent content unavailable."}
+                            {parentContentText}
                           </p>
                         </div>
 
-                        {(response.ai_review_status ||
-                          response.ai_suggested_action ||
-                          response.ai_summary) && (
-                          <div className="mt-4 rounded-2xl bg-violet-50 p-4 ring-1 ring-violet-100">
-                            <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-700">
-                              AI Review
-                            </div>
-                            <div className="mt-2 text-sm font-bold text-violet-950">
-                              {response.ai_suggested_action
-                                ? `Suggested action: ${response.ai_suggested_action}`
-                                : "Review completed"}
-                              {response.ai_risk_level
-                                ? ` · Risk: ${response.ai_risk_level}`
-                                : ""}
-                            </div>
-                            {response.ai_summary ? (
-                              <p className="mt-2 text-sm leading-6 text-violet-900">
-                                {response.ai_summary}
-                              </p>
-                            ) : null}
+                        <div className="mt-4 rounded-2xl bg-violet-50 p-4 ring-1 ring-violet-100">
+                          <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-700">
+                            AI Review
                           </div>
-                        )}
+                          <div className="mt-2 text-sm font-bold text-violet-950">
+                            {aiReview.headline}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-violet-900">
+                            {aiReview.detail}
+                          </p>
+                          <p className="mt-2 text-xs leading-5 text-violet-800">
+                            {aiReview.scopeLine}
+                          </p>
+                          {aiReview.flags.length > 0 ? (
+                            <p className="mt-2 text-xs font-semibold text-violet-800">
+                              Flags: {aiReview.flags.join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
 
                         {response.body && (
                           <div className="mt-4 rounded-2xl bg-blue-50 p-4 ring-1 ring-blue-100">
@@ -1767,18 +1867,23 @@ export default function AdminPage() {
                             {isModerating ? "Working…" : "Revoke / Reject"}
                           </button>
                         </>
+                      ) : response.status === "removed" ? (
+                        <div className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200">
+                          <EyeOff className="h-4 w-4" />
+                          Removed
+                        </div>
                       ) : (
                         <>
                           <button
                             type="button"
-                            disabled={isModerating}
+                            disabled={isModerating || !canApprove}
                             onClick={() =>
                               void moderatePrayerVideoResponse(
                                 response.response_id,
                                 "approved"
                               )
                             }
-                            className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-wait disabled:opacity-70"
+                            className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <CheckCircle className="h-4 w-4" />
                             {isModerating ? "Approving…" : "Approve"}

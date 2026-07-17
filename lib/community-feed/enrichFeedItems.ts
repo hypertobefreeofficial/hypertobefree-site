@@ -21,6 +21,10 @@ import {
   loadApprovedVideoResponsesByStoryIds,
   type FeedApprovedVideoResponsePreview,
 } from "./loadParentApprovedVideoResponses";
+import {
+  loadViewerPendingVideoResponsesByStoryIds,
+  type FeedPendingVideoResponsePreview,
+} from "./loadViewerPendingVideoResponses";
 import { resolveResponseContextFromStory } from "../responses/publicVideoResponseContext";
 
 export type FeedReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -70,6 +74,8 @@ export type FeedStoryDisplay = {
   user_reactions: FeedReactionType[];
   approved_video_responses: FeedApprovedVideoResponsePreview[];
   video_response_count: number;
+  viewer_pending_response: FeedPendingVideoResponsePreview | null;
+  response_context: string | null;
 };
 
 export type FeedVideoResponseDisplay = {
@@ -253,6 +259,7 @@ async function enrichStoryItem(
   reactions: ReactionRow[],
   viewerUserId: string | null,
   approvedResponsesByStoryId: Map<string, FeedApprovedVideoResponsePreview[]>,
+  pendingResponsesByStoryId: Map<string, FeedPendingVideoResponsePreview | null>,
   existing?: FeedStoryDisplay | null
 ): Promise<FeedStoryDisplay | null> {
   const story = item.story;
@@ -282,6 +289,13 @@ async function enrichStoryItem(
     approvedResponsesByStoryId.get(story.id) ??
     existing?.approved_video_responses ??
     [];
+
+  const viewer_pending_response =
+    pendingResponsesByStoryId.get(story.id) ??
+    existing?.viewer_pending_response ??
+    null;
+
+  const response_context = resolveResponseContextFromStory(story);
 
   return {
     kind: "story",
@@ -324,6 +338,8 @@ async function enrichStoryItem(
     user_reactions,
     approved_video_responses,
     video_response_count: approved_video_responses.length,
+    viewer_pending_response,
+    response_context,
   };
 }
 
@@ -428,6 +444,9 @@ export async function enrichFeedItems(
     storyIds
   );
 
+  const pendingResponsesByStoryId =
+    await loadViewerPendingVideoResponsesByStoryIds(storyIds, viewerUserId);
+
   let reactions: ReactionRow[] = [];
   const reactionStoryIds = [...new Set([...storyIds, ...responseParentIds])];
   if (reactionStoryIds.length > 0) {
@@ -448,6 +467,7 @@ export async function enrichFeedItems(
         reactions,
         viewerUserId,
         approvedResponsesByStoryId,
+        pendingResponsesByStoryId,
         cached?.kind === "story" ? cached : null
       );
       if (storyDisplay) enriched.push(storyDisplay);

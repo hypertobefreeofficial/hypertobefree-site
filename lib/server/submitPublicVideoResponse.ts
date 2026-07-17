@@ -4,6 +4,10 @@ import { moderatePublicContent } from "./moderatePublicContent";
 import { areUsersBlocked } from "./prayerBlocking";
 import { responseContextFromSourceType } from "../responses/publicVideoResponseContext";
 import {
+  buildUnavailableVideoResponseAiUpdate,
+  buildVideoResponseAiUpdate,
+} from "../responses/videoResponseAiReview";
+import {
   PRAYER_MEDIA_LIMITS,
   validateUploadedThumbnailObject,
   validateUploadedVideoObject,
@@ -19,6 +23,7 @@ export type SourceStoryRow = {
   status: string | null;
   prayer_status: string | null;
   topics: string[] | null;
+  removed_at: string | null;
 };
 
 export type SubmitPublicVideoResponseInput = {
@@ -96,6 +101,14 @@ export function classifySourceForPublicVideoResponse(input: {
     );
   }
 
+  if (source.removed_at) {
+    return failure(
+      "This post is not available for public responses.",
+      "source_removed",
+      410
+    );
+  }
+
   return null;
 }
 
@@ -121,7 +134,9 @@ export async function submitPublicVideoResponse(
 
   const { data: sourceData, error: sourceError } = await adminClient
     .from("stories")
-    .select("id, user_id, story_type, story_text, status, prayer_status, topics")
+    .select(
+      "id, user_id, story_type, story_text, status, prayer_status, topics, removed_at"
+    )
     .eq("id", sourcePostId)
     .maybeSingle();
 
@@ -366,35 +381,54 @@ export async function submitPublicVideoResponse(
 
   const responseId = String(insertedData.id);
 
+  async function persistAiReview(update: Record<string, unknown>) {
+    const { error: aiError } = await adminClient
+      .from("prayer_video_responses")
+      .update(update)
+      .eq("id", responseId);
+
+    if (aiError) {
+      console.error("Public video response AI metadata update failed:", {
+        message: aiError.message,
+        code: aiError.code ?? null,
+      });
+      return false;
+    }
+
+    return true;
+  }
+
   try {
     const moderation = await moderatePublicContent({
       storyType: approvedSource.story_type ?? sourceType,
       storyText: [
-        approvedSource.story_text?.trim() || "No parent caption was provided.",
+        `Response context: ${responseContext}`,
+        `Parent post type: ${approvedSource.story_type ?? "unknown"}`,
+        `Parent caption: ${
+          approvedSource.story_text?.trim() || "No parent caption was provided."
+        }`,
         "Public video response submitted.",
+        "Automated review covers text and metadata only.",
       ].join("\n"),
       hasVideo: true,
       hasPhoto: Boolean(validatedThumbnailUrl),
     });
 
-    const aiUpdate: Record<string, unknown> = {
-      ai_review_status: moderation.aiReviewStatus,
-      ai_risk_level: moderation.aiRiskLevel,
-      ai_suggested_action: moderation.aiSuggestedAction,
-      ai_summary: moderation.aiSummary,
-      ai_flags: moderation.aiFlags,
-    };
-
-    const { error: aiError } = await adminClient
-      .from("prayer_video_responses")
-      .update(aiUpdate)
-      .eq("id", responseId);
-
-    if (aiError && !/ai_/i.test(aiError.message)) {
-      console.error("Public video response AI metadata update failed:", aiError);
+    const persisted = await persistAiReview(buildVideoResponseAiUpdate(moderation));
+    if (!persisted) {
+      await persistAiReview(
+        buildUnavailableVideoResponseAiUpdate(
+          "AI review metadata could not be saved. Manual review is required."
+        )
+      );
     }
   } catch (error) {
     console.error("Public video response AI moderation failed:", error);
+    await persistAiReview(
+      buildUnavailableVideoResponseAiUpdate(
+        "AI moderation could not complete, so this upload was sent to admin review."
+      )
+    );
   }
 
   return {

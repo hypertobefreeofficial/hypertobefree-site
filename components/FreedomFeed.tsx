@@ -90,10 +90,11 @@ import { ensureElementBelowFeedStickyHeader } from "../lib/navigation/feedScroll
 import FeedScrollVideoPreview from "./community-feed/FeedScrollVideoPreview";
 import FeedListItem from "./community-feed/FeedListItem";
 import type { CommunityFeedPostCallbacks } from "./community-feed/types";
-import {
-  getCommunityFeedVisualValidationFixtures,
+import { getCommunityFeedVisualValidationFixtures,
   FIXTURE_VIEWER_USER_ID,
 } from "../lib/community-feed/visualValidationFixtures";
+import { loadApprovedVideoResponsesByStoryIds } from "../lib/community-feed/loadParentApprovedVideoResponses";
+import { loadViewerPendingVideoResponsesByStoryIds } from "../lib/community-feed/loadViewerPendingVideoResponses";
 import styles from "./FreedomFeed.module.css";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -1947,6 +1948,27 @@ export default function FreedomFeed({
     photoViewerText.length > 80 ||
     photoViewerText.split(/\r\n|\r|\n/).length > 2;
 
+  async function refreshStoryVideoResponses(storyId: string) {
+    const [approvedMap, pendingMap] = await Promise.all([
+      loadApprovedVideoResponsesByStoryIds([storyId]),
+      loadViewerPendingVideoResponsesByStoryIds([storyId], userId),
+    ]);
+    const approved = approvedMap.get(storyId) ?? [];
+    const pending = pendingMap.get(storyId) ?? null;
+
+    setFeedItems((current) =>
+      current.map((item) => {
+        if (item.kind !== "story" || item.id !== storyId) return item;
+        return {
+          ...item,
+          approved_video_responses: approved,
+          video_response_count: approved.length,
+          viewer_pending_response: pending,
+        };
+      })
+    );
+  }
+
   const communityFeedCallbacks = useMemo<CommunityFeedPostCallbacks>(
     () => ({
       userId,
@@ -1972,6 +1994,9 @@ export default function FreedomFeed({
       },
       onPrepareFeedReturn: (storyId) => saveFreedomFeedReturnState(storyId),
       onResponseMessage: (message) => setReactionMessage(message),
+      onRefreshStoryVideoResponses: (storyId) => {
+        void refreshStoryVideoResponses(storyId);
+      },
     }),
     [userId, savedStoryIds, postOverflowMenuKey, pendingReactionKey]
   );
