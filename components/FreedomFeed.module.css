@@ -1047,6 +1047,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.primaryActionRowFive {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .primaryActionButton {
   display: inline-flex;
   min-height: 2.75rem;
@@ -1090,6 +1094,10 @@
   }
 
   .primaryActionRowThree {
+    display: flex;
+  }
+
+  .primaryActionRowFive {
     display: flex;
   }
 

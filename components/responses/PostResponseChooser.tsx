@@ -1,7 +1,6 @@
 "use client";
 
 import { HeartHandshake, Lock, MessageCircle, Video, X } from "lucide-react";
-import type { FeedReactionType } from "../community-feed/types";
 import type {
   ResponseChoice,
   ResponseContextLabels,
@@ -9,25 +8,12 @@ import type {
 import type { PrayerInteractionPrefs } from "../../lib/prayer-connect/interactionPrefs";
 import styles from "./PostResponseChooser.module.css";
 
-const REACTION_OPTIONS: {
-  type: Exclude<FeedReactionType, "praying">;
-  label: string;
-  emoji: string;
-}[] = [
-  { type: "amen", label: "Amen", emoji: "🙏" },
-  { type: "praise_god", label: "Praise God", emoji: "✨" },
-  { type: "encouraged", label: "Encouraged", emoji: "💙" },
-];
-
 export type PostResponseChooserProps = {
   open: boolean;
   prefs: PrayerInteractionPrefs;
   labels: ResponseContextLabels;
   onClose: () => void;
   onChoose: (choice: ResponseChoice) => void;
-  showReactions?: boolean;
-  userReactions?: FeedReactionType[];
-  onToggleReaction?: (reactionType: FeedReactionType) => void;
 };
 
 export default function PostResponseChooser({
@@ -36,9 +22,6 @@ export default function PostResponseChooser({
   labels,
   onClose,
   onChoose,
-  showReactions = false,
-  userReactions = [],
-  onToggleReaction,
 }: PostResponseChooserProps) {
   if (!open) return null;
 
@@ -126,30 +109,6 @@ export default function PostResponseChooser({
             <p>No response options are available for this post right now.</p>
           </div>
         )}
-
-        {showReactions && onToggleReaction ? (
-          <>
-            <div className={styles.reactionsDivider} aria-hidden />
-            <h3 className={styles.reactionsHeading}>Quick encouragement</h3>
-            <div className={styles.reactionOptions}>
-              {REACTION_OPTIONS.map((option) => {
-                const active = userReactions.includes(option.type);
-                return (
-                  <button
-                    key={option.type}
-                    type="button"
-                    className={styles.reactionOption}
-                    aria-pressed={active}
-                    onClick={() => onToggleReaction(option.type)}
-                  >
-                    <span aria-hidden>{option.emoji}</span>
-                    <span>{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        ) : null}
       </div>
     </div>
   );

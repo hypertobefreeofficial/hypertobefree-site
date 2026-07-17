@@ -25,11 +25,6 @@ type PostResponseFlowProps = {
   onClose: () => void;
   onComplete?: (detail: { success: boolean; message?: string }) => void;
   returnBehavior?: "stay" | "navigate";
-  showReactions?: boolean;
-  userReactions?: import("../community-feed/types").FeedReactionType[];
-  onToggleReaction?: (
-    reactionType: import("../community-feed/types").FeedReactionType
-  ) => void;
   triggerRef?: RefObject<HTMLButtonElement | null>;
 };
 
@@ -39,9 +34,6 @@ export default function PostResponseFlow({
   onClose,
   onComplete,
   returnBehavior = "navigate",
-  showReactions = false,
-  userReactions = [],
-  onToggleReaction,
   triggerRef,
 }: PostResponseFlowProps) {
   const router = useRouter();
@@ -313,9 +305,6 @@ export default function PostResponseFlow({
           setModalError(null);
           setModalNotice(null);
         }}
-        showReactions={showReactions}
-        userReactions={userReactions}
-        onToggleReaction={onToggleReaction}
       />
 
       {activeResponse ? (

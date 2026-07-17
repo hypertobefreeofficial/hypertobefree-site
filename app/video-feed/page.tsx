@@ -1922,7 +1922,6 @@ export function VideoFeedExperience({
             setResponseFlowStory(null);
           }}
           returnBehavior="stay"
-          showReactions={false}
           onComplete={({ success, message: completionMessage }) => {
             if (success && completionMessage) {
               setMessage(completionMessage);

@@ -144,11 +144,9 @@ test.describe("Community Feed responsive shell", () => {
     await openFixtureFeed(page);
 
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
-    await danielPost.scrollIntoViewIfNeeded();
-    await assertAboveMobileNav(
-      page,
-      danielPost.getByRole("button", { name: /^Respond/ })
-    );
+    const actionRow = danielPost.getByTestId("feed-main-action-row");
+    await actionRow.scrollIntoViewIfNeeded();
+    await assertAboveMobileNav(page, actionRow.getByRole("button", { name: /^Respond/ }));
 
     await context.close();
   });
@@ -218,7 +216,7 @@ test.describe("Community Feed responsive shell", () => {
     await context.close();
   });
 
-  test("respond sheet renders above mobile navigation with encouragement choices visible", async ({
+  test("inline encouragement row renders above mobile navigation", async ({
     browser,
   }) => {
     const context = await browser.newContext({
@@ -230,21 +228,15 @@ test.describe("Community Feed responsive shell", () => {
 
     const danielPost = page.locator("#freedom-feed-story-fixture-portrait-video");
     await danielPost.scrollIntoViewIfNeeded();
-    await danielPost.getByRole("button", { name: /^Respond/ }).click();
-
-    const dialog = page.getByRole("dialog", {
-      name: /Choose how you want to respond/i,
-    });
-    await expect(dialog).toBeVisible();
-
-    await expect(page.getByRole("button", { name: /Amen/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Praise God/i })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Encouraged/i })
-    ).toBeVisible();
+    const encouragementRow = danielPost.getByTestId("feed-encouragement-row");
+    await expect(encouragementRow).toBeVisible();
+    await expect(danielPost.getByTestId("feed-encouragement-amen")).toBeVisible();
+    await expect(danielPost.getByTestId("feed-encouragement-praise-god")).toBeVisible();
+    await expect(danielPost.getByTestId("feed-encouragement-encouraged")).toBeVisible();
+    await expect(danielPost.getByRole("button", { name: /^React/ })).toHaveCount(0);
 
     const navBox = await mobileBottomNav(page).boundingBox();
-    const amenBox = await page.getByRole("button", { name: /Amen/i }).boundingBox();
+    const amenBox = await danielPost.getByTestId("feed-encouragement-amen").boundingBox();
     expect(navBox).not.toBeNull();
     expect(amenBox).not.toBeNull();
     if (navBox && amenBox) {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Bookmark, Share2, Video } from "lucide-react";
 import type { FeedStoryDisplay } from "./types";
 import CommunityFeedEngagementSummary from "./CommunityFeedEngagementSummary";
+import CommunityFeedInlineEncouragement from "./CommunityFeedInlineEncouragement";
 import CommunityFeedRespondLauncher from "./CommunityFeedRespondLauncher";
 import styles from "../FreedomFeed.module.css";
 
@@ -39,16 +40,21 @@ export default function CommunityFeedStandardActions({
     <>
       <CommunityFeedEngagementSummary story={story} />
 
+      <CommunityFeedInlineEncouragement
+        storyId={story.id}
+        userReactions={story.user_reactions}
+        onToggleReaction={onToggleReaction}
+      />
+
       <div
-        className={`${styles.primaryActionRow} ${
-          showVideoResponse ? "" : styles.primaryActionRowThree
+        className={`${styles.primaryActionRow} mt-2 ${
+          showVideoResponse ? styles.primaryActionRowFive : styles.primaryActionRowThree
         }`}
+        data-testid="feed-main-action-row"
       >
         <CommunityFeedRespondLauncher
           story={story}
           currentUserId={currentUserId}
-          userReactions={story.user_reactions}
-          onToggleReaction={onToggleReaction}
           onPrepareReturn={onPrepareReturn}
           onResponseMessage={onResponseMessage}
         />

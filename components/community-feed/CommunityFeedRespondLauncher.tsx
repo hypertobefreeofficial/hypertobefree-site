@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import type { FeedReactionType, FeedStoryDisplay } from "./types";
+import type { FeedStoryDisplay } from "./types";
 import { buildResponseSourceContext } from "../../lib/responses/responseContext";
 import PostResponseFlow from "../responses/PostResponseFlow";
 import styles from "../FreedomFeed.module.css";
@@ -9,8 +9,6 @@ import styles from "../FreedomFeed.module.css";
 type CommunityFeedRespondLauncherProps = {
   story: FeedStoryDisplay;
   currentUserId: string | null;
-  userReactions: FeedReactionType[];
-  onToggleReaction: (storyId: string, reactionType: FeedReactionType) => void;
   onPrepareReturn?: () => void;
   onResponseMessage?: (message: string) => void;
 };
@@ -24,8 +22,6 @@ function storyTitleFromFeed(story: FeedStoryDisplay) {
 export default function CommunityFeedRespondLauncher({
   story,
   currentUserId,
-  userReactions,
-  onToggleReaction,
   onPrepareReturn,
   onResponseMessage,
 }: CommunityFeedRespondLauncherProps) {
@@ -76,11 +72,6 @@ export default function CommunityFeedRespondLauncher({
         triggerRef={triggerRef}
         onClose={() => setOpen(false)}
         returnBehavior="stay"
-        showReactions
-        userReactions={userReactions}
-        onToggleReaction={(reactionType) =>
-          onToggleReaction(story.id, reactionType)
-        }
         onComplete={({ success, message }) => {
           if (success && message) onResponseMessage?.(message);
         }}

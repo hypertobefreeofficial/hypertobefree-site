@@ -112,49 +112,6 @@
   color: #062a57;
 }
 
-.reactionsDivider {
-  margin: 1.1rem 0 0.75rem;
-  border-top: 1px solid rgba(226, 232, 240, 0.95);
-}
-
-.reactionsHeading {
-  margin: 0 0 0.55rem;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.reactionOptions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.reactionOption {
-  display: flex;
-  min-height: 2.75rem;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 0.85rem;
-  background: #fff;
-  padding: 0.55rem 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #475569;
-  cursor: pointer;
-}
-
-.reactionOption[aria-pressed="true"] {
-  background: #eff6ff;
-  border-color: rgba(11, 99, 206, 0.35);
-  color: #0b63ce;
-}
-
 .emptyState {
   display: flex;
   align-items: center;
