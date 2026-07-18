@@ -101,6 +101,7 @@ import {
   VIDEO_RESPONSE_REPORT_REASONS,
   VIDEO_RESPONSE_REPORT_SUCCESS,
 } from "../lib/feed/formatFeedSafetyMessages";
+import { formatReportModalError } from "../lib/feed/formatReportModalError";
 import styles from "./FreedomFeed.module.css";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -2028,7 +2029,10 @@ export default function FreedomFeed({
 
       if (result.ok !== true) {
         setReportModalError(
-          result.error || "We couldn't submit your report. Please try again."
+          formatReportModalError(
+            result.error || "We couldn't submit your report. Please try again.",
+            result.code
+          )
         );
         return;
       }
