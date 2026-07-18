@@ -36,11 +36,13 @@ export default function TestimonyFeedPost({
           menuOpen ? null : story.dedupeKey
         )
       }
+      onCloseMenu={() => callbacks.setPostOverflowMenuKey(null)}
       menu={
         <CommunityFeedStoryOverflowMenu
           story={story}
           isOwner={isOwner}
           onReport={() => callbacks.onReportStory(story)}
+          blockPending={callbacks.pendingBlockUserId === story.user_id}
           onBlockUser={
             !isOwner ? () => void callbacks.onBlockStoryUser(story) : undefined
           }

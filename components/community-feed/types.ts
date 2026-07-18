@@ -27,6 +27,8 @@ export type CommunityFeedPostCallbacks = {
   onResponseMessage?: (message: string) => void;
   onRefreshStoryVideoResponses?: (storyId: string) => void;
   onReportStory: (story: FeedStoryDisplay) => void;
+  onReportVideoResponse: (item: FeedVideoResponseDisplay) => void;
+  pendingBlockUserId?: string | null;
   onBlockStoryUser: (story: FeedStoryDisplay) => void;
   onHideFeedItem: (item: FeedDisplayItem) => void;
   onBlockFeedUser: (userId: string | null | undefined) => void;

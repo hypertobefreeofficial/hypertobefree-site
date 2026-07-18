@@ -50,9 +50,16 @@ export default function VideoResponseFeedPost({
       onToggleMenu={() =>
         callbacks.setPostOverflowMenuKey(menuOpen ? null : item.dedupeKey)
       }
+      onCloseMenu={() => callbacks.setPostOverflowMenuKey(null)}
+      menuTitle="Video options"
       menu={
         <CommunityFeedResponseOverflowMenu
+          canReport={Boolean(
+            callbacks.userId && item.user_id && item.user_id !== callbacks.userId
+          )}
+          onReport={() => callbacks.onReportVideoResponse(item)}
           canBlock={Boolean(item.user_id && item.user_id !== callbacks.userId)}
+          blockPending={callbacks.pendingBlockUserId === item.user_id}
           onBlockUser={
             item.user_id
               ? () => void callbacks.onBlockFeedUser(item.user_id)
