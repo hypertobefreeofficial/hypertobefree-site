@@ -26,6 +26,8 @@ export default function PrayerRequestFeedPost({
   const praying = story.reaction_counts.praying;
   const isPraying = story.user_reactions.includes("praying");
   const isSaved = callbacks.savedStoryIds.includes(story.id);
+  const prayingPending =
+    callbacks.pendingReactionKey === `${story.id}:praying`;
 
   const header = (
     <CommunityFeedPostHeader
@@ -37,11 +39,13 @@ export default function PrayerRequestFeedPost({
       onToggleMenu={() =>
         callbacks.setPostOverflowMenuKey(menuOpen ? null : story.dedupeKey)
       }
+      onCloseMenu={() => callbacks.setPostOverflowMenuKey(null)}
       menu={
         <CommunityFeedStoryOverflowMenu
           story={story}
           isOwner={isOwner}
           onReport={() => callbacks.onReportStory(story)}
+          blockPending={callbacks.pendingBlockUserId === story.user_id}
           onBlockUser={
             !isOwner ? () => void callbacks.onBlockStoryUser(story) : undefined
           }
@@ -81,8 +85,10 @@ export default function PrayerRequestFeedPost({
           type="button"
           className={`${styles.primaryActionButton} ${
             isPraying ? styles.prayerCompactActionActive : ""
-          }`}
+          } ${prayingPending ? styles.reactionPending : ""}`}
           aria-pressed={isPraying}
+          aria-busy={prayingPending || undefined}
+          disabled={prayingPending}
           onClick={() => callbacks.onToggleReaction(story.id, "praying")}
         >
           {isPraying ? "Praying" : "I'm Praying"}

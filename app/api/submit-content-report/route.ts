@@ -193,18 +193,20 @@ export async function POST(request: Request) {
     const isPrayer =
       (story?.story_type || "").toLowerCase().includes("prayer") ?? false;
 
-    if (
-      !story ||
-      story.removed_at ||
-      story.status !== "approved" ||
-      !isPrayer
-    ) {
-      return fail(
-        "This prayer is no longer available to report.",
-        "target_unavailable",
-        404
-      );
-    }
+      if (
+        !story ||
+        story.removed_at ||
+        story.status !== "approved" ||
+        (contentType !== "video_response" && !isPrayer)
+      ) {
+        return fail(
+          contentType === "video_response"
+            ? "This video response is no longer available to report."
+            : "This prayer is no longer available to report.",
+          "target_unavailable",
+          404
+        );
+      }
 
     resolvedReportedUserId = story.user_id;
 

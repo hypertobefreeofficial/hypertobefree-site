@@ -110,6 +110,7 @@ export default function FeedListItem({
     const responseMedia =
       feedItem.signed_video_url || feedItem.signed_thumbnail_url ? (
         <FeedScrollVideoPreview
+          videoUrl={feedItem.signed_video_url}
           posterUrl={feedItem.signed_thumbnail_url}
           fallbackLabel="Video prayer"
           frameClassName={`${styles.mediaFrame} ${styles.mediaFramePortrait}`}
@@ -236,6 +237,7 @@ export default function FeedListItem({
   } else if (story.signed_video_url && !showCreatorStudioCard) {
     media = (
       <FeedScrollVideoPreview
+        videoUrl={story.signed_video_url}
         posterUrl={story.signed_thumbnail_url}
         fallbackLabel={prayerStory ? "Video prayer" : "Video testimony"}
         frameClassName={storyVideoFrameClass}

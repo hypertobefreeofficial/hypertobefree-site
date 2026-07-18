@@ -95,6 +95,12 @@ import { getCommunityFeedVisualValidationFixtures,
 } from "../lib/community-feed/visualValidationFixtures";
 import { loadApprovedVideoResponsesByStoryIds } from "../lib/community-feed/loadParentApprovedVideoResponses";
 import { loadViewerPendingVideoResponsesByStoryIds } from "../lib/community-feed/loadViewerPendingVideoResponses";
+import { submitContentReport } from "../lib/prayer-connect/submitContentReport";
+import {
+  formatBlockedUserConfirmation,
+  VIDEO_RESPONSE_REPORT_REASONS,
+  VIDEO_RESPONSE_REPORT_SUCCESS,
+} from "../lib/feed/formatFeedSafetyMessages";
 import styles from "./FreedomFeed.module.css";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -278,17 +284,11 @@ function restoreFreedomFeedReturnPosition(
   });
 }
 
-function pauseOtherFreedomFeedPreviewVideos(currentVideo: HTMLVideoElement) {
-  if (typeof document === "undefined") return;
-
-  document
-    .querySelectorAll<HTMLVideoElement>('[data-freedom-feed-preview-video="true"]')
-    .forEach((video) => {
-      if (video !== currentVideo) {
-        video.pause();
-      }
-    });
-}
+import {
+  pauseAllFeedPreviewVideos,
+  resumeFeedVideoAutoplay,
+  suspendFeedVideoAutoplay,
+} from "../hooks/useViewportVideoAutoplay";
 
 const reportReasons: { label: string; value: ReportReason }[] = [
   { label: "Inappropriate content", value: "inappropriate" },
@@ -486,10 +486,16 @@ export default function FreedomFeed({
   const [photoDetailsStory, setPhotoDetailsStory] =
     useState<ApprovedStory | null>(null);
   const [reportStory, setReportStory] = useState<ApprovedStory | null>(null);
+  const [reportVideoResponse, setReportVideoResponse] =
+    useState<FeedVideoResponseDisplay | null>(null);
   const [reportReason, setReportReason] =
     useState<ReportReason>("inappropriate");
+  const [videoReportReason, setVideoReportReason] = useState("other");
   const [reportDetails, setReportDetails] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
+  const [pendingBlockUserId, setPendingBlockUserId] = useState<string | null>(
+    null
+  );
   const [savedStoryIds, setSavedStoryIds] = useState<string[]>([]);
   const [hiddenPrayerStoryIds, setHiddenPrayerStoryIds] = useState<string[]>(
     []
@@ -1169,33 +1175,54 @@ export default function FreedomFeed({
     }
 
     if (story.user_id === userId) return;
+    if (pendingBlockUserId === story.user_id) return;
 
-    const { error } = await supabase.from("blocked_users").upsert(
-      {
-        blocker_user_id: userId,
-        blocked_user_id: story.user_id,
-      },
-      { onConflict: "blocker_user_id,blocked_user_id" }
-    );
+    setPendingBlockUserId(story.user_id);
 
-    if (error) {
-      setReactionMessage(`Could not block user: ${error.message}`);
-      return;
+    try {
+      const { error } = await supabase.from("blocked_users").upsert(
+        {
+          blocker_user_id: userId,
+          blocked_user_id: story.user_id,
+        },
+        { onConflict: "blocker_user_id,blocked_user_id" }
+      );
+
+      if (error) {
+        setReactionMessage("We couldn't block this user. Please try again.");
+        return;
+      }
+
+      setBlockedUserIds((current) => {
+        const next = current.includes(story.user_id as string)
+          ? current
+          : [...current, story.user_id as string];
+        blockedUserIdsRef.current = next;
+        return next;
+      });
+
+      setFeedItems((current) =>
+        current.filter((item) => {
+          if (item.kind === "story") {
+            return item.user_id !== story.user_id;
+          }
+          if (item.kind === "prayer_video_response") {
+            return item.user_id !== story.user_id;
+          }
+          return true;
+        })
+      );
+
+      void loadBidirectionalBlockedUserIds(userId).then((next) => {
+        blockedUserIdsRef.current = next;
+        setBlockedUserIds(next);
+      });
+      setReactionMessage(formatBlockedUserConfirmation(story.name));
+    } finally {
+      setPendingBlockUserId((current) =>
+        current === story.user_id ? null : current
+      );
     }
-
-    setBlockedUserIds((current) => {
-      const next = current.includes(story.user_id as string)
-        ? current
-        : [...current, story.user_id as string];
-      blockedUserIdsRef.current = next;
-      return next;
-    });
-
-    void loadBidirectionalBlockedUserIds(userId).then((next) => {
-      blockedUserIdsRef.current = next;
-      setBlockedUserIds(next);
-    });
-    setReactionMessage("User blocked. Their content is now hidden.");
   }
 
   async function blockFeedUser(targetUserId: string | null | undefined) {
@@ -1208,33 +1235,54 @@ export default function FreedomFeed({
     }
 
     if (targetUserId === userId) return;
+    if (pendingBlockUserId === targetUserId) return;
 
-    const { error } = await supabase.from("blocked_users").upsert(
-      {
-        blocker_user_id: userId,
-        blocked_user_id: targetUserId,
-      },
-      { onConflict: "blocker_user_id,blocked_user_id" }
+    const blockedItem = feedItemsRef.current.find(
+      (item) => item.user_id === targetUserId
     );
+    const blockedLabel =
+      blockedItem?.kind === "prayer_video_response"
+        ? blockedItem.name?.trim()
+        : blockedItem?.name?.trim() || null;
 
-    if (error) {
-      setReactionMessage(`Could not block user: ${error.message}`);
-      return;
+    setPendingBlockUserId(targetUserId);
+
+    try {
+      const { error } = await supabase.from("blocked_users").upsert(
+        {
+          blocker_user_id: userId,
+          blocked_user_id: targetUserId,
+        },
+        { onConflict: "blocker_user_id,blocked_user_id" }
+      );
+
+      if (error) {
+        setReactionMessage("We couldn't block this user. Please try again.");
+        return;
+      }
+
+      setBlockedUserIds((current) => {
+        const next = current.includes(targetUserId)
+          ? current
+          : [...current, targetUserId];
+        blockedUserIdsRef.current = next;
+        return next;
+      });
+
+      setFeedItems((current) =>
+        current.filter((item) => item.user_id !== targetUserId)
+      );
+
+      void loadBidirectionalBlockedUserIds(userId).then((next) => {
+        blockedUserIdsRef.current = next;
+        setBlockedUserIds(next);
+      });
+      setReactionMessage(formatBlockedUserConfirmation(blockedLabel));
+    } finally {
+      setPendingBlockUserId((current) =>
+        current === targetUserId ? null : current
+      );
     }
-
-    setBlockedUserIds((current) => {
-      const next = current.includes(targetUserId)
-        ? current
-        : [...current, targetUserId];
-      blockedUserIdsRef.current = next;
-      return next;
-    });
-
-    void loadBidirectionalBlockedUserIds(userId).then((next) => {
-      blockedUserIdsRef.current = next;
-      setBlockedUserIds(next);
-    });
-    setReactionMessage("User blocked. Their content is now hidden.");
   }
 
   function formatAuthorMeta(
@@ -1254,8 +1302,23 @@ export default function FreedomFeed({
       return;
     }
 
+    setReportVideoResponse(null);
     setReportStory(story);
     setReportReason("inappropriate");
+    setReportDetails("");
+  }
+
+  function openFeedVideoResponseReport(item: FeedVideoResponseDisplay) {
+    setPostOverflowMenuKey(null);
+
+    if (!userId) {
+      setReactionMessage("Please sign in to report a video.");
+      return;
+    }
+
+    setReportStory(null);
+    setReportVideoResponse(item);
+    setVideoReportReason("other");
     setReportDetails("");
   }
 
@@ -1291,25 +1354,27 @@ export default function FreedomFeed({
   }
 
   useEffect(() => {
-    if (!postOverflowMenuKey) return;
-
-    function handlePointerDown(event: Event) {
-      const target = event.target;
-
-      if (!(target instanceof Element)) return;
-      if (target.closest("[data-feed-post-overflow-root='true']")) return;
-
-      setPostOverflowMenuKey(null);
+    if (
+      reportStory ||
+      reportVideoResponse ||
+      photoViewerStory ||
+      photoActionSheetOpen ||
+      postOverflowMenuKey ||
+      answeringPrayerStory
+    ) {
+      suspendFeedVideoAutoplay();
+      return;
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("touchstart", handlePointerDown);
-    };
-  }, [postOverflowMenuKey]);
+    resumeFeedVideoAutoplay();
+  }, [
+    answeringPrayerStory,
+    photoActionSheetOpen,
+    photoViewerStory,
+    postOverflowMenuKey,
+    reportStory,
+    reportVideoResponse,
+  ]);
 
   async function toggleReaction(storyId: string, reactionType: ReactionType) {
     setReactionMessage("");
@@ -1322,7 +1387,7 @@ export default function FreedomFeed({
     const pendingKey = `${storyId}:${reactionType}`;
     if (pendingReactionKey === pendingKey) return;
 
-    const story = feedItems.find(
+    const story = feedItemsRef.current.find(
       (item): item is FeedStoryDisplay =>
         item.kind === "story" && item.id === storyId
     );
@@ -1345,8 +1410,7 @@ export default function FreedomFeed({
 
         if (error) {
           updateLocalReaction(storyId, reactionType, "add");
-          setReactionMessage(`Could not remove reaction: ${error.message}`);
-          return;
+          setReactionMessage("Could not update your reaction. Please try again.");
         }
         return;
       }
@@ -1362,7 +1426,7 @@ export default function FreedomFeed({
         if (/duplicate|unique/i.test(error.message)) {
           return;
         }
-        setReactionMessage(`Could not add reaction: ${error.message}`);
+        setReactionMessage("Could not update your reaction. Please try again.");
       }
     } finally {
       setPendingReactionKey((current) => (current === pendingKey ? null : current));
@@ -1878,42 +1942,104 @@ export default function FreedomFeed({
 
   function closeReportModal() {
     setReportStory(null);
+    setReportVideoResponse(null);
     setReportReason("inappropriate");
+    setVideoReportReason("other");
     setReportDetails("");
     setSendingReport(false);
   }
 
-  async function submitReport() {
-    if (!userId || !reportStory) {
-      setPhotoViewerMessage("Please sign in to report a post.");
+  async function submitVideoResponseReport() {
+    if (!userId || !reportVideoResponse) {
+      setReactionMessage("Please sign in to report a video.");
       return;
     }
 
+    if (sendingReport) return;
+
     setSendingReport(true);
-    setPhotoViewerMessage("");
+    setReactionMessage("");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        setReactionMessage("Please sign in to report a video.");
+        return;
+      }
+
+      const result = await submitContentReport({
+        accessToken,
+        contentType: "video_response",
+        reason: videoReportReason,
+        details: reportDetails.trim() || undefined,
+        storyId: reportVideoResponse.parentStoryId ?? null,
+        responseId: reportVideoResponse.id,
+      });
+
+      if (result.ok !== true) {
+        setReactionMessage("We couldn't submit your report. Please try again.");
+        return;
+      }
+
+      closeReportModal();
+      setReactionMessage(VIDEO_RESPONSE_REPORT_SUCCESS);
+    } finally {
+      setSendingReport(false);
+    }
+  }
+
+  async function submitReport() {
+    if (reportVideoResponse) {
+      await submitVideoResponseReport();
+      return;
+    }
+
+    if (!userId || !reportStory) {
+      setReactionMessage("Please sign in to report a post.");
+      return;
+    }
+
+    if (sendingReport) return;
+
+    setSendingReport(true);
+    setReactionMessage("");
 
     const cleanDetails = reportDetails.trim();
 
-    const { error } = await supabase.from("content_reports").insert({
-      story_id: reportStory.id,
-      reporter_user_id: userId,
-      reported_user_id: reportStory.user_id,
-      reason: reportReason,
-      details: cleanDetails || null,
-      status: "open",
-    });
+    try {
+      const { error } = await supabase.from("content_reports").insert({
+        story_id: reportStory.id,
+        reporter_user_id: userId,
+        reported_user_id: reportStory.user_id,
+        reason: reportReason,
+        details: cleanDetails || null,
+        status: "open",
+      });
 
-    setSendingReport(false);
+      if (error) {
+        if (/duplicate|unique/i.test(error.message)) {
+          closeReportModal();
+          setReactionMessage(
+            "Your report was submitted. Thank you for helping keep HTBF safe."
+          );
+          return;
+        }
 
-    if (error) {
-      setPhotoViewerMessage(`Could not report post: ${error.message}`);
-      return;
+        setReactionMessage("We couldn't submit your report. Please try again.");
+        return;
+      }
+
+      closeReportModal();
+      setReactionMessage(
+        "Your report was submitted. Thank you for helping keep HTBF safe."
+      );
+    } finally {
+      setSendingReport(false);
     }
-
-    closeReportModal();
-    setPhotoViewerMessage(
-      "Report submitted. Thank you for helping keep HTBF safe."
-    );
   }
 
   const feedLabel =
@@ -1984,6 +2110,8 @@ export default function FreedomFeed({
       pendingReactionKey,
       onToggleSaved: toggleSavedStory,
       onReportStory: openFeedReport,
+      onReportVideoResponse: openFeedVideoResponseReport,
+      pendingBlockUserId,
       onBlockStoryUser: blockStoryUser,
       onHideFeedItem: hideFeedItem,
       onBlockFeedUser: blockFeedUser,
@@ -1998,7 +2126,7 @@ export default function FreedomFeed({
         void refreshStoryVideoResponses(storyId);
       },
     }),
-    [userId, savedStoryIds, postOverflowMenuKey, pendingReactionKey]
+    [userId, savedStoryIds, postOverflowMenuKey, pendingReactionKey, pendingBlockUserId]
   );
 
   return (
@@ -2053,7 +2181,11 @@ export default function FreedomFeed({
         </div>
 
         {reactionMessage ? (
-          <div className={styles.bannerMessage} role="status">
+          <div
+            className={styles.bannerMessage}
+            role="status"
+            aria-live="polite"
+          >
             {reactionMessage}
           </div>
         ) : null}
@@ -2371,72 +2503,6 @@ export default function FreedomFeed({
               </div>
             )}
 
-            {reportStory && (
-              <div className="fixed inset-0 z-[65] flex items-end justify-center bg-black/60 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4">
-                <div className="w-full max-w-lg rounded-[1.5rem] bg-white p-5 text-slate-900 shadow-2xl">
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
-                    HYPER TO BE FREE
-                  </div>
-
-                  <h3 className="mt-2 text-2xl font-black text-[#062a57]">
-                    Report Post
-                  </h3>
-
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Reports help keep HTBF safe and send this story to the admin
-                    review queue.
-                  </p>
-
-                  <label className="mt-4 block text-sm font-black text-[#062a57]">
-                    Why are you reporting this?
-                  </label>
-                  <select
-                    value={reportReason}
-                    onChange={(event) =>
-                      setReportReason(event.target.value as ReportReason)
-                    }
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                  >
-                    {reportReasons.map((reason) => (
-                      <option key={reason.value} value={reason.value}>
-                        {reason.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label className="mt-4 block text-sm font-black text-[#062a57]">
-                    Details, optional
-                  </label>
-                  <textarea
-                    value={reportDetails}
-                    onChange={(event) => setReportDetails(event.target.value)}
-                    rows={4}
-                    placeholder="Add any details that may help the moderator..."
-                    className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                  />
-
-                  <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <button
-                      type="button"
-                      onClick={closeReportModal}
-                      className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
-                    >
-                      Not Yet
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={sendingReport}
-                      onClick={submitReport}
-                      className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {sendingReport ? "Submitting..." : "Submit Report"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {photoActionSheetOpen && (
               <div
                 className="fixed inset-0 z-[60] flex items-end justify-center bg-black/35 p-4 backdrop-blur-sm"
@@ -2520,6 +2586,81 @@ export default function FreedomFeed({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {(reportStory || reportVideoResponse) && (
+          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4">
+            <div className="w-full max-w-lg rounded-[1.5rem] bg-white p-5 text-slate-900 shadow-2xl">
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
+                HYPER TO BE FREE
+              </div>
+
+              <h3 className="mt-2 text-2xl font-black text-[#062a57]">
+                {reportVideoResponse ? "Report Video" : "Report Post"}
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {reportVideoResponse
+                  ? "Reports help keep HTBF safe and send this video response to the admin review queue."
+                  : "Reports help keep HTBF safe and send this story to the admin review queue."}
+              </p>
+
+              <label className="mt-4 block text-sm font-black text-[#062a57]">
+                Why are you reporting this?
+              </label>
+              <select
+                value={reportVideoResponse ? videoReportReason : reportReason}
+                onChange={(event) => {
+                  if (reportVideoResponse) {
+                    setVideoReportReason(event.target.value);
+                    return;
+                  }
+                  setReportReason(event.target.value as ReportReason);
+                }}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              >
+                {(reportVideoResponse
+                  ? VIDEO_RESPONSE_REPORT_REASONS
+                  : reportReasons
+                ).map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+
+              <label className="mt-4 block text-sm font-black text-[#062a57]">
+                Details, optional
+              </label>
+              <textarea
+                value={reportDetails}
+                onChange={(event) => setReportDetails(event.target.value)}
+                rows={4}
+                placeholder="Add any details that may help the moderator..."
+                className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeReportModal}
+                  className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                >
+                  Not Yet
+                </button>
+
+                <button
+                  type="button"
+                  disabled={sendingReport}
+                  aria-busy={sendingReport}
+                  onClick={() => void submitReport()}
+                  className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {sendingReport ? "Submitting..." : "Submit Report"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2758,7 +2899,7 @@ function MiniReelPreviewVideo({ videoUrl }: { videoUrl: string }) {
         if (!video) return;
 
         if (isPlayable) {
-          pauseOtherFreedomFeedPreviewVideos(video);
+          pauseAllFeedPreviewVideos(video);
           void video.play().catch(() => {
             // Keep the static frame if mobile autoplay is delayed.
           });
@@ -3234,7 +3375,7 @@ function FreedomFeedVideoMediaFrame({
         if (!video) return;
 
         if (isPlayable) {
-          pauseOtherFreedomFeedPreviewVideos(video);
+          pauseAllFeedPreviewVideos(video);
           void video.play().catch(() => {
             // Mobile browsers may delay autoplay; keep the poster frame visible.
           });
