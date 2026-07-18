@@ -49,9 +49,14 @@ export default function PrayerExperienceHeader({
         <div className={styles.prayerHeroTopRow}>
           <div className={styles.prayerHeroCopy}>
             <h1 id="prayer-page-title" className={styles.prayerHeroTitle}>
-              Prayer
+              <span className={styles.prayerHeroTitleRow}>
+                <span className={styles.prayerHeroTitlePrimaryWrap}>
+                  <span className={styles.prayerHeroTitlePrimary}>Prayer</span>
+                  <span className={styles.prayerHeroAccent} aria-hidden />
+                </span>
+                <span className={styles.prayerHeroTitleConnect}>Connect</span>
+              </span>
             </h1>
-            <span className={styles.prayerHeroAccent} aria-hidden />
             <p className={styles.prayerHeroSubtitle}>
               Find someone to pray for. Share what you are facing. Pray without
               borders.

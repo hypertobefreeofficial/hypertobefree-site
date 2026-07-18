@@ -15,7 +15,7 @@ test("prayer page loads without authentication", async ({ page }) => {
 
   await expect(
     page
-      .getByRole("heading", { name: "Prayer" })
+      .getByRole("heading", { name: /Prayer Connect/i })
       .or(page.getByText(/Find someone to pray for/i))
       .or(page.getByRole("button", { name: "Discover" }))
       .first()
