@@ -23,6 +23,10 @@ export const PRAYER_RATE_LIMITS = {
   removeVideoResponse: { limit: 30, windowMs: 60 * 60 * 1000 },
   submitReport: { limit: 20, windowMs: 60 * 60 * 1000 },
   moderateResponse: { limit: 60, windowMs: 60 * 60 * 1000 },
+  /** Story/prayer text moderation via OpenAI — per authenticated user. */
+  moderateStory: { limit: 30, windowMs: 60 * 60 * 1000 },
+  /** IP fallback when identity cannot be resolved (should not happen on auth routes). */
+  moderateStoryIp: { limit: 60, windowMs: 60 * 60 * 1000 },
 } as const satisfies Record<string, PrayerRateLimitConfig>;
 
 export function checkPrayerRateLimit(

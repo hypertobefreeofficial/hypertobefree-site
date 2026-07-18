@@ -39,6 +39,7 @@ import {
   sanitizeCustomPrayerType,
 } from "../../lib/prayer-connect/utils";
 import { uploadPrayerPhoto, uploadPrayerVideoWithThumbnail } from "../../lib/prayer-connect/media";
+import { buildModerationAuthHeaders } from "../../lib/client/moderationAuthHeaders";
 import styles from "./PrayerConnect.module.css";
 
 const TOTAL_STEPS = 6;
@@ -436,7 +437,7 @@ export default function PrayerPostComposer({
     try {
       const response = await fetch("/api/moderate-story", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await buildModerationAuthHeaders(),
         body: JSON.stringify({
           story_type: "Prayer Request",
           story_text: text,

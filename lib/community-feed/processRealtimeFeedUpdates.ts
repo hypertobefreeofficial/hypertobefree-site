@@ -9,6 +9,7 @@ import {
   type RealtimeFeedSyncBatch,
   type RealtimeFeedSyncContext,
 } from "./realtimeFeedSync";
+import { patchFeedReactionCountsForStories } from "./patchFeedReactionCounts";
 import { revalidateLoadedFeedEligibility } from "./revalidateLoadedFeed";
 
 export type ProcessRealtimeFeedUpdatesOptions = {
@@ -82,15 +83,23 @@ export async function processRealtimeFeedUpdates(
 
   let nextItems = applyRemovalKeysToLoadedFeed(options.loaded, removalKeys);
 
-  const headSlotCount =
-    COMMUNITY_FEED_PAGE_LIMIT_DEFAULT * Math.max(options.pagesLoaded, 1);
+  const shouldRefreshHead = plan.needsHeadRefresh;
 
-  const shouldRefreshHead =
-    plan.needsHeadRefresh || plan.reactionStoryIds.size > 0;
+  if (plan.reactionStoryIds.size > 0 && !shouldRefreshHead) {
+    nextItems = await patchFeedReactionCountsForStories(
+      nextItems,
+      [...plan.reactionStoryIds],
+      options.viewerUserId ?? null
+    );
+    return { items: nextItems, nextCursor: null };
+  }
 
   if (!shouldRefreshHead) {
     return { items: nextItems, nextCursor: null };
   }
+
+  const headSlotCount =
+    COMMUNITY_FEED_PAGE_LIMIT_DEFAULT * Math.max(options.pagesLoaded, 1);
 
   const aggregated = await loadCommunityFeedItems({
     limit: headSlotCount,
