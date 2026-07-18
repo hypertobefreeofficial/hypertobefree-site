@@ -5,6 +5,7 @@ import {
   isPrayerResponseContext,
   parentHrefForResponseContext,
 } from "../../lib/responses/publicVideoResponseContext";
+import { canManageOtherUserContent } from "../../lib/community-feed/feedOverflowPermissions";
 import CommunityFeedPostShell from "./CommunityFeedPostShell";
 import CommunityFeedPostHeader from "./CommunityFeedPostHeader";
 import { CommunityFeedResponseOverflowMenu } from "./CommunityFeedPostOverflowMenu";
@@ -40,6 +41,11 @@ export default function VideoResponseFeedPost({
       ? parentHrefForResponseContext(item.parentStoryId, item.parentResponseContext)
       : undefined);
 
+  const canManageResponse = canManageOtherUserContent(
+    callbacks.userId,
+    item.user_id
+  );
+
   const header = (
     <CommunityFeedPostHeader
       avatarLabel={(item.name || "H").charAt(0).toUpperCase()}
@@ -54,11 +60,9 @@ export default function VideoResponseFeedPost({
       menuTitle="Video options"
       menu={
         <CommunityFeedResponseOverflowMenu
-          canReport={Boolean(
-            callbacks.userId && item.user_id && item.user_id !== callbacks.userId
-          )}
+          canReport={canManageResponse}
           onReport={() => callbacks.onReportVideoResponse(item)}
-          canBlock={Boolean(item.user_id && item.user_id !== callbacks.userId)}
+          canBlock={canManageResponse}
           blockPending={callbacks.pendingBlockUserId === item.user_id}
           onBlockUser={
             item.user_id

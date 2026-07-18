@@ -93,6 +93,28 @@ test.describe("Feed video report modal", () => {
     await page.getByRole("button", { name: "Submit Report" }).click();
 
     await expect(page.getByRole("dialog", { name: /Report Video/i })).toHaveCount(0);
-    await expect(page.getByText("This video has been reported.")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Your report was submitted. Thank you for helping keep HTBF safe."
+      )
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(
+        "Your report was submitted. Thank you for helping keep HTBF safe."
+      )
+    ).toHaveCount(0, { timeout: 6000 });
+  });
+
+  test("video response overflow includes Block user for another author", async ({
+    page,
+  }) => {
+    await openFixtureFeed(page);
+    await page.getByRole("button", { name: "Load more" }).click();
+    const response = page.locator("#freedom-feed-response-fixture-video-response");
+    await response.scrollIntoViewIfNeeded();
+    await response.getByRole("button", { name: "Post options" }).click();
+    await expect(page.getByRole("menuitem", { name: /Report video/i })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Block user" })).toBeVisible();
   });
 });

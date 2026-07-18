@@ -11,8 +11,11 @@ export function formatBlockedUserConfirmation(displayName: string | null | undef
   return `You blocked ${handle}. Their content will no longer appear for you.`;
 }
 
-export const VIDEO_RESPONSE_REPORT_SUCCESS =
-  "This video has been reported.";
+export const FEED_REPORT_SUCCESS_MESSAGE =
+  "Your report was submitted. Thank you for helping keep HTBF safe.";
+
+/** @deprecated Use FEED_REPORT_SUCCESS_MESSAGE for all Feed report confirmations. */
+export const VIDEO_RESPONSE_REPORT_SUCCESS = FEED_REPORT_SUCCESS_MESSAGE;
 
 export const VIDEO_RESPONSE_REPORT_REASONS = [
   { value: "harassment_bullying", label: "Harassment or bullying" },
