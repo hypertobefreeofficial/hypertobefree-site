@@ -2442,19 +2442,48 @@
 }
 
 .prayerHeroTitle {
+  margin: 0 0 0.15rem;
   font-family: var(--font-creator-elegant-serif, Georgia, serif);
   font-weight: 700;
   font-size: clamp(2.4rem, 5vw, 3.6rem);
   line-height: 0.98;
   letter-spacing: -0.02em;
+}
+
+.prayerHeroTitleRow {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 0.34em;
+  max-width: 100%;
+}
+
+.prayerHeroTitlePrimaryWrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.prayerHeroTitlePrimary {
   color: #072a57;
+}
+
+.prayerHeroTitleConnect {
+  font-family: inherit;
+  font-size: 0.58em;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  color: var(--prayer-blue);
+  white-space: nowrap;
 }
 
 .prayerHeroAccent {
   display: block;
   width: 3.4rem;
   height: 0.28rem;
-  margin: 0.55rem 0 0.6rem;
+  margin: 0.55rem 0 0;
   border-radius: 9999px;
   background: linear-gradient(90deg, var(--prayer-gold), #f0cd86);
 }
@@ -2464,6 +2493,7 @@
   font-size: clamp(0.9rem, 1.4vw, 1.02rem);
   line-height: 1.5;
   font-weight: 500;
+  margin: 0.45rem 0 0;
 }
 
 .prayerHeroActions {
@@ -3378,7 +3408,7 @@
 }
 
 .prayerHeroCompact .prayerHeroAccent {
-  margin: 0.3rem 0 0.35rem;
+  margin: 0.3rem 0 0;
 }
 
 .prayerHeroCompact .prayerHeroSubtitle {
