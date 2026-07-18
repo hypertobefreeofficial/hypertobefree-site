@@ -34,7 +34,20 @@
 
 .image {
   object-fit: cover;
-  object-position: center center;
+  /* Mobile: pan crop toward the right-side subject (girl) without moving overlay UI */
+  object-position: 76% center;
+}
+
+@media (min-width: 431px) and (max-width: 767.98px) {
+  .image {
+    object-position: 68% center;
+  }
+}
+
+@media (min-width: 768px) {
+  .image {
+    object-position: 52% center;
+  }
 }
 
 /* Desktop ambient — 28s, scale 1.015 → 1.025, travel ≤4px */
