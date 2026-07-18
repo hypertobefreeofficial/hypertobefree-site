@@ -6,6 +6,19 @@ Diagnostics switch: `NEXT_PUBLIC_HTBF_LOAD_DIAGNOSTICS=1` or `localStorage.setIt
 
 ---
 
+## 0. Manual Preview regressions (Gate A blockers)
+
+Recorded during manual Preview testing after Phase 1. **Not fixed in Phase 1.**
+
+| Regression | Classification | Impact |
+|------------|----------------|--------|
+| **Feed video autoplay** — videos no longer automatically play when scrolled into view | **Must restore before Gate A capacity certification** | Autoplay changes real media/network workload. A load test with autoplay disabled would understate production media demand. |
+| **God Did It action not working** | **Must fix before merge to main** | Functional regression. Does not block building the load-test harness, but blocks final production merge approval. |
+
+Gate A k6 harness (prepared, not executed) intentionally excludes video file downloads until autoplay is restored and a separate media workload scenario is added.
+
+---
+
 ## 1. `/api/moderate-story` security
 
 | Aspect | Before | After |

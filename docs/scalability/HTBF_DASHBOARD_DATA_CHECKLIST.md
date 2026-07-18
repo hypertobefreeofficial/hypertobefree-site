@@ -108,3 +108,82 @@ Staging environment available (Y/N):
 - Share **metrics and plan names only**
 - Never paste `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, or user passwords
 - Use staging project IDs if distinguishing environments
+
+---
+
+## Gate A capture list (during staging k6 run)
+
+Use this checklist **during** the first Gate A run on confirmed staging. Metrics are **not available from repository code** — collect from dashboards while k6 runs.
+
+### Before the run
+
+- [ ] Step 0 in `HTBF_GATE_A_STAGING_RUNBOOK.md` confirms Preview ≠ Production Supabase
+- [ ] Staging seed users exist (`loadtest_user_*@staging.htbf.test`)
+- [ ] Staging seed content tagged `creation_mode='loadtest'`
+- [ ] `HTBF_LOAD_TEST_ENV=staging` set on load generator
+- [ ] Note start/end timestamps (UTC)
+
+### Vercel (Preview deployment under test)
+
+| Capture | Value |
+|---------|-------|
+| Preview deployment URL | |
+| Function invocations (test window) | |
+| Function p50 / p95 / p99 | |
+| Function error rate | |
+| Top 5 slowest routes | |
+| Function memory peak | |
+| External API duration (if shown) | |
+
+### Supabase (staging project)
+
+| Capture | Value |
+|---------|-------|
+| Compute tier | |
+| Pooler mode | |
+| Active connections (peak) | |
+| Max connections | |
+| CPU (peak / sustained) | |
+| Memory | |
+| Database size | |
+| Slow queries (top 5) | |
+| Realtime connections (peak) | |
+| Realtime messages/sec (peak) | |
+| Storage operations (if shown) | |
+
+### OpenAI (staging key)
+
+| Capture | Value |
+|---------|-------|
+| Requests during test window | |
+| 429 errors | |
+| Spend during test window | |
+
+### Manual watch thresholds (external)
+
+| Signal | Watch for |
+|--------|-----------|
+| DB connections | Below 75% of maximum |
+| Supabase CPU | Preferably below 70% sustained |
+| Lock queue | No growing lock queue |
+| Vercel function 5xx | No repeated spikes |
+| OpenAI spend | No uncontrolled spike |
+| Realtime | No reconnect storm |
+| Storage signing | No error spike |
+
+### k6 result summary
+
+| Metric | Result |
+|--------|--------|
+| Scenario | smoke / 50 / 100 |
+| HTTP failure rate | |
+| Feed p95 | |
+| Prayer p95 | |
+| Search p95 | |
+| Mutation p95 | |
+| Unexpected auth failures | |
+| Pass/fail vs thresholds | |
+
+**Note:** First Gate A run is **not** a complete media-capacity certification while Feed autoplay is broken. See `HTBF_PHASE1_BASELINE.md` §0.
+
+---

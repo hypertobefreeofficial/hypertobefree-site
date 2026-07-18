@@ -1,0 +1,3 @@
+email,password
+loadtest_user_0001@staging.htbf.test,replace-with-staging-password
+loadtest_user_0002@staging.htbf.test,replace-with-staging-password
