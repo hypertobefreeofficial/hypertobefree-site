@@ -77,7 +77,7 @@ export default function CommunityFeedPostOverflowPortal({
     if (!open || !triggerRef.current || isMobileSheet) return;
 
     const rect = triggerRef.current.getBoundingClientRect();
-    const menuHeightEstimate = 160;
+    const menuHeightEstimate = 220;
     const viewportPadding = 12;
     const spaceBelow = window.innerHeight - rect.bottom;
     const openBelow = spaceBelow >= menuHeightEstimate + viewportPadding;

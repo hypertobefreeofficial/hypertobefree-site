@@ -99,9 +99,11 @@ import { submitContentReport } from "../lib/prayer-connect/submitContentReport";
 import {
   formatBlockedUserConfirmation,
   VIDEO_RESPONSE_REPORT_REASONS,
-  VIDEO_RESPONSE_REPORT_SUCCESS,
 } from "../lib/feed/formatFeedSafetyMessages";
+import { FEED_REPORT_SUCCESS_MESSAGE } from "../lib/feed/feedTemporaryNotification";
+import { useFeedTemporaryNotification } from "../lib/feed/useFeedTemporaryNotification";
 import { formatReportModalError } from "../lib/feed/formatReportModalError";
+import FeedTemporaryNotification from "./feed/FeedTemporaryNotification";
 import styles from "./FreedomFeed.module.css";
 
 type ReactionType = "amen" | "praise_god" | "encouraged" | "praying";
@@ -469,6 +471,11 @@ export default function FreedomFeed({
   const [feedLoadError, setFeedLoadError] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [reactionMessage, setReactionMessage] = useState("");
+  const {
+    notification: feedTemporaryNotification,
+    show: showFeedTemporaryNotification,
+    dismiss: dismissFeedTemporaryNotification,
+  } = useFeedTemporaryNotification();
   const [pendingReactionKey, setPendingReactionKey] = useState<string | null>(
     null
   );
@@ -1173,7 +1180,7 @@ export default function FreedomFeed({
     setReactionMessage("");
 
     if (!userId || !story.user_id) {
-      setReactionMessage("Please sign in to block users.");
+      showFeedTemporaryNotification("Please sign in to block users.", "error");
       return;
     }
 
@@ -1192,7 +1199,10 @@ export default function FreedomFeed({
       );
 
       if (error) {
-        setReactionMessage("We couldn't block this user. Please try again.");
+        showFeedTemporaryNotification(
+          "We couldn't block this user. Please try again.",
+          "error"
+        );
         return;
       }
 
@@ -1220,7 +1230,10 @@ export default function FreedomFeed({
         blockedUserIdsRef.current = next;
         setBlockedUserIds(next);
       });
-      setReactionMessage(formatBlockedUserConfirmation(story.name));
+      showFeedTemporaryNotification(
+        formatBlockedUserConfirmation(story.name),
+        "success"
+      );
     } finally {
       setPendingBlockUserId((current) =>
         current === story.user_id ? null : current
@@ -1233,7 +1246,7 @@ export default function FreedomFeed({
     setReactionMessage("");
 
     if (!userId || !targetUserId) {
-      setReactionMessage("Please sign in to block users.");
+      showFeedTemporaryNotification("Please sign in to block users.", "error");
       return;
     }
 
@@ -1260,7 +1273,10 @@ export default function FreedomFeed({
       );
 
       if (error) {
-        setReactionMessage("We couldn't block this user. Please try again.");
+        showFeedTemporaryNotification(
+          "We couldn't block this user. Please try again.",
+          "error"
+        );
         return;
       }
 
@@ -1280,7 +1296,10 @@ export default function FreedomFeed({
         blockedUserIdsRef.current = next;
         setBlockedUserIds(next);
       });
-      setReactionMessage(formatBlockedUserConfirmation(blockedLabel));
+      showFeedTemporaryNotification(
+        formatBlockedUserConfirmation(blockedLabel),
+        "success"
+      );
     } finally {
       setPendingBlockUserId((current) =>
         current === targetUserId ? null : current
@@ -2039,7 +2058,7 @@ export default function FreedomFeed({
 
       closeReportModal();
       setPostOverflowMenuKey(null);
-      setReactionMessage(VIDEO_RESPONSE_REPORT_SUCCESS);
+      showFeedTemporaryNotification(FEED_REPORT_SUCCESS_MESSAGE, "success");
     } finally {
       setSendingReport(false);
     }
@@ -2077,9 +2096,7 @@ export default function FreedomFeed({
       if (error) {
         if (/duplicate|unique/i.test(error.message)) {
           closeReportModal();
-          setReactionMessage(
-            "Your report was submitted. Thank you for helping keep HTBF safe."
-          );
+          showFeedTemporaryNotification(FEED_REPORT_SUCCESS_MESSAGE, "success");
           return;
         }
 
@@ -2088,9 +2105,7 @@ export default function FreedomFeed({
       }
 
       closeReportModal();
-      setReactionMessage(
-        "Your report was submitted. Thank you for helping keep HTBF safe."
-      );
+      showFeedTemporaryNotification(FEED_REPORT_SUCCESS_MESSAGE, "success");
     } finally {
       setSendingReport(false);
     }
@@ -2233,6 +2248,13 @@ export default function FreedomFeed({
             </div>
           )}
         </div>
+
+        {feedTemporaryNotification ? (
+          <FeedTemporaryNotification
+            notification={feedTemporaryNotification}
+            onDismiss={dismissFeedTemporaryNotification}
+          />
+        ) : null}
 
         {reactionMessage ? (
           <div

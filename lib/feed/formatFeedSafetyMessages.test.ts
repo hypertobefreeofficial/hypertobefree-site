@@ -19,7 +19,9 @@ describe("formatBlockedUserConfirmation", () => {
 });
 
 describe("VIDEO_RESPONSE_REPORT_SUCCESS", () => {
-  it("uses the required video report confirmation copy", () => {
-    expect(VIDEO_RESPONSE_REPORT_SUCCESS).toBe("This video has been reported.");
+  it("matches the unified Feed report confirmation copy", () => {
+    expect(VIDEO_RESPONSE_REPORT_SUCCESS).toBe(
+      "Your report was submitted. Thank you for helping keep HTBF safe."
+    );
   });
 });
