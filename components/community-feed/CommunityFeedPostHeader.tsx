@@ -59,6 +59,7 @@ export default function CommunityFeedPostHeader({
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             aria-controls={menuId}
+            data-report-focus-return={dedupeKey}
             onClick={(event) => {
               event.stopPropagation();
               onToggleMenu();

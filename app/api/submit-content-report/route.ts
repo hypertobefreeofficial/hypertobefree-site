@@ -4,6 +4,12 @@ import {
   STORY_VIDEO_BUCKET,
 } from "../../../lib/server/prayerMediaValidation";
 import {
+  isPrayerStoryReportTargetUnavailable,
+  isVideoResponseReport,
+  mergeVideoResponseParentStoryContext,
+  type ContentReportStoryRecord,
+} from "../../../lib/server/contentReportTarget";
+import {
   checkPrayerRateLimit,
   PRAYER_RATE_LIMITS,
   rateLimitKey,
@@ -130,11 +136,14 @@ export async function POST(request: Request) {
     responseId || storyId ? null : reportedUserIdFromClient;
   let contentSnapshot: string | null = null;
   let mediaReference: string | null = null;
+  const reportingVideoResponse = isVideoResponseReport(contentType, responseId);
 
   if (responseId) {
     const { data: responseData, error: responseError } = await adminClient
       .from("prayer_video_responses")
-      .select("id, story_id, user_id, body, video_url, status, removed_at")
+      .select(
+        "id, story_id, user_id, body, video_url, status, removed_at, response_context"
+      )
       .eq("id", responseId)
       .maybeSingle();
 
@@ -151,6 +160,7 @@ export async function POST(request: Request) {
       video_url: string | null;
       status: string | null;
       removed_at: string | null;
+      response_context: string | null;
     } | null;
 
     if (!response || response.removed_at || response.status === "removed") {
@@ -165,6 +175,10 @@ export async function POST(request: Request) {
     resolvedReportedUserId = response.user_id;
     contentSnapshot = response.body?.trim() || null;
     mediaReference = response.video_url ?? null;
+
+    if (response.response_context && !contentSnapshot) {
+      contentSnapshot = `response_context:${response.response_context}`;
+    }
   }
 
   if (resolvedStoryId) {
@@ -176,45 +190,42 @@ export async function POST(request: Request) {
 
     if (storyError) {
       console.error("Report: story load failed:", storyError);
-      return fail("Could not verify the reported prayer.", "target_load_failed", 500);
+      return fail("Could not verify the reported content.", "target_load_failed", 500);
     }
 
-    const story = storyData as {
-      id: string;
-      user_id: string | null;
-      story_text: string | null;
-      video_url: string | null;
-      image_url: string | null;
-      status: string | null;
-      removed_at: string | null;
-      story_type: string | null;
-    } | null;
+    const story = storyData as ContentReportStoryRecord | null;
 
-    const isPrayer =
-      (story?.story_type || "").toLowerCase().includes("prayer") ?? false;
+    if (reportingVideoResponse) {
+      const merged = mergeVideoResponseParentStoryContext({
+        story,
+        contentSnapshot,
+        mediaReference,
+      });
+      resolvedStoryId = merged.resolvedStoryId;
+      contentSnapshot = merged.contentSnapshot;
+      mediaReference = merged.mediaReference;
 
-      if (
-        !story ||
-        story.removed_at ||
-        story.status !== "approved" ||
-        (contentType !== "video_response" && !isPrayer)
-      ) {
-        return fail(
-          contentType === "video_response"
-            ? "This video response is no longer available to report."
-            : "This prayer is no longer available to report.",
-          "target_unavailable",
-          404
+      if (!story) {
+        console.error(
+          "Report: parent story missing for video response",
+          responseId
         );
       }
+    } else if (isPrayerStoryReportTargetUnavailable(story)) {
+      return fail(
+        "This prayer is no longer available to report.",
+        "target_unavailable",
+        404
+      );
+    } else if (story) {
+      resolvedReportedUserId = story.user_id;
 
-    resolvedReportedUserId = story.user_id;
-
-    if (!contentSnapshot) {
-      contentSnapshot = story.story_text?.trim()?.slice(0, 4000) || null;
-    }
-    if (!mediaReference) {
-      mediaReference = story.video_url ?? story.image_url ?? null;
+      if (!contentSnapshot) {
+        contentSnapshot = story.story_text?.trim()?.slice(0, 4000) || null;
+      }
+      if (!mediaReference) {
+        mediaReference = story.video_url ?? story.image_url ?? null;
+      }
     }
   }
 
@@ -248,7 +259,14 @@ export async function POST(request: Request) {
       .is("prayer_video_response_id", null);
   }
 
-  const { data: existingReport } = await duplicateQuery.maybeSingle();
+  const { data: existingReport, error: duplicateError } =
+    await duplicateQuery.maybeSingle();
+  if (duplicateError) {
+    console.error("Report: duplicate probe failed:", duplicateError);
+    if (!/prayer_video_response_id/i.test(duplicateError.message)) {
+      return fail("Could not verify the reported content.", "target_load_failed", 500);
+    }
+  }
   if (existingReport?.id) {
     return Response.json({
       ok: true,
@@ -283,12 +301,17 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
-    // Graceful fallback when optional snapshot columns are not migrated yet.
-    if (/content_type|content_snapshot|media_reference/i.test(insertError.message)) {
+    // Graceful fallback when optional snapshot / response-link columns are not migrated yet.
+    if (
+      /content_type|content_snapshot|media_reference|prayer_video_response_id/i.test(
+        insertError.message
+      )
+    ) {
       const legacyPayload = { ...payload };
       delete legacyPayload.content_type;
       delete legacyPayload.content_snapshot;
       delete legacyPayload.media_reference;
+      delete legacyPayload.prayer_video_response_id;
 
       const { data: legacyInsert, error: legacyError } = await adminClient
         .from("content_reports")
@@ -297,7 +320,12 @@ export async function POST(request: Request) {
         .single();
 
       if (legacyError) {
-        console.error("Report insert failed:", legacyError);
+        console.error("Report insert failed (legacy payload):", {
+          code: legacyError.code,
+          message: legacyError.message,
+          contentType,
+          responseId,
+        });
         return fail(
           "We couldn't submit your report. Please try again.",
           "insert_failed",
@@ -311,7 +339,12 @@ export async function POST(request: Request) {
       });
     }
 
-    console.error("Report insert failed:", insertError);
+    console.error("Report insert failed:", {
+      code: insertError.code,
+      message: insertError.message,
+      contentType,
+      responseId,
+    });
     return fail(
       "We couldn't submit your report. Please try again.",
       "insert_failed",

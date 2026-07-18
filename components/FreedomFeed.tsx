@@ -492,7 +492,9 @@ export default function FreedomFeed({
     useState<ReportReason>("inappropriate");
   const [videoReportReason, setVideoReportReason] = useState("other");
   const [reportDetails, setReportDetails] = useState("");
+  const [reportModalError, setReportModalError] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
+  const reportFocusReturnKeyRef = useRef<string | null>(null);
   const [pendingBlockUserId, setPendingBlockUserId] = useState<string | null>(
     null
   );
@@ -1296,6 +1298,7 @@ export default function FreedomFeed({
 
   function openFeedReport(story: ApprovedStory) {
     setPostOverflowMenuKey(null);
+    reportFocusReturnKeyRef.current = `story:${story.id}`;
 
     if (!userId) {
       setReactionMessage("Please sign in to report a post.");
@@ -1306,10 +1309,12 @@ export default function FreedomFeed({
     setReportStory(story);
     setReportReason("inappropriate");
     setReportDetails("");
+    setReportModalError("");
   }
 
   function openFeedVideoResponseReport(item: FeedVideoResponseDisplay) {
     setPostOverflowMenuKey(null);
+    reportFocusReturnKeyRef.current = item.dedupeKey;
 
     if (!userId) {
       setReactionMessage("Please sign in to report a video.");
@@ -1320,6 +1325,33 @@ export default function FreedomFeed({
     setReportVideoResponse(item);
     setVideoReportReason("other");
     setReportDetails("");
+    setReportModalError("");
+  }
+
+  function restoreReportFocusReturn() {
+    const focusKey = reportFocusReturnKeyRef.current;
+    reportFocusReturnKeyRef.current = null;
+    if (!focusKey) return;
+
+    requestAnimationFrame(() => {
+      const trigger = document.querySelector(
+        `[data-report-focus-return="${CSS.escape(focusKey)}"]`
+      );
+      if (trigger instanceof HTMLElement) {
+        trigger.focus();
+      }
+    });
+  }
+
+  function closeReportModal() {
+    setReportStory(null);
+    setReportVideoResponse(null);
+    setReportReason("inappropriate");
+    setVideoReportReason("other");
+    setReportDetails("");
+    setReportModalError("");
+    setSendingReport(false);
+    restoreReportFocusReturn();
   }
 
   async function hideFeedItem(item: FeedDisplayItem) {
@@ -1375,6 +1407,28 @@ export default function FreedomFeed({
     reportStory,
     reportVideoResponse,
   ]);
+
+  useEffect(() => {
+    if (!reportStory && !reportVideoResponse) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !sendingReport) {
+        event.preventDefault();
+        closeReportModal();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+    // closeReportModal is stable enough for modal lifecycle cleanup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportStory, reportVideoResponse, sendingReport]);
 
   async function toggleReaction(storyId: string, reactionType: ReactionType) {
     setReactionMessage("");
@@ -1940,24 +1994,16 @@ export default function FreedomFeed({
     setPhotoViewerMessage("");
   }
 
-  function closeReportModal() {
-    setReportStory(null);
-    setReportVideoResponse(null);
-    setReportReason("inappropriate");
-    setVideoReportReason("other");
-    setReportDetails("");
-    setSendingReport(false);
-  }
-
   async function submitVideoResponseReport() {
     if (!userId || !reportVideoResponse) {
-      setReactionMessage("Please sign in to report a video.");
+      setReportModalError("Please sign in to report a video.");
       return;
     }
 
     if (sendingReport) return;
 
     setSendingReport(true);
+    setReportModalError("");
     setReactionMessage("");
 
     try {
@@ -1967,7 +2013,7 @@ export default function FreedomFeed({
       const accessToken = session?.access_token;
 
       if (!accessToken) {
-        setReactionMessage("Please sign in to report a video.");
+        setReportModalError("Please sign in to report a video.");
         return;
       }
 
@@ -1981,11 +2027,14 @@ export default function FreedomFeed({
       });
 
       if (result.ok !== true) {
-        setReactionMessage("We couldn't submit your report. Please try again.");
+        setReportModalError(
+          result.error || "We couldn't submit your report. Please try again."
+        );
         return;
       }
 
       closeReportModal();
+      setPostOverflowMenuKey(null);
       setReactionMessage(VIDEO_RESPONSE_REPORT_SUCCESS);
     } finally {
       setSendingReport(false);
@@ -1999,13 +2048,14 @@ export default function FreedomFeed({
     }
 
     if (!userId || !reportStory) {
-      setReactionMessage("Please sign in to report a post.");
+      setReportModalError("Please sign in to report a post.");
       return;
     }
 
     if (sendingReport) return;
 
     setSendingReport(true);
+    setReportModalError("");
     setReactionMessage("");
 
     const cleanDetails = reportDetails.trim();
@@ -2029,7 +2079,7 @@ export default function FreedomFeed({
           return;
         }
 
-        setReactionMessage("We couldn't submit your report. Please try again.");
+        setReportModalError("We couldn't submit your report. Please try again.");
         return;
       }
 
@@ -2590,13 +2640,25 @@ export default function FreedomFeed({
         )}
 
         {(reportStory || reportVideoResponse) && (
-          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4">
-            <div className="w-full max-w-lg rounded-[1.5rem] bg-white p-5 text-slate-900 shadow-2xl">
+          <div
+            className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4"
+            onClick={sendingReport ? undefined : closeReportModal}
+          >
+            <div
+              className="w-full max-w-lg rounded-[1.5rem] bg-white p-5 text-slate-900 shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="feed-report-modal-title"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="text-xs font-black uppercase tracking-[0.18em] text-[#0b63ce]">
                 HYPER TO BE FREE
               </div>
 
-              <h3 className="mt-2 text-2xl font-black text-[#062a57]">
+              <h3
+                id="feed-report-modal-title"
+                className="mt-2 text-2xl font-black text-[#062a57]"
+              >
                 {reportVideoResponse ? "Report Video" : "Report Post"}
               </h3>
 
@@ -2641,13 +2703,23 @@ export default function FreedomFeed({
                 className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-50"
               />
 
+              {reportModalError ? (
+                <p
+                  className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+                  role="alert"
+                >
+                  {reportModalError}
+                </p>
+              ) : null}
+
               <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={closeReportModal}
-                  className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
+                  disabled={sendingReport}
+                  className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Not Yet
+                  Cancel
                 </button>
 
                 <button
@@ -2657,7 +2729,7 @@ export default function FreedomFeed({
                   onClick={() => void submitReport()}
                   className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {sendingReport ? "Submitting..." : "Submit Report"}
+                  {sendingReport ? "Submitting…" : "Submit Report"}
                 </button>
               </div>
             </div>

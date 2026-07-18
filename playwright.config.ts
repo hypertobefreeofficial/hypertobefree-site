@@ -55,6 +55,11 @@ export default defineConfig({
       testMatch: /video-feed-response\.spec\.ts/,
     },
     {
+      name: "feed-video-report-modal",
+      testDir: "./tests/feed",
+      testMatch: /video-report-modal\.spec\.ts/,
+    },
+    {
       name: "feed-shell-production",
       testDir: "./tests/feed",
       testMatch: /shell-production\.spec\.ts/,
