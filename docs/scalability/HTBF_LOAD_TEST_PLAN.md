@@ -1,7 +1,26 @@
-# HTBF Staging Load-Test Plan (Design Only)
+# HTBF Staging Load-Test Plan
 
-**Status:** Not executed. Do not run against production.
-**Tool:** k6 (design stage — no scripts created in this audit)
+**Status:** Harness prepared — local 10-user smoke not yet executed. Do not run against production.
+**Tool:** k6 (scripts under `load-tests/k6/`)
+
+---
+
+## Active Gate A architecture (current policy)
+
+```
+k6 on owner's Mac
+  → HTBF production build at http://127.0.0.1:3100
+  → isolated Supabase htbf-staging branch
+```
+
+| Setting | Value |
+|---------|-------|
+| `HTBF_LOAD_TEST_ENV` | `local-staging` |
+| `HTBF_BASE_URL` | `http://127.0.0.1:3100` |
+
+- **Vercel Preview:** manual functional testing only — **no k6**.
+- **Hosted load testing:** disabled unless separately authorized.
+- **Local Gate A** measures HTBF code and Supabase staging only; it does **not** certify Vercel or production capacity.
 
 ---
 
@@ -18,13 +37,14 @@
 
 | Requirement | Notes |
 |-------------|-------|
-| **Staging Supabase project** | Separate from production; same schema/migrations applied |
-| **Staging Vercel deployment** | Matching production build; staging env vars |
-| **Test users** | Pre-seeded auth users (e.g. 1,200 accounts); never production users |
-| **Test content** | Synthetic stories/prayers/responses with fixture media |
-| **OpenAI** | Separate key with hard spend cap; mock endpoint optional for smoke |
-| **Observability** | Dashboards open during test (see checklist doc) |
-| **Load generator** | k6 runners outside Vercel (CI VM or dedicated load box) |
+| **htbf-staging Supabase branch** | Separate from production; use generated project reference |
+| **Local production build** | `next build` + `next start` on `127.0.0.1:3100` via `start-local-staging.mjs` |
+| **Vercel Preview** | Manual functional testing only — not a k6 target |
+| **Test users** | 10 synthetic users for smoke (`loadtest_user_*@staging.htbf.test`); scale up for future gates |
+| **Test content** | Synthetic stories tagged `creation_mode='loadtest'` |
+| **OpenAI** | Not called during read-only smoke |
+| **Observability** | Supabase htbf-staging dashboards + k6 output; Vercel N/A for local runs |
+| **Load generator** | k6 on owner's Mac only |
 
 ---
 
@@ -65,17 +85,17 @@
 
 ## k6 stages (ramp design)
 
-| Stage | Name | VUs | Duration | Purpose |
-|-------|------|-----|----------|---------|
-| 0 | Smoke | 10 | 5 min | Script validation, auth flow |
-| 1 | Baseline | 50 | 15 min | Establish p95 baseline |
-| 2 | Growth A | 100 | 20 min | Gate A candidate |
-| 3 | Growth B | 250 | 25 min | Gate B candidate |
-| 4 | Growth C | 500 | 30 min | Gate C candidate |
-| 5 | Stress | 1,000 | 20 min | Gate D candidate |
-| 6 | Soak | 250 | 60 min | Memory leak / connection drift |
+| Stage | Name | VUs | Duration | Status |
+|-------|------|-----|----------|--------|
+| 0 | Smoke | 10 | 5 min | **Active** — local read-only (`smoke-10.js`) |
+| 1 | Baseline | 50 | 15 min | **Inactive** — `baseline-50.js` disabled until smoke passes |
+| 2 | Growth A | 100 | 20 min | **Inactive** — `gate-a-100.js` disabled until smoke passes |
+| 3 | Growth B | 250 | 25 min | Future — requires hosted authorization |
+| 4 | Growth C | 500 | 30 min | Future — requires hosted authorization |
+| 5 | Stress | 1,000 | 20 min | Future — requires hosted authorization |
+| 6 | Soak | 250 | 60 min | Future — requires hosted authorization |
 
-**Ramp:** Linear ramp-up 2 min per stage entry; 5 min cool-down between major stages.
+**Ramp:** Linear ramp-up 2 min per stage entry; 5 min cool-down between major stages (inactive scenarios preserved for future use).
 
 ---
 
@@ -106,7 +126,7 @@
 
 ---
 
-## Scenarios (k6 outline — not implemented)
+## Scenarios (k6 — implemented under load-tests/k6/scenarios/)
 
 ### S1 — Feed browse
 
@@ -147,27 +167,29 @@
 Collect simultaneously:
 
 - k6: `http_req_duration`, `http_req_failed`, custom Supabase metrics
-- Vercel: function duration, invocations, errors
-- Supabase: connections, CPU, IO, Realtime messages, slow queries
-- OpenAI: request count and errors (staging key)
-- Storage: operation count and egress
+- Local Next.js: server stdout errors during run
+- Supabase htbf-staging: connections, CPU, IO, Realtime messages, slow queries
+- OpenAI: should remain zero during read-only smoke
+- Storage: operation count (metadata-only smoke; no video downloads)
+
+**Not applicable to local Gate A:** Vercel function duration, invocations, CDN egress.
 
 ---
 
 ## Certification gates (roadmap)
 
-### Gate A — 100 concurrent users
+### Gate A — 100 concurrent users (future; inactive locally)
 
 | Category | Prerequisite |
 |----------|--------------|
-| Infrastructure | Staging Supabase Pro+ with pooler; Vercel Pro; Realtime enabled |
-| Code | None blocking for smoke; document baseline metrics |
-| Security | Staging keys only; moderate-story auth fix recommended |
-| Test | Stage 2 (100 VU) 20 min + 10 VU smoke |
-| Pass | All Gate A thresholds |
-| Monitoring | Manual dashboard watch |
-| Rollback | Stop k6; no prod impact |
-| Engineering | **Small** (harness + fixtures) |
+| Infrastructure | htbf-staging Supabase; local build for smoke; hosted cert requires Vercel authorization |
+| Code | 10-user local smoke must pass first |
+| Security | htbf-staging keys only; never production |
+| Test | Stage 0 (10 VU local smoke) first; Stage 2 (100 VU) inactive until authorized |
+| Pass | Local smoke thresholds; hosted thresholds TBD |
+| Monitoring | Supabase htbf-staging dashboards |
+| Rollback | Stop k6; cleanup marked data |
+| Engineering | **Small** (harness + fixtures — done) |
 
 ### Gate B — 250 concurrent users
 
@@ -213,8 +235,12 @@ Collect simultaneously:
 
 ---
 
-## Next deliverable (after audit approval)
+## Deliverables (current)
 
-1. `loadtests/k6/` scripts per scenario above
-2. Staging seed/cleanup Node scripts
-3. GitHub Actions manual workflow (`workflow_dispatch`) targeting staging only
+1. `load-tests/k6/` scripts — smoke active; baseline/gate-a inactive
+2. `load-tests/scripts/` — seed, cleanup, local server, smoke orchestrator
+3. GitHub Actions workflow — **not created** (local-only policy)
+
+## Limitations
+
+**Local Gate A tests HTBF code and Supabase staging only. It does not certify Vercel or production concurrency capacity.**

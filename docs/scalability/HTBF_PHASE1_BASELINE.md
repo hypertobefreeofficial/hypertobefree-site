@@ -15,7 +15,7 @@ Recorded during manual Preview testing after Phase 1. **Not fixed in Phase 1.**
 | **Feed video autoplay** — videos no longer automatically play when scrolled into view | **Must restore before Gate A capacity certification** | Autoplay changes real media/network workload. A load test with autoplay disabled would understate production media demand. |
 | **God Did It action not working** | **Must fix before merge to main** | Functional regression. Does not block building the load-test harness, but blocks final production merge approval. |
 
-Gate A k6 harness (prepared, not executed) intentionally excludes video file downloads until autoplay is restored and a separate media workload scenario is added.
+Gate A k6 harness (prepared, not executed) targets a **local production build** on `http://127.0.0.1:3100` connected to the **htbf-staging** Supabase branch only. Vercel Preview is for manual functional testing; automated k6 traffic does not target Vercel. Local Gate A does not certify Vercel or production concurrency capacity. The harness intentionally excludes video file downloads until autoplay is restored.
 
 ---
 
@@ -161,9 +161,11 @@ Verification: `supabase/scalability/verify-scalability-indexes.sql`
 | Distributed rate limit + idempotency | **Required before certification** |
 | Staging dashboard metrics | **Still required** |
 | EXPLAIN ANALYZE on hot queries | **Still required** |
-| k6 / Gate A load tests | **Not run** |
+| k6 / Gate A load tests | **Harness built; 10-user local smoke not run** |
+| Local Gate A architecture | k6 → `127.0.0.1:3100` → htbf-staging |
+| Vercel-hosted k6 | **Disabled** (Hobby plan / policy) |
 
-**Verdict:** HTBF is **ready to build** the 10/50/100-user staging harness, but **not ready to certify** 500–1k concurrent users.
+**Verdict:** HTBF is **ready to run** the 10-user local smoke against htbf-staging, but **not ready to certify** hosted or 500–1k concurrent users.
 
 ---
 
@@ -171,7 +173,7 @@ Verification: `supabase/scalability/verify-scalability-indexes.sql`
 
 1. Apply and validate index migration on staging with `EXPLAIN ANALYZE`.
 2. Wire dashboard metrics (p95 loader duration, DB connections, storage sign rate, OpenAI spend).
-3. Run Gate A k6 scenarios from `HTBF_LOAD_TEST_PLAN.md`.
+3. Run local Gate A 10-user smoke (`node load-tests/scripts/run-smoke-10.mjs`) per `HTBF_LOAD_TEST_PLAN.md`. Baseline-50 and gate-a-100 remain inactive until smoke passes.
 4. Replace in-memory moderate-story rate limit and idempotency with distributed stores if multi-instance staging proves bypass.
 5. Optional: split Prayer map-marker query from full card enrichment.
 6. Optional: dedupe video-feed storage signing with `StorageSignSession`.

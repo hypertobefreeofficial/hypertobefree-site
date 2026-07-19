@@ -54,11 +54,18 @@ export const workloadMix = {
   adminModeration: 0.02,
 };
 
-// Copy to your shell before running (example only — no real credentials):
-// export HTBF_LOAD_TEST_ENV=staging
-// export HTBF_BASE_URL=https://your-preview.vercel.app
-// export HTBF_SUPABASE_URL=https://your-staging-project.supabase.co
-// export HTBF_SUPABASE_ANON_KEY=your-staging-anon-key
-// export HTBF_TEST_USER_POOL_FILE=./load-tests/k6/fixtures/users.pool.example.csv
+// Active local Gate A settings (example only — no real credentials):
+// export HTBF_LOAD_TEST_ENV=local-staging
+// export HTBF_BASE_URL=http://127.0.0.1:3100
+// export HTBF_STAGING_PROJECT_REF=ACTUAL_STAGING_PROJECT_REF
+// export HTBF_SUPABASE_URL=https://ACTUAL_STAGING_PROJECT_REF.supabase.co
+// export HTBF_TEST_USER_POOL_FILE=./load-tests/k6/fixtures/users.pool.local.csv
 // export HTBF_ALLOW_MUTATIONS=0
 // export HTBF_ABORT_ON_ERROR=1
+//
+// INACTIVE scenarios (disabled until 10-user local smoke passes):
+// baseline-50.js — 50 VUs
+// gate-a-100.js — 100 VUs
+//
+// DISABLED — no k6 against Vercel, production, or HTBF_LOAD_TEST_ENV=staging:
+// export HTBF_BASE_URL=https://your-preview.vercel.app

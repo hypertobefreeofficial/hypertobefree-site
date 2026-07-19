@@ -1,6 +1,6 @@
 import { sleep } from "k6";
 import { scenarioProfiles } from "../config.example.js";
-import { assertAllRuntimeGuards } from "../helpers/env.js";
+import { assertAllRuntimeGuards, assertHostedScenarioAllowed } from "../helpers/env.js";
 import { resolveSessionForVu } from "../helpers/auth.js";
 import { abortOnHighErrorRate } from "../helpers/http.js";
 import { runReadOnlyMix } from "./read-only-browse.js";
@@ -18,6 +18,7 @@ export const options = {
 };
 
 export function setup() {
+  assertHostedScenarioAllowed();
   return assertAllRuntimeGuards({ requireMutations: false });
 }
 

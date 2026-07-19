@@ -3,15 +3,32 @@ const PRODUCTION_HOST_PATTERNS = [
   "www.hypertobefree.com",
 ];
 
+const VERCEL_HOST_PATTERN = /\.vercel\.app$/i;
+const LOCAL_STAGING_HOSTS = new Set(["127.0.0.1", "localhost"]);
+const LOCAL_STAGING_DEFAULT_PORT = 3100;
+const ALLOWED_LOAD_TEST_ENV = "local-staging";
+
 export const LOAD_TEST_MARKER = "htbf_loadtest";
 export const LOAD_TEST_CREATION_MODE = "loadtest";
 
-export function requireStagingEnvironment() {
-  if (__ENV.HTBF_LOAD_TEST_ENV !== "staging") {
+const HOSTED_SCENARIO_DISABLED_MESSAGE =
+  "DISABLED: This scenario targets hosted infrastructure. Vercel-hosted k6 load tests are not permitted on the Hobby plan. Use local-staging smoke-10 against a local production build on 127.0.0.1:3100.";
+
+export function assertHostedScenarioAllowed() {
+  throw new Error(HOSTED_SCENARIO_DISABLED_MESSAGE);
+}
+
+export function requireLoadTestEnvironment() {
+  if (__ENV.HTBF_LOAD_TEST_ENV !== ALLOWED_LOAD_TEST_ENV) {
     throw new Error(
-      'Refusing to run: set HTBF_LOAD_TEST_ENV=staging exactly.'
+      `Refusing to run: set HTBF_LOAD_TEST_ENV=${ALLOWED_LOAD_TEST_ENV} exactly.`
     );
   }
+}
+
+function parsePort(url) {
+  if (url.port) return Number.parseInt(url.port, 10);
+  return url.protocol === "https:" ? 443 : 80;
 }
 
 export function requireBaseUrl() {
@@ -20,12 +37,14 @@ export function requireBaseUrl() {
     throw new Error("Refusing to run: HTBF_BASE_URL is required.");
   }
 
-  let hostname = "";
+  let url;
   try {
-    hostname = new URL(baseUrl).hostname.toLowerCase();
+    url = new URL(baseUrl);
   } catch {
     throw new Error("Refusing to run: HTBF_BASE_URL must be a valid URL.");
   }
+
+  const hostname = url.hostname.toLowerCase();
 
   for (const pattern of PRODUCTION_HOST_PATTERNS) {
     if (hostname === pattern || hostname.endsWith(`.${pattern}`)) {
@@ -35,9 +54,30 @@ export function requireBaseUrl() {
     }
   }
 
-  if (!hostname.includes("vercel.app") && !hostname.includes("localhost")) {
-    console.warn(
-      `Warning: HTBF_BASE_URL hostname "${hostname}" is not a known staging pattern. Verify manually before running.`
+  if (VERCEL_HOST_PATTERN.test(hostname)) {
+    throw new Error(
+      `Refusing to run: HTBF_BASE_URL hostname "${hostname}" is a Vercel deployment.`
+    );
+  }
+
+  if (!LOCAL_STAGING_HOSTS.has(hostname)) {
+    throw new Error(
+      `Refusing to run: HTBF_BASE_URL must target 127.0.0.1 or localhost for local-staging mode.`
+    );
+  }
+
+  const configuredPort = Number.parseInt(
+    (__ENV.HTBF_LOCAL_TEST_PORT || `${LOCAL_STAGING_DEFAULT_PORT}`).trim(),
+    10
+  );
+  const effectivePort = parsePort(url);
+
+  if (
+    effectivePort !== configuredPort &&
+    __ENV.HTBF_ALLOW_ALT_LOCAL_PORT !== "1"
+  ) {
+    throw new Error(
+      `Refusing to run: HTBF_BASE_URL must use port ${configuredPort}.`
     );
   }
 
@@ -61,7 +101,30 @@ export function requireSupabaseConfig() {
     throw new Error("Refusing to run: HTBF_SUPABASE_URL must be a valid URL.");
   }
 
-  return { supabaseUrl, anonKey, projectRef: hostname.split(".")[0] };
+  if (!hostname.endsWith(".supabase.co")) {
+    throw new Error("Refusing to run: HTBF_SUPABASE_URL must be a Supabase URL.");
+  }
+
+  const projectRef = (__ENV.HTBF_STAGING_PROJECT_REF || "").trim();
+  if (!projectRef) {
+    throw new Error(
+      "Refusing to run: HTBF_STAGING_PROJECT_REF must be set to the generated Supabase project reference."
+    );
+  }
+
+  if (projectRef === "htbf-staging") {
+    throw new Error(
+      'Refusing to run: HTBF_STAGING_PROJECT_REF must not be the branch display name "htbf-staging".'
+    );
+  }
+
+  if (hostname !== `${projectRef}.supabase.co`) {
+    throw new Error(
+      `Refusing to run: HTBF_SUPABASE_URL must exactly match ${projectRef}.supabase.co.`
+    );
+  }
+
+  return { supabaseUrl, anonKey, projectRef };
 }
 
 export function requireTestUsers() {
@@ -100,7 +163,7 @@ export function openAiCallsEnabled() {
 }
 
 export function assertAllRuntimeGuards(options = {}) {
-  requireStagingEnvironment();
+  requireLoadTestEnvironment();
   const baseUrl = requireBaseUrl();
   const supabase = requireSupabaseConfig();
   const users = requireTestUsers();
@@ -110,4 +173,9 @@ export function assertAllRuntimeGuards(options = {}) {
   }
 
   return { baseUrl, supabase, users };
+}
+
+/** @deprecated */
+export function requireStagingEnvironment() {
+  requireLoadTestEnvironment();
 }

@@ -6,48 +6,72 @@ This runbook supports Gate A preparation on branch `feat/scalability-phase-1`. I
 
 ---
 
-## Step 0 — Confirm Preview uses staging Supabase (mandatory)
+## Policy — load testing boundary
 
-The repository **does not contain** Vercel Preview environment values. Confirm manually before any SQL or k6 work.
+| Target | Permitted use |
+|--------|---------------|
+| **Local production build** (`http://127.0.0.1:3100`) | **Active Gate A k6 smoke** (10 VUs, read-only) |
+| **Supabase htbf-staging branch** | Backend for local build and k6 REST reads |
+| **Vercel Preview** | **Manual functional testing only** — no k6 |
+| **Vercel / production hosted URLs** | **Disabled** for automated load traffic unless separately authorized |
 
-### In Vercel
+**Local Gate A tests HTBF code and Supabase staging only. It does not certify Vercel or production concurrency capacity.**
+
+### Active architecture
+
+```
+k6 on owner's Mac
+  → HTBF production build at http://127.0.0.1:3100
+  → isolated Supabase htbf-staging branch
+```
+
+Active settings: `HTBF_LOAD_TEST_ENV=local-staging`, `HTBF_BASE_URL=http://127.0.0.1:3100`
+
+See `load-tests/k6/README.md` for harness details.
+
+---
+
+## Step 0 — Confirm staging isolation (mandatory)
+
+The repository **does not contain** live Supabase credentials. Confirm manually before any SQL or k6 work.
+
+### In Vercel (manual functional testing only)
 
 1. Open the HTBF Vercel project.
 2. Go to **Settings → Environment Variables**.
-3. Compare **Preview** vs **Production** for:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-4. Record only safe identifiers:
-   - Supabase hostname (e.g. `abcdefgh.supabase.co`)
-   - Project reference (subdomain before `.supabase.co`)
-   - Whether Preview and Production references **match**
+3. Compare **Preview** vs **Production** for `NEXT_PUBLIC_SUPABASE_URL`.
+4. Record only safe identifiers (hostname, project ref, whether Preview and Production match).
+
+### In Supabase
+
+1. Open the **htbf-staging** branch dashboard.
+2. Record the **generated project reference** (hostname prefix before `.supabase.co`).
+3. Confirm it is **not** the production project reference.
 
 ### Safe recording template
 
 ```
-Preview deployment URL:
-Preview NEXT_PUBLIC_SUPABASE_URL hostname:
-Preview Supabase project ref:
-Production NEXT_PUBLIC_SUPABASE_URL hostname:
+htbf-staging Supabase project ref (generated):
 Production Supabase project ref:
 Preview and Production match? (yes/no):
-Confirmed staging-only for Gate A? (yes/no):
+Local Gate A uses htbf-staging only? (yes/no):
 ```
 
 ### Critical rule
 
 | Condition | Action |
 |-----------|--------|
-| Preview and Production Supabase refs **match** | **STOP.** Do not apply indexes. Do not run k6 against Preview. |
-| Preview uses a **separate staging** Supabase project | Proceed with Steps A–E on **staging only** |
-| Cannot confirm | **STOP** until Vercel owner verifies |
+| htbf-staging and production refs **match** | **STOP.** Do not seed, load test, or apply indexes until isolation is confirmed. |
+| htbf-staging is a **separate branch/project** | Proceed with Steps A–G on **staging only** |
+| Cannot confirm | **STOP** until owner verifies |
 
-Local `.env.local` in this workspace currently contains **no** `NEXT_PUBLIC_SUPABASE_URL`; local env cannot be used to infer Preview configuration.
+**Do not run k6 against Vercel Preview** under the current Hobby plan.
 
 ---
 
 ## Step A — Verify before migration
 
-**Where:** Supabase **staging** project → SQL Editor
+**Where:** Supabase **htbf-staging** → SQL Editor
 
 **Run:** entire contents of `supabase/scalability/verify-scalability-indexes.sql`
 
@@ -67,7 +91,7 @@ Local `.env.local` in this workspace currently contains **no** `NEXT_PUBLIC_SUPA
 
 ## Step B — Read-only baseline
 
-**Where:** Supabase **staging** project → SQL Editor
+**Where:** Supabase **htbf-staging** → SQL Editor
 
 **Run:** entire contents of `supabase/scalability/read-only-diagnostics.sql`
 
@@ -93,13 +117,13 @@ Export or screenshot results. Label with date/time and project ref.
 
 **Only after Step 0 confirms a separate staging project.**
 
-**Where:** Supabase **staging** project → SQL Editor
+**Where:** Supabase **htbf-staging** → SQL Editor
 
 **Run:** entire contents of `supabase/migrations/20260724_scalability_indexes.sql`
 
 ### Safety checklist
 
-- [ ] This is the **staging** project, not production
+- [ ] This is the **htbf-staging** project, not production
 - [ ] Step A column verification passed
 - [ ] Owner has screenshots/export ready
 - [ ] Maintenance window acceptable if tables are large
@@ -117,7 +141,7 @@ Standard `CREATE INDEX` can lock writes on large tables. For production-sized da
 
 ## Step D — Verify after migration
 
-**Where:** Supabase **staging** project → SQL Editor
+**Where:** Supabase **htbf-staging** → SQL Editor
 
 **Run:** `supabase/scalability/verify-scalability-indexes.sql` again
 
@@ -135,9 +159,11 @@ Standard `CREATE INDEX` can lock writes on large tables. For production-sized da
 
 ---
 
-## Step E — Functional regression check after indexes
+## Step E — Functional regression check
 
-Retest on **staging Preview** (manual):
+### Manual — Vercel Preview (optional)
+
+Use Preview for **manual** functional checks only (not k6):
 
 | Area | Pass/Fail | Notes |
 |------|-----------|-------|
@@ -149,6 +175,10 @@ Retest on **staging Preview** (manual):
 | Report and Block | | |
 | Public video responses | | |
 
+### Local — before k6 smoke
+
+After starting the local production build (`start-local-staging.mjs`), confirm `/feed` responds on `http://127.0.0.1:3100`.
+
 ### Known regressions (do not blame indexes without evidence)
 
 | Issue | Classification | Gate A impact |
@@ -156,57 +186,55 @@ Retest on **staging Preview** (manual):
 | Feed videos not autoplaying on scroll | **Must restore before Gate A media certification** | Load test without autoplay understates media/network demand |
 | God Did It action not working | **Must fix before merge to main** | Does not block building harness; blocks production merge approval |
 
-Do not claim indexes caused or fixed these unless evidence proves it.
-
 ---
 
-## Step F — Gate A metrics capture (during future k6 run)
+## Step F — Gate A metrics capture (during local k6 smoke)
 
 Use `docs/scalability/HTBF_DASHBOARD_DATA_CHECKLIST.md` Gate A section.
 
-Collect simultaneously from k6 output and dashboards:
+Collect from k6 output and **Supabase htbf-staging** dashboards:
 
-### Vercel (Preview deployment under test)
+### Local application (127.0.0.1:3100)
 
-- Preview deployment URL
-- Function invocation count
-- Function p50 / p95 / p99
-- Error rate
-- Highest-latency routes
-- Function memory
-- External API duration
+- Total requests, failure rate, p50/p95/p99
+- Feed, Prayer, Search p95
+- Local Next.js server errors (stdout)
+- Mac CPU/memory (optional, Activity Monitor)
 
-### Supabase (staging project)
+### Supabase (htbf-staging)
 
 - Compute tier
 - Pooler mode
 - Active / max DB connections
-- CPU
-- Memory
-- Database size
+- CPU, memory, database size
 - Slow queries
 - Realtime connections / messages
 - Storage operation volume
 
+### Not applicable to local Gate A
+
+- Vercel function invocations, CDN, hosted concurrency (local build bypasses Vercel infrastructure)
+
 ### OpenAI (staging key only)
 
-- Requests during test window
-- 429 errors
-- Spend during test window
+- Should remain **zero** during read-only smoke
 
 ---
 
-## Step G — k6 harness (prepare only in this phase)
+## Step G — Local k6 harness
 
-Files live under `load-tests/k6/`.
+Files live under `load-tests/k6/` and `load-tests/scripts/`.
 
-**Do not run** until:
+**Workflow (owner):**
 
-1. Step 0 confirms staging isolation
-2. Staging seed users and load-test content exist
-3. Feed autoplay restoration is planned for media-capacity certification
+1. Copy `.env.staging.local.example` → `.env.staging.local` (gitignored)
+2. `node load-tests/scripts/start-local-staging.mjs`
+3. `node load-tests/scripts/seed-gate-a-staging.mjs`
+4. `node load-tests/scripts/run-smoke-10.mjs`
 
-See `load-tests/k6/README.md` for environment variables and guards.
+**Do not run** until Step 0 confirms staging isolation.
+
+**Inactive until 10-user smoke passes:** `baseline-50.js`, `gate-a-100.js` (hosted scenarios disabled by policy).
 
 ---
 
@@ -215,6 +243,7 @@ See `load-tests/k6/README.md` for environment variables and guards.
 Gate A tooling may be prepared, but Gate A **must not be certified** until:
 
 1. Video autoplay is restored and media workload is included or separately measured
-2. Test runs against a **confirmed separate staging** environment
-3. Thresholds in `load-tests/k6/config.example.js` pass on staging
+2. Local 10-user read-only smoke passes against htbf-staging
+3. Thresholds in `load-tests/k6/config.example.js` pass locally
 4. God Did It functional regression is fixed before main merge approval
+5. Hosted end-to-end capacity certification requires written Vercel approval or an eligible Vercel plan
