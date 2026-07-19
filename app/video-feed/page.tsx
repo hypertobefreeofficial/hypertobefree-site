@@ -46,6 +46,7 @@ import {
   FEED_MEDIA_EL_CLASS,
 } from "../../lib/feedMediaClasses";
 import { supabase } from "../../lib/supabaseClient";
+import { patchVideoFeedReactionCountsForStory } from "../../lib/video-feed/patchVideoFeedReactionCounts";
 import PostResponseFlow from "../../components/responses/PostResponseFlow";
 import { buildResponseSourceContext } from "../../lib/responses/responseContext";
 import type { FeedStoryDisplay } from "../../lib/community-feed/enrichFeedItems";
@@ -662,6 +663,8 @@ export function VideoFeedExperience({
   const activeStoryHapticRef = useRef<string | null>(null);
   const exitGuardInstalledRef = useRef(false);
   const exitingVideoRef = useRef(false);
+  const storiesRef = useRef<VideoStory[]>([]);
+  const videoFeedReloadTimerRef = useRef<number | null>(null);
 
   const [checkingUser, setCheckingUser] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -781,8 +784,59 @@ export function VideoFeedExperience({
   }, [viewingMode]);
 
   useEffect(() => {
+    storiesRef.current = stories;
+  }, [stories]);
+
+  useEffect(() => {
     let currentUserId: string | null = null;
     let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    function scheduleFullVideoFeedReload() {
+      if (videoFeedReloadTimerRef.current) {
+        window.clearTimeout(videoFeedReloadTimerRef.current);
+      }
+      videoFeedReloadTimerRef.current = window.setTimeout(() => {
+        void loadVideoStories(currentUserId);
+      }, 450);
+    }
+
+    function reactionStoryIdFromPayload(payload: {
+      new?: Record<string, unknown> | null;
+      old?: Record<string, unknown> | null;
+    }) {
+      const record = payload.new ?? payload.old;
+      return typeof record?.story_id === "string" ? record.story_id : null;
+    }
+
+    async function handleReactionRealtime(payload: {
+      new?: Record<string, unknown> | null;
+      old?: Record<string, unknown> | null;
+    }) {
+      const storyId = reactionStoryIdFromPayload(payload);
+      if (
+        storyId &&
+        storiesRef.current.some((story) => story.id === storyId)
+      ) {
+        const patch = await patchVideoFeedReactionCountsForStory(
+          storyId,
+          currentUserId
+        );
+        if (!patch) return;
+        setStories((current) =>
+          current.map((story) =>
+            story.id === storyId
+              ? {
+                  ...story,
+                  reaction_counts: patch.reaction_counts,
+                  user_reactions: patch.user_reactions,
+                }
+              : story
+          )
+        );
+        return;
+      }
+      scheduleFullVideoFeedReload();
+    }
 
     async function loadPage() {
       setCheckingUser(true);
@@ -822,22 +876,22 @@ export function VideoFeedExperience({
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "story_reactions" },
-          async () => {
-            await loadVideoStories(currentUserId);
+          (payload) => {
+            void handleReactionRealtime(payload);
           }
         )
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "story_video_replies" },
-          async () => {
-            await loadVideoStories(currentUserId);
+          () => {
+            scheduleFullVideoFeedReload();
           }
         )
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "stories" },
-          async () => {
-            await loadVideoStories(currentUserId);
+          () => {
+            scheduleFullVideoFeedReload();
           }
         )
         .subscribe();
@@ -846,6 +900,9 @@ export function VideoFeedExperience({
     void loadPage();
 
     return () => {
+      if (videoFeedReloadTimerRef.current) {
+        window.clearTimeout(videoFeedReloadTimerRef.current);
+      }
       if (channel) {
         supabase.removeChannel(channel);
       }

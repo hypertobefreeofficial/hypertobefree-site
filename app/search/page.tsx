@@ -11,6 +11,14 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
+import {
+  loadSearchStoriesPage,
+  SEARCH_STORIES_PAGE_LIMIT,
+} from "../../lib/search/loadSearchStories";
+import {
+  createLoadTraceId,
+  measureLoad,
+} from "../../lib/perf/loadDiagnostics";
 
 type CaptionStyle =
   | "classic-caption"
@@ -90,10 +98,6 @@ type StoryRow = {
 type FilterOption = {
   label: string;
   dynamic?: boolean;
-};
-
-type SearchLoadError = {
-  message: string;
 };
 
 const coreFilters = [
@@ -286,11 +290,16 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [message, setMessage] = useState("");
+  const [searchNextCursor, setSearchNextCursor] = useState<string | null>(null);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [loadingMoreSearch, setLoadingMoreSearch] = useState(false);
 
   useEffect(() => {
     async function loadSearch() {
       setCheckingUser(true);
       setMessage("");
+      setSearchNextCursor(null);
+      setSearchHasMore(false);
 
       const {
         data: { user },
@@ -301,51 +310,65 @@ export default function SearchPage() {
         return;
       }
 
-      const metadataSelect =
-        "id, user_id, name, location, content_type, story_type, story_text, image_url, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, topics, creation_mode, status, created_at";
-      const legacySelect =
-        "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, status, created_at";
+      const traceId = createLoadTraceId("search");
+      const result = await measureLoad(
+        "search",
+        "initial",
+        traceId,
+        () => loadSearchStoriesPage(),
+        { recordsFetched: SEARCH_STORIES_PAGE_LIMIT }
+      );
 
-      const metadataResult = await supabase
-        .from("stories")
-        .select(metadataSelect)
-        .eq("status", "approved")
-        .order("created_at", { ascending: false });
-      let rows = readStoryRows(metadataResult.data);
-      let loadError: SearchLoadError | null = metadataResult.error;
-
-      if (
-        loadError &&
-        ["content_type", "topics", "creation_mode"].some(
-          (column) => loadError?.message.includes(column)
-        )
-      ) {
-        const legacyResult = await supabase
-          .from("stories")
-          .select(legacySelect)
-          .eq("status", "approved")
-          .order("created_at", { ascending: false });
-
-        rows = readStoryRows(legacyResult.data);
-        loadError = legacyResult.error;
-      }
-
-      if (loadError) {
-        setMessage(`Could not load discovery feed: ${loadError.message}`);
+      if (result.ok === false) {
+        setMessage(`Could not load discovery feed: ${result.message}`);
         setCheckingUser(false);
         return;
       }
 
-      const cleanStories = rows.filter((story) => {
-        return Boolean(story.video_url?.trim());
-      });
+      const cleanStories = readStoryRows(result.rows).filter((story) =>
+        Boolean(story.video_url?.trim())
+      );
 
       setStories(cleanStories);
+      setSearchNextCursor(result.nextCursor);
+      setSearchHasMore(result.hasMore);
       setCheckingUser(false);
     }
 
     loadSearch();
   }, []);
+
+  async function loadMoreSearchResults() {
+    if (!searchHasMore || !searchNextCursor || loadingMoreSearch) return;
+
+    setLoadingMoreSearch(true);
+    try {
+      const result = await measureLoad(
+        "search",
+        "page",
+        createLoadTraceId("search"),
+        () =>
+          loadSearchStoriesPage({
+            cursor: searchNextCursor,
+          }),
+        { recordsFetched: SEARCH_STORIES_PAGE_LIMIT }
+      );
+
+      if (result.ok === false) {
+        setMessage(`Could not load more results: ${result.message}`);
+        return;
+      }
+
+      const nextStories = readStoryRows(result.rows).filter((story) =>
+        Boolean(story.video_url?.trim())
+      );
+      setStories((current) => [...current, ...nextStories]);
+      setSearchNextCursor(result.nextCursor);
+      setSearchHasMore(result.hasMore);
+    } finally {
+      setLoadingMoreSearch(false);
+    }
+  }
 
   const dynamicFilters = useMemo(() => {
     const nextFilters: FilterOption[] = [];
@@ -597,6 +620,19 @@ export default function SearchPage() {
               })}
             </div>
           )}
+
+          {searchHasMore ? (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void loadMoreSearchResults()}
+                disabled={loadingMoreSearch}
+                className="rounded-full bg-white px-5 py-3 text-sm font-black text-[#0b63ce] ring-1 ring-slate-200 transition hover:bg-blue-50 disabled:opacity-60"
+              >
+                {loadingMoreSearch ? "Loading more..." : "Load more results"}
+              </button>
+            </div>
+          ) : null}
         </section>
         </div>
       </div>

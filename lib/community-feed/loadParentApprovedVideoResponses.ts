@@ -1,14 +1,6 @@
 import { supabase } from "../supabaseClient";
 import { getCommunityFeedSchemaCapabilities } from "./schemaCapabilities";
-import {
-  getThumbnailStoragePath,
-  getVideoStoragePath,
-} from "./mediaPaths";
-import {
-  STORY_THUMBNAIL_BUCKET,
-  STORY_VIDEO_BUCKET,
-  resolveStoryMediaUrl,
-} from "../journey/uploads/media";
+import { StorageSignSession } from "../media/storageSignSession";
 
 export type FeedApprovedVideoResponsePreview = {
   id: string;
@@ -22,32 +14,23 @@ export type FeedApprovedVideoResponsePreview = {
   response_context?: string | null;
 };
 
-async function signVideoUrl(videoUrl: string | null): Promise<string | null> {
-  if (!videoUrl) return null;
-  const path = getVideoStoragePath(videoUrl);
-  if (!path) return videoUrl.startsWith("http") ? videoUrl : null;
-  const { data } = await supabase.storage
-    .from(STORY_VIDEO_BUCKET)
-    .createSignedUrl(path, 3600);
-  return data?.signedUrl ?? null;
+async function signVideoUrl(
+  videoUrl: string | null,
+  session: StorageSignSession
+): Promise<string | null> {
+  return session.signVideoUrl(videoUrl);
 }
 
 async function signThumbnailUrl(
-  thumbnailUrl: string | null
+  thumbnailUrl: string | null,
+  session: StorageSignSession
 ): Promise<string | null> {
-  if (!thumbnailUrl) return null;
-  const path = getThumbnailStoragePath(thumbnailUrl);
-  if (!path) {
-    return resolveStoryMediaUrl(thumbnailUrl, STORY_THUMBNAIL_BUCKET);
-  }
-  const { data } = await supabase.storage
-    .from(STORY_THUMBNAIL_BUCKET)
-    .createSignedUrl(path, 3600);
-  return data?.signedUrl ?? null;
+  return session.signThumbnailUrl(thumbnailUrl);
 }
 
 export async function loadApprovedVideoResponsesByStoryIds(
-  storyIds: string[]
+  storyIds: string[],
+  session: StorageSignSession = new StorageSignSession()
 ): Promise<Map<string, FeedApprovedVideoResponsePreview[]>> {
   const grouped = new Map<string, FeedApprovedVideoResponsePreview[]>();
   if (storyIds.length === 0) return grouped;
@@ -113,8 +96,8 @@ export async function loadApprovedVideoResponsesByStoryIds(
 
   for (const row of rows) {
     const [signed_video_url, signed_thumbnail_url] = await Promise.all([
-      signVideoUrl(row.video_url),
-      signThumbnailUrl(row.thumbnail_url),
+      signVideoUrl(row.video_url, session),
+      signThumbnailUrl(row.thumbnail_url, session),
     ]);
 
     const preview: FeedApprovedVideoResponsePreview = {

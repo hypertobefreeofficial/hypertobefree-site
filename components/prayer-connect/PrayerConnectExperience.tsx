@@ -12,7 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { loadPrayerConnectRequests } from "../../lib/prayer-connect/loadPrayerConnectRequests";
+import { loadPrayerConnectRequests, PRAYER_CONNECT_MAX_ACCUMULATED } from "../../lib/prayer-connect/loadPrayerConnectRequests";
 import { geocodePlaceQuery } from "../../lib/prayer-connect/geocodePlace";
 import { supabase } from "../../lib/supabaseClient";
 import type {
@@ -155,6 +155,9 @@ export default function PrayerConnectExperience() {
   const [searchSetupOpen, setSearchSetupOpen] = useState(false);
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
+  const [prayerNextCursor, setPrayerNextCursor] = useState<string | null>(null);
+  const [prayerHasMore, setPrayerHasMore] = useState(false);
+  const [loadingMorePrayers, setLoadingMorePrayers] = useState(false);
   const [resultsLayout, setResultsLayout] = useState<"grid" | "list">("grid");
   const [contentQuery, setContentQuery] = useState("");
   const [debouncedContentQuery, setDebouncedContentQuery] = useState("");
@@ -325,6 +328,7 @@ export default function PrayerConnectExperience() {
   const refresh = useCallback(async () => {
     setLoadState("loading");
     setErrorMessage(null);
+    setVisibleCount(12);
     const result = await loadPrayerConnectRequests({
       viewerUserId: userId,
     });
@@ -343,49 +347,109 @@ export default function PrayerConnectExperience() {
       return;
     }
     setRequests(result.requests);
+    setPrayerNextCursor(result.nextCursor);
+    setPrayerHasMore(result.hasMore);
     setLoadState("ready");
   }, [userId]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const loadMorePrayersFromServer = useCallback(async () => {
+    if (!prayerHasMore || !prayerNextCursor || loadingMorePrayers) return false;
+    if (requests.length >= PRAYER_CONNECT_MAX_ACCUMULATED) return false;
+
+    setLoadingMorePrayers(true);
+    try {
+      const result = await loadPrayerConnectRequests({
+        viewerUserId: userId,
+        cursor: prayerNextCursor,
+      });
+      if (result.ok === false) return false;
+      setRequests((current) => [...current, ...result.requests]);
+      setPrayerNextCursor(result.nextCursor);
+      setPrayerHasMore(result.hasMore);
+      return true;
+    } finally {
+      setLoadingMorePrayers(false);
+    }
+  }, [
+    loadingMorePrayers,
+    prayerHasMore,
+    prayerNextCursor,
+    requests.length,
+    userId,
+  ]);
 
   useEffect(() => {
-    async function loadAccountState() {
+    let cancelled = false;
+
+    async function bootstrapPrayerExperience() {
+      setLoadState("loading");
+      setErrorMessage(null);
+      setVisibleCount(12);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      setUserId(user?.id ?? null);
+      if (cancelled) return;
+
+      const nextUserId = user?.id ?? null;
+      setUserId(nextUserId);
+
       if (!user) {
         setHiddenIds([]);
         setSavedIds(isMockPrayerMode() ? MOCK_SAVED_STORY_IDS : []);
         setFollowingIds([]);
         setBlockedUserIds([]);
         setUserReactions(new Map());
+      } else {
+        setHiddenIds(readHiddenPrayerCache(user.id));
+        try {
+          await migrateLegacyHiddenPrayers(user.id);
+          const [saved, followed, blocked, hidden] = await Promise.all([
+            loadSavedStoryIds(user.id),
+            loadFollowedPrayerIds(user.id),
+            loadBlockedUserIds(user.id),
+            loadHiddenPrayerIds(user.id),
+          ]);
+          if (cancelled) return;
+          setSavedIds(saved);
+          setFollowingIds(followed.ids);
+          setFollowAvailable(followed.available);
+          setBlockedUserIds(blocked);
+          setHiddenIds(hidden.ids);
+        } catch (error) {
+          console.error("Could not load prayer account state:", error);
+        }
+      }
+
+      const result = await loadPrayerConnectRequests({
+        viewerUserId: nextUserId,
+      });
+      if (cancelled) return;
+
+      if (result.ok === false) {
+        setLoadState("error");
+        if (process.env.NODE_ENV !== "production") {
+          console.error("Prayer load failed:", result.reason, result.message);
+        }
+        setErrorMessage(
+          result.reason === "offline"
+            ? "You appear to be offline. Reconnect to load prayer requests."
+            : "We couldn't load prayer requests right now. Please try again in a moment."
+        );
         return;
       }
 
-      setHiddenIds(readHiddenPrayerCache(user.id));
-
-      try {
-        await migrateLegacyHiddenPrayers(user.id);
-        const [saved, followed, blocked, hidden] = await Promise.all([
-          loadSavedStoryIds(user.id),
-          loadFollowedPrayerIds(user.id),
-          loadBlockedUserIds(user.id),
-          loadHiddenPrayerIds(user.id),
-        ]);
-        setSavedIds(saved);
-        setFollowingIds(followed.ids);
-        setFollowAvailable(followed.available);
-        setBlockedUserIds(blocked);
-        setHiddenIds(hidden.ids);
-      } catch (error) {
-        console.error("Could not load prayer account state:", error);
-      }
+      setRequests(result.requests);
+      setPrayerNextCursor(result.nextCursor);
+      setPrayerHasMore(result.hasMore);
+      setLoadState("ready");
     }
 
-    void loadAccountState();
+    void bootstrapPrayerExperience();
+
+    return () => {
+      cancelled = true;
+    };
   }, [myRefreshKey]);
 
   useEffect(() => {
@@ -815,7 +879,23 @@ export default function PrayerConnectExperience() {
   ]);
 
   const visibleRequests = tabRequests.slice(0, visibleCount);
-  const hasMoreRequests = tabRequests.length > visibleCount;
+  const hasMoreRequests =
+    tabRequests.length > visibleCount ||
+    (prayerHasMore && requests.length < PRAYER_CONNECT_MAX_ACCUMULATED);
+
+  function revealMorePrayerRequests() {
+    if (tabRequests.length > visibleCount) {
+      setVisibleCount((count) => count + 12);
+      return;
+    }
+    if (prayerHasMore) {
+      void loadMorePrayersFromServer().then((loaded) => {
+        if (loaded) {
+          setVisibleCount((count) => count + 12);
+        }
+      });
+    }
+  }
 
   const spotlightRequest = useMemo(() => {
     if (!showDiscoverChrome || discoverFiltered.length === 0) return null;
@@ -1208,9 +1288,7 @@ export default function PrayerConnectExperience() {
                         buildMenuItems={buildCardMenuItems}
                         hasMore={hasMoreRequests}
                         remainingCount={tabRequests.length - visibleCount}
-                        onLoadMore={() =>
-                          setVisibleCount((count) => count + 12)
-                        }
+                        onLoadMore={revealMorePrayerRequests}
                       />
                     ) : (
                     <>
@@ -1244,9 +1322,8 @@ export default function PrayerConnectExperience() {
                           <button
                             type="button"
                             className={styles.loadMoreButton}
-                            onClick={() =>
-                              setVisibleCount((count) => count + 12)
-                            }
+                            onClick={revealMorePrayerRequests}
+                            disabled={loadingMorePrayers}
                           >
                             Show more prayer requests
                             <span className={styles.loadMoreMeta}>

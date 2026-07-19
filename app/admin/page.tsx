@@ -29,6 +29,17 @@ import {
 } from "../../lib/responses/videoResponseAiReview";
 import { responseNeedsAdminAttention } from "../../lib/responses/videoResponseAdminQueue";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  ADMIN_REPORTS_PAGE_LIMIT,
+  ADMIN_STORIES_PAGE_LIMIT,
+  buildAdminKeysetOrFilter,
+  decodeAdminListCursor,
+  nextAdminCursorFromRows,
+} from "../../lib/admin/adminPagination";
+import {
+  createLoadTraceId,
+  measureLoad,
+} from "../../lib/perf/loadDiagnostics";
 
 const storyFilters: { label: string; value: StoryFilter }[] = [
   { label: "All", value: "all" },
@@ -162,6 +173,16 @@ export default function AdminPage() {
   const [moderatingResponseId, setModeratingResponseId] = useState<string | null>(
     null
   );
+  const [storiesNextCursor, setStoriesNextCursor] = useState<string | null>(
+    null
+  );
+  const [storiesHasMore, setStoriesHasMore] = useState(false);
+  const [loadingMoreStories, setLoadingMoreStories] = useState(false);
+  const [reportsNextCursor, setReportsNextCursor] = useState<string | null>(
+    null
+  );
+  const [reportsHasMore, setReportsHasMore] = useState(false);
+  const [loadingMoreReports, setLoadingMoreReports] = useState(false);
 
   useEffect(() => {
     loadAdminPage();
@@ -206,13 +227,33 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  async function loadStories() {
-    const { data, error } = await supabase
+  async function loadStories(options?: {
+    cursor?: string | null;
+    append?: boolean;
+  }) {
+    const limit = ADMIN_STORIES_PAGE_LIMIT;
+    const cursor = decodeAdminListCursor(options?.cursor);
+
+    let query = supabase
       .from("stories")
       .select(
         "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at"
       )
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit);
+
+    if (cursor) {
+      query = query.or(buildAdminKeysetOrFilter(cursor));
+    }
+
+    const { data, error } = await measureLoad(
+      "admin",
+      options?.append ? "stories-page" : "stories-initial",
+      createLoadTraceId("admin-stories"),
+      async () => query,
+      { recordsFetched: limit, dbQueries: 1 }
+    );
 
     if (error) {
       setMessage(`Could not load stories: ${error.message}`);
@@ -220,9 +261,32 @@ export default function AdminPage() {
     }
 
     const loadedStories = (data as Story[]) ?? [];
+    const pagination = nextAdminCursorFromRows(loadedStories, limit);
 
-    setStories(loadedStories);
-    void loadStoryImageUrls(loadedStories);
+    setStories((current) =>
+      options?.append ? [...current, ...loadedStories] : loadedStories
+    );
+    setStoriesNextCursor(pagination.nextCursor);
+    setStoriesHasMore(pagination.hasMore);
+    void loadStoryImageUrls(
+      options?.append
+        ? loadedStories
+        : loadedStories
+    );
+  }
+
+  async function loadMoreStories() {
+    if (!storiesHasMore || !storiesNextCursor || loadingMoreStories) return;
+
+    setLoadingMoreStories(true);
+    try {
+      await loadStories({
+        cursor: storiesNextCursor,
+        append: true,
+      });
+    } finally {
+      setLoadingMoreStories(false);
+    }
   }
 
   async function loadBlockedUsersCount() {
@@ -387,13 +451,33 @@ export default function AdminPage() {
     return loadedResponses;
   }
 
-  async function loadReports() {
-    const { data, error } = await supabase
+  async function loadReports(options?: {
+    cursor?: string | null;
+    append?: boolean;
+  }) {
+    const limit = ADMIN_REPORTS_PAGE_LIMIT;
+    const cursor = decodeAdminListCursor(options?.cursor);
+
+    let query = supabase
       .from("content_reports")
       .select(
         "id, story_id, prayer_video_response_id, reporter_user_id, reported_user_id, reason, details, status, admin_notes, created_at, reviewed_at, reviewed_by"
       )
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit);
+
+    if (cursor) {
+      query = query.or(buildAdminKeysetOrFilter(cursor));
+    }
+
+    const { data, error } = await measureLoad(
+      "admin",
+      options?.append ? "reports-page" : "reports-initial",
+      createLoadTraceId("admin-reports"),
+      async () => query,
+      { recordsFetched: limit, dbQueries: 1 }
+    );
 
     if (error) {
       setMessage(`Could not load reports: ${error.message}`);
@@ -401,39 +485,55 @@ export default function AdminPage() {
     }
 
     const baseReports = (data as ContentReport[]) ?? [];
+    const pagination = nextAdminCursorFromRows(baseReports, limit);
 
     const storyIds = baseReports
       .map((report) => report.story_id)
       .filter((id): id is string => Boolean(id));
 
-    if (storyIds.length === 0) {
-      setReports(baseReports);
-      return;
+    let reportsWithStories = baseReports;
+
+    if (storyIds.length > 0) {
+      const { data: storyData, error: storyError } = await supabase
+        .from("stories")
+        .select(
+          "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at"
+        )
+        .in("id", storyIds);
+
+      if (storyError) {
+        setMessage(`Could not load reported stories: ${storyError.message}`);
+      } else {
+        const storyMap = new Map(
+          ((storyData as Story[]) ?? []).map((story) => [story.id, story])
+        );
+
+        reportsWithStories = baseReports.map((report) => ({
+          ...report,
+          story: report.story_id ? storyMap.get(report.story_id) ?? null : null,
+        }));
+      }
     }
 
-    const { data: storyData, error: storyError } = await supabase
-      .from("stories")
-      .select(
-        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at"
-      )
-      .in("id", storyIds);
-
-    if (storyError) {
-      setMessage(`Could not load reported stories: ${storyError.message}`);
-      setReports(baseReports);
-      return;
-    }
-
-    const storyMap = new Map(
-      ((storyData as Story[]) ?? []).map((story) => [story.id, story])
+    setReports((current) =>
+      options?.append ? [...current, ...reportsWithStories] : reportsWithStories
     );
+    setReportsNextCursor(pagination.nextCursor);
+    setReportsHasMore(pagination.hasMore);
+  }
 
-    const reportsWithStories = baseReports.map((report) => ({
-      ...report,
-      story: report.story_id ? storyMap.get(report.story_id) ?? null : null,
-    }));
+  async function loadMoreReports() {
+    if (!reportsHasMore || !reportsNextCursor || loadingMoreReports) return;
 
-    setReports(reportsWithStories);
+    setLoadingMoreReports(true);
+    try {
+      await loadReports({
+        cursor: reportsNextCursor,
+        append: true,
+      });
+    } finally {
+      setLoadingMoreReports(false);
+    }
   }
 
   async function loadDeletionRequests() {
@@ -1650,6 +1750,19 @@ export default function AdminPage() {
               })
             )}
           </div>
+
+          {storiesHasMore ? (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void loadMoreStories()}
+                disabled={loadingMoreStories}
+                className="rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-[#0b63ce] ring-1 ring-slate-200 transition hover:bg-blue-50 disabled:opacity-60"
+              >
+                {loadingMoreStories ? "Loading more stories..." : "Load more stories"}
+              </button>
+            </div>
+          ) : null}
         </section>
 
         <section
@@ -2150,6 +2263,19 @@ export default function AdminPage() {
               })}
             </div>
           )}
+
+          {reportsHasMore ? (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => void loadMoreReports()}
+                disabled={loadingMoreReports}
+                className="rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-[#0b63ce] ring-1 ring-slate-200 transition hover:bg-blue-50 disabled:opacity-60"
+              >
+                {loadingMoreReports ? "Loading more reports..." : "Load more reports"}
+              </button>
+            </div>
+          ) : null}
         </section>
 
         <section

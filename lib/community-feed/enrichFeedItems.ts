@@ -1,18 +1,8 @@
 import { supabase } from "../supabaseClient";
-import {
-  STORY_IMAGE_BUCKET,
-  STORY_THUMBNAIL_BUCKET,
-  STORY_VIDEO_BUCKET,
-  resolveStoryMediaUrl,
-} from "../journey/uploads/media";
+import { StorageSignSession } from "../media/storageSignSession";
 import { isBlockedAuthor } from "./blockedUsers";
 import { isStoryFeedEligible } from "./eligibility";
 import { getCommunityFeedSchemaCapabilities } from "./schemaCapabilities";
-import {
-  getPhotoStoragePath,
-  getThumbnailStoragePath,
-  getVideoStoragePath,
-} from "./mediaPaths";
 import type {
   CommunityFeedItem,
   CommunityFeedStoryRecord,
@@ -26,6 +16,12 @@ import {
   type FeedPendingVideoResponsePreview,
 } from "./loadViewerPendingVideoResponses";
 import { resolveResponseContextFromStory } from "../responses/publicVideoResponseContext";
+import {
+  createLoadTraceId,
+  isLoadDiagnosticsEnabled,
+  logLoadDiagnostic,
+  measureLoad,
+} from "../perf/loadDiagnostics";
 
 export type FeedReactionType = "amen" | "praise_god" | "encouraged" | "praying";
 
@@ -161,41 +157,25 @@ function prayerTitleFromBody(storyText: string | null | undefined) {
   return line || "Prayer request";
 }
 
-async function signImageUrl(imageUrl: string | null) {
-  if (!imageUrl) return null;
-  const storagePath = getPhotoStoragePath(imageUrl);
-  if (storagePath) {
-    const { data, error } = await supabase.storage
-      .from(STORY_IMAGE_BUCKET)
-      .createSignedUrl(storagePath, 60 * 60);
-    if (error) console.error("Could not create signed photo URL:", error);
-    return data?.signedUrl ?? null;
-  }
-  if (imageUrl.startsWith("http")) return imageUrl;
-  return null;
+async function signImageUrl(
+  imageUrl: string | null,
+  session: StorageSignSession
+) {
+  return session.signImageUrl(imageUrl);
 }
 
-async function signVideoUrl(videoUrl: string | null) {
-  if (!videoUrl) return null;
-  const storagePath = getVideoStoragePath(videoUrl);
-  if (storagePath) {
-    const { data, error } = await supabase.storage
-      .from(STORY_VIDEO_BUCKET)
-      .createSignedUrl(storagePath, 60 * 60);
-    if (error) console.error("Could not create signed video URL:", error);
-    return data?.signedUrl ?? null;
-  }
-  if (videoUrl.startsWith("http")) return videoUrl;
-  return null;
+async function signVideoUrl(
+  videoUrl: string | null,
+  session: StorageSignSession
+) {
+  return session.signVideoUrl(videoUrl);
 }
 
-async function signThumbnailUrl(thumbnailUrl: string | null) {
-  if (!thumbnailUrl) return null;
-  return (
-    (await resolveStoryMediaUrl(thumbnailUrl, STORY_THUMBNAIL_BUCKET)) ??
-    (await resolveStoryMediaUrl(thumbnailUrl, STORY_IMAGE_BUCKET)) ??
-    (thumbnailUrl.startsWith("http") ? thumbnailUrl : null)
-  );
+async function signThumbnailUrl(
+  thumbnailUrl: string | null,
+  session: StorageSignSession
+) {
+  return session.signThumbnailUrl(thumbnailUrl);
 }
 
 async function loadAuthorNames(userIds: string[]) {
@@ -260,6 +240,7 @@ async function enrichStoryItem(
   viewerUserId: string | null,
   approvedResponsesByStoryId: Map<string, FeedApprovedVideoResponsePreview[]>,
   pendingResponsesByStoryId: Map<string, FeedPendingVideoResponsePreview | null>,
+  session: StorageSignSession,
   existing?: FeedStoryDisplay | null
 ): Promise<FeedStoryDisplay | null> {
   const story = item.story;
@@ -269,15 +250,15 @@ async function enrichStoryItem(
     existing?.kind === "story" && existing.id === story.id;
 
   const signedImageUrl = reuseSignedMedia
-    ? existing.signed_image_url ?? (await signImageUrl(story.image_url))
-    : await signImageUrl(story.image_url);
+    ? existing.signed_image_url ?? (await signImageUrl(story.image_url, session))
+    : await signImageUrl(story.image_url, session);
   const signedVideoUrl = reuseSignedMedia
-    ? existing.signed_video_url ?? (await signVideoUrl(story.video_url))
-    : await signVideoUrl(story.video_url);
+    ? existing.signed_video_url ?? (await signVideoUrl(story.video_url, session))
+    : await signVideoUrl(story.video_url, session);
   const signedThumbnailUrl = reuseSignedMedia
     ? existing.signed_thumbnail_url ??
-      (await signThumbnailUrl(story.thumbnail_url))
-    : await signThumbnailUrl(story.thumbnail_url);
+      (await signThumbnailUrl(story.thumbnail_url, session))
+    : await signThumbnailUrl(story.thumbnail_url, session);
 
   const { reaction_counts, user_reactions } = buildReactionCounts(
     reactions,
@@ -348,6 +329,7 @@ async function enrichVideoResponseItem(
   parentStories: Map<string, CommunityFeedStoryRecord>,
   authorNames: Map<string, string>,
   blockedUserIds: Set<string>,
+  session: StorageSignSession,
   existing?: FeedVideoResponseDisplay | null
 ): Promise<FeedVideoResponseDisplay | null> {
   const response = item.videoResponse;
@@ -371,12 +353,13 @@ async function enrichVideoResponseItem(
     existing?.kind === "prayer_video_response" && existing.id === response.id;
 
   const signedVideoUrl = reuseSignedMedia
-    ? existing.signed_video_url ?? (await signVideoUrl(response.video_url))
-    : await signVideoUrl(response.video_url);
+    ? existing.signed_video_url ??
+      (await signVideoUrl(response.video_url, session))
+    : await signVideoUrl(response.video_url, session);
   const signedThumbnailUrl = reuseSignedMedia
     ? existing.signed_thumbnail_url ??
-      (await signThumbnailUrl(response.thumbnail_url))
-    : await signThumbnailUrl(response.thumbnail_url);
+      (await signThumbnailUrl(response.thumbnail_url, session))
+    : await signThumbnailUrl(response.thumbnail_url, session);
 
   if (!signedVideoUrl && !response.video_url) return null;
 
@@ -408,6 +391,27 @@ export async function enrichFeedItems(
     existingItemsByKey?: Map<string, FeedDisplayItem>;
   }
 ): Promise<FeedDisplayItem[]> {
+  const traceId = createLoadTraceId("feed-enrich");
+  return measureLoad(
+    "feed",
+    "enrich",
+    traceId,
+    () => enrichFeedItemsInternal(items, options),
+    {
+      recordsFetched: items.length,
+    }
+  );
+}
+
+async function enrichFeedItemsInternal(
+  items: CommunityFeedItem[],
+  options?: {
+    viewerUserId?: string | null;
+    blockedUserIds?: string[];
+    existingItemsByKey?: Map<string, FeedDisplayItem>;
+  }
+): Promise<FeedDisplayItem[]> {
+  const session = new StorageSignSession();
   const blockedSet = new Set(options?.blockedUserIds ?? []);
   const viewerUserId = options?.viewerUserId ?? null;
   const existingItemsByKey = options?.existingItemsByKey;
@@ -441,7 +445,8 @@ export async function enrichFeedItems(
   const authorNames = await loadAuthorNames(responseAuthorIds);
 
   const approvedResponsesByStoryId = await loadApprovedVideoResponsesByStoryIds(
-    storyIds
+    storyIds,
+    session
   );
 
   const pendingResponsesByStoryId =
@@ -457,34 +462,48 @@ export async function enrichFeedItems(
     reactions = (reactionData as ReactionRow[]) ?? [];
   }
 
-  const enriched: FeedDisplayItem[] = [];
+  const enriched = (
+    await Promise.all(
+      items.map(async (item) => {
+        if (item.canonicalType === "story") {
+          const cached = existingItemsByKey?.get(item.dedupeKey);
+          return enrichStoryItem(
+            item,
+            reactions,
+            viewerUserId,
+            approvedResponsesByStoryId,
+            pendingResponsesByStoryId,
+            session,
+            cached?.kind === "story" ? cached : null
+          );
+        }
 
-  for (const item of items) {
-    if (item.canonicalType === "story") {
-      const cached = existingItemsByKey?.get(item.dedupeKey);
-      const storyDisplay = await enrichStoryItem(
-        item,
-        reactions,
-        viewerUserId,
-        approvedResponsesByStoryId,
-        pendingResponsesByStoryId,
-        cached?.kind === "story" ? cached : null
-      );
-      if (storyDisplay) enriched.push(storyDisplay);
-      continue;
-    }
+        if (item.canonicalType === "prayer_video_response") {
+          const cached = existingItemsByKey?.get(item.dedupeKey);
+          return enrichVideoResponseItem(
+            item,
+            parentStories,
+            authorNames,
+            blockedSet,
+            session,
+            cached?.kind === "prayer_video_response" ? cached : null
+          );
+        }
 
-    if (item.canonicalType === "prayer_video_response") {
-      const cached = existingItemsByKey?.get(item.dedupeKey);
-      const responseDisplay = await enrichVideoResponseItem(
-        item,
-        parentStories,
-        authorNames,
-        blockedSet,
-        cached?.kind === "prayer_video_response" ? cached : null
-      );
-      if (responseDisplay) enriched.push(responseDisplay);
-    }
+        return null;
+      })
+    )
+  ).filter((item): item is FeedDisplayItem => item !== null);
+
+  if (isLoadDiagnosticsEnabled()) {
+    logLoadDiagnostic({
+      traceId: createLoadTraceId("feed-enrich-sign"),
+      loader: "feed",
+      phase: "enrich-sign-complete",
+      durationMs: 0,
+      signOperations: session.getSignOperationCount(),
+      recordsFetched: items.length,
+    });
   }
 
   return enriched;

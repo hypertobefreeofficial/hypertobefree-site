@@ -11,7 +11,16 @@ import {
   inferPrayerCategory,
 } from "./utils";
 import { loadPublicResponseCounts } from "./responseCounts";
-import { attachResolvedMediaToRequests } from "./media";
+import {
+  attachResolvedMediaToRequestsWithSession,
+  StorageSignSession,
+} from "../media/storageSignSession";
+import {
+  createLoadTraceId,
+  isLoadDiagnosticsEnabled,
+  logLoadDiagnostic,
+  measureLoad,
+} from "../perf/loadDiagnostics";
 import { partitionPrayerTopics } from "./topicPartition";
 import { isMockPrayerMode } from "./mockMode";
 import { MOCK_PRAYER_REQUESTS } from "./mockPrayerData";
@@ -49,12 +58,26 @@ type ReactionRow = {
 };
 
 export type LoadPrayerConnectResult =
-  | { ok: true; requests: PrayerConnectRequest[] }
+  | {
+      ok: true;
+      requests: PrayerConnectRequest[];
+      nextCursor: string | null;
+      hasMore: boolean;
+    }
   | {
       ok: false;
       reason: "not-configured" | "offline" | "error";
       message: string;
     };
+
+/** Initial Prayer discovery fetch — enough for first screen + map without 300-row overfetch. */
+export const PRAYER_CONNECT_INITIAL_FETCH_LIMIT = 80;
+
+/** Maximum rows fetched in a single Prayer discovery request. */
+export const PRAYER_CONNECT_PAGE_FETCH_LIMIT = 80;
+
+/** Hard cap for client-side accumulation during a session. */
+export const PRAYER_CONNECT_MAX_ACCUMULATED = 300;
 
 function isPrayerStory(storyType: string | null) {
   return (storyType || "").toLowerCase().includes("prayer");
@@ -111,9 +134,16 @@ function toNumber(value: number | string | null | undefined) {
 export async function loadPrayerConnectRequests(options?: {
   /** When set, prayers hidden by this user are excluded at query time. */
   viewerUserId?: string | null;
+  limit?: number;
+  cursor?: string | null;
 }): Promise<LoadPrayerConnectResult> {
   if (isMockPrayerMode()) {
-    return { ok: true, requests: MOCK_PRAYER_REQUESTS };
+    return {
+      ok: true,
+      requests: MOCK_PRAYER_REQUESTS,
+      nextCursor: null,
+      hasMore: false,
+    };
   }
 
   if (!isSupabaseConfigured) {
@@ -134,6 +164,11 @@ export async function loadPrayerConnectRequests(options?: {
   }
 
   try {
+    const fetchLimit = Math.min(
+      Math.max(options?.limit ?? PRAYER_CONNECT_INITIAL_FETCH_LIMIT, 1),
+      PRAYER_CONNECT_PAGE_FETCH_LIMIT
+    );
+    const traceId = createLoadTraceId("prayer-load");
     let hiddenStoryIds: string[] = [];
     let blockedAuthorIds = new Set<string>();
     if (options?.viewerUserId) {
@@ -176,7 +211,17 @@ export async function loadPrayerConnectRequests(options?: {
         .eq("status", "approved")
         .is("removed_at", null)
         .order("created_at", { ascending: false })
-        .limit(300);
+        .order("id", { ascending: false })
+        .limit(fetchLimit);
+
+      if (options?.cursor) {
+        const [createdAt, id] = options.cursor.split("|");
+        if (createdAt && id) {
+          query = query.or(
+            `created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`
+          );
+        }
+      }
 
       if (hiddenStoryIds.length > 0) {
         query = query.not("id", "in", `(${hiddenStoryIds.join(",")})`);
@@ -196,7 +241,17 @@ export async function loadPrayerConnectRequests(options?: {
           .select(select)
           .eq("status", "approved")
           .order("created_at", { ascending: false })
-          .limit(300);
+          .order("id", { ascending: false })
+          .limit(fetchLimit);
+
+        if (options?.cursor) {
+          const [createdAt, id] = options.cursor.split("|");
+          if (createdAt && id) {
+            fallbackQuery = fallbackQuery.or(
+              `created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${id})`
+            );
+          }
+        }
 
         if (hiddenStoryIds.length > 0) {
           fallbackQuery = fallbackQuery.not(
@@ -390,8 +445,43 @@ export async function loadPrayerConnectRequests(options?: {
       responseCount: responseCounts.get(request.id) ?? 0,
     }));
 
-    const withMedia = await attachResolvedMediaToRequests(requestsWithCounts);
-    return { ok: true, requests: withMedia };
+    const signSession = new StorageSignSession();
+    const withMedia = await measureLoad(
+      "prayer",
+      "media-resolution",
+      traceId,
+      () => attachResolvedMediaToRequestsWithSession(requestsWithCounts, signSession),
+      {
+        recordsFetched: requestsWithCounts.length,
+        signOperations: signSession.getSignOperationCount(),
+      }
+    );
+
+    const lastRaw = rawStories.at(-1);
+    const nextCursor =
+      lastRaw?.created_at && lastRaw.id
+        ? `${lastRaw.created_at}|${lastRaw.id}`
+        : null;
+    const hasMore = rawStories.length >= fetchLimit;
+
+    if (isLoadDiagnosticsEnabled()) {
+      logLoadDiagnostic({
+        traceId,
+        loader: "prayer",
+        phase: "initial-load-complete",
+        durationMs: 0,
+        recordsFetched: withMedia.length,
+        signOperations: signSession.getSignOperationCount(),
+        dbQueries: 4,
+      });
+    }
+
+    return {
+      ok: true,
+      requests: withMedia,
+      nextCursor: hasMore ? nextCursor : null,
+      hasMore,
+    };
   } catch (error) {
     return {
       ok: false,

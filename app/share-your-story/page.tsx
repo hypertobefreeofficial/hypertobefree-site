@@ -41,6 +41,7 @@ import {
   type FaithStream,
 } from "../../lib/creationCenter";
 import { isSupabaseConfigured, supabase } from "../../lib/supabaseClient";
+import { buildModerationAuthHeaders } from "../../lib/client/moderationAuthHeaders";
 import {
   buildCreatorStudioAiSuggestionsPayload,
   freezeCreatorStudioDesignForPublish,
@@ -2409,9 +2410,7 @@ export default function ShareYourStoryPage() {
     try {
       const response = await fetch("/api/moderate-story", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: await buildModerationAuthHeaders(),
         body: JSON.stringify({
           story_type: finalStoryType,
           story_text: cleanStoryText,

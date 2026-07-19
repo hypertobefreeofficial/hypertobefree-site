@@ -8,6 +8,7 @@ import {
   resolveStoryMediaUrl,
 } from "../journey/uploads/media";
 import type { PrayerConnectMediaKind, PrayerConnectRequest } from "./types";
+import { attachResolvedMediaToRequestsWithSession } from "../media/storageSignSession";
 import {
   createVideoThumbnailFromFile,
   thumbnailFailureMessage,
@@ -78,17 +79,7 @@ export async function resolvePrayerRequestMedia(
 export async function attachResolvedMediaToRequests(
   requests: PrayerConnectRequest[]
 ): Promise<PrayerConnectRequest[]> {
-  return Promise.all(
-    requests.map(async (request) => {
-      const media = await resolvePrayerRequestMedia(request);
-      return {
-        ...request,
-        imageUrl: media.imageUrl,
-        thumbnailUrl: media.posterUrl,
-        videoUrl: media.videoUrl,
-      };
-    })
-  );
+  return attachResolvedMediaToRequestsWithSession(requests);
 }
 
 export function getPrayerCardPoster(request: {

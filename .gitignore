@@ -9,3 +9,8 @@ node_modules/
 tests/prayer/fixtures/generated/
 test-results/
 playwright-report/
+load-tests/k6/.env.staging.local
+load-tests/k6/fixtures/users.pool.local.csv
+load-tests/k6/fixtures/sessions.pool.local.json
+load-tests/k6/results/
+load-tests/.bin/
