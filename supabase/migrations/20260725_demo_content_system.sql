@@ -29,7 +29,7 @@ AS $$
       pg_catalog.current_setting('request.jwt.claim.role', true),
       ''
     ) = 'service_role'
-    OR pg_catalog.session_user IN ('postgres', 'supabase_admin');
+    OR session_user IN ('postgres', 'supabase_admin');
 $$;
 
 ALTER FUNCTION public.htbf_is_demo_seed_operator() OWNER TO postgres;
