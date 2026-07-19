@@ -25,7 +25,7 @@ STABLE
 SET search_path = ''
 AS $$
   SELECT
-    pg_catalog.coalesce(
+    coalesce(
       pg_catalog.current_setting('request.jwt.claim.role', true),
       ''
     ) = 'service_role'
@@ -111,6 +111,10 @@ $$;
 
 ALTER FUNCTION public.demo_seed_runs_guard_insert() OWNER TO postgres;
 
+REVOKE ALL ON FUNCTION public.demo_seed_runs_guard_insert() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.demo_seed_runs_guard_insert() FROM anon;
+REVOKE ALL ON FUNCTION public.demo_seed_runs_guard_insert() FROM authenticated;
+
 DROP TRIGGER IF EXISTS demo_seed_runs_guard_insert_trg ON public.demo_seed_runs;
 CREATE TRIGGER demo_seed_runs_guard_insert_trg
   BEFORE INSERT ON public.demo_seed_runs
@@ -131,6 +135,10 @@ AS $$
 $$;
 
 ALTER FUNCTION public.htbf_content_origin_is_valid(text) OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.htbf_content_origin_is_valid(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_content_origin_is_valid(text) FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_content_origin_is_valid(text) FROM authenticated;
 
 -- ============================================================
 -- 3) profiles
@@ -399,6 +407,10 @@ $$;
 
 ALTER FUNCTION public.htbf_reject_member_demo_flags() OWNER TO postgres;
 
+REVOKE ALL ON FUNCTION public.htbf_reject_member_demo_flags() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_reject_member_demo_flags() FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_reject_member_demo_flags() FROM authenticated;
+
 DROP TRIGGER IF EXISTS stories_reject_member_demo_flags_trg ON public.stories;
 CREATE TRIGGER stories_reject_member_demo_flags_trg
   BEFORE INSERT OR UPDATE OF is_demo, demo_seed_run_id, content_origin, demo_scenario_id, demo_display_label
@@ -475,6 +487,10 @@ $$;
 
 ALTER FUNCTION public.htbf_guard_staging_demo_seed_content() OWNER TO postgres;
 
+REVOKE ALL ON FUNCTION public.htbf_guard_staging_demo_seed_content() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_guard_staging_demo_seed_content() FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_guard_staging_demo_seed_content() FROM authenticated;
+
 DROP TRIGGER IF EXISTS stories_guard_staging_demo_seed_trg ON public.stories;
 CREATE TRIGGER stories_guard_staging_demo_seed_trg
   BEFORE INSERT OR UPDATE OF is_demo, demo_seed_run_id, content_origin
@@ -500,6 +516,7 @@ CREATE TRIGGER profiles_guard_staging_demo_seed_trg
 -- 9) Cross-realm engagement prohibition (Phase 1: DENY all)
 -- ============================================================
 
+-- STABLE: argument-only logic, but may raise exceptions (not IMMUTABLE-safe).
 CREATE OR REPLACE FUNCTION public.htbf_deny_cross_realm_engagement(
   p_story_is_demo boolean,
   p_actor_is_demo boolean,
@@ -507,18 +524,18 @@ CREATE OR REPLACE FUNCTION public.htbf_deny_cross_realm_engagement(
 )
 RETURNS void
 LANGUAGE plpgsql
-IMMUTABLE
+STABLE
 SET search_path = ''
 AS $$
 BEGIN
-  IF pg_catalog.coalesce(p_story_is_demo, false)
-     AND NOT pg_catalog.coalesce(p_actor_is_demo, false) THEN
+  IF coalesce(p_story_is_demo, false)
+     AND NOT coalesce(p_actor_is_demo, false) THEN
     RAISE EXCEPTION 'real members cannot interact with demo content via %', p_context
       USING ERRCODE = '42501';
   END IF;
 
-  IF NOT pg_catalog.coalesce(p_story_is_demo, false)
-     AND pg_catalog.coalesce(p_actor_is_demo, false) THEN
+  IF NOT coalesce(p_story_is_demo, false)
+     AND coalesce(p_actor_is_demo, false) THEN
     RAISE EXCEPTION 'demo actors cannot interact with genuine content via %', p_context
       USING ERRCODE = '42501';
   END IF;
@@ -526,6 +543,10 @@ END;
 $$;
 
 ALTER FUNCTION public.htbf_deny_cross_realm_engagement(boolean, boolean, text) OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.htbf_deny_cross_realm_engagement(boolean, boolean, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_deny_cross_realm_engagement(boolean, boolean, text) FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_deny_cross_realm_engagement(boolean, boolean, text) FROM authenticated;
 
 CREATE OR REPLACE FUNCTION public.htbf_derive_story_reaction_demo()
 RETURNS trigger
@@ -537,7 +558,6 @@ DECLARE
   v_profile public.profiles;
   v_story_demo boolean := false;
   v_actor_demo boolean := false;
-  v_run_id uuid;
 BEGIN
   IF public.htbf_is_demo_seed_operator() THEN
     RETURN NEW;
@@ -551,8 +571,8 @@ BEGIN
 
   SELECT * INTO v_profile FROM public.profiles WHERE id = NEW.user_id;
 
-  v_story_demo := pg_catalog.coalesce(v_story.is_demo, false);
-  v_actor_demo := pg_catalog.coalesce(v_profile.is_demo, false);
+  v_story_demo := coalesce(v_story.is_demo, false);
+  v_actor_demo := coalesce(v_profile.is_demo, false);
 
   PERFORM public.htbf_deny_cross_realm_engagement(
     v_story_demo,
@@ -572,6 +592,10 @@ END;
 $$;
 
 ALTER FUNCTION public.htbf_derive_story_reaction_demo() OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.htbf_derive_story_reaction_demo() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_derive_story_reaction_demo() FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_derive_story_reaction_demo() FROM authenticated;
 
 DROP TRIGGER IF EXISTS story_reactions_derive_demo_trg ON public.story_reactions;
 CREATE TRIGGER story_reactions_derive_demo_trg
@@ -614,8 +638,8 @@ BEGIN
     SELECT * INTO v_profile FROM public.profiles WHERE id = v_actor;
   END IF;
 
-  v_story_demo := pg_catalog.coalesce(v_story.is_demo, false);
-  v_actor_demo := pg_catalog.coalesce(v_profile.is_demo, false);
+  v_story_demo := coalesce(v_story.is_demo, false);
+  v_actor_demo := coalesce(v_profile.is_demo, false);
 
   PERFORM public.htbf_deny_cross_realm_engagement(
     v_story_demo,
@@ -635,6 +659,10 @@ END;
 $$;
 
 ALTER FUNCTION public.htbf_derive_child_demo_from_story() OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.htbf_derive_child_demo_from_story() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_derive_child_demo_from_story() FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_derive_child_demo_from_story() FROM authenticated;
 
 DROP TRIGGER IF EXISTS content_reports_derive_demo_trg ON public.content_reports;
 CREATE TRIGGER content_reports_derive_demo_trg
@@ -689,8 +717,8 @@ BEGIN
 
   SELECT * INTO v_profile FROM public.profiles WHERE id = NEW.user_id;
 
-  v_story_demo := pg_catalog.coalesce(v_story.is_demo, false);
-  v_actor_demo := pg_catalog.coalesce(v_profile.is_demo, false);
+  v_story_demo := coalesce(v_story.is_demo, false);
+  v_actor_demo := coalesce(v_profile.is_demo, false);
 
   PERFORM public.htbf_deny_cross_realm_engagement(
     v_story_demo,
@@ -711,6 +739,10 @@ END;
 $$;
 
 ALTER FUNCTION public.htbf_derive_prayer_video_response_demo() OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.htbf_derive_prayer_video_response_demo() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_derive_prayer_video_response_demo() FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_derive_prayer_video_response_demo() FROM authenticated;
 
 DROP TRIGGER IF EXISTS prayer_video_responses_derive_demo_trg ON public.prayer_video_responses;
 CREATE TRIGGER prayer_video_responses_derive_demo_trg
@@ -743,6 +775,10 @@ END;
 $$;
 
 ALTER FUNCTION public.htbf_require_demo_run_fk() OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.htbf_require_demo_run_fk() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.htbf_require_demo_run_fk() FROM anon;
+REVOKE ALL ON FUNCTION public.htbf_require_demo_run_fk() FROM authenticated;
 
 DROP TRIGGER IF EXISTS profiles_require_demo_run_trg ON public.profiles;
 CREATE TRIGGER profiles_require_demo_run_trg
@@ -817,7 +853,7 @@ LANGUAGE sql
 STABLE
 SET search_path = ''
 AS $$
-  SELECT pg_catalog.coalesce(
+  SELECT coalesce(
     pg_catalog.current_setting('app.demo_tour_state_write', true),
     ''
   ) = '1';
@@ -891,7 +927,7 @@ BEGIN
   FROM public.profiles AS p
   WHERE p.id = v_user_id;
 
-  v_merged := pg_catalog.coalesce(v_current, '{}'::jsonb) || p_patch;
+  v_merged := coalesce(v_current, '{}'::jsonb) || p_patch;
 
   PERFORM pg_catalog.set_config('app.demo_tour_state_write', '1', true);
 
@@ -933,6 +969,10 @@ END;
 $$;
 
 ALTER FUNCTION public.protect_demo_tour_state() OWNER TO postgres;
+
+REVOKE ALL ON FUNCTION public.protect_demo_tour_state() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.protect_demo_tour_state() FROM anon;
+REVOKE ALL ON FUNCTION public.protect_demo_tour_state() FROM authenticated;
 
 DROP TRIGGER IF EXISTS profiles_protect_demo_tour_state_trg ON public.profiles;
 CREATE TRIGGER profiles_protect_demo_tour_state_trg
