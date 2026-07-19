@@ -8,6 +8,10 @@ import {
   buildVideoResponseModerationUpdate,
 } from "../responses/videoResponseAiReview";
 import {
+  buildSuppressedDemoVideoResponseAiUpdate,
+  shouldSuppressBillableAiCall,
+} from "../demo-content/externalServiceIsolation";
+import {
   PRAYER_MEDIA_LIMITS,
   validateUploadedThumbnailObject,
   validateUploadedVideoObject,
@@ -24,6 +28,8 @@ export type SourceStoryRow = {
   prayer_status: string | null;
   topics: string[] | null;
   removed_at: string | null;
+  is_demo?: boolean | null;
+  demo_seed_run_id?: string | null;
 };
 
 export type SubmitPublicVideoResponseInput = {
@@ -135,7 +141,7 @@ export async function submitPublicVideoResponse(
   const { data: sourceData, error: sourceError } = await adminClient
     .from("stories")
     .select(
-      "id, user_id, story_type, story_text, status, prayer_status, topics, removed_at"
+      "id, user_id, story_type, story_text, status, prayer_status, topics, removed_at, is_demo, demo_seed_run_id"
     )
     .eq("id", sourcePostId)
     .maybeSingle();
@@ -400,8 +406,14 @@ export async function submitPublicVideoResponse(
 
   let finalStatus: "approved" | "submitted" = "submitted";
 
-  try {
-    const moderation = await moderatePublicContent({
+  if (shouldSuppressBillableAiCall({ source: approvedSource })) {
+    const persisted = await persistAiReview(buildSuppressedDemoVideoResponseAiUpdate());
+    if (persisted) {
+      finalStatus = "submitted";
+    }
+  } else {
+    try {
+      const moderation = await moderatePublicContent({
       storyType: approvedSource.story_type ?? sourceType,
       storyText: [
         `Response context: ${responseContext}`,
@@ -428,13 +440,14 @@ export async function submitPublicVideoResponse(
         )
       );
     }
-  } catch (error) {
-    console.error("Public video response AI moderation failed:", error);
-    await persistAiReview(
-      buildUnavailableVideoResponseAiUpdate(
-        "AI moderation could not complete, so this upload was sent to admin review."
-      )
-    );
+    } catch (error) {
+      console.error("Public video response AI moderation failed:", error);
+      await persistAiReview(
+        buildUnavailableVideoResponseAiUpdate(
+          "AI moderation could not complete, so this upload was sent to admin review."
+        )
+      );
+    }
   }
 
   return {

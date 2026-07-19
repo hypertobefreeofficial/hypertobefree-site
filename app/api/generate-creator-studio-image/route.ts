@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { type CreatorStudioImageAction } from "../../../lib/creationCenter";
+import { shouldSuppressBillableAiForUserId } from "../../../lib/demo-content/externalServiceIsolation";
 
 const STORY_IMAGE_BUCKET = "story-images";
 const allowedActions: CreatorStudioImageAction[] = [
@@ -153,6 +154,16 @@ export async function POST(request: Request) {
 
   if (userError || !user) {
     return Response.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  if (await shouldSuppressBillableAiForUserId(authClient, user.id)) {
+    return Response.json(
+      {
+        error: "Demo accounts cannot invoke billable AI image generation.",
+        code: "demo_ai_suppressed",
+      },
+      { status: 403 }
+    );
   }
 
   const imagePrompt = buildImagePrompt({ action, prompt, design });

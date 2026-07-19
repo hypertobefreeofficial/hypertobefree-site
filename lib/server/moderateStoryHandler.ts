@@ -10,6 +10,10 @@ import {
 } from "./prayerRateLimit";
 import { readClientIp } from "./requestIdentity";
 import type { AuthenticatedSupabaseContext } from "./authenticateSupabaseRequest";
+import {
+  buildSuppressedDemoStoryModerationBody,
+  shouldSuppressBillableAiCall,
+} from "../demo-content/externalServiceIsolation";
 
 export const MODERATE_STORY_MAX_TEXT_CHARS = 12_000;
 export const MODERATE_STORY_MAX_TYPE_CHARS = 120;
@@ -259,6 +263,32 @@ export async function handleModerateStoryRequest(options: {
       status: 200,
       idempotent: true,
       body: cached,
+    };
+  }
+
+  let actorProfile: { is_demo?: boolean | null; demo_seed_run_id?: string | null } | null =
+    null;
+
+  if (typeof options.auth.supabase?.from === "function") {
+    const { data } = await options.auth.supabase
+      .from("profiles")
+      .select("is_demo, demo_seed_run_id")
+      .eq("id", options.auth.user.id)
+      .maybeSingle();
+    actorProfile = data as {
+      is_demo?: boolean | null;
+      demo_seed_run_id?: string | null;
+    } | null;
+  }
+
+  if (shouldSuppressBillableAiCall({ actor: actorProfile })) {
+    const suppressed = buildSuppressedDemoStoryModerationBody();
+    storeIdempotentResponse(cacheKey, suppressed);
+    return {
+      ok: true,
+      status: 200,
+      idempotent: false,
+      body: suppressed,
     };
   }
 

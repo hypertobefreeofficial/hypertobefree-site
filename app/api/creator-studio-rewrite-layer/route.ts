@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { shouldSuppressBillableAiForUserId } from "../../../lib/demo-content/externalServiceIsolation";
 
 type RewriteAction =
   | "keep-words"
@@ -233,6 +234,10 @@ export async function POST(request: Request) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   const fallback = fallbackRewrite(currentText, action);
+
+  if (await shouldSuppressBillableAiForUserId(authClient, user.id)) {
+    return Response.json(fallback);
+  }
 
   if (!apiKey) {
     return Response.json(fallback);

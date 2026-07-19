@@ -1,16 +1,43 @@
-import { supabase } from "../supabaseClient";
 import type { DemoContentFieldSnapshot, DemoLoaderMode } from "./types";
+import {
+  getDemoContentSchemaReadiness,
+  resetDemoContentSchemaReadinessCache,
+  getDemoContentTableProbeCacheForTests,
+  type DemoContentSchemaTable,
+} from "./schemaReadiness";
 
-export type DemoContentTable =
+export {
+  DemoContentSchemaProbeError,
+  DemoContentSchemaDriftError,
+  getDemoContentSchemaReadiness,
+  assertDemoSchemaReadyForSeeding,
+  resetDemoContentSchemaReadinessCache,
+  getDemoContentTableProbeCacheForTests,
+  REQUIRED_DEMO_SCHEMA_TABLES,
+} from "./schemaReadiness";
+export type {
+  DemoContentSchemaState,
+  DemoContentSchemaReadiness,
+  DemoContentSchemaTable,
+} from "./schemaReadiness";
+
+/** Loader-facing table alias — subset used by public read paths. */
+export type DemoContentTable = Extract<
+  DemoContentSchemaTable,
   | "stories"
   | "prayer_video_responses"
   | "story_reactions"
   | "prayer_written_responses"
   | "saved_content"
   | "prayer_follows"
-  | "story_video_replies";
+  | "story_video_replies"
+  | "content_reports"
+  | "profiles"
+>;
 
 export type DemoContentSchemaCapabilities = {
+  state: import("./schemaReadiness").DemoContentSchemaState;
+  profiles: { hasIsDemo: boolean };
   stories: { hasIsDemo: boolean };
   prayerVideoResponses: { hasIsDemo: boolean };
   storyReactions: { hasIsDemo: boolean };
@@ -18,68 +45,21 @@ export type DemoContentSchemaCapabilities = {
   savedContent: { hasIsDemo: boolean };
   prayerFollows: { hasIsDemo: boolean };
   storyVideoReplies: { hasIsDemo: boolean };
-  /** True when at least stories.is_demo is readable — primary isolation gate. */
+  contentReports: { hasIsDemo: boolean };
+  /** True only when schema state === ready. */
   genuinePublicIsolationActive: boolean;
 };
 
-export class DemoContentSchemaProbeError extends Error {
-  readonly table: DemoContentTable;
-  readonly column: string;
-  readonly cause: unknown;
-
-  constructor(table: DemoContentTable, column: string, cause: unknown) {
-    super(
-      `[demo-content] Could not verify ${table}.${column}; demo isolation probe failed`
-    );
-    this.name = "DemoContentSchemaProbeError";
-    this.table = table;
-    this.column = column;
-    this.cause = cause;
-  }
-}
-
-type TableProbeState = "present" | "missing";
-
 let cachedCapabilities: DemoContentSchemaCapabilities | null = null;
 let capabilitiesPromise: Promise<DemoContentSchemaCapabilities> | null = null;
-const tableProbeCache = new Map<DemoContentTable, TableProbeState>();
-
-function isMissingColumnError(message: string, column: string) {
-  return (
-    new RegExp(column, "i").test(message) &&
-    /column|schema|does not exist|could not find/i.test(message)
-  );
-}
-
-async function probeReadableColumn(
-  table: DemoContentTable,
-  column: string
-): Promise<boolean> {
-  const cached = tableProbeCache.get(table);
-  if (cached !== undefined) {
-    return cached === "present";
-  }
-
-  const { error } = await supabase.from(table).select(column).limit(1);
-
-  if (!error) {
-    tableProbeCache.set(table, "present");
-    return true;
-  }
-
-  if (isMissingColumnError(error.message, column)) {
-    tableProbeCache.set(table, "missing");
-    return false;
-  }
-
-  throw new DemoContentSchemaProbeError(table, column, error);
-}
 
 function tableHasIsDemo(
   table: DemoContentTable,
   capabilities: DemoContentSchemaCapabilities
 ) {
   switch (table) {
+    case "profiles":
+      return capabilities.profiles.hasIsDemo;
     case "stories":
       return capabilities.stories.hasIsDemo;
     case "prayer_video_responses":
@@ -94,52 +74,39 @@ function tableHasIsDemo(
       return capabilities.prayerFollows.hasIsDemo;
     case "story_video_replies":
       return capabilities.storyVideoReplies.hasIsDemo;
+    case "content_reports":
+      return capabilities.contentReports.hasIsDemo;
     default:
       return false;
   }
 }
 
-/** Cached probe for demo isolation columns. Probes each table at most once per process. */
+function readinessToCapabilities(
+  readiness: Awaited<ReturnType<typeof getDemoContentSchemaReadiness>>
+): DemoContentSchemaCapabilities {
+  return {
+    state: readiness.state,
+    profiles: readiness.tables.profiles,
+    stories: readiness.tables.stories,
+    prayerVideoResponses: readiness.tables.prayer_video_responses,
+    storyReactions: readiness.tables.story_reactions,
+    prayerWrittenResponses: readiness.tables.prayer_written_responses,
+    savedContent: readiness.tables.saved_content,
+    prayerFollows: readiness.tables.prayer_follows,
+    storyVideoReplies: readiness.tables.story_video_replies,
+    contentReports: readiness.tables.content_reports,
+    genuinePublicIsolationActive: readiness.genuinePublicIsolationActive,
+  };
+}
+
+/** Cached readiness mapped for loader consumption. Throws on schema drift. */
 export async function getDemoContentSchemaCapabilities(): Promise<DemoContentSchemaCapabilities> {
   if (cachedCapabilities) return cachedCapabilities;
   if (capabilitiesPromise) return capabilitiesPromise;
 
   capabilitiesPromise = (async () => {
-    const [
-      storiesIsDemo,
-      responsesIsDemo,
-      reactionsIsDemo,
-      writtenIsDemo,
-      savedIsDemo,
-      followsIsDemo,
-      repliesIsDemo,
-    ] = await Promise.all([
-      probeReadableColumn("stories", "is_demo"),
-      probeReadableColumn("prayer_video_responses", "is_demo"),
-      probeReadableColumn("story_reactions", "is_demo"),
-      probeReadableColumn("prayer_written_responses", "is_demo"),
-      probeReadableColumn("saved_content", "is_demo"),
-      probeReadableColumn("prayer_follows", "is_demo"),
-      probeReadableColumn("story_video_replies", "is_demo"),
-    ]);
-
-    if (!storiesIsDemo) {
-      console.warn(
-        "[demo-content] stories.is_demo unavailable — genuine-public demo isolation inactive until demo schema is applied."
-      );
-    }
-
-    cachedCapabilities = {
-      stories: { hasIsDemo: storiesIsDemo },
-      prayerVideoResponses: { hasIsDemo: responsesIsDemo },
-      storyReactions: { hasIsDemo: reactionsIsDemo },
-      prayerWrittenResponses: { hasIsDemo: writtenIsDemo },
-      savedContent: { hasIsDemo: savedIsDemo },
-      prayerFollows: { hasIsDemo: followsIsDemo },
-      storyVideoReplies: { hasIsDemo: repliesIsDemo },
-      genuinePublicIsolationActive: storiesIsDemo,
-    };
-
+    const readiness = await getDemoContentSchemaReadiness();
+    cachedCapabilities = readinessToCapabilities(readiness);
     return cachedCapabilities;
   })();
 
@@ -159,12 +126,7 @@ export async function getDemoContentSchemaCapabilities(): Promise<DemoContentSch
 export function resetDemoContentSchemaCapabilitiesCache() {
   cachedCapabilities = null;
   capabilitiesPromise = null;
-  tableProbeCache.clear();
-}
-
-/** Test helper — inspect per-table probe cache state. */
-export function getDemoContentTableProbeCacheForTests() {
-  return tableProbeCache;
+  resetDemoContentSchemaReadinessCache();
 }
 
 export function isExplicitDemoFlag(value: unknown): boolean {
@@ -186,17 +148,18 @@ export function recordMatchesLoaderMode(
   return isGenuinePublicDemoRecord(record?.is_demo);
 }
 
-type EqCapableQuery<T> = {
-  eq: (column: string, value: boolean) => T;
+type EqCapableQuery = {
+  eq: (column: string, value: boolean) => unknown;
 };
 
-/** Apply database-level genuine-public demo exclusion when the column exists. */
-export function applyGenuinePublicDemoFilter<T extends EqCapableQuery<T>>(
-  query: T,
+/** Apply database-level genuine-public demo exclusion when schema is ready. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function applyGenuinePublicDemoFilter(
+  query: any,
   table: DemoContentTable,
   capabilities: DemoContentSchemaCapabilities
-): T {
-  if (!tableHasIsDemo(table, capabilities)) {
+): any {
+  if (capabilities.state !== "ready" || !tableHasIsDemo(table, capabilities)) {
     return query;
   }
   return query.eq("is_demo", false);
@@ -216,7 +179,11 @@ export function appendDemoFieldsToSelect(
   capabilities: DemoContentSchemaCapabilities,
   fields: string = DEMO_STORY_FIELD_SELECT
 ): string {
-  if (!tableHasIsDemo(table, capabilities) || select.includes("is_demo")) {
+  if (
+    capabilities.state !== "ready" ||
+    !tableHasIsDemo(table, capabilities) ||
+    select.includes("is_demo")
+  ) {
     return select;
   }
   return `${select}, ${fields}`;
@@ -250,7 +217,6 @@ export function shouldIgnoreGenuinePublicRealtimeIngress(
   }
 
   const eventType = (options?.eventType || "").toUpperCase();
-  // Partial UPDATE payloads may omit is_demo — allow genuine patch events through.
   if (eventType === "UPDATE") {
     return false;
   }

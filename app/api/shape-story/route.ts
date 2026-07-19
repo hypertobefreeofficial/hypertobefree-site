@@ -8,6 +8,7 @@ import {
   type CreatorStudioPath,
   type FaithStream,
 } from "../../../lib/creationCenter";
+import { shouldSuppressBillableAiForUserId } from "../../../lib/demo-content/externalServiceIsolation";
 
 type StoryShapeResponse = {
   storyType: string;
@@ -686,6 +687,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const suppressBillableAi = await shouldSuppressBillableAiForUserId(
+    authClient,
+    user.id
+  );
+
   let body: unknown;
 
   try {
@@ -711,6 +717,14 @@ export async function POST(request: Request) {
     });
 
     const fallback = fallbackCreatorStudioDesigns(body);
+
+    if (suppressBillableAi) {
+      return Response.json({
+        ...fallback,
+        fallbackReason:
+          "Demo accounts use deterministic Creator Studio output — external AI skipped.",
+      });
+    }
 
     if (!apiKey) {
       console.warn(
@@ -1013,6 +1027,10 @@ export async function POST(request: Request) {
   }
 
   const fallback = fallbackShape(body);
+
+  if (suppressBillableAi) {
+    return Response.json(fallback);
+  }
 
   if (!apiKey) {
     return Response.json(fallback);

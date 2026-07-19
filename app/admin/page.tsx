@@ -40,6 +40,12 @@ import {
   createLoadTraceId,
   measureLoad,
 } from "../../lib/perf/loadDiagnostics";
+import {
+  applyGenuinePublicModerationFilter,
+  filterGenuinePublicModerationRows,
+} from "../../lib/demo-content/moderationIsolation";
+import { getDemoContentSchemaCapabilities } from "../../lib/demo-content/eligibility";
+import { shouldDeliverInboxNotification } from "../../lib/demo-content/notificationIsolation";
 
 const storyFilters: { label: string; value: StoryFilter }[] = [
   { label: "All", value: "all" },
@@ -234,14 +240,17 @@ export default function AdminPage() {
     const limit = ADMIN_STORIES_PAGE_LIMIT;
     const cursor = decodeAdminListCursor(options?.cursor);
 
+    const demoCapabilities = await getDemoContentSchemaCapabilities();
     let query = supabase
       .from("stories")
       .select(
-        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at"
+        "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at, is_demo"
       )
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit);
+
+    query = applyGenuinePublicModerationFilter(query, "stories", demoCapabilities);
 
     if (cursor) {
       query = query.or(buildAdminKeysetOrFilter(cursor));
@@ -260,7 +269,9 @@ export default function AdminPage() {
       return;
     }
 
-    const loadedStories = (data as Story[]) ?? [];
+    const loadedStories = filterGenuinePublicModerationRows(
+      ((data as Story[]) ?? []) as Array<Story & { is_demo?: boolean | null }>
+    );
     const pagination = nextAdminCursorFromRows(loadedStories, limit);
 
     setStories((current) =>
@@ -303,6 +314,7 @@ export default function AdminPage() {
   }
 
   async function loadPrayerVideoResponses(): Promise<PrayerVideoResponse[]> {
+    const demoCapabilities = await getDemoContentSchemaCapabilities();
     const { data, error } = await supabase.rpc(
       "list_prayer_video_responses_for_admin"
     );
@@ -313,7 +325,7 @@ export default function AdminPage() {
     }
 
     const rawResponses: unknown[] = Array.isArray(data) ? data : [];
-    const loadedResponses = rawResponses
+    let loadedResponses = rawResponses
       .map(toPrayerVideoResponse)
       .filter(
         (response): response is PrayerVideoResponse => response !== null
@@ -321,12 +333,17 @@ export default function AdminPage() {
 
     const responseIds = loadedResponses.map((item) => item.response_id);
     if (responseIds.length > 0) {
-      const { data: moderationRows, error: moderationError } = await supabase
-        .from("prayer_video_responses")
-        .select(
-          "id, duration_verification_status, response_context, ai_review_status, ai_risk_level, ai_suggested_action, ai_summary, ai_flags"
-        )
-        .in("id", responseIds);
+      const { data: moderationRows, error: moderationError } =
+        await applyGenuinePublicModerationFilter(
+          supabase
+            .from("prayer_video_responses")
+            .select(
+              "id, duration_verification_status, response_context, ai_review_status, ai_risk_level, ai_suggested_action, ai_summary, ai_flags, is_demo"
+            )
+            .in("id", responseIds),
+          "prayer_video_responses",
+          demoCapabilities
+        );
 
       if (moderationError) {
         console.error(
@@ -336,23 +353,48 @@ export default function AdminPage() {
       }
 
       const moderationMap = new Map(
-        ((moderationRows as {
-          id: string;
-          duration_verification_status: string | null;
-          response_context: string | null;
-          ai_review_status: string | null;
-          ai_risk_level: string | null;
-          ai_suggested_action: string | null;
-          ai_summary: string | null;
-          ai_flags: string[] | null;
-        }[]) ?? []).map((row) => [row.id, row])
+        filterGenuinePublicModerationRows(
+          ((moderationRows as {
+            id: string;
+            duration_verification_status: string | null;
+            response_context: string | null;
+            ai_review_status: string | null;
+            ai_risk_level: string | null;
+            ai_suggested_action: string | null;
+            ai_summary: string | null;
+            ai_flags: string[] | null;
+            is_demo?: boolean | null;
+          }[]) ?? []) as Array<{
+            id: string;
+            duration_verification_status: string | null;
+            response_context: string | null;
+            ai_review_status: string | null;
+            ai_risk_level: string | null;
+            ai_suggested_action: string | null;
+            ai_summary: string | null;
+            ai_flags: string[] | null;
+            is_demo?: boolean | null;
+          }>
+        ).map((row) => [row.id, row])
       );
 
-      const storyIds = [...new Set(loadedResponses.map((item) => item.story_id))];
-      const { data: parentStories, error: parentStoriesError } = await supabase
-        .from("stories")
-        .select("id, story_type, story_text, user_id, name, status, removed_at")
-        .in("id", storyIds);
+      const genuineResponses = loadedResponses.filter((response) => {
+        const moderation = moderationMap.get(response.response_id);
+        return moderation !== undefined;
+      });
+
+      const storyIds = [...new Set(genuineResponses.map((item) => item.story_id))];
+      const { data: parentStories, error: parentStoriesError } =
+        await applyGenuinePublicModerationFilter(
+          supabase
+            .from("stories")
+            .select(
+              "id, story_type, story_text, user_id, name, status, removed_at, is_demo"
+            )
+            .in("id", storyIds),
+          "stories",
+          demoCapabilities
+        );
 
       if (parentStoriesError) {
         console.error(
@@ -362,15 +404,27 @@ export default function AdminPage() {
       }
 
       const parentStoryMap = new Map(
-        ((parentStories as {
-          id: string;
-          story_type: string | null;
-          story_text: string | null;
-          user_id: string | null;
-          name: string | null;
-          status: string | null;
-          removed_at: string | null;
-        }[]) ?? []).map((story) => [story.id, story])
+        filterGenuinePublicModerationRows(
+          ((parentStories as {
+            id: string;
+            story_type: string | null;
+            story_text: string | null;
+            user_id: string | null;
+            name: string | null;
+            status: string | null;
+            removed_at: string | null;
+            is_demo?: boolean | null;
+          }[]) ?? []) as Array<{
+            id: string;
+            story_type: string | null;
+            story_text: string | null;
+            user_id: string | null;
+            name: string | null;
+            status: string | null;
+            removed_at: string | null;
+            is_demo?: boolean | null;
+          }>
+        ).map((story) => [story.id, story])
       );
 
       const parentOwnerIds = [
@@ -404,7 +458,7 @@ export default function AdminPage() {
         });
       }
 
-      loadedResponses.forEach((response) => {
+      genuineResponses.forEach((response) => {
         const moderation = moderationMap.get(response.response_id);
         const parentStory = parentStoryMap.get(response.story_id);
 
@@ -444,6 +498,7 @@ export default function AdminPage() {
         response.parent_owner_username =
           parentOwnerProfile?.username ?? response.prayer_owner_username ?? null;
       });
+      loadedResponses = genuineResponses;
     }
 
     setPrayerVideoResponses(loadedResponses);
@@ -458,14 +513,21 @@ export default function AdminPage() {
     const limit = ADMIN_REPORTS_PAGE_LIMIT;
     const cursor = decodeAdminListCursor(options?.cursor);
 
+    const demoCapabilities = await getDemoContentSchemaCapabilities();
     let query = supabase
       .from("content_reports")
       .select(
-        "id, story_id, prayer_video_response_id, reporter_user_id, reported_user_id, reason, details, status, admin_notes, created_at, reviewed_at, reviewed_by"
+        "id, story_id, prayer_video_response_id, reporter_user_id, reported_user_id, reason, details, status, admin_notes, created_at, reviewed_at, reviewed_by, is_demo"
       )
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit);
+
+    query = applyGenuinePublicModerationFilter(
+      query,
+      "content_reports",
+      demoCapabilities
+    );
 
     if (cursor) {
       query = query.or(buildAdminKeysetOrFilter(cursor));
@@ -484,7 +546,11 @@ export default function AdminPage() {
       return;
     }
 
-    const baseReports = (data as ContentReport[]) ?? [];
+    const baseReports = filterGenuinePublicModerationRows(
+      ((data as ContentReport[]) ?? []) as Array<
+        ContentReport & { is_demo?: boolean | null }
+      >
+    );
     const pagination = nextAdminCursorFromRows(baseReports, limit);
 
     const storyIds = baseReports
@@ -494,18 +560,26 @@ export default function AdminPage() {
     let reportsWithStories = baseReports;
 
     if (storyIds.length > 0) {
-      const { data: storyData, error: storyError } = await supabase
-        .from("stories")
-        .select(
-          "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at"
-        )
-        .in("id", storyIds);
+      const { data: storyData, error: storyError } = await applyGenuinePublicModerationFilter(
+        supabase
+          .from("stories")
+          .select(
+            "id, user_id, name, email, location, story_type, story_text, image_url, video_url, thumbnail_url, status, ai_review_status, ai_risk_level, ai_suggested_action, ai_flags, created_at, is_demo"
+          )
+          .in("id", storyIds),
+        "stories",
+        demoCapabilities
+      );
 
       if (storyError) {
         setMessage(`Could not load reported stories: ${storyError.message}`);
       } else {
         const storyMap = new Map(
-          ((storyData as Story[]) ?? []).map((story) => [story.id, story])
+          filterGenuinePublicModerationRows(
+            ((storyData as Story[]) ?? []) as Array<
+              Story & { is_demo?: boolean | null }
+            >
+          ).map((story) => [story.id, story])
         );
 
         reportsWithStories = baseReports.map((report) => ({
@@ -657,8 +731,18 @@ export default function AdminPage() {
     setStoryImageUrls(nextImageUrls);
   }
 
-  async function createApprovalInboxMessage(story: Story | null | undefined) {
+  async function createApprovalInboxMessage(
+    story: (Story & { is_demo?: boolean | null }) | null | undefined
+  ) {
     if (!story?.user_id) return;
+    if (
+      !shouldDeliverInboxNotification({
+        story,
+        recipient: { is_demo: story.is_demo ?? null },
+      })
+    ) {
+      return;
+    }
 
     const { data: existingMessages, error: existingError } = await supabase
       .from("inbox_messages")

@@ -35,6 +35,7 @@ import {
   isPrayerStorySummary,
   searchInboxItems,
 } from "../../../lib/journey/inbox/utils";
+import { filterGenuineInboxMessages } from "../../../lib/demo-content/privatePathIsolation";
 import styles from "../../../components/journey/inbox/JourneyInbox.module.css";
 
 function useMediaQuery(query: string) {
@@ -119,8 +120,9 @@ export default function JourneyInboxPage() {
             "created_at" in message
         );
 
-        setMessages(nextMessages);
-        await loadPrayerStorySummaries(nextMessages);
+        const genuineMessages = await filterGenuineInboxMessages(nextMessages);
+        setMessages(genuineMessages);
+        await loadPrayerStorySummaries(genuineMessages);
       } else if (error) {
         setStatusMessage(`Could not load your Journey Inbox: ${error.message}`);
         setPrayerStories({});

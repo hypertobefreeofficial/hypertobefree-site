@@ -1,4 +1,9 @@
 import { isSupabaseConfigured, supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 import { resolveMapStoryCategory } from "./categories";
 import { geocodePublicLocation } from "./geocodeLocation";
 import type { MapStoryRecord } from "./types";
@@ -15,6 +20,7 @@ type RawStoryRow = {
   status: string | null;
   prayer_status: string | null;
   created_at: string | null;
+  is_demo?: boolean | null;
 };
 
 type ProfileRow = {
@@ -25,6 +31,7 @@ type ProfileRow = {
 type ReactionRow = {
   story_id: string | null;
   reaction_type: string | null;
+  is_demo?: boolean | null;
 };
 
 export type LoadMapStoriesResult =
@@ -50,15 +57,25 @@ export async function loadMapStories(): Promise<LoadMapStoriesResult> {
   }
 
   try {
-    const { data, error } = await supabase
+    const demoCapabilities = await getDemoContentSchemaCapabilities();
+
+    let storyQuery = supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, image_url, video_url, status, prayer_status, created_at"
+        "id, user_id, name, location, story_type, story_text, image_url, video_url, status, prayer_status, created_at, is_demo"
       )
       .eq("status", "approved")
       .not("location", "is", null)
       .order("created_at", { ascending: false })
       .limit(200);
+
+    storyQuery = applyGenuinePublicDemoFilter(
+      storyQuery,
+      "stories",
+      demoCapabilities
+    );
+
+    const { data, error } = await storyQuery;
 
     if (error || !data) {
       return {
@@ -68,7 +85,9 @@ export async function loadMapStories(): Promise<LoadMapStoriesResult> {
       };
     }
 
-    const rawStories = data as RawStoryRow[];
+    const rawStories = filterGenuinePublicDemoRows(
+      (data as RawStoryRow[]) ?? []
+    );
     const userIds = [
       ...new Set(
         rawStories
@@ -97,12 +116,22 @@ export async function loadMapStories(): Promise<LoadMapStoriesResult> {
     >();
 
     if (storyIds.length > 0) {
-      const { data: reactions } = await supabase
+      let reactionQuery = supabase
         .from("story_reactions")
-        .select("story_id, reaction_type")
+        .select("story_id, reaction_type, is_demo")
         .in("story_id", storyIds);
 
-      ((reactions as ReactionRow[]) ?? []).forEach((reaction) => {
+      reactionQuery = applyGenuinePublicDemoFilter(
+        reactionQuery,
+        "story_reactions",
+        demoCapabilities
+      );
+
+      const { data: reactions } = await reactionQuery;
+
+      filterGenuinePublicDemoRows(
+        ((reactions as ReactionRow[]) ?? []) as ReactionRow[]
+      ).forEach((reaction) => {
         if (!reaction.story_id) return;
 
         const current = reactionMap.get(reaction.story_id) ?? {

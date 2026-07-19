@@ -1,14 +1,29 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 
 export async function loadSavedStoryIds(userId: string) {
-  const { data, error } = await supabase
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  let query = supabase
     .from("saved_content")
-    .select("story_id")
+    .select("story_id, is_demo")
     .eq("user_id", userId);
+
+  query = applyGenuinePublicDemoFilter(query, "saved_content", demoCapabilities);
+
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
 
-  return ((data as { story_id: string | null }[]) ?? [])
+  return filterGenuinePublicDemoRows(
+    ((data as { story_id: string | null; is_demo?: boolean | null }[]) ?? []) as Array<{
+      story_id: string | null;
+      is_demo?: boolean | null;
+    }>
+  )
     .map((row) => row.story_id)
     .filter((id): id is string => Boolean(id));
 }
@@ -24,6 +39,23 @@ export async function toggleSavedStory(userId: string, storyId: string, currentl
     return false;
   }
 
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  if (demoCapabilities.genuinePublicIsolationActive) {
+    const { data: storyData, error: storyError } = await applyGenuinePublicDemoFilter(
+      supabase.from("stories").select("id, is_demo").eq("id", storyId),
+      "stories",
+      demoCapabilities
+    ).maybeSingle();
+
+    if (storyError) {
+      throw new Error(storyError.message);
+    }
+
+    if (!storyData) {
+      throw new Error("This story is not available to save.");
+    }
+  }
+
   const { error } = await supabase.from("saved_content").insert({
     user_id: userId,
     story_id: storyId,
@@ -33,13 +65,17 @@ export async function toggleSavedStory(userId: string, storyId: string, currentl
 }
 
 export async function loadFollowedPrayerIds(userId: string) {
-  const { data, error } = await supabase
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  let query = supabase
     .from("prayer_follows")
-    .select("story_id")
+    .select("story_id, is_demo")
     .eq("user_id", userId);
 
+  query = applyGenuinePublicDemoFilter(query, "prayer_follows", demoCapabilities);
+
+  const { data, error } = await query;
+
   if (error) {
-    // Table may not exist until migration is applied.
     if (/relation|does not exist|could not find/i.test(error.message)) {
       return { ids: [] as string[], available: false as const };
     }
@@ -47,7 +83,12 @@ export async function loadFollowedPrayerIds(userId: string) {
   }
 
   return {
-    ids: ((data as { story_id: string | null }[]) ?? [])
+    ids: filterGenuinePublicDemoRows(
+      ((data as { story_id: string | null; is_demo?: boolean | null }[]) ?? []) as Array<{
+        story_id: string | null;
+        is_demo?: boolean | null;
+      }>
+    )
       .map((row) => row.story_id)
       .filter((id): id is string => Boolean(id)),
     available: true as const,
@@ -69,6 +110,23 @@ export async function toggleFollowedPrayer(
     return false;
   }
 
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  if (demoCapabilities.genuinePublicIsolationActive) {
+    const { data: storyData, error: storyError } = await applyGenuinePublicDemoFilter(
+      supabase.from("stories").select("id, is_demo").eq("id", storyId),
+      "stories",
+      demoCapabilities
+    ).maybeSingle();
+
+    if (storyError) {
+      throw new Error(storyError.message);
+    }
+
+    if (!storyData) {
+      throw new Error("This prayer is not available to follow.");
+    }
+  }
+
   const { error } = await supabase.from("prayer_follows").insert({
     user_id: userId,
     story_id: storyId,
@@ -82,23 +140,37 @@ export async function loadUserPrayerReactions(userId: string, storyIds: string[]
     return new Map<string, Set<string>>();
   }
 
-  const { data, error } = await supabase
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  let query = supabase
     .from("story_reactions")
-    .select("story_id, reaction_type")
+    .select("story_id, reaction_type, is_demo")
     .eq("user_id", userId)
     .in("story_id", storyIds);
+
+  query = applyGenuinePublicDemoFilter(query, "story_reactions", demoCapabilities);
+
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
 
   const map = new Map<string, Set<string>>();
-  ((data as { story_id: string | null; reaction_type: string | null }[]) ?? []).forEach(
-    (row) => {
-      if (!row.story_id || !row.reaction_type) return;
-      const set = map.get(row.story_id) ?? new Set<string>();
-      set.add(row.reaction_type);
-      map.set(row.story_id, set);
-    }
-  );
+  filterGenuinePublicDemoRows(
+    ((data as {
+      story_id: string | null;
+      reaction_type: string | null;
+      is_demo?: boolean | null;
+    }[]) ?? []) as Array<{
+      story_id: string | null;
+      reaction_type: string | null;
+      is_demo?: boolean | null;
+    }>
+  ).forEach((row) => {
+    if (!row.story_id || !row.reaction_type) return;
+    const set = map.get(row.story_id) ?? new Set<string>();
+    set.add(row.reaction_type);
+    map.set(row.story_id, set);
+  });
+
   return map;
 }
 
@@ -127,13 +199,22 @@ export async function submitWrittenPrayer(options: {
 }
 
 export async function loadWrittenPrayers(storyId: string) {
-  const { data, error } = await supabase
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  let query = supabase
     .from("prayer_written_responses")
-    .select("id, body, author_user_id, created_at, status")
+    .select("id, body, author_user_id, created_at, status, is_demo")
     .eq("story_id", storyId)
     .eq("status", "visible")
     .order("created_at", { ascending: false })
     .limit(20);
+
+  query = applyGenuinePublicDemoFilter(
+    query,
+    "prayer_written_responses",
+    demoCapabilities
+  );
+
+  const { data, error } = await query;
 
   if (error) {
     if (/relation|does not exist|could not find/i.test(error.message)) {
@@ -142,11 +223,21 @@ export async function loadWrittenPrayers(storyId: string) {
     throw new Error(error.message);
   }
 
-  return (data as {
-    id: string;
-    body: string;
-    author_user_id: string;
-    created_at: string;
-    status: string;
-  }[]) ?? [];
+  return filterGenuinePublicDemoRows(
+    ((data as {
+      id: string;
+      body: string;
+      author_user_id: string;
+      created_at: string;
+      status: string;
+      is_demo?: boolean | null;
+    }[]) ?? []) as Array<{
+      id: string;
+      body: string;
+      author_user_id: string;
+      created_at: string;
+      status: string;
+      is_demo?: boolean | null;
+    }>
+  );
 }

@@ -19,6 +19,8 @@ export type DemoContentFieldSnapshot = {
  */
 export type DemoLoaderMode = "genuine_public" | "controlled_demo";
 
+export type DemoContentSchemaState = "pre_schema" | "ready" | "schema_drift";
+
 export const GENUINE_PUBLIC_DEMO_RULE =
   "Genuine public loaders include only is_demo = false. Demo records require an internal controlled demo loader.";
 

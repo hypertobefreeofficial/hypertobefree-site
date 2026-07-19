@@ -1,8 +1,38 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
+import { shouldDeliverInboxNotification } from "../demo-content/notificationIsolation";
 import { uploadPrayerVideo } from "./media";
 import type { ResponseContextLabels } from "../responses/responseContext";
 
 const MAX_PRIVATE_VIDEO_SECONDS = 30;
+
+async function loadStoryDemoSnapshot(storyId: string) {
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  let query = supabase
+    .from("stories")
+    .select("id, is_demo, demo_seed_run_id")
+    .eq("id", storyId);
+
+  query = applyGenuinePublicDemoFilter(query, "stories", demoCapabilities);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    throw new Error("Could not verify the prayer request. Please try again.");
+  }
+
+  return data as { id: string; is_demo?: boolean | null; demo_seed_run_id?: string | null } | null;
+}
+
+async function assertGenuinePrivateStory(storyId: string) {
+  const story = await loadStoryDemoSnapshot(storyId);
+  if (!story) {
+    throw new Error("This prayer request is not available for private responses.");
+  }
+  return story;
+}
 
 async function assertUsersNotBlocked(
   senderUserId: string,
@@ -38,6 +68,7 @@ export async function sendPrivatePrayerMessage(options: {
   if (!clean) throw new Error("Please write a message first.");
 
   await assertUsersNotBlocked(options.senderUserId, options.recipientUserId);
+  await assertGenuinePrivateStory(options.storyId);
 
   const { data: existing } = await supabase
     .from("story_video_replies")
@@ -83,6 +114,7 @@ export async function sendPrivateVideoPrayer(options: {
   >;
 }) {
   await assertUsersNotBlocked(options.senderUserId, options.recipientUserId);
+  const story = await assertGenuinePrivateStory(options.storyId);
 
   const duration = await readVideoDuration(options.videoFile);
   if (duration > MAX_PRIVATE_VIDEO_SECONDS) {
@@ -131,6 +163,16 @@ export async function sendPrivateVideoPrayer(options: {
       read: true,
     },
   ];
+
+  if (
+    !shouldDeliverInboxNotification({
+      story,
+      actor: { is_demo: false },
+      recipient: { is_demo: false },
+    })
+  ) {
+    return { destination: "/journey/inbox" };
+  }
 
   const { error } = await supabase.from("inbox_messages").insert(rows);
   if (error) throw new Error(error.message);

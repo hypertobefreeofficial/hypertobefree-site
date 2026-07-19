@@ -532,6 +532,44 @@ Existing real records are unaffected — all new columns have safe defaults (`is
 
 ---
 
+## Live seeding readiness matrix (Phase 2B)
+
+**Seeding is not approved in this phase.** All gates below must be green, automated tests must pass, and `schema state` must equal **`ready`** before any staging seed command runs.
+
+| Gate | Scope | Status |
+|------|-------|--------|
+| 1. Schema safeguards | Migration `20260725_demo_content_system.sql` on htbf-staging | **Complete** |
+| 2. Feed exclusion | `aggregateFeedItems`, enrichment, keyset pagination | **Complete** (471e06da) |
+| 3. Prayer exclusion | `loadPrayerConnectRequests`, community responses | **Complete** (471e06da) |
+| 4. Search exclusion | `loadSearchStoriesPage` | **Complete** (471e06da) |
+| 5. Count isolation | Reactions, praying, video-response counts | **Complete** (471e06da) |
+| 6. Realtime isolation | Feed ingress + sync + revalidation | **Complete** (471e06da) |
+| 7. Moderation isolation | Admin queues, `content_reports`, video-response admin | **Complete** (Phase 2B) |
+| 8. Notification / email suppression | `inbox_messages` writes, future Resend gate | **Complete** (Phase 2B) |
+| 9. AI moderation / cost suppression | Story + video-response moderation, Creator Studio AI routes | **Complete** (Phase 2B) |
+
+Additional Phase 2B gates:
+
+| Gate | Scope | Status |
+|------|-------|--------|
+| Testimony Map isolation | `loadMapStories.ts` stories + reactions | **Complete** (Phase 2B) |
+| Private / inbox isolation | Saved, follows, private messages, Journey Inbox, Messages | **Complete** (Phase 2B) |
+| Schema readiness | `pre_schema` / `ready` / `schema_drift` detection | **Complete** (Phase 2B) |
+
+### Schema state rules
+
+| State | Meaning | Public loader behavior |
+|-------|---------|------------------------|
+| `pre_schema` | All required tables missing `is_demo` | Genuine loaders run without demo filter (demo rows cannot exist yet) |
+| `ready` | All required tables have demo columns | Genuine loaders **must** apply `is_demo = false` |
+| `schema_drift` | Mixed present/missing columns | **`DemoContentSchemaDriftError`** — public loading stops; seeding prohibited |
+
+Required tables for readiness: `profiles`, `stories`, `prayer_video_responses`, `story_reactions`, `content_reports`, `saved_content`, `prayer_follows`, `prayer_written_responses`, `story_video_replies`.
+
+Future seed commands must call `assertDemoSchemaReadyForSeeding()` and require `state === "ready"`.
+
+---
+
 ## Resolved decisions (Phase 1A)
 
 1. **Real-to-demo cross-interaction:** **Denied** for Phase 1. Reconsider only via explicit reviewed design.

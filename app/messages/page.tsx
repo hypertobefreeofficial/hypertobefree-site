@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { loadGenuineStoryVideoRepliesForUser } from "../../lib/demo-content/privatePathIsolation";
 type MessageTab = "inbox" | "sent" | "all";
 
 type ReplyRow = {
@@ -106,29 +107,17 @@ export default function MessagesPage() {
   }, []);
 
   async function loadMessages(currentUserId: string) {
-    const { data, error } = await supabase
-      .from("story_video_replies")
-      .select(
-        "id, story_id, user_id, recipient_user_id, parent_reply_id, message, created_at, deleted_by_sender, deleted_by_recipient, read_at"
-      )
-      .or(`user_id.eq.${currentUserId},recipient_user_id.eq.${currentUserId}`)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      setMessage(`Could not load messages: ${error.message}`);
+    let allMessages;
+    try {
+      allMessages = await loadGenuineStoryVideoRepliesForUser(currentUserId);
+    } catch (error) {
+      setMessage(
+        `Could not load messages: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
       return;
     }
-
-    const allMessages = ((data as ReplyRow[]) ?? []).filter((item) => {
-      const hiddenFromSender =
-        item.user_id === currentUserId && item.deleted_by_sender === true;
-
-      const hiddenFromRecipient =
-        item.recipient_user_id === currentUserId &&
-        item.deleted_by_recipient === true;
-
-      return !hiddenFromSender && !hiddenFromRecipient;
-    });
 
     setMessages(allMessages);
 

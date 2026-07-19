@@ -26,6 +26,8 @@ vi.mock("../demo-content/eligibility", async (importOriginal) => {
   return {
     ...actual,
     getDemoContentSchemaCapabilities: vi.fn(async () => ({
+      state: "ready" as const,
+      profiles: { hasIsDemo: true },
       stories: { hasIsDemo: true },
       prayerVideoResponses: { hasIsDemo: true },
       storyReactions: { hasIsDemo: true },
@@ -33,6 +35,7 @@ vi.mock("../demo-content/eligibility", async (importOriginal) => {
       savedContent: { hasIsDemo: true },
       prayerFollows: { hasIsDemo: true },
       storyVideoReplies: { hasIsDemo: true },
+      contentReports: { hasIsDemo: true },
       genuinePublicIsolationActive: true,
     })),
   };

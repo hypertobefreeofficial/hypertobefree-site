@@ -14,6 +14,11 @@ import {
   UserCircle,
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  getDemoContentSchemaCapabilities,
+} from "../../../lib/demo-content/eligibility";
+import { filterGenuineSavedContentJoinRows } from "../../../lib/demo-content/privatePathIsolation";
 
 type PlaceholderContent = {
   eyebrow: string;
@@ -856,13 +861,22 @@ function SavedContentSection() {
 
       setUserId(user.id);
 
-      const { data, error } = await supabase
+      const demoCapabilities = await getDemoContentSchemaCapabilities();
+      let query = supabase
         .from("saved_content")
         .select(
-          "story_id, created_at, stories(id, user_id, name, story_type, story_text, image_url, video_url, prayer_status, answered_text, status, created_at)"
+          "story_id, created_at, is_demo, stories(id, user_id, name, story_type, story_text, image_url, video_url, prayer_status, answered_text, status, created_at, is_demo)"
         )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
+
+      query = applyGenuinePublicDemoFilter(
+        query,
+        "saved_content",
+        demoCapabilities
+      );
+
+      const { data, error } = await query;
 
       if (error) {
         setMessage(`Could not load saved content: ${error.message}`);
@@ -870,7 +884,9 @@ function SavedContentSection() {
         return;
       }
 
-      setItems(parseSavedContentItems(data));
+      setItems(
+        parseSavedContentItems(filterGenuineSavedContentJoinRows((data as unknown[]) ?? []))
+      );
       setLoading(false);
     }
 
