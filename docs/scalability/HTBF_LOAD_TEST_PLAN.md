@@ -1,6 +1,6 @@
 # HTBF Staging Load-Test Plan
 
-**Status:** Harness prepared — local 10-user smoke not yet executed. Do not run against production.
+**Status:** 10-user local smoke **passed** (2026-07-19). 50-user local baseline is the next checkpoint. Do not run against production.
 **Tool:** k6 (scripts under `load-tests/k6/`)
 
 ---
@@ -21,6 +21,34 @@ k6 on owner's Mac
 - **Vercel Preview:** manual functional testing only — **no k6**.
 - **Hosted load testing:** disabled unless separately authorized.
 - **Local Gate A** measures HTBF code and Supabase staging only; it does **not** certify Vercel or production capacity.
+
+---
+
+## Accepted 10-user local smoke (2026-07-19)
+
+Local Gate A smoke passed against htbf-staging with a production-style Next.js build on `http://127.0.0.1:3100`.
+
+| Metric | Result |
+|--------|--------|
+| Virtual users | 10 |
+| Duration | 5 minutes |
+| Total HTTP requests | 604 |
+| HTTP failure rate | 0.00% |
+| Check pass rate | 100.00% |
+| HTTP p50 | 81.8 ms |
+| HTTP p95 | 107.2 ms |
+| Feed p95 | 102 ms |
+| Prayer p95 | 99 ms |
+| Search p95 | 101.1 ms |
+| Authentication failures | 0 |
+| HTTP 4xx | 0 |
+| HTTP 5xx | 0 |
+
+**Scope:** This run tested HTBF application code and the htbf-staging Supabase branch only. It did **not** test Vercel Functions, CDN behavior, full media streaming, or production infrastructure.
+
+**Next checkpoint:** 50-user local baseline (`node load-tests/scripts/run-baseline-50.mjs`) after starting the local server.
+
+Result JSON remains local and gitignored under `load-tests/k6/results/`.
 
 ---
 
@@ -87,9 +115,9 @@ k6 on owner's Mac
 
 | Stage | Name | VUs | Duration | Status |
 |-------|------|-----|----------|--------|
-| 0 | Smoke | 10 | 5 min | **Active** — local read-only (`smoke-10.js`) |
-| 1 | Baseline | 50 | 15 min | **Inactive** — `baseline-50.js` disabled until smoke passes |
-| 2 | Growth A | 100 | 20 min | **Inactive** — `gate-a-100.js` disabled until smoke passes |
+| 0 | Smoke | 10 | 5 min | **Passed** — local read-only (`smoke-10.js`) |
+| 1 | Baseline | 50 | 15 min | **Prepared** — `baseline-50.js` via `run-baseline-50.mjs` |
+| 2 | Growth A | 100 | 20 min | **Inactive** — `gate-a-100.js` disabled until baseline passes |
 | 3 | Growth B | 250 | 25 min | Future — requires hosted authorization |
 | 4 | Growth C | 500 | 30 min | Future — requires hosted authorization |
 | 5 | Stress | 1,000 | 20 min | Future — requires hosted authorization |
@@ -237,8 +265,8 @@ Collect simultaneously:
 
 ## Deliverables (current)
 
-1. `load-tests/k6/` scripts — smoke active; baseline/gate-a inactive
-2. `load-tests/scripts/` — seed, cleanup, local server, smoke orchestrator
+1. `load-tests/k6/` scripts — smoke passed; baseline prepared; gate-a inactive
+2. `load-tests/scripts/` — seed, cleanup, local server, smoke/baseline orchestrators
 3. GitHub Actions workflow — **not created** (local-only policy)
 
 ## Limitations

@@ -230,11 +230,12 @@ Files live under `load-tests/k6/` and `load-tests/scripts/`.
 1. Copy `.env.staging.local.example` → `.env.staging.local` (gitignored)
 2. `node load-tests/scripts/start-local-staging.mjs`
 3. `node load-tests/scripts/seed-gate-a-staging.mjs`
-4. `node load-tests/scripts/run-smoke-10.mjs`
+4. `node load-tests/scripts/run-smoke-10.mjs` — **passed 2026-07-19**
+5. `node load-tests/scripts/run-baseline-50.mjs` — next checkpoint (50 VUs / 15 min)
 
 **Do not run** until Step 0 confirms staging isolation.
 
-**Inactive until 10-user smoke passes:** `baseline-50.js`, `gate-a-100.js` (hosted scenarios disabled by policy).
+**Prepared after 10-user smoke pass:** `baseline-50.js` via `run-baseline-50.mjs`. **Inactive:** `gate-a-100.js` (hosted scenarios disabled by policy).
 
 ---
 
@@ -243,7 +244,8 @@ Files live under `load-tests/k6/` and `load-tests/scripts/`.
 Gate A tooling may be prepared, but Gate A **must not be certified** until:
 
 1. Video autoplay is restored and media workload is included or separately measured
-2. Local 10-user read-only smoke passes against htbf-staging
-3. Thresholds in `load-tests/k6/config.example.js` pass locally
+2. Local 10-user read-only smoke **passed** against htbf-staging (2026-07-19)
+3. Thresholds in `load-tests/k6/config.example.js` pass locally for smoke
 4. God Did It functional regression is fixed before main merge approval
-5. Hosted end-to-end capacity certification requires written Vercel approval or an eligible Vercel plan
+5. **Next:** 50-user local baseline before higher gates
+6. Hosted end-to-end capacity certification requires written Vercel approval or an eligible Vercel plan

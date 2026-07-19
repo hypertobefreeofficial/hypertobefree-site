@@ -1,21 +1,28 @@
 import http from "k6/http";
 import { check, fail } from "k6";
-import { Trend } from "k6/metrics";
+import { Trend, Counter } from "k6/metrics";
 
 export const feedDuration = new Trend("htbf_feed_duration", true);
 export const prayerDuration = new Trend("htbf_prayer_duration", true);
 export const searchDuration = new Trend("htbf_search_duration", true);
+export const videoFeedDuration = new Trend("htbf_video_feed_duration", true);
 export const mutationDuration = new Trend("htbf_mutation_duration", true);
+export const http4xxCount = new Counter("htbf_http_4xx");
+export const http5xxCount = new Counter("htbf_http_5xx");
 
 const DEFAULT_HEADERS = {
   Accept: "application/json",
 };
 
 export function supabaseHeaders(anonKey, accessToken) {
+  if (!accessToken) {
+    fail("Authenticated Supabase request requires a user access token.");
+  }
+
   return {
     ...DEFAULT_HEADERS,
     apikey: anonKey,
-    Authorization: `Bearer ${accessToken || anonKey}`,
+    Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
   };
 }
@@ -28,7 +35,11 @@ export function getJson(url, headers, tags) {
   if (tags?.surface === "feed") feedDuration.add(elapsed);
   if (tags?.surface === "prayer") prayerDuration.add(elapsed);
   if (tags?.surface === "search") searchDuration.add(elapsed);
+  if (tags?.surface === "video_feed") videoFeedDuration.add(elapsed);
   if (tags?.surface === "mutation") mutationDuration.add(elapsed);
+
+  if (response.status >= 400 && response.status < 500) http4xxCount.add(1);
+  if (response.status >= 500) http5xxCount.add(1);
 
   check(response, {
     [`${tags?.name || "request"} status < 400`]: (r) => r.status > 0 && r.status < 400,

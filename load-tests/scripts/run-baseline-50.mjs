@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
- * Gate A read-only smoke runner (10 VUs / 5 minutes).
- * Targets a local production build on 127.0.0.1 connected to htbf-staging only.
+ * Gate A read-only baseline runner (50 VUs / 15 minutes).
+ * Prepared for local-staging only — requires a healthy local server and 10-user auth sweep.
+ *
+ * Usage:
+ *   node load-tests/scripts/run-baseline-50.mjs --preflight-only
+ *   node load-tests/scripts/run-baseline-50.mjs
  */
 
 import { spawnSync } from "node:child_process";
@@ -16,8 +20,9 @@ import { createGateAProcessSampler } from "./gateAProcessSampler.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
 const ENV_FILE = resolve(ROOT, "load-tests/k6/.env.staging.local");
-const SCENARIO = resolve(ROOT, "load-tests/k6/scenarios/smoke-10.js");
+const SCENARIO = resolve(ROOT, "load-tests/k6/scenarios/baseline-50.js");
 const RESULTS_DIR = resolve(ROOT, "load-tests/k6/results");
+const preflightOnly = process.argv.includes("--preflight-only");
 
 if (!loadStagingEnvFile(ENV_FILE)) {
   console.error(
@@ -33,21 +38,36 @@ try {
   preflight = await runGateAPreflight({
     repoRoot: ROOT,
     envFile: ENV_FILE,
-    requireLocalServer: true,
-    requireAllUsersAuth: false,
+    requireLocalServer: !preflightOnly,
+    requireAllUsersAuth: true,
   });
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
 
+console.log(JSON.stringify({
+  preflight: {
+    pass: preflight.pass,
+    checks: preflight.checks,
+    envSummary: preflight.envSummary,
+    authSweep: preflight.authSweep,
+  },
+}, null, 2));
+
 if (!preflight.pass) {
-  console.error(JSON.stringify({ preflight }, null, 2));
   process.exit(1);
 }
 
-console.log("Gate A local smoke — environment summary:");
+console.log("Gate A local baseline — environment summary:");
 console.log(JSON.stringify(preflight.envSummary, null, 2));
+
+if (preflightOnly) {
+  console.log(
+    "Baseline preflight passed. Start the local server, then run without --preflight-only when ready."
+  );
+  process.exit(0);
+}
 
 const k6Bin = preflight.k6Binary;
 if (!k6Bin) {
@@ -57,7 +77,7 @@ if (!k6Bin) {
 
 mkdirSync(RESULTS_DIR, { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const summaryFile = resolve(RESULTS_DIR, `smoke-10-${stamp}.json`);
+const summaryFile = resolve(RESULTS_DIR, `baseline-50-${stamp}.json`);
 const sampler = createGateAProcessSampler({ localPort: getConfiguredLocalPort() });
 sampler.start();
 
@@ -98,6 +118,6 @@ if (result.status !== 0) {
 
 console.log(`Summary exported to ${summaryFile}`);
 printGateAResultsReport(summaryFile, readFileSync, {
-  scenarioLabel: "smoke",
+  scenarioLabel: "baseline-50",
   processSample: sampler.getSummary(),
 });

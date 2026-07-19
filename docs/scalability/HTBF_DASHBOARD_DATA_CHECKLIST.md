@@ -120,7 +120,8 @@ Use this checklist **during** the first Gate A run on confirmed staging. Metrics
 - [ ] Step 0 in `HTBF_GATE_A_STAGING_RUNBOOK.md` confirms Preview ≠ Production Supabase
 - [ ] Staging seed users exist (`loadtest_user_*@staging.htbf.test`)
 - [ ] Staging seed content tagged `creation_mode='loadtest'`
-- [ ] `HTBF_LOAD_TEST_ENV=staging` set on load generator
+- [ ] `HTBF_LOAD_TEST_ENV=local-staging` set on load generator
+- [ ] Local server healthy at `http://127.0.0.1:3100/feed` before k6
 - [ ] Note start/end timestamps (UTC)
 
 ### Vercel (Preview deployment under test)
@@ -177,12 +178,29 @@ Use this checklist **during** the first Gate A run on confirmed staging. Metrics
 |--------|--------|
 | Scenario | smoke / 50 / 100 |
 | HTTP failure rate | |
-| Feed p95 | |
-| Prayer p95 | |
-| Search p95 | |
-| Mutation p95 | |
+| HTTP p50 / p95 / p99 | |
+| Feed p95 / p99 | |
+| Prayer p95 / p99 | |
+| Search p95 / p99 | |
+| Video Feed metadata p95 / p99 | |
+| Auth request count | |
+| HTTP 4xx / 5xx counts | |
 | Unexpected auth failures | |
 | Pass/fail vs thresholds | |
+
+### Accepted local smoke reference (2026-07-19)
+
+| Metric | Result |
+|--------|--------|
+| Scenario | smoke (10 VUs / 5 min) |
+| HTTP failure rate | 0.00% |
+| HTTP p50 / p95 | 81.8 ms / 107.2 ms |
+| Feed / Prayer / Search p95 | 102 ms / 99 ms / 101.1 ms |
+| Total requests | 604 |
+| Auth failures | 0 |
+| Pass/fail vs thresholds | Pass |
+
+Local smoke tested HTBF code and Supabase staging only — not Vercel, CDN, full media streaming, or production.
 
 **Note:** First Gate A run is **not** a complete media-capacity certification while Feed autoplay is broken. See `HTBF_PHASE1_BASELINE.md` §0.
 

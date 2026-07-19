@@ -1,11 +1,12 @@
 import { sleep } from "k6";
-import { scenarioProfiles } from "../config.example.js";
+import { gateASummaryTrendStats, scenarioProfiles } from "../config.example.js";
 import { assertAllRuntimeGuards } from "../helpers/env.js";
 import { resolveSessionForVu } from "../helpers/auth.js";
 import { abortOnHighErrorRate } from "../helpers/http.js";
 import { runReadOnlyMix } from "./read-only-browse.js";
 
 export const options = {
+  summaryTrendStats: gateASummaryTrendStats,
   scenarios: {
     smoke: {
       executor: "constant-vus",
@@ -16,26 +17,39 @@ export const options = {
   thresholds: scenarioProfiles.smoke10.thresholds,
 };
 
-let runtime;
-
 export function setup() {
-  return assertAllRuntimeGuards({ requireMutations: false });
+  const runtime = assertAllRuntimeGuards({ requireMutations: false });
+  return {
+    baseUrl: runtime.baseUrl,
+    supabase: {
+      supabaseUrl: runtime.supabase.supabaseUrl,
+      projectRef: runtime.supabase.projectRef,
+    },
+    users: runtime.users,
+  };
 }
 
+const vuSessions = {};
+
 export default function smoke10(data) {
-  runtime = data;
   abortOnHighErrorRate();
 
-  const session = resolveSessionForVu(
-    data.supabase.supabaseUrl,
-    data.supabase.anonKey,
-    data.users,
-    __VU
-  );
+  const anonKey = (__ENV.HTBF_SUPABASE_ANON_KEY || "").trim();
+
+  if (!vuSessions[__VU]) {
+    vuSessions[__VU] = resolveSessionForVu(
+      data.supabase.supabaseUrl,
+      anonKey,
+      data.users,
+      __VU
+    );
+  }
+
+  const session = vuSessions[__VU];
 
   runReadOnlyMix(
     data.supabase.supabaseUrl,
-    data.supabase.anonKey,
+    anonKey,
     session.accessToken,
     Math.random()
   );

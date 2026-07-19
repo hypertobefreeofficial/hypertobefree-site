@@ -156,7 +156,50 @@ export function assertSyntheticUserEmail(email) {
   }
 }
 
-export function loadStagingEnvFile(path) {
+export function describeStagingAnonKey(anonKey) {
+  const trimmed = anonKey?.trim() || "";
+  return {
+    present: Boolean(trimmed),
+    legacyJwtFormat: trimmed.startsWith("eyJ"),
+    length: trimmed.length,
+  };
+}
+
+export async function assertStagingAnonKeyAccepted(supabaseUrl, anonKey) {
+  const meta = describeStagingAnonKey(anonKey);
+  if (!meta.present) {
+    throw new Error("Missing HTBF_SUPABASE_ANON_KEY.");
+  }
+
+  if (!meta.legacyJwtFormat) {
+    throw new Error(
+      "Refusing to continue: HTBF_SUPABASE_ANON_KEY must be the htbf-staging legacy anon/public JWT (starts with eyJ)."
+    );
+  }
+
+  const response = await fetch(`${supabaseUrl.replace(/\/+$/, "")}/auth/v1/settings`, {
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${anonKey}`,
+    },
+  });
+
+  if (response.status === 401) {
+    throw new Error(
+      "Refusing to continue: HTBF_SUPABASE_ANON_KEY was rejected by htbf-staging Auth (invalid API key)."
+    );
+  }
+
+  if (response.status >= 500) {
+    throw new Error(
+      "Refusing to continue: htbf-staging Auth settings probe failed with a server error."
+    );
+  }
+
+  return meta;
+}
+
+export function loadStagingEnvFile(path, { overwrite = true } = {}) {
   if (!existsSync(path)) return false;
 
   const raw = readFileSync(path, "utf8");
@@ -172,7 +215,9 @@ export function loadStagingEnvFile(path) {
     ) {
       value = value.slice(1, -1);
     }
-    if (!process.env[key]) process.env[key] = value;
+    if (overwrite || !process.env[key]) {
+      process.env[key] = value;
+    }
   }
 
   return true;

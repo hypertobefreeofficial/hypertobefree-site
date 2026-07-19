@@ -1,22 +1,28 @@
+export const gateASummaryTrendStats = ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"];
+
 export const gateAThresholds = {
   http_req_failed: ["rate<0.01"],
   htbf_feed_duration: ["p(95)<3000"],
   htbf_prayer_duration: ["p(95)<3000"],
   htbf_search_duration: ["p(95)<3000"],
+  htbf_video_feed_duration: ["p(95)<3000"],
   htbf_mutation_duration: ["p(95)<2500"],
   checks: ["rate>0.99"],
 };
 
 export const baselineThresholds = {
   http_req_failed: ["rate<0.01"],
-  htbf_feed_duration: ["p(95)<3000"],
-  htbf_prayer_duration: ["p(95)<3000"],
-  htbf_search_duration: ["p(95)<3000"],
+  htbf_feed_duration: ["p(95)<3000", "p(99)<5000"],
+  htbf_prayer_duration: ["p(95)<3000", "p(99)<5000"],
+  htbf_search_duration: ["p(95)<3000", "p(99)<5000"],
+  htbf_video_feed_duration: ["p(95)<3000", "p(99)<5000"],
   htbf_mutation_duration: ["p(95)<2500"],
+  checks: ["rate>0.99"],
 };
 
 export const smokeThresholds = {
   http_req_failed: ["rate<0.02"],
+  htbf_video_feed_duration: ["p(95)<3000"],
   checks: ["rate>0.95"],
 };
 
@@ -63,8 +69,8 @@ export const workloadMix = {
 // export HTBF_ALLOW_MUTATIONS=0
 // export HTBF_ABORT_ON_ERROR=1
 //
-// INACTIVE scenarios (disabled until 10-user local smoke passes):
-// baseline-50.js — 50 VUs
+// INACTIVE scenarios (enabled after 10-user local smoke passes):
+// baseline-50.js — 50 VUs / 15 min (run via run-baseline-50.mjs)
 // gate-a-100.js — 100 VUs
 //
 // DISABLED — no k6 against Vercel, production, or HTBF_LOAD_TEST_ENV=staging:

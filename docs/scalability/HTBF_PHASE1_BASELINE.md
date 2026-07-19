@@ -161,11 +161,30 @@ Verification: `supabase/scalability/verify-scalability-indexes.sql`
 | Distributed rate limit + idempotency | **Required before certification** |
 | Staging dashboard metrics | **Still required** |
 | EXPLAIN ANALYZE on hot queries | **Still required** |
-| k6 / Gate A load tests | **Harness built; 10-user local smoke not run** |
+| k6 / Gate A load tests | **10-user local smoke passed (2026-07-19)** |
 | Local Gate A architecture | k6 → `127.0.0.1:3100` → htbf-staging |
 | Vercel-hosted k6 | **Disabled** (Hobby plan / policy) |
 
-**Verdict:** HTBF is **ready to run** the 10-user local smoke against htbf-staging, but **not ready to certify** hosted or 500–1k concurrent users.
+**Verdict:** HTBF passed the 10-user local smoke against htbf-staging. The **50-user local baseline** is the next capacity checkpoint. This does **not** certify Vercel or production concurrency capacity.
+
+---
+
+## 8a. Accepted 10-user local smoke (2026-07-19)
+
+| Metric | Result |
+|--------|--------|
+| Virtual users | 10 |
+| Duration | 5 minutes |
+| Total HTTP requests | 604 |
+| HTTP failure rate | 0.00% |
+| Check pass rate | 100.00% |
+| HTTP p50 / p95 | 81.8 ms / 107.2 ms |
+| Feed / Prayer / Search p95 | 102 ms / 99 ms / 101.1 ms |
+| Authentication failures | 0 |
+
+Read-only workload only: Feed, Prayer, Video Feed metadata (including reaction-count reads), and Search. No uploads, AI calls, reactions, saves, follows, reports, blocks, or admin mutations.
+
+**Next:** `node load-tests/scripts/run-baseline-50.mjs` (50 VUs / 15 minutes) with the local server running.
 
 ---
 
@@ -173,7 +192,7 @@ Verification: `supabase/scalability/verify-scalability-indexes.sql`
 
 1. Apply and validate index migration on staging with `EXPLAIN ANALYZE`.
 2. Wire dashboard metrics (p95 loader duration, DB connections, storage sign rate, OpenAI spend).
-3. Run local Gate A 10-user smoke (`node load-tests/scripts/run-smoke-10.mjs`) per `HTBF_LOAD_TEST_PLAN.md`. Baseline-50 and gate-a-100 remain inactive until smoke passes.
+3. Run local Gate A **50-user baseline** (`node load-tests/scripts/run-baseline-50.mjs`) per `HTBF_LOAD_TEST_PLAN.md`. gate-a-100 remains inactive until baseline passes.
 4. Replace in-memory moderate-story rate limit and idempotency with distributed stores if multi-instance staging proves bypass.
 5. Optional: split Prayer map-marker query from full card enrichment.
 6. Optional: dedupe video-feed storage signing with `StorageSignSession`.

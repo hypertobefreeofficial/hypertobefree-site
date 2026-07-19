@@ -40,7 +40,7 @@ export function browseVideoFeedMetadata(supabaseUrl, anonKey, accessToken) {
 
   const response = getJson(query, headers, {
     name: "video_feed_metadata",
-    surface: "feed",
+    surface: "video_feed",
   });
 
   const rows = response.json();
@@ -50,8 +50,8 @@ export function browseVideoFeedMetadata(supabaseUrl, anonKey, accessToken) {
       `${supabaseUrl}/rest/v1/story_reactions?select=story_id,user_id,reaction_type` +
       `&story_id=in.(${storyIds})`;
     getJson(reactionsQuery, headers, {
-      name: "video_feed_reactions",
-      surface: "feed",
+      name: "video_feed_reaction_counts_read",
+      surface: "video_feed_reactions_read",
     });
   }
 

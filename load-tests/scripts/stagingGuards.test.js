@@ -1,8 +1,12 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   ALLOWED_LOAD_TEST_ENV,
   assertExactStagingSupabaseUrl,
   assertLocalStagingBaseUrl,
+  loadStagingEnvFile,
   resolveStagingProjectRef,
 } from "./stagingGuards.mjs";
 
@@ -100,5 +104,30 @@ describe("Gate A local-staging base URL guard", () => {
     expect(() =>
       assertLocalStagingBaseUrl("http://127.0.0.1:3000")
     ).toThrow(/must use port 3100/i);
+  });
+});
+
+describe("Gate A staging env file loading", () => {
+  beforeEach(() => {
+    restoreEnv();
+  });
+
+  afterEach(() => {
+    restoreEnv();
+  });
+
+  it("overwrites stale shell values from the private staging env file by default", () => {
+    const dir = mkdtempSync(join(tmpdir(), "htbf-gate-a-env-"));
+    const envFile = join(dir, ".env.staging.local");
+    writeFileSync(
+      envFile,
+      "HTBF_SUPABASE_ANON_KEY=file-value\nHTBF_LOAD_TEST_ENV=local-staging\n",
+      "utf8"
+    );
+
+    process.env.HTBF_SUPABASE_ANON_KEY = "stale-shell-value";
+
+    expect(loadStagingEnvFile(envFile)).toBe(true);
+    expect(process.env.HTBF_SUPABASE_ANON_KEY).toBe("file-value");
   });
 });

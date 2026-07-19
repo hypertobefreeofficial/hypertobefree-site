@@ -26,25 +26,28 @@ export function requireLoadTestEnvironment() {
   }
 }
 
-function parsePort(url) {
-  if (url.port) return Number.parseInt(url.port, 10);
-  return url.protocol === "https:" ? 443 : 80;
+function parseHttpUrl(rawUrl, label) {
+  const trimmed = (rawUrl || "").trim().replace(/\/+$/, "");
+  const match = trimmed.match(/^(https?):\/\/([^/:?#]+)(?::(\d+))?/i);
+  if (!match) {
+    throw new Error(`Refusing to run: ${label} must be a valid URL.`);
+  }
+
+  return {
+    baseUrl: trimmed,
+    protocol: `${match[1].toLowerCase()}:`,
+    hostname: match[2].toLowerCase(),
+    port: match[3]
+      ? Number.parseInt(match[3], 10)
+      : match[1].toLowerCase() === "https"
+        ? 443
+        : 80,
+  };
 }
 
 export function requireBaseUrl() {
-  const baseUrl = (__ENV.HTBF_BASE_URL || "").trim().replace(/\/+$/, "");
-  if (!baseUrl) {
-    throw new Error("Refusing to run: HTBF_BASE_URL is required.");
-  }
-
-  let url;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    throw new Error("Refusing to run: HTBF_BASE_URL must be a valid URL.");
-  }
-
-  const hostname = url.hostname.toLowerCase();
+  const parsed = parseHttpUrl(__ENV.HTBF_BASE_URL, "HTBF_BASE_URL");
+  const hostname = parsed.hostname;
 
   for (const pattern of PRODUCTION_HOST_PATTERNS) {
     if (hostname === pattern || hostname.endsWith(`.${pattern}`)) {
@@ -70,10 +73,9 @@ export function requireBaseUrl() {
     (__ENV.HTBF_LOCAL_TEST_PORT || `${LOCAL_STAGING_DEFAULT_PORT}`).trim(),
     10
   );
-  const effectivePort = parsePort(url);
 
   if (
-    effectivePort !== configuredPort &&
+    parsed.port !== configuredPort &&
     __ENV.HTBF_ALLOW_ALT_LOCAL_PORT !== "1"
   ) {
     throw new Error(
@@ -81,7 +83,7 @@ export function requireBaseUrl() {
     );
   }
 
-  return baseUrl;
+  return parsed.baseUrl;
 }
 
 export function requireSupabaseConfig() {
@@ -94,12 +96,8 @@ export function requireSupabaseConfig() {
     );
   }
 
-  let hostname = "";
-  try {
-    hostname = new URL(supabaseUrl).hostname.toLowerCase();
-  } catch {
-    throw new Error("Refusing to run: HTBF_SUPABASE_URL must be a valid URL.");
-  }
+  const parsed = parseHttpUrl(supabaseUrl, "HTBF_SUPABASE_URL");
+  const hostname = parsed.hostname;
 
   if (!hostname.endsWith(".supabase.co")) {
     throw new Error("Refusing to run: HTBF_SUPABASE_URL must be a Supabase URL.");
