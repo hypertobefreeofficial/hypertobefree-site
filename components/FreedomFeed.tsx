@@ -291,6 +291,7 @@ import {
   pauseAllFeedPreviewVideos,
   resumeFeedVideoAutoplay,
   suspendFeedVideoAutoplay,
+  useViewportVideoAutoplay,
 } from "../hooks/useViewportVideoAutoplay";
 
 const reportReasons: { label: string; value: ReportReason }[] = [
@@ -1547,7 +1548,10 @@ export default function FreedomFeed({
     setReactionMessage("");
   }
 
-  async function markPrayerAnswered(storyId: string, answeredText: string) {
+  async function markPrayerAnswered(
+    story: FeedStoryDisplay,
+    answeredText: string
+  ) {
     if (markingPrayerAnsweredPending) return;
 
     setReactionMessage("");
@@ -1557,53 +1561,58 @@ export default function FreedomFeed({
       return;
     }
 
-    const story = feedItems.find(
-      (item): item is FeedStoryDisplay =>
-        item.kind === "story" && item.id === storyId
-    );
+    const storyForValidation =
+      feedItemsRef.current.find(
+        (item): item is FeedStoryDisplay =>
+          item.kind === "story" && item.id === story.id
+      ) ?? story;
 
     setMarkingPrayerAnsweredPending(true);
 
-    const result = await markMyPrayerAnswered({
-      supabase,
-      storyId,
-      answeredText,
-      authUserId: userId,
-      storyForValidation: story
-        ? {
-            id: story.id,
-            user_id: story.user_id,
-            story_type: story.story_type,
-            status: story.status,
-            prayer_status: story.prayer_status,
-            removed_at: null,
-          }
-        : null,
-    });
+    try {
+      const result = await markMyPrayerAnswered({
+        supabase,
+        storyId: storyForValidation.id,
+        answeredText,
+        authUserId: userId,
+        storyForValidation: {
+          id: storyForValidation.id,
+          user_id: storyForValidation.user_id,
+          story_type: storyForValidation.story_type,
+          status: storyForValidation.status,
+          prayer_status: storyForValidation.prayer_status,
+          removed_at: null,
+        },
+      });
 
-    setMarkingPrayerAnsweredPending(false);
+      if (result.ok === false) {
+        setReactionMessage(result.message);
+        return;
+      }
 
-    if (result.ok === false) {
-      setReactionMessage(result.message);
-      return;
+      setFeedItems((currentItems) =>
+        currentItems.map((item) =>
+          item.kind === "story" && item.id === storyForValidation.id
+            ? {
+                ...item,
+                prayer_status: result.story.prayer_status,
+                answered_at: result.story.answered_at,
+                answered_text: result.story.answered_text,
+              }
+            : item
+        )
+      );
+
+      if (activeFilter === "prayer") {
+        setActiveFilter("all");
+      }
+
+      setAnsweringPrayerStory(null);
+      setAnsweredPrayerText("");
+      setReactionMessage("Praise shared with the community.");
+    } finally {
+      setMarkingPrayerAnsweredPending(false);
     }
-
-    setFeedItems((currentItems) =>
-      currentItems.map((item) =>
-        item.kind === "story" && item.id === storyId
-          ? {
-              ...item,
-              prayer_status: result.story.prayer_status,
-              answered_at: result.story.answered_at,
-              answered_text: result.story.answered_text,
-            }
-          : item
-      )
-    );
-
-    setAnsweringPrayerStory(null);
-    setAnsweredPrayerText("");
-    setReactionMessage("Praise shared with the community.");
   }
 
   async function shareVideoResponse(item: FeedVideoResponseDisplay) {
@@ -2807,8 +2816,8 @@ export default function FreedomFeed({
                   type="button"
                   disabled={markingPrayerAnsweredPending}
                   onClick={() =>
-                    markPrayerAnswered(
-                      answeringPrayerStory.id,
+                    void markPrayerAnswered(
+                      answeringPrayerStory,
                       answeredPrayerText
                     )
                   }
@@ -2975,54 +2984,14 @@ function MiniReelsCarousel({
 }
 
 function MiniReelPreviewVideo({ videoUrl }: { videoUrl: string }) {
-  const frameRef = useRef<HTMLDivElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [shouldLoadPreview, setShouldLoadPreview] = useState(false);
-
-  useEffect(() => {
-    const frame = frameRef.current;
-
-    if (!frame) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const video = videoRef.current;
-        const isNearViewport = entry.isIntersecting;
-        const isPlayable = entry.intersectionRatio >= 0.55;
-
-        if (isNearViewport) {
-          setShouldLoadPreview(true);
-        }
-
-        if (!video) return;
-
-        if (isPlayable) {
-          pauseAllFeedPreviewVideos(video);
-          void video.play().catch(() => {
-            // Keep the static frame if mobile autoplay is delayed.
-          });
-        } else {
-          video.pause();
-        }
-      },
-      {
-        root: null,
-        rootMargin: "160px 0px",
-        threshold: [0, 0.35, 0.55, 0.8],
-      }
-    );
-
-    observer.observe(frame);
-
-    return () => {
-      observer.disconnect();
-      videoRef.current?.pause();
-    };
-  }, [videoUrl]);
+  const { frameRef, videoRef, shouldLoad } = useViewportVideoAutoplay({
+    videoUrl,
+    enabled: true,
+  });
 
   return (
     <div ref={frameRef} className="h-full w-full">
-      {shouldLoadPreview ? (
+      {shouldLoad ? (
         <video
           ref={videoRef}
           src={videoUrl}

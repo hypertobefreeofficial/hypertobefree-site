@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export const FEED_PREVIEW_VIDEO_ATTR = "data-freedom-feed-preview-video";
 export const FEED_PREVIEW_VIDEO_SELECTOR = `[${FEED_PREVIEW_VIDEO_ATTR}="true"]`;
@@ -9,8 +9,14 @@ const PLAY_THRESHOLD = 0.6;
 const NEAR_VIEWPORT_MARGIN = "120px 0px";
 const PLAY_ATTEMPT_COOLDOWN_MS = 320;
 
+type IntersectionSnapshot = {
+  isIntersecting: boolean;
+  intersectionRatio: number;
+};
+
 let activeFeedPreviewVideo: HTMLVideoElement | null = null;
 let feedAutoplaySuspended = false;
+const resumeCallbacks = new Set<() => void>();
 
 export function pauseAllFeedPreviewVideos(except?: HTMLVideoElement | null) {
   if (typeof document === "undefined") return;
@@ -35,6 +41,9 @@ export function suspendFeedVideoAutoplay() {
 
 export function resumeFeedVideoAutoplay() {
   feedAutoplaySuspended = false;
+  for (const callback of resumeCallbacks) {
+    callback();
+  }
 }
 
 function prefersReducedMotionAutoplay() {
@@ -64,6 +73,48 @@ export function useViewportVideoAutoplay({
   const [shouldLoad, setShouldLoad] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const lastPlayAttemptRef = useRef(0);
+  const snapshotRef = useRef<IntersectionSnapshot>({
+    isIntersecting: false,
+    intersectionRatio: 0,
+  });
+
+  const evaluatePlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !enabled || !videoUrl) return;
+
+    const blockAutoplay =
+      prefersReducedMotionAutoplay() || prefersSaveDataAutoplay();
+    const snapshot = snapshotRef.current;
+    const isPlayable =
+      snapshot.isIntersecting && snapshot.intersectionRatio >= PLAY_THRESHOLD;
+
+    if (!isPlayable || feedAutoplaySuspended || blockAutoplay) {
+      video.pause();
+      if (activeFeedPreviewVideo === video) {
+        activeFeedPreviewVideo = null;
+      }
+      setIsPlaying(false);
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastPlayAttemptRef.current < PLAY_ATTEMPT_COOLDOWN_MS) {
+      return;
+    }
+    lastPlayAttemptRef.current = now;
+
+    pauseAllFeedPreviewVideos(video);
+    activeFeedPreviewVideo = video;
+
+    void video
+      .play()
+      .then(() => {
+        setIsPlaying(true);
+      })
+      .catch(() => {
+        setIsPlaying(false);
+      });
+  }, [enabled, videoUrl]);
 
   useEffect(() => {
     if (!enabled || !videoUrl) return;
@@ -71,48 +122,18 @@ export function useViewportVideoAutoplay({
     const frame = frameRef.current;
     if (!frame) return;
 
-    const blockAutoplay =
-      prefersReducedMotionAutoplay() || prefersSaveDataAutoplay();
-
     const observer = new IntersectionObserver(
       ([entry]) => {
-        const video = videoRef.current;
+        snapshotRef.current = {
+          isIntersecting: entry.isIntersecting,
+          intersectionRatio: entry.intersectionRatio,
+        };
 
         if (entry.isIntersecting) {
           setShouldLoad(true);
         }
 
-        const isPlayable =
-          entry.isIntersecting && entry.intersectionRatio >= PLAY_THRESHOLD;
-
-        if (!video) return;
-
-        if (!isPlayable || feedAutoplaySuspended || blockAutoplay) {
-          video.pause();
-          if (activeFeedPreviewVideo === video) {
-            activeFeedPreviewVideo = null;
-          }
-          setIsPlaying(false);
-          return;
-        }
-
-        const now = Date.now();
-        if (now - lastPlayAttemptRef.current < PLAY_ATTEMPT_COOLDOWN_MS) {
-          return;
-        }
-        lastPlayAttemptRef.current = now;
-
-        pauseAllFeedPreviewVideos(video);
-        activeFeedPreviewVideo = video;
-
-        void video
-          .play()
-          .then(() => {
-            setIsPlaying(true);
-          })
-          .catch(() => {
-            setIsPlaying(false);
-          });
+        evaluatePlayback();
       },
       {
         root: null,
@@ -133,7 +154,19 @@ export function useViewportVideoAutoplay({
         }
       }
     };
-  }, [enabled, videoUrl]);
+  }, [enabled, evaluatePlayback, videoUrl]);
+
+  useEffect(() => {
+    if (!shouldLoad) return;
+    evaluatePlayback();
+  }, [shouldLoad, evaluatePlayback]);
+
+  useEffect(() => {
+    resumeCallbacks.add(evaluatePlayback);
+    return () => {
+      resumeCallbacks.delete(evaluatePlayback);
+    };
+  }, [evaluatePlayback]);
 
   useEffect(() => {
     function handleVisibilityChange() {

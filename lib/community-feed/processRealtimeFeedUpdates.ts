@@ -8,9 +8,56 @@ import {
   planRealtimeFeedSync,
   type RealtimeFeedSyncBatch,
   type RealtimeFeedSyncContext,
+  type RealtimeStoryChange,
 } from "./realtimeFeedSync";
 import { patchFeedReactionCountsForStories } from "./patchFeedReactionCounts";
 import { revalidateLoadedFeedEligibility } from "./revalidateLoadedFeed";
+
+export function patchStoryAnsweredFieldsFromRealtime(
+  loaded: FeedDisplayItem[],
+  storyChanges: RealtimeStoryChange[]
+) {
+  if (storyChanges.length === 0) return loaded;
+
+  let next = loaded;
+
+  for (const change of storyChanges) {
+    if (change.eventType !== "UPDATE") continue;
+
+    const record = change.record;
+    const storyId = typeof record?.id === "string" ? record.id : null;
+    if (!storyId) continue;
+
+    const hasAnsweredPatch =
+      record?.prayer_status !== undefined ||
+      record?.answered_at !== undefined ||
+      record?.answered_text !== undefined;
+
+    if (!hasAnsweredPatch) continue;
+
+    next = next.map((item) => {
+      if (item.kind !== "story" || item.id !== storyId) return item;
+
+      return {
+        ...item,
+        prayer_status:
+          record?.prayer_status !== undefined
+            ? record.prayer_status
+            : item.prayer_status,
+        answered_at:
+          record?.answered_at !== undefined
+            ? record.answered_at
+            : item.answered_at,
+        answered_text:
+          record?.answered_text !== undefined
+            ? record.answered_text
+            : item.answered_text,
+      };
+    });
+  }
+
+  return next;
+}
 
 export type ProcessRealtimeFeedUpdatesOptions = {
   loaded: FeedDisplayItem[];
@@ -82,6 +129,10 @@ export async function processRealtimeFeedUpdates(
   }
 
   let nextItems = applyRemovalKeysToLoadedFeed(options.loaded, removalKeys);
+  nextItems = patchStoryAnsweredFieldsFromRealtime(
+    nextItems,
+    options.batch.storyChanges
+  );
 
   const shouldRefreshHead = plan.needsHeadRefresh;
 
