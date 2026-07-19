@@ -200,8 +200,36 @@ Use this checklist **during** the first Gate A run on confirmed staging. Metrics
 | Auth failures | 0 |
 | Pass/fail vs thresholds | Pass |
 
-Local smoke tested HTBF code and Supabase staging only — not Vercel, CDN, full media streaming, or production.
+### Accepted local baseline reference (2026-07-19)
 
-**Note:** First Gate A run is **not** a complete media-capacity certification while Feed autoplay is broken. See `HTBF_PHASE1_BASELINE.md` §0.
+| Metric | Result |
+|--------|--------|
+| Scenario | baseline (50 VUs / 15 min) |
+| HTTP failure rate | 0.00% |
+| HTTP p50 / p95 / p99 | 79.7 ms / 100.2 ms / 134.1 ms |
+| Feed / Prayer / Video Feed / Search p95 | 102 / 101 / 97 / 100 ms |
+| Total requests | 8,108 |
+| Load-phase auth requests | 50 |
+| Pass/fail vs thresholds | Pass |
+
+### Accepted corrected Gate A 100-user reference (2026-07-19)
+
+| Metric | Result |
+|--------|--------|
+| Scenario | gate-a-100 (100 VUs / 20 min) |
+| HTTP failure rate | 0.00% |
+| HTTP p50 / p95 / p99 | 77.3 ms / 96.7 ms / 136.8 ms |
+| Feed / Prayer / Video Feed / Search p95 / p99 | 100/148 · 98/146 · 96/136 · 97.7/143 ms |
+| Total requests | 21,958 |
+| Preflight auth requests | 10 |
+| Load-phase auth requests | 0 |
+| Auth 429 | 0 |
+| Pass/fail vs thresholds | Pass |
+
+**Aborted first 100-user attempt:** Auth burst from one IP → Supabase Auth HTTP 429 at ~52 VUs. Not an HTBF read-capacity failure. Corrected harness used cached sessions.
+
+Local Gate A tested HTBF code and Supabase staging only — not Vercel, CDN, full media streaming, uploads, AI, writes, or production.
+
+**Note:** Gate A is **not** a complete media-capacity certification while Feed autoplay is broken. See `HTBF_PHASE1_BASELINE.md` §0.
 
 ---

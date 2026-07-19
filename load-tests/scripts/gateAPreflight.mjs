@@ -50,7 +50,11 @@ function gitignored(repoRoot, targetPath) {
 
 function trackedUnrelatedChanges(repoRoot) {
   const out = execSync("git diff --name-only", { cwd: repoRoot, encoding: "utf8" }).trim();
-  return out ? out.split("\n").filter((p) => p && !p.startsWith("load-tests/")) : [];
+  return out
+    ? out.split("\n").filter(
+        (p) => p && !p.startsWith("load-tests/") && p !== ".gitignore"
+      )
+    : [];
 }
 
 function parsePool(csv) {
@@ -69,7 +73,7 @@ function parsePool(csv) {
     .filter((row) => row.email && row.password);
 }
 
-async function signInOnce(env, email, password) {
+async function signInOnce(env, email, password, { captureSession = false } = {}) {
   const url = `${env.supabaseUrl}/auth/v1/token?grant_type=password`;
   const headers = buildAuthSignInHeaders(env.anonKey);
   const body = JSON.stringify({ email, password });
@@ -91,7 +95,11 @@ async function signInOnce(env, email, password) {
     } catch {}
 
     if (res.status === 200 && json.access_token) {
-      return { ok: true, category: null };
+      return {
+        ok: true,
+        category: null,
+        session: captureSession ? { accessToken: json.access_token } : undefined,
+      };
     }
 
     const classified = classifySupabaseAuthError(
@@ -103,6 +111,11 @@ async function signInOnce(env, email, password) {
         : null
     );
     lastCategory = classified.category;
+
+    if (res.status === 429) {
+      lastCategory = "rate_limited";
+      break;
+    }
 
     if (
       shouldAbortAuthImmediately(res.status) ||
@@ -129,6 +142,8 @@ export async function runGateAPreflight({
   envFile,
   requireLocalServer = false,
   requireAllUsersAuth = false,
+  captureAuthSessions = false,
+  authSignInDelayMs = 0,
 }) {
   if (!loadStagingEnvFile(envFile)) {
     throw new Error("Missing staging environment file.");
@@ -187,27 +202,46 @@ export async function runGateAPreflight({
   }
 
   let authSweep = null;
+  let authSessions = null;
   if (requireAllUsersAuth) {
     const stagingEnv = assertRequiredStagingEnv();
     const admin = createGateAAdminClient(stagingEnv.supabaseUrl, stagingEnv.serviceRoleKey);
     const pool = parsePool(readFileSync(poolFile, "utf8"));
     const failureCategories = {};
+    const capturedSessions = [];
     let successful = 0;
     let failed = 0;
     let repairs = 0;
+    let auth429Count = 0;
+    let preflightAuthRequests = 0;
 
     for (const row of pool) {
-      let result = await signInOnce(stagingEnv, row.email, row.password);
+      preflightAuthRequests += 1;
+      let result = await signInOnce(stagingEnv, row.email, row.password, {
+        captureSession: captureAuthSessions,
+      });
       if (!result.ok && result.category === "invalid_credentials") {
         await syncOneSyntheticUserPassword(admin, row.email, row.password);
         repairs += 1;
-        result = await signInOnce(stagingEnv, row.email, row.password);
+        preflightAuthRequests += 1;
+        result = await signInOnce(stagingEnv, row.email, row.password, {
+          captureSession: captureAuthSessions,
+        });
       }
 
-      if (result.ok) successful += 1;
-      else {
+      if (result.ok) {
+        successful += 1;
+        if (captureAuthSessions && result.session?.accessToken) {
+          capturedSessions.push(result.session);
+        }
+      } else {
         failed += 1;
+        if (result.category === "rate_limited") auth429Count += 1;
         failureCategories[result.category] = (failureCategories[result.category] || 0) + 1;
+      }
+
+      if (authSignInDelayMs > 0) {
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, authSignInDelayMs));
       }
     }
 
@@ -217,8 +251,18 @@ export async function runGateAPreflight({
       failedSignIns: failed,
       failureCategories,
       passwordRepairs: repairs,
+      preflightAuthRequests,
+      auth429Count,
     };
-    checks.all_users_authenticated = successful >= 10;
+
+    if (captureAuthSessions) {
+      authSessions =
+        successful >= pool.length && capturedSessions.length === pool.length
+          ? capturedSessions
+          : null;
+    }
+
+    checks.all_users_authenticated = successful >= 10 && auth429Count === 0;
   }
 
   const pass = Object.values(checks).every(Boolean);
@@ -229,6 +273,7 @@ export async function runGateAPreflight({
     k6Env,
     envSummary: redactEnvSummary(k6Env),
     authSweep: authSweep ? sanitizeLogPayload(authSweep) : null,
+    authSessions,
     k6Binary: resolveK6Binary(),
     localPort: getConfiguredLocalPort(),
   };

@@ -1,6 +1,5 @@
 import http from "k6/http";
 import { check, fail } from "k6";
-import { Counter } from "k6/metrics";
 import { SharedArray } from "k6/data";
 import {
   buildAuthSignInHeaders,
@@ -8,8 +7,17 @@ import {
   shouldAbortAuthImmediately,
   shouldRetryAuth,
 } from "../../scripts/gateAAuthPolicy.mjs";
+import {
+  auth429Count,
+  authRequestCount,
+  loadPhaseAuthRequestCount,
+} from "./gateAAuthMetrics.js";
 
-export const authRequestCount = new Counter("htbf_auth_requests");
+export {
+  auth429Count,
+  authRequestCount,
+  loadPhaseAuthRequestCount,
+} from "./gateAAuthMetrics.js";
 
 const tokenCache = {};
 
@@ -39,6 +47,7 @@ export function signInWithPassword(supabaseUrl, anonKey, email, password) {
   }
 
   authRequestCount.add(1);
+  loadPhaseAuthRequestCount.add(1);
 
   const url = `${supabaseUrl}/auth/v1/token?grant_type=password`;
   const body = JSON.stringify({ email, password });
@@ -50,6 +59,10 @@ export function signInWithPassword(supabaseUrl, anonKey, email, password) {
       headers,
       tags: { name: "auth_sign_in" },
     });
+
+    if (response.status === 429) {
+      auth429Count.add(1);
+    }
 
     if (shouldAbortAuthImmediately(response.status)) {
       fail(

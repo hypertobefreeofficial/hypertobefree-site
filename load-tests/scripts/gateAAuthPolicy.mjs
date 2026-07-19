@@ -12,7 +12,11 @@ export function buildAuthSignInHeaders(anonKey) {
 }
 
 export function shouldAbortAuthImmediately(status) {
-  return status === 400 || status === 401 || status === 403;
+  return status === 400 || status === 401 || status === 403 || status === 429;
+}
+
+export function isAuthRateLimitedStatus(status) {
+  return status === 429;
 }
 
 export function isTransientAuthStatus(status) {
@@ -29,4 +33,12 @@ export function shouldRetryAuth(status, attempt, maxAttempts = maxAuthAttempts()
 
 export function authenticationCallsPerVu() {
   return 1;
+}
+
+export function gateA100PreflightAuthRequests() {
+  return 10;
+}
+
+export function gateA100LoadPhaseAuthRequests() {
+  return 0;
 }

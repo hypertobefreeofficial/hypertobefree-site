@@ -158,14 +158,14 @@ Verification: `supabase/scalability/verify-scalability-indexes.sql`
 | Realtime over-fetch reduction | Partial (Feed + video-feed reactions) |
 | Index migration prepared | Done (not applied) |
 | Load diagnostics | Done (env/localStorage gated) |
-| Distributed rate limit + idempotency | **Required before certification** |
-| Staging dashboard metrics | **Still required** |
+| Distributed rate limit + idempotency | **Required before hosted certification** |
+| Staging dashboard metrics | **Still required for hosted gates** |
 | EXPLAIN ANALYZE on hot queries | **Still required** |
-| k6 / Gate A load tests | **10-user local smoke passed (2026-07-19)** |
+| k6 / Gate A load tests | **Complete — 10 / 50 / 100 local VUs passed (2026-07-19)** |
 | Local Gate A architecture | k6 → `127.0.0.1:3100` → htbf-staging |
 | Vercel-hosted k6 | **Disabled** (Hobby plan / policy) |
 
-**Verdict:** HTBF passed the 10-user local smoke against htbf-staging. The **50-user local baseline** is the next capacity checkpoint. This does **not** certify Vercel or production concurrency capacity.
+**Verdict:** Local Gate A is **complete** at 10, 50, and 100 virtual users. Latency remained stable; no HTTP failures or failed checks occurred. This validates authenticated read paths against htbf-staging only. It does **not** certify Vercel or production concurrency capacity. Larger local VU testing is **not currently recommended** — the next phase requires a deliberately designed workload, not simply increasing VUs.
 
 ---
 
@@ -182,19 +182,60 @@ Verification: `supabase/scalability/verify-scalability-indexes.sql`
 | Feed / Prayer / Search p95 | 102 ms / 99 ms / 101.1 ms |
 | Authentication failures | 0 |
 
-Read-only workload only: Feed, Prayer, Video Feed metadata (including reaction-count reads), and Search. No uploads, AI calls, reactions, saves, follows, reports, blocks, or admin mutations.
-
-**Next:** `node load-tests/scripts/run-baseline-50.mjs` (50 VUs / 15 minutes) with the local server running.
+Read-only workload only: Feed, Prayer, Video Feed metadata (including reaction-count reads), and Search.
 
 ---
 
-## 9. Remaining blockers before Gate A
+## 8b. Accepted 50-user local baseline (2026-07-19)
+
+| Metric | Result |
+|--------|--------|
+| Virtual users | 50 |
+| Duration | 15 minutes |
+| Total HTTP requests | 8,108 |
+| HTTP failure rate | 0.00% |
+| Check pass rate | 100.00% |
+| HTTP p50 / p95 / p99 | 79.7 ms / 100.2 ms / 134.1 ms |
+| Feed / Prayer / Video Feed / Search p95 | 102 ms / 101 ms / 97 ms / 100 ms |
+| Load-phase authentication requests | 50 (per-VU sign-in) |
+
+---
+
+## 8c. Accepted corrected 100-user Gate A (2026-07-19)
+
+| Metric | Result |
+|--------|--------|
+| Virtual users | 100 |
+| Duration | 20 minutes |
+| Total HTTP requests | 21,958 |
+| Requests per second | 18.17 |
+| Iterations | 19,067 |
+| HTTP failure rate | 0.00% |
+| Check pass rate | 100.00% |
+| HTTP p50 / p95 / p99 | 77.3 ms / 96.7 ms / 136.8 ms |
+| Feed / Prayer / Video Feed / Search p95 / p99 | 100/148 ms · 98/146 ms · 96/136 ms · 97.7/143 ms |
+| Preflight authentication requests | 10 (sequential cached sessions) |
+| Load-phase authentication requests | 0 |
+| Auth 429 responses | 0 |
+| Seed unchanged | 10 users, 35 stories, 22 prayer stories |
+
+**Session model:** `(VU - 1) % 10` mapping across 10 cached synthetic-user sessions; zero load-phase sign-in or token refresh.
+
+### Aborted first 100-user attempt (not a capacity failure)
+
+The first 100-user attempt was **ABORTED** — an authentication burst from one IP triggered Supabase Auth HTTP 429 during per-VU sign-in at ~52 VUs. This was **not** an HTBF read-capacity failure. The corrected harness resolved it before the accepted run.
+
+---
+
+## 9. Remaining work after local Gate A
+
+Local read-only Gate A is complete. Further capacity work requires **new workload design**, not higher local VUs:
 
 1. Apply and validate index migration on staging with `EXPLAIN ANALYZE`.
 2. Wire dashboard metrics (p95 loader duration, DB connections, storage sign rate, OpenAI spend).
-3. Run local Gate A **50-user baseline** (`node load-tests/scripts/run-baseline-50.mjs`) per `HTBF_LOAD_TEST_PLAN.md`. gate-a-100 remains inactive until baseline passes.
-4. Replace in-memory moderate-story rate limit and idempotency with distributed stores if multi-instance staging proves bypass.
-5. Optional: split Prayer map-marker query from full card enrichment.
-6. Optional: dedupe video-feed storage signing with `StorageSignSession`.
+3. Restore Feed video autoplay and add a separate media-bandwidth scenario before media-capacity claims.
+4. Design write-heavy, AI, and upload scenarios separately from read-only Gate A.
+5. Replace in-memory moderate-story rate limit and idempotency with distributed stores if multi-instance staging proves bypass.
+6. Hosted end-to-end capacity certification requires written Vercel approval or an eligible Vercel plan.
 
 See `supabase/scalability/read-only-diagnostics.sql` for starter queries.

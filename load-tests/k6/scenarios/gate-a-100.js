@@ -1,12 +1,20 @@
 import { sleep } from "k6";
-import { scenarioProfiles } from "../config.example.js";
-import { assertAllRuntimeGuards, assertHostedScenarioAllowed } from "../helpers/env.js";
-import { resolveSessionForVu } from "../helpers/auth.js";
+import { gateASummaryTrendStats, scenarioProfiles } from "../config.example.js";
+import { assertAllRuntimeGuards } from "../helpers/env.js";
 import { abortOnHighErrorRate } from "../helpers/http.js";
+import { auth429Count, loadPhaseAuthRequestCount } from "../helpers/gateAAuthMetrics.js";
+import {
+  assertPreauthSessionPoolReady,
+  loadPreauthSessionPool,
+  resolvePreauthSessionForVu,
+} from "../helpers/gateA100Sessions.js";
 import { runReadOnlyMix } from "./read-only-browse.js";
-import { runAuthenticatedMix } from "./authenticated-actions.js";
+
+void auth429Count;
+void loadPhaseAuthRequestCount;
 
 export const options = {
+  summaryTrendStats: gateASummaryTrendStats,
   scenarios: {
     gate_a: {
       executor: "ramping-vus",
@@ -17,46 +25,42 @@ export const options = {
   thresholds: scenarioProfiles.gateA100.thresholds,
 };
 
+const sessionPool = loadPreauthSessionPool();
+
 export function setup() {
-  assertHostedScenarioAllowed();
-  return assertAllRuntimeGuards({ requireMutations: false });
+  const runtime = assertAllRuntimeGuards({ requireMutations: false });
+  assertPreauthSessionPoolReady(sessionPool);
+
+  return {
+    baseUrl: runtime.baseUrl,
+    supabase: {
+      supabaseUrl: runtime.supabase.supabaseUrl,
+      projectRef: runtime.supabase.projectRef,
+    },
+    sessionCount: sessionPool.length,
+    usePreauthSessions: true,
+  };
 }
+
+const vuSessions = {};
 
 export default function gateA100(data) {
   abortOnHighErrorRate();
 
-  const session = resolveSessionForVu(
-    data.supabase.supabaseUrl,
-    data.supabase.anonKey,
-    data.users,
-    __VU
-  );
+  const anonKey = (__ENV.HTBF_SUPABASE_ANON_KEY || "").trim();
 
-  const roll = Math.random();
-
-  if (roll < 0.88) {
-    runReadOnlyMix(
-      data.supabase.supabaseUrl,
-      data.supabase.anonKey,
-      session.accessToken,
-      Math.random()
-    );
-  } else if (__ENV.HTBF_ALLOW_MUTATIONS === "1") {
-    runAuthenticatedMix(
-      data.baseUrl,
-      data.supabase.supabaseUrl,
-      data.supabase.anonKey,
-      session,
-      Math.random()
-    );
-  } else {
-    runReadOnlyMix(
-      data.supabase.supabaseUrl,
-      data.supabase.anonKey,
-      session.accessToken,
-      Math.random()
-    );
+  if (!vuSessions[__VU]) {
+    vuSessions[__VU] = resolvePreauthSessionForVu(sessionPool, __VU);
   }
+
+  const session = vuSessions[__VU];
+
+  runReadOnlyMix(
+    data.supabase.supabaseUrl,
+    anonKey,
+    session.accessToken,
+    Math.random()
+  );
 
   sleep(1);
 }

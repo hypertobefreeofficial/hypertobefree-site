@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   authenticationCallsPerVu,
   buildAuthSignInHeaders,
+  gateA100LoadPhaseAuthRequests,
+  gateA100PreflightAuthRequests,
   maxAuthAttempts,
   shouldAbortAuthImmediately,
   shouldRetryAuth,
@@ -277,9 +279,10 @@ describe("Gate A k6 auth harness policy", () => {
     });
   });
 
-  it("aborts immediately on 400/401/403", () => {
+  it("aborts immediately on 400/401/403/429", () => {
     expect(shouldAbortAuthImmediately(401)).toBe(true);
     expect(shouldAbortAuthImmediately(403)).toBe(true);
+    expect(shouldAbortAuthImmediately(429)).toBe(true);
     expect(shouldAbortAuthImmediately(500)).toBe(false);
   });
 
@@ -290,7 +293,12 @@ describe("Gate A k6 auth harness policy", () => {
     expect(shouldRetryAuth(401, 1)).toBe(false);
   });
 
-  it("expects one authentication call per VU", () => {
+  it("expects one authentication call per VU for baseline scenarios", () => {
     expect(authenticationCallsPerVu()).toBe(1);
+  });
+
+  it("expects 10 preflight and zero load-phase auths for Gate A 100-user runs", () => {
+    expect(gateA100PreflightAuthRequests()).toBe(10);
+    expect(gateA100LoadPhaseAuthRequests()).toBe(0);
   });
 });

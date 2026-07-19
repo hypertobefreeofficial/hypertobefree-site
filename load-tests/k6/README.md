@@ -79,11 +79,11 @@ The harness **refuses to start** when:
 
 | File | VUs | Duration | Status |
 |------|-----|----------|--------|
-| `scenarios/smoke-10.js` | 10 | 5 min | **Active** — read-only local smoke |
-| `scenarios/baseline-50.js` | 50 | 15 min (2 min ramp) | **Inactive** — disabled until 10-user local smoke passes |
-| `scenarios/gate-a-100.js` | 100 | 20 min (2 min ramp) | **Inactive** — disabled until 10-user local smoke passes |
+| `scenarios/smoke-10.js` | 10 | 5 min | **Passed** — read-only local smoke (2026-07-19) |
+| `scenarios/baseline-50.js` | 50 | 15 min (2 min ramp) | **Passed** — read-only local baseline (2026-07-19) |
+| `scenarios/gate-a-100.js` | 100 | 20 min (2 min ramp) | **Passed** — corrected cached-session read-only run (2026-07-19) |
 
-Inactive scenarios call `assertHostedScenarioAllowed()` and refuse to run. They are preserved for future hosted certification only after separate authorization.
+The 100-user scenario authenticates **10 synthetic users sequentially before k6**, writes tokens to gitignored `fixtures/sessions.pool.local.json`, maps VUs with `(VU - 1) % 10`, and enforces **zero load-phase authentication requests**. Hosted scenarios beyond local Gate A remain disabled unless separately authorized.
 
 Shared modules:
 
@@ -155,6 +155,20 @@ node load-tests/scripts/seed-gate-a-staging.mjs
 node load-tests/scripts/run-smoke-10.mjs
 ```
 
+### 5. Run read-only baseline (50 VUs / 15 min)
+
+```bash
+node load-tests/scripts/run-baseline-50.mjs
+```
+
+### 6. Run corrected Gate A 100-user test (100 VUs / 20 min)
+
+Requires local server running. Preflight performs 10 sequential authentications and writes gitignored cached sessions; k6 load phase makes zero sign-in requests.
+
+```bash
+node load-tests/scripts/run-gate-a-100.mjs
+```
+
 Results are written to gitignored `load-tests/k6/results/`.
 
 ---
@@ -169,8 +183,7 @@ The following are **not permitted** as active Gate A targets:
 # export HTBF_BASE_URL=https://your-preview.vercel.app
 
 # DISABLED — no production or hosted load testing without authorization
-# k6 run load-tests/k6/scenarios/baseline-50.js
-# k6 run load-tests/k6/scenarios/gate-a-100.js
+# Direct k6 invocation bypasses orchestrator preflight — use run-*.mjs scripts instead
 ```
 
 Vercel Preview may still be used for **manual** functional verification (Feed, Prayer, Search, etc.).

@@ -231,21 +231,26 @@ Files live under `load-tests/k6/` and `load-tests/scripts/`.
 2. `node load-tests/scripts/start-local-staging.mjs`
 3. `node load-tests/scripts/seed-gate-a-staging.mjs`
 4. `node load-tests/scripts/run-smoke-10.mjs` — **passed 2026-07-19**
-5. `node load-tests/scripts/run-baseline-50.mjs` — next checkpoint (50 VUs / 15 min)
+5. `node load-tests/scripts/run-baseline-50.mjs` — **passed 2026-07-19**
+6. `node load-tests/scripts/run-gate-a-100.mjs` — **passed 2026-07-19** (corrected session-pool harness)
 
 **Do not run** until Step 0 confirms staging isolation.
 
-**Prepared after 10-user smoke pass:** `baseline-50.js` via `run-baseline-50.mjs`. **Inactive:** `gate-a-100.js` (hosted scenarios disabled by policy).
+**Local Gate A is complete** at 10, 50, and 100 VUs. The 100-user run uses 10 sequential preflight authentications and cached sessions (`(VU - 1) % 10`); zero load-phase sign-in. See `HTBF_LOAD_TEST_PLAN.md` for accepted metrics and the aborted first-100 attempt (Auth 429 — not a capacity failure).
 
 ---
 
 ## Gate A certification gate
 
-Gate A tooling may be prepared, but Gate A **must not be certified** until:
+Local read-only Gate A **passed** (2026-07-19) at 10, 50, and 100 virtual users with zero HTTP failures.
 
-1. Video autoplay is restored and media workload is included or separately measured
-2. Local 10-user read-only smoke **passed** against htbf-staging (2026-07-19)
-3. Thresholds in `load-tests/k6/config.example.js` pass locally for smoke
-4. God Did It functional regression is fixed before main merge approval
-5. **Next:** 50-user local baseline before higher gates
+**Still required before broader capacity claims:**
+
+1. Video autoplay restored and media workload measured separately
+2. God Did It functional regression fixed before main merge approval (if still applicable)
+3. Index migration applied and validated on staging
+4. Staging dashboard metrics wired during hosted tests
+5. Deliberate workload design for writes, uploads, AI, and hosted infrastructure — not simply higher local VUs
 6. Hosted end-to-end capacity certification requires written Vercel approval or an eligible Vercel plan
+
+**Limitation:** Local Gate A validates HTBF code and Supabase staging read paths only. It does **not** certify Vercel Functions, CDN, production concurrency, full video delivery, uploads, AI, write-heavy behavior, or browser rendering.
