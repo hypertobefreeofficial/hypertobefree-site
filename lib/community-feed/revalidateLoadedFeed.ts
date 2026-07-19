@@ -1,5 +1,9 @@
 import { supabase } from "../supabaseClient";
 import {
+  applyGenuinePublicDemoFilter,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
+import {
   evaluateCommunityFeedResponseEligibility,
   evaluateCommunityFeedStoryEligibility,
 } from "./eligibility";
@@ -64,6 +68,7 @@ export async function revalidateLoadedFeedEligibility(
   const scoped = collectLoadedIdsForRevalidation(loaded, targets);
   const removalKeys = new Set<string>();
   let failedClosed = false;
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
 
   if (!context.removedAtFilterAvailable) {
     for (const id of scoped.storyIds) removalKeys.add(storyDedupeKey(id));
@@ -74,10 +79,14 @@ export async function revalidateLoadedFeedEligibility(
   }
 
   for (const storyChunk of chunkIds(scoped.storyIds)) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("stories")
-      .select("id, user_id, status, removed_at")
+      .select("id, user_id, status, removed_at, is_demo")
       .in("id", storyChunk);
+
+    query = applyGenuinePublicDemoFilter(query, "stories", demoCapabilities);
+
+    const { data, error } = await query;
 
     if (error) {
       console.error(
@@ -91,7 +100,7 @@ export async function revalidateLoadedFeedEligibility(
 
     const rows = (data ?? []) as Pick<
       CommunityFeedStoryRecord,
-      "id" | "user_id" | "status" | "removed_at"
+      "id" | "user_id" | "status" | "removed_at" | "is_demo"
     >[];
     const rowById = new Map(rows.map((row) => [row.id, row]));
 
@@ -142,10 +151,18 @@ export async function revalidateLoadedFeedEligibility(
   }
 
   for (const responseChunk of chunkIds(scoped.responseIds)) {
-    const { data, error } = await supabase
+    let responseQuery = supabase
       .from("prayer_video_responses")
-      .select("id, story_id, user_id, status, removed_at")
+      .select("id, story_id, user_id, status, removed_at, is_demo")
       .in("id", responseChunk);
+
+    responseQuery = applyGenuinePublicDemoFilter(
+      responseQuery,
+      "prayer_video_responses",
+      demoCapabilities
+    );
+
+    const { data, error } = await responseQuery;
 
     if (error) {
       console.error(
@@ -159,7 +176,7 @@ export async function revalidateLoadedFeedEligibility(
 
     const rows = (data ?? []) as Pick<
       CommunityFeedVideoResponseRecord,
-      "id" | "story_id" | "user_id" | "status" | "removed_at"
+      "id" | "story_id" | "user_id" | "status" | "removed_at" | "is_demo"
     >[];
     const rowById = new Map(rows.map((row) => [row.id, row]));
 
@@ -180,11 +197,18 @@ export async function revalidateLoadedFeedEligibility(
 
       if (parentInFeed) continue;
 
-      const { data: parentData, error: parentError } = await supabase
+      let parentQuery = supabase
         .from("stories")
-        .select("id, user_id, status, removed_at")
-        .eq("id", parentId)
-        .maybeSingle();
+        .select("id, user_id, status, removed_at, is_demo")
+        .eq("id", parentId);
+
+      parentQuery = applyGenuinePublicDemoFilter(
+        parentQuery,
+        "stories",
+        demoCapabilities
+      );
+
+      const { data: parentData, error: parentError } = await parentQuery.maybeSingle();
 
       if (parentError || !parentData) {
         removalKeys.add(videoResponseDedupeKey(responseId));

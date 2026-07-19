@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetDemoContentSchemaCapabilitiesCache } from "../demo-content/eligibility";
 import { loadViewerPendingVideoResponsesByStoryIds } from "./loadViewerPendingVideoResponses";
 
 const mockFrom = vi.fn();
@@ -20,11 +21,28 @@ vi.mock("./schemaCapabilities", async (importOriginal) => {
   };
 });
 
+vi.mock("../demo-content/eligibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../demo-content/eligibility")>();
+  return {
+    ...actual,
+    getDemoContentSchemaCapabilities: vi.fn(async () => ({
+      stories: { hasIsDemo: true },
+      prayerVideoResponses: { hasIsDemo: true },
+      storyReactions: { hasIsDemo: true },
+      prayerWrittenResponses: { hasIsDemo: true },
+      savedContent: { hasIsDemo: true },
+      prayerFollows: { hasIsDemo: true },
+      storyVideoReplies: { hasIsDemo: true },
+      genuinePublicIsolationActive: true,
+    })),
+  };
+});
+
 function queryResult(data: unknown) {
   const builder: Record<string, unknown> = {};
   const terminal = Promise.resolve({ data, error: null });
 
-  for (const method of ["select", "eq", "is", "order", "in"]) {
+  for (const method of ["select", "eq", "is", "order", "in", "limit"]) {
     builder[method] = vi.fn(() => builder);
   }
 
@@ -36,6 +54,7 @@ function queryResult(data: unknown) {
 describe("loadViewerPendingVideoResponsesByStoryIds", () => {
   beforeEach(() => {
     mockFrom.mockReset();
+    resetDemoContentSchemaCapabilitiesCache();
   });
 
   it("returns pending responses only for the viewing creator", async () => {

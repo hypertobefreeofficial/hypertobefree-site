@@ -1,4 +1,12 @@
 import { supabase } from "../supabaseClient";
+import {
+  appendDemoFieldsToSelect,
+  applyGenuinePublicDemoFilter,
+  DEMO_RESPONSE_FIELD_SELECT,
+  DEMO_STORY_FIELD_SELECT,
+  getDemoContentSchemaCapabilities,
+  type DemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 import { decodeFeedCursor } from "./cursor";
 import {
   buildEligibleResponseFeedItems,
@@ -46,6 +54,7 @@ const RESPONSE_SELECT_BASE =
 function buildStorySelect(options: {
   includeRemovedAt: boolean;
   includeThumbnailUrl: boolean;
+  demoCapabilities: DemoContentSchemaCapabilities;
 }) {
   let select = STORY_SELECT_BASE;
   if (options.includeThumbnailUrl) {
@@ -54,12 +63,18 @@ function buildStorySelect(options: {
   if (options.includeRemovedAt) {
     select += ", removed_at";
   }
-  return select;
+  return appendDemoFieldsToSelect(
+    select,
+    "stories",
+    options.demoCapabilities,
+    DEMO_STORY_FIELD_SELECT
+  );
 }
 
 function buildResponseSelect(options: {
   includeRemovedAt: boolean;
   includeThumbnailUrl: boolean;
+  demoCapabilities: DemoContentSchemaCapabilities;
 }) {
   let select = RESPONSE_SELECT_BASE;
   if (options.includeThumbnailUrl) {
@@ -68,7 +83,12 @@ function buildResponseSelect(options: {
   if (options.includeRemovedAt) {
     select += ", removed_at";
   }
-  return select;
+  return appendDemoFieldsToSelect(
+    select,
+    "prayer_video_responses",
+    options.demoCapabilities,
+    DEMO_RESPONSE_FIELD_SELECT
+  );
 }
 
 function computeStoryFetchLimit(pageLimit: number) {
@@ -113,6 +133,7 @@ export type LoadCommunityFeedResult =
 async function loadApprovedStoriesBatch(
   storySelect: string,
   removedAtFilterAvailable: boolean,
+  demoCapabilities: DemoContentSchemaCapabilities,
   options: {
     limit: number;
     keyset: SourceKeysetPosition | null;
@@ -131,6 +152,8 @@ async function loadApprovedStoriesBatch(
     .order("id", { ascending: false })
     .limit(options.limit);
 
+  query = applyGenuinePublicDemoFilter(query, "stories", demoCapabilities);
+
   if (options.keyset) {
     query = query.or(buildSourceKeysetOrFilter(options.keyset));
   }
@@ -141,6 +164,7 @@ async function loadApprovedStoriesBatch(
 async function loadApprovedVideoResponsesBatch(
   responseSelect: string,
   removedAtFilterAvailable: boolean,
+  demoCapabilities: DemoContentSchemaCapabilities,
   options: {
     limit: number;
     keyset: SourceKeysetPosition | null;
@@ -164,6 +188,12 @@ async function loadApprovedVideoResponsesBatch(
     .order("id", { ascending: false })
     .limit(options.limit);
 
+  query = applyGenuinePublicDemoFilter(
+    query,
+    "prayer_video_responses",
+    demoCapabilities
+  );
+
   if (options.keyset) {
     query = query.or(buildSourceKeysetOrFilter(options.keyset));
   }
@@ -178,7 +208,9 @@ async function attachMissingParents(
   storyEligibilityOptions: {
     blockedUserIds: Set<string>;
     removedAtFilterAvailable: boolean;
-  }
+    demoIsolationActive: boolean;
+  },
+  demoCapabilities: DemoContentSchemaCapabilities
 ) {
   const missingParentIds = findMissingParentStoryIds(responseRows, storyById);
 
@@ -189,12 +221,16 @@ async function attachMissingParents(
     return;
   }
 
-  const { data: parentRows, error: parentError } = await supabase
+  let query = supabase
     .from("stories")
     .select(storySelect)
     .in("id", missingParentIds)
     .eq("status", "approved")
     .is("removed_at", null);
+
+  query = applyGenuinePublicDemoFilter(query, "stories", demoCapabilities);
+
+  const { data: parentRows, error: parentError } = await query;
 
   if (parentError) {
     console.error(
@@ -226,22 +262,27 @@ export async function loadCommunityFeedItems(
   const decodedCursor = decodeFeedCursor(options.cursor);
 
   const capabilities = await getCommunityFeedSchemaCapabilities();
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
   const storySelect = buildStorySelect({
     includeRemovedAt: capabilities.stories.hasRemovedAt,
     includeThumbnailUrl: capabilities.stories.hasThumbnailUrl,
+    demoCapabilities,
   });
   const responseSelect = buildResponseSelect({
     includeRemovedAt: capabilities.prayerVideoResponses.hasRemovedAt,
     includeThumbnailUrl: capabilities.prayerVideoResponses.hasThumbnailUrl,
+    demoCapabilities,
   });
 
   const storyEligibilityOptions = {
     blockedUserIds: blockedSet,
     removedAtFilterAvailable: capabilities.stories.hasRemovedAt,
+    demoIsolationActive: demoCapabilities.genuinePublicIsolationActive,
   };
   const responseEligibilityOptions = {
     blockedUserIds: blockedSet,
     removedAtFilterAvailable: capabilities.prayerVideoResponses.hasRemovedAt,
+    demoIsolationActive: demoCapabilities.genuinePublicIsolationActive,
   };
 
   let storyKeyset = decodedCursor?.story ?? null;
@@ -258,13 +299,19 @@ export async function loadCommunityFeedItems(
     iterations += 1;
 
     const [storiesResult, responsesResult] = await Promise.all([
-      loadApprovedStoriesBatch(storySelect, capabilities.stories.hasRemovedAt, {
-        limit: storyFetchLimit,
-        keyset: storyKeyset,
-      }),
+      loadApprovedStoriesBatch(
+        storySelect,
+        capabilities.stories.hasRemovedAt,
+        demoCapabilities,
+        {
+          limit: storyFetchLimit,
+          keyset: storyKeyset,
+        }
+      ),
       loadApprovedVideoResponsesBatch(
         responseSelect,
         capabilities.prayerVideoResponses.hasRemovedAt,
+        demoCapabilities,
         {
           limit: responseFetchLimit,
           keyset: responseKeyset,
@@ -304,7 +351,8 @@ export async function loadCommunityFeedItems(
       responseRows,
       storyById,
       storySelect,
-      storyEligibilityOptions
+      storyEligibilityOptions,
+      demoCapabilities
     );
 
     const responseItems = buildEligibleResponseFeedItems(
@@ -361,13 +409,19 @@ export async function loadCommunityFeedItems(
 
   if (hasMore && afterGlobal.length <= pageLimit) {
     const [probeStories, probeResponses] = await Promise.all([
-      loadApprovedStoriesBatch(storySelect, capabilities.stories.hasRemovedAt, {
-        limit: 1,
-        keyset: storyKeyset,
-      }),
+      loadApprovedStoriesBatch(
+        storySelect,
+        capabilities.stories.hasRemovedAt,
+        demoCapabilities,
+        {
+          limit: 1,
+          keyset: storyKeyset,
+        }
+      ),
       loadApprovedVideoResponsesBatch(
         responseSelect,
         capabilities.prayerVideoResponses.hasRemovedAt,
+        demoCapabilities,
         {
           limit: 1,
           keyset: responseKeyset,

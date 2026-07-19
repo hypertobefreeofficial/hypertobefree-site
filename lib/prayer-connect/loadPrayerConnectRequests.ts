@@ -1,5 +1,12 @@
 import { isSupabaseConfigured, supabase } from "../supabaseClient";
 import {
+  applyGenuinePublicDemoFilter,
+  appendDemoFieldsToSelect,
+  DEMO_STORY_FIELD_SELECT,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
+import {
   looksLikePreciseAddress,
   sanitizePublicLocationLabel,
 } from "../testimonyMap/privacy";
@@ -43,6 +50,7 @@ type RawStoryRow = {
   public_lng?: number | string | null;
   public_location_label?: string | null;
   location_visibility?: string | null;
+  is_demo?: boolean | null;
 };
 
 type ProfileRow = {
@@ -55,6 +63,7 @@ type ProfileRow = {
 type ReactionRow = {
   story_id: string | null;
   reaction_type: string | null;
+  is_demo?: boolean | null;
 };
 
 export type LoadPrayerConnectResult =
@@ -192,12 +201,26 @@ export async function loadPrayerConnectRequests(options?: {
       }
     }
 
-    const selectWithGeo =
-      "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, created_at, topics, public_lat, public_lng, public_location_label, location_visibility";
-    const selectWithTopics =
-      "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, created_at, topics";
-    const selectBasic =
-      "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, created_at";
+    const demoCapabilities = await getDemoContentSchemaCapabilities();
+
+    const selectWithGeo = appendDemoFieldsToSelect(
+      "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, created_at, topics, public_lat, public_lng, public_location_label, location_visibility",
+      "stories",
+      demoCapabilities,
+      DEMO_STORY_FIELD_SELECT
+    );
+    const selectWithTopics = appendDemoFieldsToSelect(
+      "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, created_at, topics",
+      "stories",
+      demoCapabilities,
+      DEMO_STORY_FIELD_SELECT
+    );
+    const selectBasic = appendDemoFieldsToSelect(
+      "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, status, prayer_status, created_at",
+      "stories",
+      demoCapabilities,
+      DEMO_STORY_FIELD_SELECT
+    );
 
     let data: RawStoryRow[] | null = null;
     let errorMessage: string | null = null;
@@ -213,6 +236,8 @@ export async function loadPrayerConnectRequests(options?: {
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(fetchLimit);
+
+      query = applyGenuinePublicDemoFilter(query, "stories", demoCapabilities);
 
       if (options?.cursor) {
         const [createdAt, id] = options.cursor.split("|");
@@ -243,6 +268,12 @@ export async function loadPrayerConnectRequests(options?: {
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(fetchLimit);
+
+        fallbackQuery = applyGenuinePublicDemoFilter(
+          fallbackQuery,
+          "stories",
+          demoCapabilities
+        );
 
         if (options?.cursor) {
           const [createdAt, id] = options.cursor.split("|");
@@ -280,7 +311,7 @@ export async function loadPrayerConnectRequests(options?: {
       };
     }
 
-    const rawStories = data
+    const rawStories = filterGenuinePublicDemoRows(data)
       .filter((story) => isPrayerStory(story.story_type))
       .filter(
         (story) =>
@@ -323,12 +354,22 @@ export async function loadPrayerConnectRequests(options?: {
     >();
 
     if (storyIds.length > 0) {
-      const { data: reactions } = await supabase
+      let reactionQuery = supabase
         .from("story_reactions")
-        .select("story_id, reaction_type")
+        .select("story_id, reaction_type, is_demo")
         .in("story_id", storyIds);
 
-      ((reactions as ReactionRow[]) ?? []).forEach((reaction) => {
+      reactionQuery = applyGenuinePublicDemoFilter(
+        reactionQuery,
+        "story_reactions",
+        demoCapabilities
+      );
+
+      const { data: reactions } = await reactionQuery;
+
+      filterGenuinePublicDemoRows(
+        ((reactions as ReactionRow[]) ?? []) as ReactionRow[]
+      ).forEach((reaction) => {
         if (!reaction.story_id) return;
         const current = reactionMap.get(reaction.story_id) ?? {
           praying: 0,

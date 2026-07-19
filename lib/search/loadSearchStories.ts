@@ -1,4 +1,10 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  appendDemoFieldsToSelect,
+  DEMO_STORY_FIELD_SELECT,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 
 export const SEARCH_STORIES_PAGE_LIMIT = 120;
 
@@ -48,15 +54,25 @@ export async function loadSearchStoriesPage(options?: {
     "id, user_id, name, location, story_type, story_text, image_url, video_url, thumbnail_url, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_color, caption_size, caption_align, video_template, status, created_at";
 
   const cursor = decodeSearchStoryCursor(options?.cursor);
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
 
   const runQuery = async (select: string) => {
+    const storySelect = appendDemoFieldsToSelect(
+      select,
+      "stories",
+      demoCapabilities,
+      DEMO_STORY_FIELD_SELECT
+    );
+
     let query = supabase
       .from("stories")
-      .select(select)
+      .select(storySelect)
       .eq("status", "approved")
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit);
+
+    query = applyGenuinePublicDemoFilter(query, "stories", demoCapabilities);
 
     if (cursor) {
       query = query.or(

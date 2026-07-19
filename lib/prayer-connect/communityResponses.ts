@@ -1,4 +1,9 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 import { resolveStoryMediaUrl, STORY_THUMBNAIL_BUCKET, STORY_VIDEO_BUCKET } from "./media";
 import {
   loadPrayerAuthorProfiles,
@@ -44,57 +49,74 @@ const COMMUNITY_LOAD_ERROR =
   "We couldn't load the community prayers right now.";
 
 async function loadApprovedVideoResponses(storyId: string) {
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
   const selectWithThumbnail =
-    "id, user_id, video_url, thumbnail_url, created_at, status";
+    "id, user_id, video_url, thumbnail_url, created_at, status, is_demo";
 
-  const withRemovedFilter = await supabase
-    .from("prayer_video_responses")
-    .select(selectWithThumbnail)
-    .eq("story_id", storyId)
-    .eq("status", "approved")
-    .is("removed_at", null)
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const withRemovedFilter = await applyGenuinePublicDemoFilter(
+    supabase
+      .from("prayer_video_responses")
+      .select(selectWithThumbnail)
+      .eq("story_id", storyId)
+      .eq("status", "approved")
+      .is("removed_at", null)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    "prayer_video_responses",
+    demoCapabilities
+  );
 
   if (!withRemovedFilter.error) {
     return withRemovedFilter;
   }
 
   if (/thumbnail_url/i.test(withRemovedFilter.error.message)) {
-    const withoutThumbnail = await supabase
-      .from("prayer_video_responses")
-      .select("id, user_id, video_url, created_at, status")
-      .eq("story_id", storyId)
-      .eq("status", "approved")
-      .is("removed_at", null)
-      .order("created_at", { ascending: false })
-      .limit(20);
+    const withoutThumbnail = await applyGenuinePublicDemoFilter(
+      supabase
+        .from("prayer_video_responses")
+        .select("id, user_id, video_url, created_at, status, is_demo")
+        .eq("story_id", storyId)
+        .eq("status", "approved")
+        .is("removed_at", null)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      "prayer_video_responses",
+      demoCapabilities
+    );
 
     if (!withoutThumbnail.error) {
       return withoutThumbnail;
     }
 
     if (/removed_at/i.test(withoutThumbnail.error.message)) {
-      return supabase
-        .from("prayer_video_responses")
-        .select("id, user_id, video_url, created_at, status")
-        .eq("story_id", storyId)
-        .eq("status", "approved")
-        .order("created_at", { ascending: false })
-        .limit(20);
+      return applyGenuinePublicDemoFilter(
+        supabase
+          .from("prayer_video_responses")
+          .select("id, user_id, video_url, created_at, status, is_demo")
+          .eq("story_id", storyId)
+          .eq("status", "approved")
+          .order("created_at", { ascending: false })
+          .limit(20),
+        "prayer_video_responses",
+        demoCapabilities
+      );
     }
 
     return withoutThumbnail;
   }
 
   if (/removed_at/i.test(withRemovedFilter.error.message)) {
-    return supabase
-      .from("prayer_video_responses")
-      .select(selectWithThumbnail)
-      .eq("story_id", storyId)
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(20);
+    return applyGenuinePublicDemoFilter(
+      supabase
+        .from("prayer_video_responses")
+        .select(selectWithThumbnail)
+        .eq("story_id", storyId)
+        .eq("status", "approved")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      "prayer_video_responses",
+      demoCapabilities
+    );
   }
 
   return withRemovedFilter;
@@ -154,14 +176,23 @@ export async function loadCommunityPrayerResponses(
   }
 
   try {
+    const demoCapabilities = await getDemoContentSchemaCapabilities();
+    let writtenQuery = supabase
+      .from("prayer_written_responses")
+      .select("id, body, author_user_id, created_at, status, is_demo")
+      .eq("story_id", storyId)
+      .eq("status", "visible")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    writtenQuery = applyGenuinePublicDemoFilter(
+      writtenQuery,
+      "prayer_written_responses",
+      demoCapabilities
+    );
+
     const [writtenResult, videoResult] = await Promise.all([
-      supabase
-        .from("prayer_written_responses")
-        .select("id, body, author_user_id, created_at, status")
-        .eq("story_id", storyId)
-        .eq("status", "visible")
-        .order("created_at", { ascending: false })
-        .limit(20),
+      writtenQuery,
       loadApprovedVideoResponses(storyId),
     ]);
 
@@ -177,25 +208,45 @@ export async function loadCommunityPrayerResponses(
       };
     }
 
-    const writtenRows =
-      (writtenResult.data as {
+    const writtenRows = filterGenuinePublicDemoRows(
+      ((writtenResult.data as {
         id: string;
         body: string;
         author_user_id: string;
         created_at: string;
         status: string;
-      }[]) ?? [];
+        is_demo?: boolean | null;
+      }[]) ?? []) as Array<{
+        id: string;
+        body: string;
+        author_user_id: string;
+        created_at: string;
+        status: string;
+        is_demo?: boolean | null;
+      }>
+    );
 
     const videoRows = videoResult.error
       ? []
-      : ((videoResult.data as {
-          id: string;
-          user_id: string;
-          video_url: string | null;
-          thumbnail_url?: string | null;
-          created_at: string;
-          status: string;
-        }[]) ?? []);
+      : filterGenuinePublicDemoRows(
+          ((videoResult.data as {
+            id: string;
+            user_id: string;
+            video_url: string | null;
+            thumbnail_url?: string | null;
+            created_at: string;
+            status: string;
+            is_demo?: boolean | null;
+          }[]) ?? []) as Array<{
+            id: string;
+            user_id: string;
+            video_url: string | null;
+            thumbnail_url?: string | null;
+            created_at: string;
+            status: string;
+            is_demo?: boolean | null;
+          }>
+        );
 
     if (videoResult.error) {
       console.error("prayer_video_responses load failed:", videoResult.error);

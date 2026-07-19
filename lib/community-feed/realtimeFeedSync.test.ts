@@ -88,6 +88,7 @@ function responseItem(
 const context = {
   blockedUserIds: new Set<string>(),
   removedAtFilterAvailable: true,
+  demoIsolationActive: true,
 };
 
 describe("realtime feed sync across loaded pages", () => {

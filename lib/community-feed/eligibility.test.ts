@@ -101,4 +101,19 @@ describe("community feed eligibility", () => {
       })
     ).toBe(false);
   });
+
+  it("excludes demo stories when demo isolation is active", () => {
+    expect(
+      isStoryFeedEligible(buildStory({ is_demo: true }), {
+        removedAtFilterAvailable: true,
+        demoIsolationActive: true,
+      })
+    ).toBe(false);
+    expect(
+      isStoryFeedEligible(buildStory({ is_demo: false }), {
+        removedAtFilterAvailable: true,
+        demoIsolationActive: true,
+      })
+    ).toBe(true);
+  });
 });

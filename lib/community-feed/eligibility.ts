@@ -85,6 +85,7 @@ export function storyMatchesFeedFilter(
 export type CommunityFeedEligibilityContext = {
   blockedUserIds?: Set<string>;
   removedAtFilterAvailable?: boolean;
+  demoIsolationActive?: boolean;
 };
 
 /** Single authoritative story eligibility check for Community Feed aggregation. */
@@ -101,6 +102,7 @@ export function evaluateCommunityFeedResponseEligibility(
     status: string | null;
     removed_at?: string | null;
     user_id: string;
+    is_demo?: boolean | null;
   },
   context: CommunityFeedEligibilityContext = {}
 ) {
@@ -129,6 +131,10 @@ export function isStoryFeedEligible(
     return false;
   }
 
+  if (options?.demoIsolationActive && story.is_demo === true) {
+    return false;
+  }
+
   return true;
 }
 
@@ -137,6 +143,7 @@ export function isVideoResponseFeedEligible(
     status: string | null;
     removed_at?: string | null;
     user_id: string;
+    is_demo?: boolean | null;
   },
   options?: CommunityFeedEligibilityContext
 ) {
@@ -155,6 +162,10 @@ export function isVideoResponseFeedEligible(
   }
 
   if (options?.blockedUserIds?.has(response.user_id)) {
+    return false;
+  }
+
+  if (options?.demoIsolationActive && response.is_demo === true) {
     return false;
   }
 

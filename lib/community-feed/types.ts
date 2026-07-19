@@ -64,6 +64,12 @@ export type CommunityFeedStoryRecord = {
   creation_mode: string | null;
   ai_suggestions: unknown;
   removed_at?: string | null;
+  is_demo?: boolean | null;
+  demo_seed_run_id?: string | null;
+  demo_scenario_id?: string | null;
+  content_origin?: string | null;
+  demo_display_label?: string | null;
+  is_ai_generated?: boolean | null;
 };
 
 export type CommunityFeedVideoResponseRecord = {
@@ -75,6 +81,13 @@ export type CommunityFeedVideoResponseRecord = {
   status: string | null;
   removed_at: string | null;
   created_at: string;
+  is_demo?: boolean | null;
+  demo_seed_run_id?: string | null;
+  demo_scenario_id?: string | null;
+  content_origin?: string | null;
+  demo_display_label?: string | null;
+  is_ai_generated?: boolean | null;
+  demo_media_transcript?: string | null;
 };
 
 export type CommunityFeedFilter =

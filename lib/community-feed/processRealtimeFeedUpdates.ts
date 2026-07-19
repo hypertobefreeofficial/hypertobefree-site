@@ -28,6 +28,8 @@ export function patchStoryAnsweredFieldsFromRealtime(
     const storyId = typeof record?.id === "string" ? record.id : null;
     if (!storyId) continue;
 
+    if (record?.is_demo === true) continue;
+
     const hasAnsweredPatch =
       record?.prayer_status !== undefined ||
       record?.answered_at !== undefined ||

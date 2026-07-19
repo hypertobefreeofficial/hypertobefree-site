@@ -15,6 +15,7 @@ describe("processRealtimeFeedUpdates reaction scoping", () => {
       {
         blockedUserIds: new Set(),
         removedAtFilterAvailable: true,
+        demoIsolationActive: true,
       }
     );
 

@@ -1,10 +1,16 @@
 import type { FeedDisplayItem, FeedReactionType } from "./enrichFeedItems";
+import {
+  applyGenuinePublicDemoFilter,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 import { supabase } from "../supabaseClient";
 
 type ReactionRow = {
   story_id: string | null;
   user_id: string | null;
   reaction_type: string | null;
+  is_demo?: boolean | null;
 };
 
 function buildReactionCounts(
@@ -49,12 +55,23 @@ export async function patchFeedReactionCountsForStories(
   const uniqueStoryIds = [...new Set(storyIds.filter(Boolean))];
   if (uniqueStoryIds.length === 0) return loaded;
 
-  const { data: reactionData } = await supabase
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  let reactionQuery = supabase
     .from("story_reactions")
-    .select("story_id, user_id, reaction_type")
+    .select("story_id, user_id, reaction_type, is_demo")
     .in("story_id", uniqueStoryIds);
 
-  const reactions = (reactionData as ReactionRow[]) ?? [];
+  reactionQuery = applyGenuinePublicDemoFilter(
+    reactionQuery,
+    "story_reactions",
+    demoCapabilities
+  );
+
+  const { data: reactionData } = await reactionQuery;
+
+  const reactions = filterGenuinePublicDemoRows(
+    ((reactionData as ReactionRow[]) ?? []) as ReactionRow[]
+  );
   const targetIds = new Set(uniqueStoryIds);
 
   return loaded.map((item) => {

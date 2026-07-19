@@ -1,4 +1,9 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 
 export type VideoFeedReactionType =
   | "amen"
@@ -10,6 +15,7 @@ type ReactionRow = {
   story_id: string | null;
   user_id: string | null;
   reaction_type: string | null;
+  is_demo?: boolean | null;
 };
 
 export type VideoFeedReactionPatch = {
@@ -57,11 +63,22 @@ export async function patchVideoFeedReactionCountsForStory(
 ): Promise<VideoFeedReactionPatch | null> {
   if (!storyId) return null;
 
-  const { data: reactionData } = await supabase
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
+  let reactionQuery = supabase
     .from("story_reactions")
-    .select("story_id, user_id, reaction_type")
+    .select("story_id, user_id, reaction_type, is_demo")
     .eq("story_id", storyId);
 
-  const reactions = (reactionData as ReactionRow[]) ?? [];
+  reactionQuery = applyGenuinePublicDemoFilter(
+    reactionQuery,
+    "story_reactions",
+    demoCapabilities
+  );
+
+  const { data: reactionData } = await reactionQuery;
+
+  const reactions = filterGenuinePublicDemoRows(
+    ((reactionData as ReactionRow[]) ?? []) as ReactionRow[]
+  );
   return buildReactionPatch(reactions, storyId, viewerUserId);
 }

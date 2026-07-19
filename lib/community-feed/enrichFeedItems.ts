@@ -1,4 +1,9 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 import { StorageSignSession } from "../media/storageSignSession";
 import { isBlockedAuthor } from "./blockedUsers";
 import { isStoryFeedEligible } from "./eligibility";
@@ -99,6 +104,7 @@ type ReactionRow = {
   story_id: string | null;
   user_id: string | null;
   reaction_type: string | null;
+  is_demo?: boolean | null;
 };
 
 const STORY_PARENT_SELECT_BASE =
@@ -118,6 +124,7 @@ async function loadParentStories(
   if (parentIds.length === 0) return map;
 
   const capabilities = await getCommunityFeedSchemaCapabilities();
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
   if (!capabilities.stories.hasRemovedAt) {
     return map;
   }
@@ -126,12 +133,16 @@ async function loadParentStories(
     capabilities.stories.hasThumbnailUrl
   );
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("stories")
-    .select(storySelect)
+    .select(`${storySelect}, is_demo`)
     .in("id", parentIds)
     .eq("status", "approved")
     .is("removed_at", null);
+
+  query = applyGenuinePublicDemoFilter(query, "stories", demoCapabilities);
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Could not load parent stories for feed responses:", error);
@@ -143,6 +154,7 @@ async function loadParentStories(
       isStoryFeedEligible(story, {
         blockedUserIds,
         removedAtFilterAvailable: true,
+        demoIsolationActive: demoCapabilities.genuinePublicIsolationActive,
       })
     ) {
       map.set(story.id, story);
@@ -415,6 +427,7 @@ async function enrichFeedItemsInternal(
   const blockedSet = new Set(options?.blockedUserIds ?? []);
   const viewerUserId = options?.viewerUserId ?? null;
   const existingItemsByKey = options?.existingItemsByKey;
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
 
   const storyIds = items
     .filter((item) => item.canonicalType === "story")
@@ -455,11 +468,21 @@ async function enrichFeedItemsInternal(
   let reactions: ReactionRow[] = [];
   const reactionStoryIds = [...new Set([...storyIds, ...responseParentIds])];
   if (reactionStoryIds.length > 0) {
-    const { data: reactionData } = await supabase
+    let reactionQuery = supabase
       .from("story_reactions")
-      .select("story_id, user_id, reaction_type")
+      .select("story_id, user_id, reaction_type, is_demo")
       .in("story_id", reactionStoryIds);
-    reactions = (reactionData as ReactionRow[]) ?? [];
+
+    reactionQuery = applyGenuinePublicDemoFilter(
+      reactionQuery,
+      "story_reactions",
+      demoCapabilities
+    );
+
+    const { data: reactionData } = await reactionQuery;
+    reactions = filterGenuinePublicDemoRows(
+      ((reactionData as ReactionRow[]) ?? []) as ReactionRow[]
+    );
   }
 
   const enriched = (

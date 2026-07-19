@@ -1,4 +1,7 @@
 import {
+  shouldIgnoreGenuinePublicRealtimeRecord,
+} from "../demo-content/eligibility";
+import {
   COMMUNITY_FEED_RESPONSE_PUBLIC_STATUS,
   evaluateCommunityFeedResponseEligibility,
   evaluateCommunityFeedStoryEligibility,
@@ -28,6 +31,7 @@ export type RealtimeResponseChange = {
 export type RealtimeFeedSyncContext = {
   blockedUserIds: Set<string>;
   removedAtFilterAvailable: boolean;
+  demoIsolationActive: boolean;
 };
 
 function storyIdFromRecord(record: Partial<CommunityFeedStoryRecord> | null | undefined) {
@@ -45,6 +49,14 @@ export function isStoryRecordPubliclyIneligible(
   context: RealtimeFeedSyncContext
 ) {
   if (!record || !storyIdFromRecord(record)) return true;
+
+  if (
+    shouldIgnoreGenuinePublicRealtimeRecord(record, {
+      genuinePublicIsolationActive: context.demoIsolationActive,
+    })
+  ) {
+    return true;
+  }
 
   if (
     record.status === undefined &&
@@ -87,6 +99,7 @@ export function isStoryRecordPubliclyIneligible(
       creation_mode: record.creation_mode ?? null,
       ai_suggestions: record.ai_suggestions ?? null,
       removed_at: record.removed_at ?? null,
+      is_demo: record.is_demo ?? null,
     },
     {
       blockedUserIds: context.blockedUserIds,
@@ -102,6 +115,14 @@ export function isResponseRecordPubliclyIneligible(
   if (!record || !responseIdFromRecord(record)) return true;
 
   if (
+    shouldIgnoreGenuinePublicRealtimeRecord(record, {
+      genuinePublicIsolationActive: context.demoIsolationActive,
+    })
+  ) {
+    return true;
+  }
+
+  if (
     record.status === undefined &&
     record.removed_at === undefined &&
     record.user_id === undefined
@@ -114,6 +135,7 @@ export function isResponseRecordPubliclyIneligible(
       status: record.status ?? null,
       removed_at: record.removed_at ?? null,
       user_id: record.user_id ?? "",
+      is_demo: record.is_demo ?? null,
     },
     {
       blockedUserIds: context.blockedUserIds,
@@ -151,6 +173,13 @@ export function collectRemovalKeysForStoryChange(
   const storyId = storyIdFromRecord(record) ?? storyIdFromRecord(change.oldRecord);
 
   if (!storyId) return { removalKeys, uncertainStoryIds, needsHeadRefresh: false };
+
+  if (
+    change.eventType === "UPDATE" &&
+    !storyIsPresentInLoadedFeed(storyId, loaded)
+  ) {
+    return { removalKeys, uncertainStoryIds, needsHeadRefresh: false };
+  }
 
   const dedupeKey = storyDedupeKey(storyId);
 
@@ -290,6 +319,14 @@ export function loadedStoryIdsFromFeed(items: FeedDisplayItem[]) {
   return items
     .filter((item): item is Extract<FeedDisplayItem, { kind: "story" }> => item.kind === "story")
     .map((item) => item.id);
+}
+
+export function storyIsPresentInLoadedFeed(
+  storyId: string | null | undefined,
+  loaded: FeedDisplayItem[]
+) {
+  if (!storyId) return false;
+  return loaded.some((item) => item.kind === "story" && item.id === storyId);
 }
 
 export function loadedResponseIdsFromFeed(items: FeedDisplayItem[]) {

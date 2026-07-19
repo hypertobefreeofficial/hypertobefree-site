@@ -1,4 +1,8 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 import { getCommunityFeedSchemaCapabilities } from "./schemaCapabilities";
 import {
   getThumbnailStoragePath,
@@ -46,15 +50,22 @@ export async function loadViewerPendingVideoResponsesByStoryIds(
   storyIds.forEach((id) => grouped.set(id, null));
 
   const capabilities = await getCommunityFeedSchemaCapabilities();
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
   let query = supabase
     .from("prayer_video_responses")
     .select(
-      "id, story_id, status, thumbnail_url, created_at, ai_review_status, removed_at"
+      "id, story_id, status, thumbnail_url, created_at, ai_review_status, removed_at, is_demo"
     )
     .in("story_id", storyIds)
     .eq("user_id", viewerUserId)
     .in("status", ["submitted", "pending", "rejected"])
     .order("created_at", { ascending: false });
+
+  query = applyGenuinePublicDemoFilter(
+    query,
+    "prayer_video_responses",
+    demoCapabilities
+  );
 
   if (capabilities.prayerVideoResponses.hasRemovedAt) {
     query = query.is("removed_at", null);

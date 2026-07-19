@@ -67,12 +67,20 @@ import {
   parseResponseRealtimePayload,
   parseStoryRealtimePayload,
 } from "../lib/community-feed/realtimePayload";
-import type {
-  RealtimeFeedSyncBatch,
-  RealtimeResponseChange,
-  RealtimeStoryChange,
+import {
+  storyIsPresentInLoadedFeed,
+  type RealtimeFeedSyncBatch,
+  type RealtimeResponseChange,
+  type RealtimeStoryChange,
 } from "../lib/community-feed/realtimeFeedSync";
 import { getCommunityFeedSchemaCapabilities } from "../lib/community-feed/schemaCapabilities";
+import {
+  getDemoContentSchemaCapabilities,
+  type DemoContentSchemaCapabilities,
+} from "../lib/demo-content/eligibility";
+import {
+  shouldIgnoreGenuinePublicRealtimePayload,
+} from "../lib/community-feed/realtimePayload";
 import {
   feedMediaAspectClassName,
   getStoryFeedMediaAspect,
@@ -538,6 +546,9 @@ export default function FreedomFeed({
     stories: { hasRemovedAt: boolean };
     prayerVideoResponses: { hasRemovedAt: boolean };
   } | null>(null);
+  const feedDemoCapabilitiesRef = useRef<DemoContentSchemaCapabilities | null>(
+    null
+  );
   const restoredReturnPositionRef = useRef(false);
   const photoViewerHistoryPushedRef = useRef(false);
   const photoViewerReturnUrlRef = useRef<string | null>(null);
@@ -995,8 +1006,13 @@ export default function FreedomFeed({
         feedSchemaCapabilitiesRef.current =
           await getCommunityFeedSchemaCapabilities();
       }
+      if (!feedDemoCapabilitiesRef.current) {
+        feedDemoCapabilitiesRef.current =
+          await getDemoContentSchemaCapabilities();
+      }
 
       const capabilities = feedSchemaCapabilitiesRef.current;
+      const demoCapabilities = feedDemoCapabilitiesRef.current;
       const result = await processRealtimeFeedUpdates({
         loaded: feedItemsRef.current,
         batch,
@@ -1009,6 +1025,7 @@ export default function FreedomFeed({
           removedAtFilterAvailable:
             capabilities.stories.hasRemovedAt &&
             capabilities.prayerVideoResponses.hasRemovedAt,
+          demoIsolationActive: demoCapabilities.genuinePublicIsolationActive,
         },
       });
 
@@ -1041,7 +1058,30 @@ export default function FreedomFeed({
         old?: Record<string, unknown> | null;
       }
     );
-    realtimeBatchRef.current.storyChanges.push(parsed as RealtimeStoryChange);
+    if (
+      parsed.isDemo ||
+      shouldIgnoreGenuinePublicRealtimePayload(
+        parsed.record ?? parsed.oldRecord,
+        feedDemoCapabilitiesRef.current?.genuinePublicIsolationActive ?? false,
+        { eventType: parsed.eventType }
+      )
+    ) {
+      return;
+    }
+    if (
+      parsed.eventType === "UPDATE" &&
+      !storyIsPresentInLoadedFeed(
+        typeof parsed.record?.id === "string" ? parsed.record.id : null,
+        feedItemsRef.current
+      )
+    ) {
+      return;
+    }
+    realtimeBatchRef.current.storyChanges.push({
+      eventType: parsed.eventType,
+      record: parsed.record,
+      oldRecord: parsed.oldRecord,
+    } as RealtimeStoryChange);
   }
 
   function queueRealtimeResponseChange(payload: unknown) {
@@ -1052,20 +1092,41 @@ export default function FreedomFeed({
         old?: Record<string, unknown> | null;
       }
     );
-    realtimeBatchRef.current.responseChanges.push(
-      parsed as RealtimeResponseChange
-    );
+    if (
+      parsed.isDemo ||
+      shouldIgnoreGenuinePublicRealtimePayload(
+        parsed.record ?? parsed.oldRecord,
+        feedDemoCapabilitiesRef.current?.genuinePublicIsolationActive ?? false,
+        { eventType: parsed.eventType }
+      )
+    ) {
+      return;
+    }
+    realtimeBatchRef.current.responseChanges.push({
+      eventType: parsed.eventType,
+      record: parsed.record,
+      oldRecord: parsed.oldRecord,
+    } as RealtimeResponseChange);
   }
 
   function queueRealtimeReactionChange(payload: unknown) {
-    const storyId = parseReactionRealtimePayload(
+    const parsed = parseReactionRealtimePayload(
       payload as {
         new?: Record<string, unknown> | null;
         old?: Record<string, unknown> | null;
       }
     );
-    if (storyId) {
-      realtimeBatchRef.current.reactionStoryIds.push(storyId);
+    if (
+      parsed.isDemo ||
+      shouldIgnoreGenuinePublicRealtimePayload(
+        parsed.record,
+        feedDemoCapabilitiesRef.current?.genuinePublicIsolationActive ?? false
+      )
+    ) {
+      return;
+    }
+    if (parsed.storyId) {
+      realtimeBatchRef.current.reactionStoryIds.push(parsed.storyId);
     }
   }
 

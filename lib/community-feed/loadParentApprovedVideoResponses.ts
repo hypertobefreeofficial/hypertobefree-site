@@ -1,4 +1,9 @@
 import { supabase } from "../supabaseClient";
+import {
+  applyGenuinePublicDemoFilter,
+  filterGenuinePublicDemoRows,
+  getDemoContentSchemaCapabilities,
+} from "../demo-content/eligibility";
 import { getCommunityFeedSchemaCapabilities } from "./schemaCapabilities";
 import { StorageSignSession } from "../media/storageSignSession";
 
@@ -38,14 +43,21 @@ export async function loadApprovedVideoResponsesByStoryIds(
   storyIds.forEach((id) => grouped.set(id, []));
 
   const capabilities = await getCommunityFeedSchemaCapabilities();
+  const demoCapabilities = await getDemoContentSchemaCapabilities();
   let query = supabase
     .from("prayer_video_responses")
     .select(
-      "id, story_id, user_id, video_url, thumbnail_url, body, created_at, status, removed_at, response_context"
+      "id, story_id, user_id, video_url, thumbnail_url, body, created_at, status, removed_at, response_context, is_demo"
     )
     .in("story_id", storyIds)
     .eq("status", "approved")
     .order("created_at", { ascending: false });
+
+  query = applyGenuinePublicDemoFilter(
+    query,
+    "prayer_video_responses",
+    demoCapabilities
+  );
 
   if (capabilities.prayerVideoResponses.hasRemovedAt) {
     query = query.is("removed_at", null);
@@ -58,16 +70,29 @@ export async function loadApprovedVideoResponsesByStoryIds(
     return grouped;
   }
 
-  const rows = (data as {
-    id: string;
-    story_id: string;
-    user_id: string;
-    video_url: string | null;
-    thumbnail_url: string | null;
-    body: string | null;
-    created_at: string;
-    response_context?: string | null;
-  }[]) ?? [];
+  const rows = filterGenuinePublicDemoRows(
+    ((data as {
+      id: string;
+      story_id: string;
+      user_id: string;
+      video_url: string | null;
+      thumbnail_url: string | null;
+      body: string | null;
+      created_at: string;
+      response_context?: string | null;
+      is_demo?: boolean | null;
+    }[]) ?? []) as Array<{
+      id: string;
+      story_id: string;
+      user_id: string;
+      video_url: string | null;
+      thumbnail_url: string | null;
+      body: string | null;
+      created_at: string;
+      response_context?: string | null;
+      is_demo?: boolean | null;
+    }>
+  );
 
   const authorIds = [...new Set(rows.map((row) => row.user_id))];
   const authorNames = new Map<string, string>();
