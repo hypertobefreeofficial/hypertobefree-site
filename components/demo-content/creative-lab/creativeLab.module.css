@@ -1,0 +1,610 @@
+.labShell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(232, 193, 112, 0.12), transparent 34%),
+    radial-gradient(circle at 88% 0%, rgba(74, 144, 217, 0.14), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef4fb 48%, #f7f1e8 100%);
+  color: #0f172a;
+  padding: 1.5rem 1rem 2.5rem;
+}
+
+.labHeader {
+  max-width: 72rem;
+  margin: 0 auto 1.5rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.labEyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #475569;
+  font-weight: 700;
+}
+
+.labTitle {
+  font-family: var(--font-creator-elegant-serif);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.labDescription {
+  max-width: 46rem;
+  color: #334155;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.labGrid {
+  max-width: 72rem;
+  margin: 0 auto;
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1100px) {
+  .labGrid {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.directionPanel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.directionButton {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 1rem;
+  padding: 1rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.directionButton:hover {
+  border-color: rgba(30, 58, 95, 0.22);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.directionButtonActive {
+  border-color: rgba(30, 58, 95, 0.42);
+  box-shadow: 0 14px 30px rgba(30, 58, 95, 0.12);
+  transform: translateY(-1px);
+}
+
+.directionTitle {
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.directionSubtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.directionMeta {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.paletteSwatch {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.audioPanel {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.audioPanel h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.audioPanel dl {
+  margin: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.audioPanel dt {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.audioPanel dd {
+  margin: 0.15rem 0 0;
+  color: #1e293b;
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.stagePanel {
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+}
+
+.phoneStage {
+  width: min(100%, 24rem);
+  aspect-ratio: 9 / 16;
+  position: relative;
+}
+
+.frameOuter {
+  width: 100%;
+  height: 100%;
+  border-radius: 1.75rem;
+  padding: 0.65rem;
+  background: linear-gradient(160deg, #ffffff, #dbe7f5);
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.frameInner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: #0f172a;
+}
+
+.sampleBadge {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+  color: #0f172a;
+  background: rgba(255, 248, 240, 0.94);
+  border: 1px solid rgba(200, 146, 62, 0.35);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+.frameLogo {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 35;
+  width: 2.4rem;
+  height: auto;
+  opacity: 0.88;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+
+.safeContent {
+  position: absolute;
+  inset: 0;
+  padding: 4.5rem 1.25rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  z-index: 10;
+}
+
+.controls {
+  width: min(100%, 24rem);
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.controlRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.controlButton {
+  border: none;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: #1e3a5f;
+  color: #fff;
+}
+
+.controlButtonSecondary {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.scrubber {
+  width: 100%;
+}
+
+.momentRail {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.momentTick {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.45);
+}
+
+.momentTickActive {
+  background: #1e3a5f;
+}
+
+.timeLabel {
+  font-size: 0.82rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Direction A — Cinematic Dawn */
+.dawnRoot {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fff8f0 0%, #f4d9a6 38%, #7eb6d7 100%);
+}
+
+.dawnSun {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  width: 14rem;
+  height: 14rem;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff6df 0%, #f4d9a6 45%, rgba(244, 217, 166, 0) 72%);
+  opacity: 0.95;
+}
+
+.dawnCloud {
+  position: absolute;
+  width: 55%;
+  height: 3.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  filter: blur(1px);
+}
+
+.dawnCloudOne {
+  top: 18%;
+  left: -8%;
+}
+
+.dawnCloudTwo {
+  top: 28%;
+  right: -12%;
+}
+
+.dawnCloudThree {
+  top: 42%;
+  left: 10%;
+  width: 42%;
+  opacity: 0.75;
+}
+
+.dawnCopy {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  color: #2f2418;
+}
+
+.dawnEyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #6b5340;
+  margin-bottom: 0.75rem;
+}
+
+.dawnHeadline {
+  font-family: "Cinzel", var(--font-creator-elegant-serif);
+  font-size: clamp(1.35rem, 5vw, 1.75rem);
+  line-height: 1.25;
+  margin: 0;
+}
+
+.dawnBody {
+  margin: 0.85rem 0 0;
+  font-family: "DM Sans", var(--font-creator-clean-modern);
+  font-size: clamp(0.95rem, 3.8vw, 1.05rem);
+  line-height: 1.55;
+  color: #3f3428;
+}
+
+.dawnSupportChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(200, 146, 62, 0.28);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #5c4a3a;
+}
+
+/* Direction B — Sacred Journal */
+.journalRoot {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 12%, rgba(255, 248, 235, 0.9), transparent 34%),
+    linear-gradient(180deg, #faf6ef 0%, #f7f1e8 100%);
+}
+
+.journalPaper {
+  position: absolute;
+  inset: 1.25rem 1rem 1rem;
+  border-radius: 0.35rem;
+  background:
+    repeating-linear-gradient(
+      transparent,
+      transparent 1.55rem,
+      rgba(139, 115, 85, 0.08) 1.55rem,
+      rgba(139, 115, 85, 0.08) 1.56rem
+    ),
+    #fffdf8;
+  box-shadow:
+    0 18px 40px rgba(47, 74, 98, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.journalMargin {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 1.1rem;
+  width: 1px;
+  background: rgba(200, 146, 62, 0.35);
+}
+
+.journalGlow {
+  position: absolute;
+  right: -10%;
+  bottom: -8%;
+  width: 55%;
+  height: 40%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232, 193, 112, 0.28), transparent 70%);
+}
+
+.journalCopy {
+  position: relative;
+  z-index: 5;
+  padding: 1.5rem 1.35rem 1rem 1.65rem;
+  color: #2f2418;
+}
+
+.journalHand {
+  font-family: "Patrick Hand", var(--font-creator-handwritten-faith);
+  font-size: 1rem;
+  color: #8b7355;
+  margin-bottom: 0.5rem;
+}
+
+.journalTitle {
+  font-family: "Cormorant Garamond", var(--font-creator-elegant-scripture);
+  font-size: clamp(1.45rem, 5vw, 1.85rem);
+  line-height: 1.15;
+  margin: 0;
+}
+
+.journalBody {
+  margin: 0.85rem 0 0;
+  font-family: "Cormorant Garamond", var(--font-creator-elegant-scripture);
+  font-size: clamp(1rem, 3.8vw, 1.12rem);
+  line-height: 1.55;
+}
+
+.journalStamp {
+  margin-top: 1rem;
+  display: inline-block;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid rgba(47, 74, 98, 0.22);
+  border-radius: 0.25rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #2f4a62;
+}
+
+/* Direction C — Living Testimony */
+.livingRoot {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #0f172a 0%, #1e3a5f 42%, #f8fbff 100%);
+}
+
+.livingBackdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(74, 144, 217, 0.35), transparent 42%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.2), rgba(248, 251, 255, 0.92) 68%);
+}
+
+.livingCard {
+  position: relative;
+  z-index: 5;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 18rem;
+  padding: 1rem;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.livingKicker {
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #4a90d9;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+
+.livingHeadline {
+  font-family: "Montserrat", var(--font-creator-bold-testimony);
+  font-size: clamp(1.2rem, 4.8vw, 1.45rem);
+  line-height: 1.2;
+  margin: 0;
+  color: #0f172a;
+}
+
+.livingBody {
+  margin: 0.75rem 0 0;
+  font-family: "DM Sans", var(--font-creator-clean-modern);
+  font-size: clamp(0.92rem, 3.6vw, 1rem);
+  line-height: 1.5;
+  color: #334155;
+}
+
+.livingReactionRow {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+}
+
+.livingReaction {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: #eef4fb;
+  color: #1e3a5f;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.livingReactionActive {
+  background: #1e3a5f;
+  color: #fff;
+}
+
+.livingProgressBar {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  height: 0.22rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  overflow: hidden;
+}
+
+.livingProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a90d9, #e8c170);
+}
+
+.conceptLayer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 420ms ease,
+    transform 420ms ease;
+  pointer-events: none;
+}
+
+.conceptLayerVisible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.conceptLayerReduced {
+  transition: opacity 120ms linear;
+  transform: none;
+}
+
+@keyframes dawnDrift {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(12%);
+  }
+}
+
+@keyframes dawnDriftReverse {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-10%);
+  }
+}
+
+.animateDawnDrift {
+  animation: dawnDrift 18s ease-in-out infinite alternate;
+}
+
+.animateDawnDriftReverse {
+  animation: dawnDriftReverse 22s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animateDawnDrift,
+  .animateDawnDriftReverse {
+    animation: none;
+  }
+
+  .conceptLayer {
+    transition: opacity 120ms linear;
+    transform: none;
+  }
+}
+
+.accessDenied {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding: 2rem;
+}
+
+.accessDenied h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.accessDenied p {
+  margin: 0;
+  color: #64748b;
+  max-width: 28rem;
+}
