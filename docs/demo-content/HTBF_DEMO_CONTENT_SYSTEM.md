@@ -240,7 +240,7 @@ All `demo_seed_run_id` foreign keys use **`ON DELETE RESTRICT`**. Deleting a `de
 
 ### Trigger summary
 
-See migration draft `supabase/migrations/20260719_demo_content_system.sql`.
+See migration draft `supabase/migrations/20260725_demo_content_system.sql`.
 
 | Trigger | Behavior | Failure |
 |---------|----------|---------|
