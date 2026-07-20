@@ -69,5 +69,10 @@ export default defineConfig({
       testDir: "./tests/app-shell",
       testMatch: /desktop-shell\.spec\.ts/,
     },
+    {
+      name: "app-shell-mobile-nav-badges",
+      testDir: "./tests/app-shell",
+      testMatch: /mobile-nav-badges\.spec\.ts/,
+    },
   ],
 });
