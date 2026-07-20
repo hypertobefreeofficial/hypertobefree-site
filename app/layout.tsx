@@ -4,7 +4,6 @@ import RegisterServiceWorker from "../components/RegisterServiceWorker";
 import MobileSplashScreen from "../components/MobileSplashScreen";
 import AppBottomNav from "../components/AppBottomNav";
 import LoggedInAppShell from "../components/LoggedInAppShell";
-import { MobileNavBadgeProvider } from "../components/MobileNavBadgeProvider";
 import { fontVariables, inter } from "../lib/fonts";
 import "./globals.css";
 
@@ -27,10 +26,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className={`${inter.className} font-sans font-normal antialiased`}>
         <MobileSplashScreen />
         <RegisterServiceWorker />
-        <MobileNavBadgeProvider>
-          <LoggedInAppShell>{children}</LoggedInAppShell>
-          <AppBottomNav />
-        </MobileNavBadgeProvider>
+        <LoggedInAppShell>{children}</LoggedInAppShell>
+        <AppBottomNav />
       </body>
     </html>
   );
