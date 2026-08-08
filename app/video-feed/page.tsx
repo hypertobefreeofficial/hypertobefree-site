@@ -41,6 +41,10 @@ import {
 } from "lucide-react";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
+import MobileNavUnreadBadge from "../../components/MobileNavUnreadBadge";
+import { useMobileNavBadgeContext } from "../../components/MobileNavBadgeProvider";
+import { getMobileNavBadgeCountForHref } from "../../lib/navigation/mobileNavBadgeCounts";
+import { buildMobileNavItemAriaLabel } from "../../lib/navigation/mobileNavBadgeAccessibility";
 import {
   FEED_MEDIA_BACKDROP_CLASS,
   FEED_MEDIA_EL_CLASS,
@@ -3184,8 +3188,15 @@ function VideoFeedBottomNav({
   onNavTap: () => void;
   videosHref: string;
 }) {
+  const { prayerCount, inboxCount, isLoading } = useMobileNavBadgeContext();
+  const badgesVisible = !isLoading;
+  const badgeCounts = { prayerCount, inboxCount };
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-0 bg-transparent px-3 pb-2 pt-2 shadow-none">
+    <nav
+      aria-label="Primary"
+      className="fixed inset-x-0 bottom-0 z-50 border-0 bg-transparent px-3 pb-2 pt-2 shadow-none"
+    >
       <div className="mx-auto max-w-lg">
         <div className="grid grid-cols-6 gap-1 rounded-[1.5rem] bg-transparent p-1 ring-1 ring-white/10 backdrop-blur-sm">
           {videoFeedBottomNavItems.map((item) => {
@@ -3193,19 +3204,34 @@ function VideoFeedBottomNav({
             const isVideosItem = item.label === "Videos";
             const href = isVideosItem ? videosHref : item.href;
             const active = isVideosItem;
+            const badgeCount = getMobileNavBadgeCountForHref(item.href, badgeCounts);
+            const linkLabel = buildMobileNavItemAriaLabel(
+              item.href,
+              item.label,
+              badgeCount,
+              badgesVisible
+            );
 
             return (
               <Link
                 key={item.href}
                 href={href}
                 onClick={onNavTap}
+                aria-label={linkLabel}
                 className={`flex min-w-0 flex-col items-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-black transition ${
                   active
                     ? "bg-white/15 text-white ring-1 ring-white/15"
                     : "bg-transparent text-white/70 hover:bg-white/10 hover:text-white"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <span className="relative">
+                  <Icon className="h-4 w-4" />
+                  <MobileNavUnreadBadge
+                    count={badgeCount}
+                    visible={badgesVisible}
+                    variant="video"
+                  />
+                </span>
                 <span className="max-w-full truncate">{item.label}</span>
               </Link>
             );

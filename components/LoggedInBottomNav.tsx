@@ -6,6 +6,10 @@ import {
   isLoggedInNavItemActive,
   loggedInNavItems,
 } from "../lib/navigation/loggedInNavItems";
+import { getMobileNavBadgeCountForHref } from "../lib/navigation/mobileNavBadgeCounts";
+import { buildMobileNavItemAriaLabel } from "../lib/navigation/mobileNavBadgeAccessibility";
+import { useMobileNavBadgeContext } from "./MobileNavBadgeProvider";
+import MobileNavUnreadBadge from "./MobileNavUnreadBadge";
 
 type LoggedInBottomNavProps = {
   variant?: "default" | "video";
@@ -20,6 +24,9 @@ export default function LoggedInBottomNav({
   onNavTap,
 }: LoggedInBottomNavProps) {
   const pathname = usePathname();
+  const { prayerCount, inboxCount, isLoading } = useMobileNavBadgeContext();
+  const badgesVisible = !isLoading;
+  const badgeCounts = { prayerCount, inboxCount };
 
   void onToggleHaptics;
 
@@ -36,16 +43,29 @@ export default function LoggedInBottomNav({
         <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
           {loggedInNavItems.map((item) => {
             const Icon = item.icon;
+            const badgeCount = getMobileNavBadgeCountForHref(item.href, badgeCounts);
+            const linkLabel = buildMobileNavItemAriaLabel(
+              item.href,
+              item.label,
+              badgeCount,
+              badgesVisible
+            );
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => onNavTap?.()}
+                aria-label={linkLabel}
                 className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-transparent px-2 py-2 text-[10px] font-black text-white/70 ring-1 ring-transparent transition hover:bg-white/[0.08] hover:text-white hover:ring-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
               >
                 <span className="relative">
                   <Icon className="h-5 w-5" />
+                  <MobileNavUnreadBadge
+                    count={badgeCount}
+                    visible={badgesVisible}
+                    variant="video"
+                  />
                 </span>
                 {item.label}
               </Link>
@@ -65,6 +85,13 @@ export default function LoggedInBottomNav({
         {loggedInNavItems.map((item) => {
           const Icon = item.icon;
           const active = isLoggedInNavItemActive(pathname, item.href);
+          const badgeCount = getMobileNavBadgeCountForHref(item.href, badgeCounts);
+          const linkLabel = buildMobileNavItemAriaLabel(
+            item.href,
+            item.label,
+            badgeCount,
+            badgesVisible
+          );
 
           return (
             <Link
@@ -72,6 +99,7 @@ export default function LoggedInBottomNav({
               href={item.href}
               onClick={() => onNavTap?.()}
               aria-current={active ? "page" : undefined}
+              aria-label={linkLabel}
               className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce] ${
                 active
                   ? "bg-[#0b63ce]/10 text-[#0b63ce]"
@@ -80,6 +108,10 @@ export default function LoggedInBottomNav({
             >
               <span className="relative">
                 <Icon className="h-5 w-5" />
+                <MobileNavUnreadBadge
+                  count={badgeCount}
+                  visible={badgesVisible}
+                />
               </span>
               {item.label}
             </Link>
