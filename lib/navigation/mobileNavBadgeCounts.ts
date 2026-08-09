@@ -120,6 +120,13 @@ export function getMobileNavBadgeCountForHref(
   return 0;
 }
 
+/** Unified unread total for desktop bell — prayer broadcasts + journey inbox. */
+export function computeTotalNavUnreadCount(
+  counts: MobileNavBadgeCounts
+): number {
+  return counts.prayerCount + counts.inboxCount;
+}
+
 export function computeMobileNavBadgeCounts(
   inboxRows: MobileNavInboxRow[],
   privateReplyRows: MobileNavPrivateReplyRow[],

@@ -74,5 +74,10 @@ export default defineConfig({
       testDir: "./tests/app-shell",
       testMatch: /mobile-nav-badges\.spec\.ts/,
     },
+    {
+      name: "app-shell-desktop-notification-bell",
+      testDir: "./tests/app-shell",
+      testMatch: /desktop-notification-bell\.spec\.ts/,
+    },
   ],
 });

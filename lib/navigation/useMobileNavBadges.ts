@@ -25,29 +25,7 @@ import {
   recordMobileNavBadgeFetchCall,
 } from "./mobileNavBadgeTestMode";
 
-const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
 const REALTIME_DEBOUNCE_MS = 400;
-
-function readIsMobileViewport(): boolean {
-  if (typeof window === "undefined") return false;
-  return !window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
-}
-
-function useIsMobileViewport() {
-  const [isMobile, setIsMobile] = useState(readIsMobileViewport);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
-    const update = () => setIsMobile(!mediaQuery.matches);
-
-    update();
-    mediaQuery.addEventListener("change", update);
-
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-
-  return isMobile;
-}
 
 export async function fetchMobileNavBadgeCounts(
   userId: string
@@ -135,7 +113,6 @@ export type MobileNavBadgeState = MobileNavBadgeCounts & {
 };
 
 export function useMobileNavBadges(): MobileNavBadgeState {
-  const isMobile = useIsMobileViewport();
   const staticTestOverride = isStaticMobileNavBadgeTestOverride(
     readMobileNavBadgeTestOverride()
   );
@@ -178,7 +155,7 @@ export function useMobileNavBadges(): MobileNavBadgeState {
   const refreshCounts = useCallback(async () => {
     const currentUserId = activeUserRef.current;
 
-    if (!currentUserId || !isMobile || staticTestOverride) {
+    if (!currentUserId || staticTestOverride) {
       clearCounts();
       setIsLoading(false);
       return;
@@ -227,10 +204,10 @@ export function useMobileNavBadges(): MobileNavBadgeState {
         setIsLoading(false);
       }
     }
-  }, [clearCounts, isMobile, staticTestOverride]);
+  }, [clearCounts, staticTestOverride]);
 
   const scheduleRefresh = useCallback(() => {
-    if (!activeUserRef.current || !isMobile || staticTestOverride) return;
+    if (!activeUserRef.current || staticTestOverride) return;
 
     if (!debouncerRef.current) {
       debouncerRef.current = createMobileNavRefreshDebouncer(
@@ -242,7 +219,7 @@ export function useMobileNavBadges(): MobileNavBadgeState {
     }
 
     debouncerRef.current.schedule();
-  }, [isMobile, refreshCounts, staticTestOverride]);
+  }, [refreshCounts, staticTestOverride]);
 
   const subscribeForUser = useCallback(
     (nextUserId: string) => {
@@ -299,7 +276,7 @@ export function useMobileNavBadges(): MobileNavBadgeState {
 
     activeUserRef.current = userId;
 
-    if (!isMobile || !userId) {
+    if (!userId) {
       fetchGenerationRef.current += 1;
       removeChannel();
       clearCounts();
@@ -316,7 +293,6 @@ export function useMobileNavBadges(): MobileNavBadgeState {
     };
   }, [
     clearCounts,
-    isMobile,
     refreshCounts,
     removeChannel,
     staticTestOverride,

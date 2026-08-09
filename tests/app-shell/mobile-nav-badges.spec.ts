@@ -328,9 +328,9 @@ test.describe("Mobile bottom nav badges", () => {
       await page.goto(FIXTURE_FEED, { waitUntil: "domcontentloaded" });
       await expect(mobileBottomNav(page)).toBeHidden();
       await expect(desktopNav(page)).toBeVisible();
-      await expect(page.locator('[data-testid="mobile-nav-unread-badge"]')).toHaveCount(
-        0
-      );
+      await expect(
+        mobileBottomNav(page).locator('[data-testid="mobile-nav-unread-badge"]')
+      ).toBeHidden();
 
       await context.close();
     });
@@ -530,7 +530,9 @@ test.describe("Mobile bottom nav badges", () => {
     await context.close();
   });
 
-  test("desktop width removes active mobile badge channel", async ({ browser }) => {
+  test("desktop width keeps a single shared badge channel active", async ({
+    browser,
+  }) => {
     test.skip(!fs.existsSync(OWNER_AUTH), "Owner auth storage unavailable.");
 
     const context = await browser.newContext({
@@ -568,8 +570,8 @@ test.describe("Mobile bottom nav badges", () => {
     );
 
     expect(diagnostics?.channelCreates).toBe(1);
-    expect(diagnostics?.channelRemoves).toBeGreaterThanOrEqual(1);
-    expect(diagnostics?.activeChannelName).toBeNull();
+    expect(diagnostics?.channelRemoves).toBe(0);
+    expect(diagnostics?.activeChannelName).not.toBeNull();
 
     await context.close();
   });
