@@ -1,16 +1,18 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useEffect, type ReactNode } from "react";
 import CreatorStudioStoryRenderer from "../creation-center/CreatorStudioStoryRenderer";
 import {
   isCreatorStudioFeedPost,
   readStoredCreatorStudioDesignFromStory,
 } from "../../lib/creatorStudioMetadata";
+import { resolveCreatorStudioFeedMediaUrls } from "../../lib/creatorStudioFeedMedia";
+import { clearCreatorStudioSessionPreview } from "../../lib/creatorStudioSessionPreview";
 import {
   feedMediaAspectClassName,
   getStoryFeedMediaAspect,
 } from "../../lib/community-feed/feedMediaAspect";
-import type { CreationCenterTemplateId } from "../../lib/creationCenter";
+import type { CreationCenterTemplateId, CreatorStudioDesign } from "../../lib/creationCenter";
 import type {
   FeedDisplayItem,
   FeedStoryDisplay,
@@ -206,22 +208,15 @@ export default function FeedListItem({
       </button>
     );
   } else if (showCreatorStudioCard && creatorStudioDesign) {
+    const creatorStudioMedia = resolveCreatorStudioFeedMediaUrls(story);
+
     media = (
-      <button
-        type="button"
-        onClick={() => callbacks.onOpenStory(story)}
-        className={`${styles.mediaOpenButton} ${styles.mediaBleed}`}
-        aria-label="Open Creator Studio post"
-      >
-        <div className={styles.mediaFrameAuto}>
-          <CreatorStudioStoryRenderer
-            design={creatorStudioDesign}
-            photoPreviewUrl={story.signed_image_url}
-            videoPreviewUrl={story.signed_video_url ?? story.video_url}
-            variant="feed"
-          />
-        </div>
-      </button>
+      <CreatorStudioFeedMedia
+        storyId={story.id}
+        creatorStudioDesign={creatorStudioDesign}
+        creatorStudioMedia={creatorStudioMedia}
+        onOpenStory={() => callbacks.onOpenStory(story)}
+      />
     );
   } else if (showCreationTemplateCard && creationTemplate) {
     media = (
@@ -290,5 +285,62 @@ export default function FeedListItem({
       />
       {shouldShowMiniReels ? miniReelsSlot : null}
     </Fragment>
+  );
+}
+
+function CreatorStudioFeedMedia({
+  storyId,
+  creatorStudioDesign,
+  creatorStudioMedia,
+  onOpenStory,
+}: {
+  storyId: string;
+  creatorStudioDesign: CreatorStudioDesign;
+  creatorStudioMedia: ReturnType<typeof resolveCreatorStudioFeedMediaUrls>;
+  onOpenStory: () => void;
+}) {
+  useEffect(() => {
+    if (!storyId) return;
+    if (
+      creatorStudioMedia.hasPersistedPhoto &&
+      creatorStudioMedia.photoPreviewUrl &&
+      creatorStudioMedia.photoPreviewUrl.startsWith("http")
+    ) {
+      clearCreatorStudioSessionPreview(storyId);
+    }
+    if (
+      creatorStudioMedia.hasPersistedVideo &&
+      creatorStudioMedia.videoPreviewUrl &&
+      creatorStudioMedia.videoPreviewUrl.startsWith("http")
+    ) {
+      clearCreatorStudioSessionPreview(storyId);
+    }
+  }, [
+    storyId,
+    creatorStudioMedia.hasPersistedPhoto,
+    creatorStudioMedia.hasPersistedVideo,
+    creatorStudioMedia.photoPreviewUrl,
+    creatorStudioMedia.videoPreviewUrl,
+  ]);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenStory}
+      className={`${styles.mediaOpenButton} ${styles.mediaBleed}`}
+      aria-label="Open Creator Studio post"
+    >
+      <div className={styles.mediaFrameAuto}>
+        <CreatorStudioStoryRenderer
+          design={creatorStudioDesign}
+          photoPreviewUrl={creatorStudioMedia.photoPreviewUrl}
+          videoPreviewUrl={creatorStudioMedia.videoPreviewUrl}
+          videoPosterUrl={creatorStudioMedia.videoPosterUrl}
+          expectsPhoto={creatorStudioMedia.expectsPhoto}
+          expectsVideo={creatorStudioMedia.expectsVideo}
+          variant="feed"
+        />
+      </div>
+    </button>
   );
 }

@@ -48,6 +48,7 @@ import {
   verifyCreatorStudioDesignPersisted,
 } from "../../lib/creatorStudioMetadata";
 import { resolveCreatorStudioPublishMedia } from "../../lib/creatorStudioPublishMedia";
+import { storeCreatorStudioSessionPreview } from "../../lib/creatorStudioSessionPreview";
 
 type ProfileRow = {
   id: string;
@@ -1744,6 +1745,11 @@ export default function ShareYourStoryPage() {
     setMessage("Creator Studio design prepared for review.");
   }
 
+  function clearCreatorStudioPublishMedia() {
+    removePhoto();
+    removeVideo();
+  }
+
   async function publishCreatorStudioTestimony(
     design: CreatorStudioDesign,
     onProgress: (step: string) => void
@@ -1979,6 +1985,22 @@ export default function ShareYourStoryPage() {
         creatorStudioDesignForPublish
       );
 
+      if (insertedStory?.id && (photoFile || videoFile || photoPreviewUrl || videoPreviewUrl)) {
+        const sessionPhotoUrl =
+          hasPhoto && photoFile
+            ? URL.createObjectURL(photoFile)
+            : photoPreviewUrl;
+        const sessionVideoUrl =
+          hasVideo && videoFile
+            ? URL.createObjectURL(videoFile)
+            : videoPreviewUrl;
+
+        storeCreatorStudioSessionPreview(insertedStory.id, {
+          photoUrl: sessionPhotoUrl,
+          videoUrl: sessionVideoUrl,
+        });
+      }
+
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
 
       setStoryText("");
@@ -1994,14 +2016,16 @@ export default function ShareYourStoryPage() {
       setCreatorStudioDesigns([]);
       setCreatorStudioMessage("");
       pendingCreatorStudioDesignRef.current = null;
-      removePhoto();
-      removeVideo();
       setMediaMode("text");
       setQuickShareCategory("testimony");
       setCaptionInputExpanded(false);
       setStoryType("Testimony");
 
-      return { success: true, wentLiveInstantly };
+      return {
+        success: true,
+        wentLiveInstantly,
+        storyId: insertedStory?.id,
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Something went wrong.";
@@ -3662,6 +3686,7 @@ export default function ShareYourStoryPage() {
                 onRequestCreatorStudioImage={requestCreatorStudioImage}
             onUseCreatorStudioDesign={useCreatorStudioDesign}
             onPublishCreatorStudioTestimony={publishCreatorStudioTestimony}
+            onClearCreatorStudioPublishMedia={clearCreatorStudioPublishMedia}
             onCreatorStudioActiveChange={setCreatorStudioActive}
                 onUseSuggestedStoryType={
                   useCreationCenterSuggestedStoryType

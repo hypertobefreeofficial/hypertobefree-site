@@ -40,6 +40,7 @@ import {
   isCreatorStudioFeedPost,
   readStoredCreatorStudioDesignFromStory,
 } from "../lib/creatorStudioMetadata";
+import { resolveCreatorStudioFeedMediaUrls } from "../lib/creatorStudioFeedMedia";
 import CreatorStudioStoryRenderer from "./creation-center/CreatorStudioStoryRenderer";
 import { FeedComposer } from "./FeedComposer";
 import StoryMediaStamp from "./StoryMediaStamp";
@@ -3104,6 +3105,8 @@ function ComposedFeedPostVisual({
   const creatorStudioDesign = readStoredCreatorStudioDesignFromStory(story);
 
   if (creatorStudioDesign) {
+    const creatorStudioMedia = resolveCreatorStudioFeedMediaUrls(story);
+
     console.log("[CreatorStudio/pipeline] feed render design JSON", {
       storyId: story.id,
       creation_mode: story.creation_mode,
@@ -3116,8 +3119,11 @@ function ComposedFeedPostVisual({
     return (
       <CreatorStudioStoryRenderer
         design={creatorStudioDesign}
-        photoPreviewUrl={story.signed_image_url}
-        videoPreviewUrl={story.signed_video_url ?? story.video_url}
+        photoPreviewUrl={creatorStudioMedia.photoPreviewUrl}
+        videoPreviewUrl={creatorStudioMedia.videoPreviewUrl}
+        videoPosterUrl={creatorStudioMedia.videoPosterUrl}
+        expectsPhoto={creatorStudioMedia.expectsPhoto}
+        expectsVideo={creatorStudioMedia.expectsVideo}
         variant={variant === "detail" ? "detail" : "feed"}
       />
     );

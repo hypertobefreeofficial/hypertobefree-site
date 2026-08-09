@@ -43,6 +43,7 @@ import { freezeCreatorStudioDesignForPublish } from "../../lib/creatorStudioMeta
 export type CreatorStudioPublishResult = {
   success: boolean;
   wentLiveInstantly?: boolean;
+  storyId?: string;
   error?: string;
 };
 
@@ -89,6 +90,7 @@ type CreatorStudioProps = {
     design: CreatorStudioDesign,
     onProgress: (step: string) => void
   ) => Promise<CreatorStudioPublishResult>;
+  onClearPublishMedia: () => void;
   onViewFeed: () => void;
   onExitStudio: () => void;
 };
@@ -218,6 +220,7 @@ export default function CreatorStudio({
   onRequestImage,
   onUseDesign,
   onPublishTestimony,
+  onClearPublishMedia,
   onViewFeed,
   onExitStudio,
 }: CreatorStudioProps) {
@@ -598,6 +601,7 @@ export default function CreatorStudio({
   }
 
   function resetStudioForAnother() {
+    onClearPublishMedia();
     setScreen("home");
     setHomeStep("welcome");
     setEditableDesign(null);
@@ -904,10 +908,15 @@ export default function CreatorStudio({
             design={publishSnapshot.design}
             videoPreviewUrl={publishSnapshot.videoPreviewUrl}
             photoPreviewUrl={publishSnapshot.photoPreviewUrl}
+            expectsPhoto={Boolean(publishSnapshot.photoPreviewUrl)}
+            expectsVideo={Boolean(publishSnapshot.videoPreviewUrl)}
             wentLiveInstantly={Boolean(publishResult.wentLiveInstantly)}
             onViewFeed={onViewFeed}
             onCreateAnother={resetStudioForAnother}
-            onDone={onExitStudio}
+            onDone={() => {
+              onClearPublishMedia();
+              onExitStudio();
+            }}
           />
         )}
 

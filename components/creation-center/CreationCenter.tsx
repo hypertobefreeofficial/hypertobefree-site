@@ -61,6 +61,7 @@ type CreationCenterProps = {
     design: CreatorStudioDesign,
     onProgress: (step: string) => void
   ) => Promise<CreatorStudioPublishResult>;
+  onClearCreatorStudioPublishMedia: () => void;
   onCreatorStudioActiveChange: (active: boolean) => void;
   onUseSuggestedStoryType: (storyType: string) => void;
   onUseSuggestedTitle: (title: string) => void;
@@ -91,6 +92,7 @@ export default function CreationCenter({
   onRequestCreatorStudioImage,
   onUseCreatorStudioDesign,
   onPublishCreatorStudioTestimony,
+  onClearCreatorStudioPublishMedia,
   onCreatorStudioActiveChange,
 }: CreationCenterProps) {
   const router = useRouter();
@@ -134,6 +136,7 @@ export default function CreationCenter({
         onRequestImage={onRequestCreatorStudioImage}
         onUseDesign={onUseCreatorStudioDesign}
         onPublishTestimony={onPublishCreatorStudioTestimony}
+        onClearPublishMedia={onClearCreatorStudioPublishMedia}
         onViewFeed={() => router.push("/feed")}
         onExitStudio={onExitStudio ?? onSwitchToQuickShare}
       />
