@@ -42,11 +42,32 @@ function desktopBell(page: Page) {
   return page.getByTestId("desktop-notification-bell");
 }
 
-async function openDesktopFeed(page: Page) {
-  await page.setViewportSize({ width: 1280, height: 900 });
+async function openDesktopFeedAt(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 900 });
   await page.goto(FIXTURE_FEED, { waitUntil: "domcontentloaded" });
   await page.locator("#stories").first().waitFor({ state: "visible" });
   await expect(desktopNav(page)).toBeVisible();
+}
+
+async function assertDesktopBellBadgeFitsNav(page: Page) {
+  const navBox = await desktopNav(page).boundingBox();
+  const badgeBox = await page
+    .getByTestId("desktop-notification-bell-badge")
+    .boundingBox();
+
+  expect(navBox).not.toBeNull();
+  expect(badgeBox).not.toBeNull();
+
+  if (navBox && badgeBox) {
+    expect(badgeBox.y).toBeGreaterThanOrEqual(navBox.y);
+    expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(
+      navBox.y + navBox.height + 1
+    );
+  }
+}
+
+async function openDesktopFeed(page: Page) {
+  await openDesktopFeedAt(page, 1280);
 }
 
 test.describe("Desktop notification bell", () => {
@@ -137,6 +158,29 @@ test.describe("Desktop notification bell", () => {
 
     await context.close();
   });
+
+  for (const width of [1024, 1280, 1440]) {
+    test(`keeps bell badge fully visible inside desktop nav at ${width}px`, async ({
+      browser,
+    }) => {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+      });
+      const page = await context.newPage();
+      await installBadgeOverride(page, {
+        prayerCount: 4,
+        inboxCount: 3,
+        isLoading: false,
+      });
+      await openDesktopFeedAt(page, width);
+      await expect(page.getByTestId("desktop-notification-bell-badge")).toHaveText(
+        "7"
+      );
+      await assertDesktopBellBadgeFitsNav(page);
+
+      await context.close();
+    });
+  }
 
   test("opens and closes popover with keyboard and preserves counts", async ({
     browser,

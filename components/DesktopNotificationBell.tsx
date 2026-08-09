@@ -11,7 +11,6 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell, HandHeart, Sparkles } from "lucide-react";
 import { useMobileNavBadgeContext } from "./MobileNavBadgeProvider";
-import MobileNavUnreadBadge from "./MobileNavUnreadBadge";
 import {
   computeTotalNavUnreadCount,
   formatMobileNavBadge,
@@ -144,14 +143,21 @@ export default function DesktopNotificationBell({
           }
           setOpen(true);
         }}
-        className="relative inline-flex shrink-0 items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-50 hover:text-[#0b63ce] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce] aria-expanded:bg-[#0b63ce]/10 aria-expanded:text-[#0b63ce]"
+        className="relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full px-2 py-2.5 text-slate-600 transition hover:bg-slate-50 hover:text-[#0b63ce] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce] aria-expanded:bg-[#0b63ce]/10 aria-expanded:text-[#0b63ce]"
       >
-        <Bell className="h-4 w-4 shrink-0" aria-hidden />
-        <MobileNavUnreadBadge
-          count={totalUnread}
-          visible={badgesVisible}
-          testId="desktop-notification-bell-badge"
-        />
+        <span className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-visible">
+          <Bell className="h-4 w-4 shrink-0" aria-hidden />
+          {badgesVisible && totalUnread > 0 ? (
+            <span
+              data-testid="desktop-notification-bell-badge"
+              data-badge-count={formatMobileNavBadge(totalUnread)}
+              className="absolute -right-2.5 top-0 min-w-[1.15rem] translate-y-px rounded-full bg-red-600 px-1.5 py-0.5 text-center text-[10px] font-black leading-none text-white ring-2 ring-white"
+              aria-hidden
+            >
+              {formatMobileNavBadge(totalUnread)}
+            </span>
+          ) : null}
+        </span>
       </button>
 
       {mounted &&
