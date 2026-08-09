@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeMobileNavBadgeCounts,
+  computeTotalNavUnreadCount,
   formatMobileNavBadge,
   getMobileNavBadgeCountForHref,
   isPrayerBadgeInboxRow,
@@ -161,5 +162,14 @@ describe("mobileNavBadgeCounts", () => {
     expect(getMobileNavBadgeCountForHref("/prayer", counts)).toBe(4);
     expect(getMobileNavBadgeCountForHref("/journey", counts)).toBe(2);
     expect(getMobileNavBadgeCountForHref("/feed", counts)).toBe(0);
+  });
+
+  it("aggregates desktop bell totals from prayer and journey counts", () => {
+    expect(
+      computeTotalNavUnreadCount({ prayerCount: 3, inboxCount: 2 })
+    ).toBe(5);
+    expect(
+      computeTotalNavUnreadCount({ prayerCount: 0, inboxCount: 0 })
+    ).toBe(0);
   });
 });

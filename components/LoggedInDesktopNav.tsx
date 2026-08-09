@@ -6,10 +6,14 @@ import {
   isLoggedInNavItemActive,
   loggedInNavItems,
 } from "../lib/navigation/loggedInNavItems";
+import DesktopNotificationBell from "./DesktopNotificationBell";
 
 type LoggedInDesktopNavProps = {
   onNavTap?: () => void;
 };
+
+const primaryNavItems = loggedInNavItems.filter((item) => item.href !== "/profile");
+const profileNavItem = loggedInNavItems.find((item) => item.href === "/profile");
 
 export default function LoggedInDesktopNav({
   onNavTap,
@@ -19,6 +23,11 @@ export default function LoggedInDesktopNav({
   if (pathname?.startsWith("/video-feed") || pathname?.startsWith("/videos")) {
     return null;
   }
+
+  const ProfileIcon = profileNavItem?.icon;
+  const profileActive = profileNavItem
+    ? isLoggedInNavItemActive(pathname, profileNavItem.href)
+    : false;
 
   return (
     <nav
@@ -34,7 +43,7 @@ export default function LoggedInDesktopNav({
         </Link>
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5 overflow-x-auto sm:justify-center">
-          {loggedInNavItems.map((item) => {
+          {primaryNavItems.map((item) => {
             const Icon = item.icon;
             const active = isLoggedInNavItemActive(pathname, item.href);
 
@@ -55,6 +64,26 @@ export default function LoggedInDesktopNav({
               </Link>
             );
           })}
+
+          <div className="ml-1 inline-flex shrink-0 items-center gap-0.5 border-l border-slate-200/80 pl-1.5">
+            <DesktopNotificationBell onNavTap={onNavTap} />
+
+            {profileNavItem && ProfileIcon ? (
+              <Link
+                href={profileNavItem.href}
+                onClick={() => onNavTap?.()}
+                aria-current={profileActive ? "page" : undefined}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce] ${
+                  profileActive
+                    ? "bg-[#0b63ce]/10 text-[#0b63ce]"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-[#0b63ce]"
+                }`}
+              >
+                <ProfileIcon className="h-4 w-4 shrink-0" aria-hidden />
+                {profileNavItem.label}
+              </Link>
+            ) : null}
+          </div>
         </div>
       </div>
     </nav>
