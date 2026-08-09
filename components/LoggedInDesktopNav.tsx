@@ -65,7 +65,7 @@ export default function LoggedInDesktopNav({
             );
           })}
 
-          <div className="ml-1 inline-flex shrink-0 items-center gap-0.5 overflow-visible border-l border-slate-200/80 pl-1.5">
+          <div className="inline-flex shrink-0 items-center gap-1.5 overflow-visible">
             <DesktopNotificationBell onNavTap={onNavTap} />
 
             {profileNavItem && ProfileIcon ? (
