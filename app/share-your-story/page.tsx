@@ -1677,7 +1677,10 @@ export default function ShareYourStoryPage() {
     return matchedType?.value ?? "testimony";
   }
 
-  function stageCreatorStudioDesign(design: CreatorStudioDesign) {
+  function stageCreatorStudioDesign(
+    design: CreatorStudioDesign,
+    options?: { preserveUploadedMedia?: boolean }
+  ) {
     const preparedDesign =
       design.layerStyles && Object.keys(design.layerStyles).length > 0
         ? design
@@ -1706,7 +1709,9 @@ export default function ShareYourStoryPage() {
       selectMediaMode("photo");
     } else {
       setCreationFormat("testimony-card");
-      selectMediaMode("text");
+      if (!options?.preserveUploadedMedia) {
+        selectMediaMode("text");
+      }
     }
 
     applyGuidedStoryType(getCreatorStudioStoryType(cleanCategory));
@@ -1759,7 +1764,7 @@ export default function ShareYourStoryPage() {
     }
 
     const frozenDesign = freezeCreatorStudioDesignForPublish(design);
-    stageCreatorStudioDesign(frozenDesign);
+    stageCreatorStudioDesign(frozenDesign, { preserveUploadedMedia: true });
 
     const creatorStudioDesign = pendingCreatorStudioDesignRef.current ?? frozenDesign;
 
@@ -3667,6 +3672,8 @@ export default function ShareYourStoryPage() {
                 creatorStudioMessage={creatorStudioMessage}
                 creatorStudioVideoFileName={videoFile?.name ?? null}
                 creatorStudioPhotoFileName={photoFile?.name ?? null}
+                creatorStudioVideoFile={videoFile}
+                creatorStudioPhotoFile={photoFile}
                 creatorStudioVideoPreviewUrl={videoPreviewUrl}
                 creatorStudioPhotoPreviewUrl={photoPreviewUrl}
                 onCreatorStudioVideoSelect={handleVideoSelect}

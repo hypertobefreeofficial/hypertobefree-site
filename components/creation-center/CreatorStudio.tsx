@@ -39,6 +39,11 @@ import CreatorStudioPublishPreview from "./CreatorStudioPublishPreview";
 import CreatorStudioPublishing from "./CreatorStudioPublishing";
 import CreatorStudioPublishSuccess from "./CreatorStudioPublishSuccess";
 import { freezeCreatorStudioDesignForPublish } from "../../lib/creatorStudioMetadata";
+import {
+  buildCreatorStudioPublishSnapshot,
+  revokeCreatorStudioPublishSnapshotMedia,
+  type CreatorStudioPublishSnapshot,
+} from "../../lib/creatorStudioPublishSnapshot";
 
 export type CreatorStudioPublishResult = {
   success: boolean;
@@ -47,11 +52,7 @@ export type CreatorStudioPublishResult = {
   error?: string;
 };
 
-type PublishSnapshot = {
-  design: CreatorStudioDesign;
-  photoPreviewUrl: string | null;
-  videoPreviewUrl: string | null;
-};
+type PublishSnapshot = CreatorStudioPublishSnapshot;
 
 type StudioScreen =
   | "home"
@@ -69,6 +70,8 @@ type CreatorStudioProps = {
   message: string;
   videoFileName: string | null;
   photoFileName: string | null;
+  videoFile: File | null;
+  photoFile: File | null;
   videoPreviewUrl: string | null;
   photoPreviewUrl: string | null;
   onVideoSelect: (file: File | null) => void;
@@ -208,6 +211,8 @@ export default function CreatorStudio({
   message,
   videoFileName,
   photoFileName,
+  videoFile,
+  photoFile,
   videoPreviewUrl,
   photoPreviewUrl,
   onVideoSelect,
@@ -574,11 +579,15 @@ export default function CreatorStudio({
       savedDesignJson: designToPublish,
     });
 
-    setPublishSnapshot({
-      design: designToPublish,
-      photoPreviewUrl,
-      videoPreviewUrl,
-    });
+    setPublishSnapshot(
+      buildCreatorStudioPublishSnapshot({
+        design: designToPublish,
+        photoFile,
+        videoFile,
+        photoPreviewUrl,
+        videoPreviewUrl,
+      })
+    );
     setPublishError(null);
     setPublishStep("Publishing your testimony...");
     setScreen("publishing");
@@ -602,6 +611,7 @@ export default function CreatorStudio({
 
   function resetStudioForAnother() {
     onClearPublishMedia();
+    revokeCreatorStudioPublishSnapshotMedia(publishSnapshot);
     setScreen("home");
     setHomeStep("welcome");
     setEditableDesign(null);
@@ -908,12 +918,13 @@ export default function CreatorStudio({
             design={publishSnapshot.design}
             videoPreviewUrl={publishSnapshot.videoPreviewUrl}
             photoPreviewUrl={publishSnapshot.photoPreviewUrl}
-            expectsPhoto={Boolean(publishSnapshot.photoPreviewUrl)}
-            expectsVideo={Boolean(publishSnapshot.videoPreviewUrl)}
+            expectsPhoto={publishSnapshot.expectsPhoto}
+            expectsVideo={publishSnapshot.expectsVideo}
             wentLiveInstantly={Boolean(publishResult.wentLiveInstantly)}
             onViewFeed={onViewFeed}
             onCreateAnother={resetStudioForAnother}
             onDone={() => {
+              revokeCreatorStudioPublishSnapshotMedia(publishSnapshot);
               onClearPublishMedia();
               onExitStudio();
             }}

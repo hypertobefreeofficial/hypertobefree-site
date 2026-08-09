@@ -33,6 +33,8 @@ type CreationCenterProps = {
   creatorStudioMessage: string;
   creatorStudioVideoFileName: string | null;
   creatorStudioPhotoFileName: string | null;
+  creatorStudioVideoFile: File | null;
+  creatorStudioPhotoFile: File | null;
   creatorStudioVideoPreviewUrl: string | null;
   creatorStudioPhotoPreviewUrl: string | null;
   onCreatorStudioVideoSelect: (file: File | null) => void;
@@ -79,6 +81,8 @@ export default function CreationCenter({
   creatorStudioMessage,
   creatorStudioVideoFileName,
   creatorStudioPhotoFileName,
+  creatorStudioVideoFile,
+  creatorStudioPhotoFile,
   creatorStudioVideoPreviewUrl,
   creatorStudioPhotoPreviewUrl,
   onCreatorStudioVideoSelect,
@@ -124,6 +128,8 @@ export default function CreationCenter({
         message={creatorStudioMessage}
         videoFileName={creatorStudioVideoFileName}
         photoFileName={creatorStudioPhotoFileName}
+        videoFile={creatorStudioVideoFile}
+        photoFile={creatorStudioPhotoFile}
         videoPreviewUrl={creatorStudioVideoPreviewUrl}
         photoPreviewUrl={creatorStudioPhotoPreviewUrl}
         onVideoSelect={onCreatorStudioVideoSelect}
