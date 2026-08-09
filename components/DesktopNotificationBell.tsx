@@ -143,7 +143,7 @@ export default function DesktopNotificationBell({
           }
           setOpen(true);
         }}
-        className="relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full px-2 py-2.5 text-slate-600 transition hover:bg-slate-50 hover:text-[#0b63ce] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce] aria-expanded:bg-[#0b63ce]/10 aria-expanded:text-[#0b63ce]"
+        className="relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-full p-2 text-slate-600 transition hover:bg-slate-50 hover:text-[#0b63ce] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0b63ce] aria-expanded:bg-[#0b63ce]/10 aria-expanded:text-[#0b63ce]"
       >
         <span className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-visible">
           <Bell className="h-4 w-4 shrink-0" aria-hidden />

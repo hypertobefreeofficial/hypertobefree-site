@@ -66,6 +66,55 @@ async function assertDesktopBellBadgeFitsNav(page: Page) {
   }
 }
 
+async function assertSingleDesktopHeader(page: Page) {
+  await expect(desktopNav(page)).toHaveCount(1);
+  await expect(desktopBell(page)).toHaveCount(1);
+
+  const layout = await page.evaluate(() => {
+    const nav = document.querySelector("nav.logged-in-desktop-nav");
+    const inner = nav?.querySelector(".app-desktop-shell-inner");
+    const navRect = nav?.getBoundingClientRect();
+    const innerRect = inner?.getBoundingClientRect();
+    const htbfInNav = nav
+      ? [...nav.querySelectorAll("*")].filter(
+          (el) =>
+            el.childElementCount === 0 &&
+            el.textContent?.trim() === "HTBF" &&
+            (el as HTMLElement).offsetParent !== null
+        ).length
+      : 0;
+    const visibleHeaders = [...document.querySelectorAll("header")].filter(
+      (header) => {
+        const rect = header.getBoundingClientRect();
+        const style = window.getComputedStyle(header);
+        return (
+          rect.height > 8 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden"
+        );
+      }
+    ).length;
+
+    return {
+      htbfInNav,
+      visibleHeaders,
+      navHeight: navRect?.height ?? 0,
+      innerHeight: innerRect?.height ?? 0,
+      scrollOverflow:
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth + 1,
+    };
+  });
+
+  expect(layout.htbfInNav).toBe(1);
+  expect(layout.visibleHeaders).toBe(0);
+  expect(layout.navHeight).toBeGreaterThanOrEqual(50);
+  expect(layout.navHeight).toBeLessThanOrEqual(54);
+  expect(layout.innerHeight).toBeGreaterThanOrEqual(50);
+  expect(layout.innerHeight).toBeLessThanOrEqual(54);
+  expect(layout.scrollOverflow).toBe(true);
+}
+
 async function openDesktopFeed(page: Page) {
   await openDesktopFeedAt(page, 1280);
 }
@@ -159,8 +208,8 @@ test.describe("Desktop notification bell", () => {
     await context.close();
   });
 
-  for (const width of [1024, 1280, 1440]) {
-    test(`keeps bell badge fully visible inside desktop nav at ${width}px`, async ({
+  for (const width of [1024, 1280, 1440, 1600]) {
+    test(`keeps one desktop header and visible bell badge at ${width}px`, async ({
       browser,
     }) => {
       const context = await browser.newContext({
@@ -173,10 +222,26 @@ test.describe("Desktop notification bell", () => {
         isLoading: false,
       });
       await openDesktopFeedAt(page, width);
+      await assertSingleDesktopHeader(page);
       await expect(page.getByTestId("desktop-notification-bell-badge")).toHaveText(
         "7"
       );
       await assertDesktopBellBadgeFitsNav(page);
+
+      const navItemOrder = await page.evaluate(() => {
+        const nav = document.querySelector("nav.logged-in-desktop-nav");
+        if (!nav) return [];
+
+        return [...nav.querySelectorAll("a, button")]
+          .map((el) => el.textContent?.replace(/\s+/g, " ").trim() ?? "")
+          .filter(Boolean);
+      });
+
+      expect(navItemOrder).toContain("Search");
+      expect(navItemOrder).toContain("Profile");
+      expect(navItemOrder.indexOf("Search")).toBeLessThan(
+        navItemOrder.indexOf("Profile")
+      );
 
       await context.close();
     });
