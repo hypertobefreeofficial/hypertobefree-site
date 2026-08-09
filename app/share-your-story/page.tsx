@@ -47,6 +47,7 @@ import {
   freezeCreatorStudioDesignForPublish,
   verifyCreatorStudioDesignPersisted,
 } from "../../lib/creatorStudioMetadata";
+import { resolveCreatorStudioPublishMedia } from "../../lib/creatorStudioPublishMedia";
 
 type ProfileRow = {
   id: string;
@@ -1767,37 +1768,38 @@ export default function ShareYourStoryPage() {
       return { success: false, error: "Could not prepare your design." };
     }
 
-    const creatorStudioSourceMode = creatorStudioDesign.sourceMode;
-    const isCreatorStudioMediaPost =
-      creatorStudioSourceMode === "upload-video" ||
-      creatorStudioSourceMode === "upload-photo";
+    const publishMedia = resolveCreatorStudioPublishMedia({
+      photoFile,
+      videoFile,
+      designSourceMode: creatorStudioDesign.sourceMode,
+    });
+    const creatorStudioDesignForPublish = {
+      ...creatorStudioDesign,
+      sourceMode: publishMedia.sourceMode,
+    };
+    const isCreatorStudioMediaPost = publishMedia.isMediaPost;
     const cleanStoryText = isCreatorStudioMediaPost
       ? (
-          creatorStudioDesign.caption ||
-          creatorStudioDesign.title ||
-          creatorStudioDesign.overlayText
+          creatorStudioDesignForPublish.caption ||
+          creatorStudioDesignForPublish.title ||
+          creatorStudioDesignForPublish.overlayText
         ).trim()
       : (
-          creatorStudioDesign.overlayText ||
-          creatorStudioDesign.title ||
-          creatorStudioDesign.caption
+          creatorStudioDesignForPublish.overlayText ||
+          creatorStudioDesignForPublish.title ||
+          creatorStudioDesignForPublish.caption
         ).trim();
-    const cleanOverlayText = creatorStudioDesign.overlayText.trim();
+    const cleanOverlayText = creatorStudioDesignForPublish.overlayText.trim();
     const moderationText = [
       cleanStoryText,
       cleanOverlayText,
-      creatorStudioDesign.caption,
+      creatorStudioDesignForPublish.caption,
     ]
       .filter(Boolean)
       .join("\n\n");
-    const effectiveMediaMode: MediaMode =
-      creatorStudioSourceMode === "upload-video"
-        ? "video"
-        : creatorStudioSourceMode === "upload-photo"
-          ? "photo"
-          : "text";
-    const hasPhoto = effectiveMediaMode === "photo" && Boolean(photoFile);
-    const hasVideo = effectiveMediaMode === "video" && Boolean(videoFile);
+    const effectiveMediaMode: MediaMode = publishMedia.effectiveMediaMode;
+    const hasPhoto = publishMedia.hasPhoto;
+    const hasVideo = publishMedia.hasVideo;
 
     if (!cleanStoryText && !cleanOverlayText && !hasPhoto && !hasVideo) {
       return {
@@ -1812,31 +1814,26 @@ export default function ShareYourStoryPage() {
     try {
       onProgress("Publishing your testimony...");
 
-      const finalStoryType = creatorStudioDesign.category;
-      const finalContentType =
-        creatorStudioSourceMode === "upload-video"
-          ? "video"
-          : creatorStudioSourceMode === "upload-photo"
-            ? "photo"
-            : "testimony-card";
+      const finalStoryType = creatorStudioDesignForPublish.category;
+      const finalContentType = publishMedia.contentType;
       const finalTopics = Array.from(
         new Set(
-          [creatorStudioDesign.category, creatorStudioDesign.topic]
+          [creatorStudioDesignForPublish.category, creatorStudioDesignForPublish.topic]
             .map((topic) => normalizeTopic(topic))
             .filter(Boolean)
         )
       );
       const selectedCreationTemplate = !isCreatorStudioMediaPost
-        ? getCreationCenterTemplate(creatorStudioDesign.templateId)
+        ? getCreationCenterTemplate(creatorStudioDesignForPublish.templateId)
         : null;
       const generatedCreationTemplatePayload =
-        creatorStudioDesign.generatedImageUrl && !isCreatorStudioMediaPost
+        creatorStudioDesignForPublish.generatedImageUrl && !isCreatorStudioMediaPost
           ? {
               id: "generated-creator-studio",
               label: "Creator Studio visual design",
-              imagePath: creatorStudioDesign.generatedImageUrl,
-              generatedImagePath: creatorStudioDesign.generatedImagePath,
-              generatedImageBucket: creatorStudioDesign.generatedImageBucket,
+              imagePath: creatorStudioDesignForPublish.generatedImageUrl,
+              generatedImagePath: creatorStudioDesignForPublish.generatedImagePath,
+              generatedImageBucket: creatorStudioDesignForPublish.generatedImageBucket,
             }
           : null;
       const creationTemplatePayload =
@@ -1849,13 +1846,13 @@ export default function ShareYourStoryPage() {
             }
           : null);
       const suggestionPayload = buildCreatorStudioAiSuggestionsPayload({
-        design: creatorStudioDesign,
+        design: creatorStudioDesignForPublish,
         prompts: guidedPromptAnswers,
         suggestions: storyShapeSuggestion,
         selectedTemplate: creationTemplatePayload,
       });
 
-      console.log("[CreatorStudio/pipeline] selectedDesign", creatorStudioDesign);
+      console.log("[CreatorStudio/pipeline] selectedDesign", creatorStudioDesignForPublish);
       console.log(
         "[CreatorStudio/pipeline] payload inserted into Supabase (ai_suggestions)",
         suggestionPayload
@@ -1979,7 +1976,7 @@ export default function ShareYourStoryPage() {
 
       verifyCreatorStudioDesignPersisted(
         insertedStory?.ai_suggestions,
-        creatorStudioDesign
+        creatorStudioDesignForPublish
       );
 
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
