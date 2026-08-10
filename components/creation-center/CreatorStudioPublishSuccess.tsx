@@ -8,6 +8,8 @@ type CreatorStudioPublishSuccessProps = {
   design: CreatorStudioDesign;
   videoPreviewUrl: string | null;
   photoPreviewUrl: string | null;
+  expectsPhoto?: boolean;
+  expectsVideo?: boolean;
   wentLiveInstantly: boolean;
   onViewFeed: () => void;
   onCreateAnother: () => void;
@@ -18,6 +20,8 @@ export default function CreatorStudioPublishSuccess({
   design,
   videoPreviewUrl,
   photoPreviewUrl,
+  expectsPhoto = false,
+  expectsVideo = false,
   wentLiveInstantly,
   onViewFeed,
   onCreateAnother,
@@ -45,6 +49,8 @@ export default function CreatorStudioPublishSuccess({
             design={design}
             videoPreviewUrl={videoPreviewUrl}
             photoPreviewUrl={photoPreviewUrl}
+            expectsPhoto={expectsPhoto}
+            expectsVideo={expectsVideo}
             variant="publish"
           />
         </div>

@@ -39,18 +39,20 @@ import CreatorStudioPublishPreview from "./CreatorStudioPublishPreview";
 import CreatorStudioPublishing from "./CreatorStudioPublishing";
 import CreatorStudioPublishSuccess from "./CreatorStudioPublishSuccess";
 import { freezeCreatorStudioDesignForPublish } from "../../lib/creatorStudioMetadata";
+import {
+  buildCreatorStudioPublishSnapshot,
+  revokeCreatorStudioPublishSnapshotMedia,
+  type CreatorStudioPublishSnapshot,
+} from "../../lib/creatorStudioPublishSnapshot";
 
 export type CreatorStudioPublishResult = {
   success: boolean;
   wentLiveInstantly?: boolean;
+  storyId?: string;
   error?: string;
 };
 
-type PublishSnapshot = {
-  design: CreatorStudioDesign;
-  photoPreviewUrl: string | null;
-  videoPreviewUrl: string | null;
-};
+type PublishSnapshot = CreatorStudioPublishSnapshot;
 
 type StudioScreen =
   | "home"
@@ -68,6 +70,8 @@ type CreatorStudioProps = {
   message: string;
   videoFileName: string | null;
   photoFileName: string | null;
+  videoFile: File | null;
+  photoFile: File | null;
   videoPreviewUrl: string | null;
   photoPreviewUrl: string | null;
   onVideoSelect: (file: File | null) => void;
@@ -89,6 +93,7 @@ type CreatorStudioProps = {
     design: CreatorStudioDesign,
     onProgress: (step: string) => void
   ) => Promise<CreatorStudioPublishResult>;
+  onClearPublishMedia: () => void;
   onViewFeed: () => void;
   onExitStudio: () => void;
 };
@@ -206,6 +211,8 @@ export default function CreatorStudio({
   message,
   videoFileName,
   photoFileName,
+  videoFile,
+  photoFile,
   videoPreviewUrl,
   photoPreviewUrl,
   onVideoSelect,
@@ -218,6 +225,7 @@ export default function CreatorStudio({
   onRequestImage,
   onUseDesign,
   onPublishTestimony,
+  onClearPublishMedia,
   onViewFeed,
   onExitStudio,
 }: CreatorStudioProps) {
@@ -571,11 +579,15 @@ export default function CreatorStudio({
       savedDesignJson: designToPublish,
     });
 
-    setPublishSnapshot({
-      design: designToPublish,
-      photoPreviewUrl,
-      videoPreviewUrl,
-    });
+    setPublishSnapshot(
+      buildCreatorStudioPublishSnapshot({
+        design: designToPublish,
+        photoFile,
+        videoFile,
+        photoPreviewUrl,
+        videoPreviewUrl,
+      })
+    );
     setPublishError(null);
     setPublishStep("Publishing your testimony...");
     setScreen("publishing");
@@ -598,6 +610,8 @@ export default function CreatorStudio({
   }
 
   function resetStudioForAnother() {
+    onClearPublishMedia();
+    revokeCreatorStudioPublishSnapshotMedia(publishSnapshot);
     setScreen("home");
     setHomeStep("welcome");
     setEditableDesign(null);
@@ -904,10 +918,16 @@ export default function CreatorStudio({
             design={publishSnapshot.design}
             videoPreviewUrl={publishSnapshot.videoPreviewUrl}
             photoPreviewUrl={publishSnapshot.photoPreviewUrl}
+            expectsPhoto={publishSnapshot.expectsPhoto}
+            expectsVideo={publishSnapshot.expectsVideo}
             wentLiveInstantly={Boolean(publishResult.wentLiveInstantly)}
             onViewFeed={onViewFeed}
             onCreateAnother={resetStudioForAnother}
-            onDone={onExitStudio}
+            onDone={() => {
+              revokeCreatorStudioPublishSnapshotMedia(publishSnapshot);
+              onClearPublishMedia();
+              onExitStudio();
+            }}
           />
         )}
 

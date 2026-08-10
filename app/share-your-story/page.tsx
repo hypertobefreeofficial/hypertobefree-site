@@ -47,6 +47,8 @@ import {
   freezeCreatorStudioDesignForPublish,
   verifyCreatorStudioDesignPersisted,
 } from "../../lib/creatorStudioMetadata";
+import { resolveCreatorStudioPublishMedia } from "../../lib/creatorStudioPublishMedia";
+import { storeCreatorStudioSessionPreview } from "../../lib/creatorStudioSessionPreview";
 
 type ProfileRow = {
   id: string;
@@ -1675,7 +1677,10 @@ export default function ShareYourStoryPage() {
     return matchedType?.value ?? "testimony";
   }
 
-  function stageCreatorStudioDesign(design: CreatorStudioDesign) {
+  function stageCreatorStudioDesign(
+    design: CreatorStudioDesign,
+    options?: { preserveUploadedMedia?: boolean }
+  ) {
     const preparedDesign =
       design.layerStyles && Object.keys(design.layerStyles).length > 0
         ? design
@@ -1704,7 +1709,9 @@ export default function ShareYourStoryPage() {
       selectMediaMode("photo");
     } else {
       setCreationFormat("testimony-card");
-      selectMediaMode("text");
+      if (!options?.preserveUploadedMedia) {
+        selectMediaMode("text");
+      }
     }
 
     applyGuidedStoryType(getCreatorStudioStoryType(cleanCategory));
@@ -1743,6 +1750,11 @@ export default function ShareYourStoryPage() {
     setMessage("Creator Studio design prepared for review.");
   }
 
+  function clearCreatorStudioPublishMedia() {
+    removePhoto();
+    removeVideo();
+  }
+
   async function publishCreatorStudioTestimony(
     design: CreatorStudioDesign,
     onProgress: (step: string) => void
@@ -1752,7 +1764,7 @@ export default function ShareYourStoryPage() {
     }
 
     const frozenDesign = freezeCreatorStudioDesignForPublish(design);
-    stageCreatorStudioDesign(frozenDesign);
+    stageCreatorStudioDesign(frozenDesign, { preserveUploadedMedia: true });
 
     const creatorStudioDesign = pendingCreatorStudioDesignRef.current ?? frozenDesign;
 
@@ -1767,37 +1779,38 @@ export default function ShareYourStoryPage() {
       return { success: false, error: "Could not prepare your design." };
     }
 
-    const creatorStudioSourceMode = creatorStudioDesign.sourceMode;
-    const isCreatorStudioMediaPost =
-      creatorStudioSourceMode === "upload-video" ||
-      creatorStudioSourceMode === "upload-photo";
+    const publishMedia = resolveCreatorStudioPublishMedia({
+      photoFile,
+      videoFile,
+      designSourceMode: creatorStudioDesign.sourceMode,
+    });
+    const creatorStudioDesignForPublish = {
+      ...creatorStudioDesign,
+      sourceMode: publishMedia.sourceMode,
+    };
+    const isCreatorStudioMediaPost = publishMedia.isMediaPost;
     const cleanStoryText = isCreatorStudioMediaPost
       ? (
-          creatorStudioDesign.caption ||
-          creatorStudioDesign.title ||
-          creatorStudioDesign.overlayText
+          creatorStudioDesignForPublish.caption ||
+          creatorStudioDesignForPublish.title ||
+          creatorStudioDesignForPublish.overlayText
         ).trim()
       : (
-          creatorStudioDesign.overlayText ||
-          creatorStudioDesign.title ||
-          creatorStudioDesign.caption
+          creatorStudioDesignForPublish.overlayText ||
+          creatorStudioDesignForPublish.title ||
+          creatorStudioDesignForPublish.caption
         ).trim();
-    const cleanOverlayText = creatorStudioDesign.overlayText.trim();
+    const cleanOverlayText = creatorStudioDesignForPublish.overlayText.trim();
     const moderationText = [
       cleanStoryText,
       cleanOverlayText,
-      creatorStudioDesign.caption,
+      creatorStudioDesignForPublish.caption,
     ]
       .filter(Boolean)
       .join("\n\n");
-    const effectiveMediaMode: MediaMode =
-      creatorStudioSourceMode === "upload-video"
-        ? "video"
-        : creatorStudioSourceMode === "upload-photo"
-          ? "photo"
-          : "text";
-    const hasPhoto = effectiveMediaMode === "photo" && Boolean(photoFile);
-    const hasVideo = effectiveMediaMode === "video" && Boolean(videoFile);
+    const effectiveMediaMode: MediaMode = publishMedia.effectiveMediaMode;
+    const hasPhoto = publishMedia.hasPhoto;
+    const hasVideo = publishMedia.hasVideo;
 
     if (!cleanStoryText && !cleanOverlayText && !hasPhoto && !hasVideo) {
       return {
@@ -1812,31 +1825,26 @@ export default function ShareYourStoryPage() {
     try {
       onProgress("Publishing your testimony...");
 
-      const finalStoryType = creatorStudioDesign.category;
-      const finalContentType =
-        creatorStudioSourceMode === "upload-video"
-          ? "video"
-          : creatorStudioSourceMode === "upload-photo"
-            ? "photo"
-            : "testimony-card";
+      const finalStoryType = creatorStudioDesignForPublish.category;
+      const finalContentType = publishMedia.contentType;
       const finalTopics = Array.from(
         new Set(
-          [creatorStudioDesign.category, creatorStudioDesign.topic]
+          [creatorStudioDesignForPublish.category, creatorStudioDesignForPublish.topic]
             .map((topic) => normalizeTopic(topic))
             .filter(Boolean)
         )
       );
       const selectedCreationTemplate = !isCreatorStudioMediaPost
-        ? getCreationCenterTemplate(creatorStudioDesign.templateId)
+        ? getCreationCenterTemplate(creatorStudioDesignForPublish.templateId)
         : null;
       const generatedCreationTemplatePayload =
-        creatorStudioDesign.generatedImageUrl && !isCreatorStudioMediaPost
+        creatorStudioDesignForPublish.generatedImageUrl && !isCreatorStudioMediaPost
           ? {
               id: "generated-creator-studio",
               label: "Creator Studio visual design",
-              imagePath: creatorStudioDesign.generatedImageUrl,
-              generatedImagePath: creatorStudioDesign.generatedImagePath,
-              generatedImageBucket: creatorStudioDesign.generatedImageBucket,
+              imagePath: creatorStudioDesignForPublish.generatedImageUrl,
+              generatedImagePath: creatorStudioDesignForPublish.generatedImagePath,
+              generatedImageBucket: creatorStudioDesignForPublish.generatedImageBucket,
             }
           : null;
       const creationTemplatePayload =
@@ -1849,13 +1857,13 @@ export default function ShareYourStoryPage() {
             }
           : null);
       const suggestionPayload = buildCreatorStudioAiSuggestionsPayload({
-        design: creatorStudioDesign,
+        design: creatorStudioDesignForPublish,
         prompts: guidedPromptAnswers,
         suggestions: storyShapeSuggestion,
         selectedTemplate: creationTemplatePayload,
       });
 
-      console.log("[CreatorStudio/pipeline] selectedDesign", creatorStudioDesign);
+      console.log("[CreatorStudio/pipeline] selectedDesign", creatorStudioDesignForPublish);
       console.log(
         "[CreatorStudio/pipeline] payload inserted into Supabase (ai_suggestions)",
         suggestionPayload
@@ -1979,8 +1987,24 @@ export default function ShareYourStoryPage() {
 
       verifyCreatorStudioDesignPersisted(
         insertedStory?.ai_suggestions,
-        creatorStudioDesign
+        creatorStudioDesignForPublish
       );
+
+      if (insertedStory?.id && (photoFile || videoFile || photoPreviewUrl || videoPreviewUrl)) {
+        const sessionPhotoUrl =
+          hasPhoto && photoFile
+            ? URL.createObjectURL(photoFile)
+            : photoPreviewUrl;
+        const sessionVideoUrl =
+          hasVideo && videoFile
+            ? URL.createObjectURL(videoFile)
+            : videoPreviewUrl;
+
+        storeCreatorStudioSessionPreview(insertedStory.id, {
+          photoUrl: sessionPhotoUrl,
+          videoUrl: sessionVideoUrl,
+        });
+      }
 
       const wentLiveInstantly = moderationDecision.statusToUse === "approved";
 
@@ -1997,14 +2021,16 @@ export default function ShareYourStoryPage() {
       setCreatorStudioDesigns([]);
       setCreatorStudioMessage("");
       pendingCreatorStudioDesignRef.current = null;
-      removePhoto();
-      removeVideo();
       setMediaMode("text");
       setQuickShareCategory("testimony");
       setCaptionInputExpanded(false);
       setStoryType("Testimony");
 
-      return { success: true, wentLiveInstantly };
+      return {
+        success: true,
+        wentLiveInstantly,
+        storyId: insertedStory?.id,
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Something went wrong.";
@@ -3646,6 +3672,8 @@ export default function ShareYourStoryPage() {
                 creatorStudioMessage={creatorStudioMessage}
                 creatorStudioVideoFileName={videoFile?.name ?? null}
                 creatorStudioPhotoFileName={photoFile?.name ?? null}
+                creatorStudioVideoFile={videoFile}
+                creatorStudioPhotoFile={photoFile}
                 creatorStudioVideoPreviewUrl={videoPreviewUrl}
                 creatorStudioPhotoPreviewUrl={photoPreviewUrl}
                 onCreatorStudioVideoSelect={handleVideoSelect}
@@ -3665,6 +3693,7 @@ export default function ShareYourStoryPage() {
                 onRequestCreatorStudioImage={requestCreatorStudioImage}
             onUseCreatorStudioDesign={useCreatorStudioDesign}
             onPublishCreatorStudioTestimony={publishCreatorStudioTestimony}
+            onClearCreatorStudioPublishMedia={clearCreatorStudioPublishMedia}
             onCreatorStudioActiveChange={setCreatorStudioActive}
                 onUseSuggestedStoryType={
                   useCreationCenterSuggestedStoryType

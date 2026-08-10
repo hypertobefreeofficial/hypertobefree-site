@@ -33,6 +33,8 @@ type CreationCenterProps = {
   creatorStudioMessage: string;
   creatorStudioVideoFileName: string | null;
   creatorStudioPhotoFileName: string | null;
+  creatorStudioVideoFile: File | null;
+  creatorStudioPhotoFile: File | null;
   creatorStudioVideoPreviewUrl: string | null;
   creatorStudioPhotoPreviewUrl: string | null;
   onCreatorStudioVideoSelect: (file: File | null) => void;
@@ -61,6 +63,7 @@ type CreationCenterProps = {
     design: CreatorStudioDesign,
     onProgress: (step: string) => void
   ) => Promise<CreatorStudioPublishResult>;
+  onClearCreatorStudioPublishMedia: () => void;
   onCreatorStudioActiveChange: (active: boolean) => void;
   onUseSuggestedStoryType: (storyType: string) => void;
   onUseSuggestedTitle: (title: string) => void;
@@ -78,6 +81,8 @@ export default function CreationCenter({
   creatorStudioMessage,
   creatorStudioVideoFileName,
   creatorStudioPhotoFileName,
+  creatorStudioVideoFile,
+  creatorStudioPhotoFile,
   creatorStudioVideoPreviewUrl,
   creatorStudioPhotoPreviewUrl,
   onCreatorStudioVideoSelect,
@@ -91,6 +96,7 @@ export default function CreationCenter({
   onRequestCreatorStudioImage,
   onUseCreatorStudioDesign,
   onPublishCreatorStudioTestimony,
+  onClearCreatorStudioPublishMedia,
   onCreatorStudioActiveChange,
 }: CreationCenterProps) {
   const router = useRouter();
@@ -122,6 +128,8 @@ export default function CreationCenter({
         message={creatorStudioMessage}
         videoFileName={creatorStudioVideoFileName}
         photoFileName={creatorStudioPhotoFileName}
+        videoFile={creatorStudioVideoFile}
+        photoFile={creatorStudioPhotoFile}
         videoPreviewUrl={creatorStudioVideoPreviewUrl}
         photoPreviewUrl={creatorStudioPhotoPreviewUrl}
         onVideoSelect={onCreatorStudioVideoSelect}
@@ -134,6 +142,7 @@ export default function CreationCenter({
         onRequestImage={onRequestCreatorStudioImage}
         onUseDesign={onUseCreatorStudioDesign}
         onPublishTestimony={onPublishCreatorStudioTestimony}
+        onClearPublishMedia={onClearCreatorStudioPublishMedia}
         onViewFeed={() => router.push("/feed")}
         onExitStudio={onExitStudio ?? onSwitchToQuickShare}
       />

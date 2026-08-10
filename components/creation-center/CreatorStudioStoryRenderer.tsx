@@ -1,12 +1,13 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   getCreationCenterTemplate,
   prepareCreatorStudioForEditing,
   type CreationCenterTemplateId,
   type CreatorStudioDesign,
 } from "../../lib/creationCenter";
+import { resolveCreatorStudioMediaLayerRenderState } from "../../lib/creatorStudioMediaLayerState";
 import CreatorStudioPositionedLayers from "./CreatorStudioPositionedLayers";
 import HTBFWatermark from "./HTBFWatermark";
 
@@ -20,6 +21,9 @@ type CreatorStudioStoryRendererProps = {
   design: CreatorStudioDesign;
   photoPreviewUrl?: string | null;
   videoPreviewUrl?: string | null;
+  videoPosterUrl?: string | null;
+  expectsPhoto?: boolean;
+  expectsVideo?: boolean;
   variant?: CreatorStudioStoryRendererVariant;
   compact?: boolean;
 };
@@ -37,41 +41,105 @@ function getPaletteColor(
   return isHexColor(value) ? value.trim() : fallback;
 }
 
+function MediaLoadingSurface() {
+  return (
+    <div
+      aria-hidden
+      className="absolute inset-0 bg-[linear-gradient(180deg,#0f2744_0%,#091a31_100%)]"
+    />
+  );
+}
+
 function StoryMediaLayer({
   templateId,
   photoPreviewUrl,
   videoPreviewUrl,
+  videoPosterUrl,
   generatedImageUrl,
+  expectsPhoto = false,
+  expectsVideo = false,
 }: {
   templateId: CreationCenterTemplateId;
   photoPreviewUrl?: string | null;
   videoPreviewUrl?: string | null;
+  videoPosterUrl?: string | null;
   generatedImageUrl?: string | null;
+  expectsPhoto?: boolean;
+  expectsVideo?: boolean;
 }) {
-  const template = getCreationCenterTemplate(templateId);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
 
-  if (photoPreviewUrl) {
+  useEffect(() => {
+    setPhotoLoaded(false);
+    setPhotoFailed(false);
+  }, [photoPreviewUrl]);
+
+  useEffect(() => {
+    setVideoLoaded(false);
+    setVideoFailed(false);
+  }, [videoPreviewUrl, videoPosterUrl]);
+
+  const renderState = resolveCreatorStudioMediaLayerRenderState({
+    photoPreviewUrl,
+    videoPreviewUrl,
+    generatedImageUrl,
+    templateId,
+    expectsPhoto,
+    expectsVideo,
+    photoFailed,
+    videoFailed,
+  });
+
+  const showPhotoLoading =
+    renderState === "photo" && !photoLoaded && !photoFailed;
+  const showVideoLoading =
+    renderState === "video" && !videoLoaded && !videoFailed;
+
+  if (renderState === "loading-photo" || renderState === "loading-video") {
+    return <MediaLoadingSurface />;
+  }
+
+  if (renderState === "photo") {
     return (
-      <img
-        src={photoPreviewUrl}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-      />
+      <>
+        {showPhotoLoading ? <MediaLoadingSurface /> : null}
+        <img
+          src={photoPreviewUrl ?? undefined}
+          alt=""
+          onLoad={() => setPhotoLoaded(true)}
+          onError={() => setPhotoFailed(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-150 ${
+            photoLoaded ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </>
     );
   }
 
-  if (videoPreviewUrl) {
+  if (renderState === "video") {
     return (
-      <video
-        src={videoPreviewUrl}
-        muted
-        playsInline
-        className="absolute inset-0 h-full w-full object-cover"
-      />
+      <>
+        {showVideoLoading ? <MediaLoadingSurface /> : null}
+        <video
+          src={videoPreviewUrl ?? undefined}
+          poster={videoPosterUrl ?? undefined}
+          muted
+          playsInline
+          preload="metadata"
+          onLoadedData={() => setVideoLoaded(true)}
+          onError={() => setVideoFailed(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-150 ${
+            videoLoaded ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </>
     );
   }
 
-  if (generatedImageUrl) {
+  if (renderState === "generated-image" && generatedImageUrl) {
     return (
       <img
         src={generatedImageUrl}
@@ -82,15 +150,18 @@ function StoryMediaLayer({
     );
   }
 
-  if (template?.imagePath) {
-    return (
-      <img
-        src={template.imagePath}
-        alt=""
-        loading="lazy"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-    );
+  if (renderState === "template-image") {
+    const template = getCreationCenterTemplate(templateId);
+    if (template?.imagePath) {
+      return (
+        <img
+          src={template.imagePath}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      );
+    }
   }
 
   return (
@@ -113,6 +184,9 @@ export default function CreatorStudioStoryRenderer({
   design,
   photoPreviewUrl,
   videoPreviewUrl,
+  videoPosterUrl,
+  expectsPhoto = false,
+  expectsVideo = false,
   variant = "preview",
   compact = false,
 }: CreatorStudioStoryRendererProps) {
@@ -165,7 +239,10 @@ export default function CreatorStudioStoryRenderer({
         templateId={preparedDesign.templateId}
         photoPreviewUrl={photoPreviewUrl}
         videoPreviewUrl={videoPreviewUrl}
+        videoPosterUrl={videoPosterUrl}
         generatedImageUrl={preparedDesign.generatedImageUrl}
+        expectsPhoto={expectsPhoto}
+        expectsVideo={expectsVideo}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-[#031d3d]/75 via-[#062a57]/20 to-transparent" />
       <HTBFWatermark />
