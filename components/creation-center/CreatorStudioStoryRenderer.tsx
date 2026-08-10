@@ -17,8 +17,7 @@ import {
   FEED_PREVIEW_VIDEO_ATTR,
   useViewportVideoAutoplay,
 } from "../../hooks/useViewportVideoAutoplay";
-import CreatorStudioPositionedLayers from "./CreatorStudioPositionedLayers";
-import HTBFWatermark from "./HTBFWatermark";
+import CreatorStudioStoryOverlay from "./CreatorStudioStoryOverlay";
 
 export type { CreatorStudioStoryRendererVariant };
 
@@ -342,17 +341,11 @@ export default function CreatorStudioStoryRenderer({
         expectsVideo={expectsVideo}
         variant={variant}
       />
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-[#031d3d]/75 via-[#062a57]/20 to-transparent" />
-      <div className="pointer-events-none absolute inset-0 z-[2]">
-        <HTBFWatermark />
-      </div>
-      <div className="pointer-events-none absolute inset-0 z-[3]">
-        <CreatorStudioPositionedLayers
-          design={preparedDesign}
-          compact={isFeed || compact}
-          hideCallToAction={isPublishedView}
-        />
-      </div>
+      <CreatorStudioStoryOverlay
+        design={preparedDesign}
+        compact={isFeed || compact}
+        hideCallToAction={isPublishedView}
+      />
     </div>
   );
 }

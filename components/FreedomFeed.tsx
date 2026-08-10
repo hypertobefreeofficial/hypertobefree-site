@@ -40,6 +40,7 @@ import {
   isCreatorStudioFeedPost,
   readStoredCreatorStudioDesignFromStory,
 } from "../lib/creatorStudioMetadata";
+import { resolveStoryDetailDestination } from "../lib/creatorStudioStoryNavigation";
 import { resolveCreatorStudioFeedMediaUrls } from "../lib/creatorStudioFeedMedia";
 import CreatorStudioStoryRenderer from "./creation-center/CreatorStudioStoryRenderer";
 import { FeedComposer } from "./FeedComposer";
@@ -1848,12 +1849,7 @@ export default function FreedomFeed({
   }
 
   function openStoryDetail(story: ApprovedStory) {
-    if (readStoredCreatorStudioDesignFromStory(story)) {
-      openPhotoViewer(story);
-      return;
-    }
-
-    if (story.signed_video_url || story.video_url) {
+    if (resolveStoryDetailDestination(story) === "video-feed") {
       openVideoStory(story.id);
       return;
     }

@@ -41,6 +41,9 @@ import {
 } from "lucide-react";
 import StoryMediaStamp from "../../components/StoryMediaStamp";
 import StoryOverlayText from "../../components/StoryOverlayText";
+import CreatorStudioStoryOverlay from "../../components/creation-center/CreatorStudioStoryOverlay";
+import type { CreatorStudioDesign } from "../../lib/creationCenter";
+import { readCreatorStudioVideoFeedDesign } from "../../lib/creatorStudioStoryNavigation";
 import MobileNavUnreadBadge from "../../components/MobileNavUnreadBadge";
 import { useMobileNavBadgeContext } from "../../components/MobileNavBadgeProvider";
 import { getMobileNavBadgeCountForHref } from "../../lib/navigation/mobileNavBadgeCounts";
@@ -170,6 +173,8 @@ type StoryRow = {
   prayer_status?: string | null;
   answered_at?: string | null;
   answered_text?: string | null;
+  ai_suggestions?: unknown;
+  creation_mode?: string | null;
 };
 
 type ReactionRow = {
@@ -644,6 +649,8 @@ function mapFixtureStoryToVideoStory(story: FeedStoryDisplay): VideoStory {
     prayer_status: story.prayer_status,
     answered_at: story.answered_at,
     answered_text: story.answered_text,
+    ai_suggestions: story.ai_suggestions,
+    creation_mode: story.creation_mode,
     signed_video_url: story.signed_video_url,
     reaction_counts: story.reaction_counts,
     user_reactions: story.user_reactions,
@@ -1148,7 +1155,7 @@ export function VideoFeedExperience({
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, video_url, status, created_at, prayer_status, answered_at, answered_text"
+        "id, user_id, name, location, story_type, story_text, overlay_text, overlay_x, overlay_y, caption_style, caption_font, caption_background, caption_template, caption_color, caption_size, caption_align, video_template, htbf_watermark_enabled, silhouette_watermark_enabled, shared_htbf_intro_enabled, video_url, status, created_at, prayer_status, answered_at, answered_text, ai_suggestions, creation_mode"
       )
       .eq("status", "approved")
       .not("video_url", "is", null)
@@ -1772,6 +1779,7 @@ export function VideoFeedExperience({
             const isOwner = Boolean(userId && story.user_id === userId);
             const isSaved = savedStoryIds.includes(story.id);
             const captionHidden = hiddenCaptionStoryIds.includes(story.id);
+            const creatorStudioDesign = readCreatorStudioVideoFeedDesign(story);
 
             return (
               <article
@@ -1783,6 +1791,7 @@ export function VideoFeedExperience({
                 <AutoPlayReelVideo
                   videoUrl={story.signed_video_url}
                   template={story.video_template}
+                  creatorStudioDesign={creatorStudioDesign}
                   overlayText={story.overlay_text}
                   overlayX={story.overlay_x}
                   overlayY={story.overlay_y}
@@ -2411,6 +2420,7 @@ function VideoOptionsMenu({
 function AutoPlayReelVideo({
   videoUrl,
   template,
+  creatorStudioDesign = null,
   overlayText,
   overlayX,
   overlayY,
@@ -2432,6 +2442,7 @@ function AutoPlayReelVideo({
 }: {
   videoUrl: string;
   template: VideoTemplate;
+  creatorStudioDesign?: CreatorStudioDesign | null;
   overlayText: string | null;
   overlayX: number | null;
   overlayY: number | null;
@@ -2954,9 +2965,9 @@ function AutoPlayReelVideo({
           </div>
         )}
 
-        <StoryMediaStamp stamp={template} />
+        <StoryMediaStamp stamp={creatorStudioDesign ? "none" : template} />
 
-        {visibleOverlayText && (
+        {visibleOverlayText && !creatorStudioDesign && (
           <VideoCaptionStyleOverlay
             alignment={captionAlign}
             background={captionBackground}
@@ -2970,6 +2981,16 @@ function AutoPlayReelVideo({
             text={visibleOverlayText}
           />
         )}
+
+        {creatorStudioDesign ? (
+          <div className="pointer-events-none absolute inset-0 z-20">
+            <CreatorStudioStoryOverlay
+              design={creatorStudioDesign}
+              compact
+              hideCallToAction
+            />
+          </div>
+        ) : null}
       </div>
 
       {!beStillMode && paused && (
