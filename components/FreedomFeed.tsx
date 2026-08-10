@@ -1848,6 +1848,11 @@ export default function FreedomFeed({
   }
 
   function openStoryDetail(story: ApprovedStory) {
+    if (readStoredCreatorStudioDesignFromStory(story)) {
+      openPhotoViewer(story);
+      return;
+    }
+
     if (story.signed_video_url || story.video_url) {
       openVideoStory(story.id);
       return;
