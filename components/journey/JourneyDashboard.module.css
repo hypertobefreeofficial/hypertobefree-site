@@ -92,6 +92,12 @@
   object-position: center center;
 }
 
+@media (max-width: 767px) {
+  .heroImage {
+    object-position: 78% center;
+  }
+}
+
 .heroReadability {
   position: absolute;
   inset: 0;

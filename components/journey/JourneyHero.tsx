@@ -12,16 +12,8 @@ export default function JourneyHero() {
         alt=""
         fill
         priority
-        sizes="(max-width: 767px) 0px, 76rem"
-        className={`${styles.heroImage} hidden md:block`}
-      />
-      <Image
-        src={JOURNEY_IMAGES.heroMobile}
-        alt=""
-        fill
-        priority
-        sizes="(max-width: 767px) 100vw, 0px"
-        className={`${styles.heroImage} md:hidden`}
+        sizes="100vw"
+        className={styles.heroImage}
       />
 
       <div className={styles.heroReadability} aria-hidden />
