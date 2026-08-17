@@ -32,7 +32,11 @@ export default function JourneyMessageBubble({
         <p className={styles.bubbleText}>{message.body}</p>
 
         {videoUrl ? (
-          <JourneyVideoMessage videoUrl={videoUrl} title={message.title} />
+          <JourneyVideoMessage
+            messageId={message.id}
+            videoReference={videoUrl}
+            title={message.title}
+          />
         ) : null}
       </article>
     </div>

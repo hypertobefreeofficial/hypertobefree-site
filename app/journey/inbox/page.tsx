@@ -10,9 +10,10 @@ import JourneyInboxEmptyState from "../../../components/journey/inbox/JourneyInb
 import { supabase } from "../../../lib/supabaseClient";
 import {
   MESSAGE_SELECT,
-  PRAYER_VIDEO_BUCKET,
   MAX_PRAYER_VIDEO_SECONDS,
 } from "../../../lib/journey/inbox/constants";
+import { uploadPrivateInboxVideo } from "../../../lib/journey/inbox/privateMedia";
+import { assertUsersNotBlocked } from "../../../lib/messaging/userBlocking";
 import type {
   ClearMessageRequest,
   InboxFilter,
@@ -558,7 +559,20 @@ export default function JourneyInboxPage() {
     }
 
     if (activeReplyTarget.sender_user_id === userId) {
+      setSendingReply(false);
       setReplyStatus("You cannot reply to your own message.");
+      return;
+    }
+
+    try {
+      await assertUsersNotBlocked(userId, activeReplyTarget.sender_user_id);
+    } catch (error) {
+      setSendingReply(false);
+      setReplyStatus(
+        error instanceof Error && error.message
+          ? error.message
+          : "You cannot send a reply to this person."
+      );
       return;
     }
 
@@ -580,31 +594,25 @@ export default function JourneyInboxPage() {
         return;
       }
 
-      const storyOrMessageId = activeReplyTarget.story_id || activeReplyTarget.id;
-      const extension =
-        replyVideoFile.name.split(".").pop()?.toLowerCase() || "mp4";
-      const filePath = `prayer-videos/${storyOrMessageId}/reply-${userId}-${Date.now()}.${extension}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(PRAYER_VIDEO_BUCKET)
-        .upload(filePath, replyVideoFile, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: replyVideoFile.type,
+      try {
+        const threadId = getPrayerThreadIdForInsert(activeReplyTarget);
+        const reference = await uploadPrivateInboxVideo({
+          ownerUserId: userId,
+          threadId,
+          file: replyVideoFile,
         });
 
-      if (uploadError) {
+        videoUrl = reference;
+        body = body || "A believer replied with a prayer video.";
+      } catch (error) {
         setSendingReply(false);
-        setReplyStatus(`Could not upload video reply: ${uploadError.message}`);
+        setReplyStatus(
+          error instanceof Error && error.message
+            ? `Could not upload video reply: ${error.message}`
+            : "Could not upload video reply."
+        );
         return;
       }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(PRAYER_VIDEO_BUCKET)
-        .getPublicUrl(filePath);
-
-      videoUrl = publicUrlData.publicUrl;
-      body = body || "A believer replied with a prayer video.";
     }
 
     const messageType =

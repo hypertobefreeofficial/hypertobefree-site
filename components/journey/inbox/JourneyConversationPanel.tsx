@@ -119,7 +119,11 @@ export default function JourneyConversationPanel({
             ) : null}
 
             {videoUrl ? (
-              <JourneyVideoMessage videoUrl={videoUrl} title={message.title} />
+              <JourneyVideoMessage
+                messageId={message.id}
+                videoReference={videoUrl}
+                title={message.title}
+              />
             ) : null}
 
             <div className={styles.detailActions}>
