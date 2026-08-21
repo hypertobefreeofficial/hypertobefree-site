@@ -151,6 +151,39 @@ export function isLocalInboxMessageId(messageId: string) {
   return messageId.startsWith("local-");
 }
 
+export function pickPersistedSenderReplyMessage(
+  insertedRows: unknown,
+  userId: string
+): InboxMessage | null {
+  if (!Array.isArray(insertedRows)) return null;
+
+  for (const row of insertedRows) {
+    if (
+      typeof row === "object" &&
+      row !== null &&
+      "id" in row &&
+      typeof row.id === "string" &&
+      !isLocalInboxMessageId(row.id) &&
+      "user_id" in row &&
+      row.user_id === userId &&
+      "sender_user_id" in row &&
+      row.sender_user_id === userId &&
+      "title" in row &&
+      typeof row.title === "string" &&
+      "body" in row &&
+      typeof row.body === "string" &&
+      "read" in row &&
+      typeof row.read === "boolean" &&
+      "created_at" in row &&
+      typeof row.created_at === "string"
+    ) {
+      return row as InboxMessage;
+    }
+  }
+
+  return null;
+}
+
 export function getPrayerThreadKey(message: InboxMessage) {
   const cleanThreadId = message.thread_id?.trim();
 

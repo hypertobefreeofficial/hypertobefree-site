@@ -34,6 +34,7 @@ import {
   isLocalInboxMessageId,
   isPrayerConversationMessage,
   isPrayerStorySummary,
+  pickPersistedSenderReplyMessage,
   searchInboxItems,
 } from "../../../lib/journey/inbox/utils";
 import styles from "../../../components/journey/inbox/JourneyInbox.module.css";
@@ -661,7 +662,10 @@ export default function JourneyInboxPage() {
       },
     ];
 
-    const { error } = await supabase.from("inbox_messages").insert(replyRows);
+    const { data: insertedRows, error } = await supabase
+      .from("inbox_messages")
+      .insert(replyRows)
+      .select(`${MESSAGE_SELECT}, user_id`);
 
     setSendingReply(false);
 
@@ -681,25 +685,14 @@ export default function JourneyInboxPage() {
 
     setStatusMessage("Prayer reply sent privately.");
 
-    const localSenderMessage: InboxMessage = {
-      id: `local-${Date.now()}`,
-      user_id: userId,
-      sender_user_id: userId,
-      parent_message_id: parentMessageId,
-      thread_id: threadId,
-      title: senderReplyTitle,
-      body,
-      read: true,
-      created_at: new Date().toISOString(),
-      category: "prayer",
-      message_type: messageType,
-      story_id: activeReplyTarget.story_id,
-      prayer_request_id: activeReplyTarget.prayer_request_id,
-      video_url: videoUrl,
-      action_url: "/journey/inbox",
-    };
+    const senderMessage = pickPersistedSenderReplyMessage(insertedRows, userId);
 
-    setMessages((current) => [localSenderMessage, ...current]);
+    if (!senderMessage) {
+      setReplyStatus("Reply sent, but it could not be shown yet. Refresh to view it.");
+      return;
+    }
+
+    setMessages((current) => [senderMessage, ...current]);
   }
 
   function handleClearSelected() {
