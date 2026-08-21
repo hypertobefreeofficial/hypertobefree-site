@@ -63,21 +63,11 @@ export async function GET(request: Request) {
     );
   }
 
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${auth.context.accessToken}`,
-      },
-    },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const result = await resolveJourneyInboxMediaAccess({
-    userClient,
     adminClient,
     userId: auth.context.user.id,
     messageId,

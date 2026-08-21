@@ -43,18 +43,16 @@ function failure(
 }
 
 export async function resolveJourneyInboxMediaAccess(options: {
-  userClient: SupabaseClient;
   adminClient: SupabaseClient;
   userId: string;
   messageId: string;
 }): Promise<ResolveJourneyInboxMediaResult> {
-  const { userClient, adminClient, userId, messageId } = options;
+  const { adminClient, userId, messageId } = options;
 
-  const { data, error } = await userClient
+  const { data, error } = await adminClient
     .from("inbox_messages")
     .select("id, video_url, user_id, sender_user_id, hidden_at")
     .eq("id", messageId)
-    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
@@ -64,6 +62,10 @@ export async function resolveJourneyInboxMediaAccess(options: {
 
   const message = data as JourneyInboxMediaRow | null;
   if (!message) {
+    return failure(404, "message_not_found", "Message not found.");
+  }
+
+  if (message.user_id !== userId) {
     return failure(404, "message_not_found", "Message not found.");
   }
 
