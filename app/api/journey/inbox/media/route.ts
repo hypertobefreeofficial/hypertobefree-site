@@ -85,7 +85,6 @@ export async function GET(request: Request) {
       ok: true,
       signedUrl: result.signedUrl,
       expiresAt: result.expiresAt,
-      legacy: result.legacy,
     },
     200
   );

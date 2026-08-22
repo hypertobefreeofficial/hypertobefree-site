@@ -152,7 +152,6 @@ describe("journey inbox media authorization", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.signedUrl).toContain("signed.example");
-      expect(result.legacy).toBe(false);
       expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now());
     }
 
@@ -184,31 +183,30 @@ describe("journey inbox media authorization", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("returns legacy public URLs for pre-migration inbox videos", async () => {
-    const legacyUrl =
-      "https://example.supabase.co/storage/v1/object/public/story-videos/prayer-videos/story-1/reply-user.mp4";
+  it("rejects HTTPS video_url references for authorized owners", async () => {
     const adminClient = createAdminClient({
       lookup: {
         data: {
-          id: "message-legacy",
-          video_url: legacyUrl,
+          id: "message-https",
+          video_url: "https://example.com/video.mov",
           user_id: "user-b",
           sender_user_id: "user-a",
           hidden_at: null,
         },
       },
+      signResult: { data: { signedUrl: "https://signed.example/private.mp4?token=abc" } },
     });
 
     const result = await resolveJourneyInboxMediaAccess({
       adminClient,
       userId: "user-b",
-      messageId: "message-legacy",
+      messageId: "message-https",
     });
 
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.legacy).toBe(true);
-      expect(result.signedUrl).toBe(legacyUrl);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(404);
+      expect(result.code).toBe("unsupported_media_reference");
     }
     expect(adminClient.storage.from).not.toHaveBeenCalled();
   });

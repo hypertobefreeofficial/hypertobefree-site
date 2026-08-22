@@ -3,12 +3,6 @@ import { supabase } from "../../supabaseClient";
 export const JOURNEY_PRIVATE_MEDIA_BUCKET = "journey-private-media";
 export const JOURNEY_PRIVATE_MEDIA_PREFIX = `${JOURNEY_PRIVATE_MEDIA_BUCKET}/`;
 
-/** Temporary Phase 1 compatibility for pre-migration public story-videos URLs. */
-export function isLegacyInboxVideoUrl(value: string | null | undefined) {
-  if (!value) return false;
-  return /^https?:\/\//i.test(value.trim());
-}
-
 export function isPrivateInboxMediaReference(value: string | null | undefined) {
   if (!value) return false;
   return value.trim().startsWith(JOURNEY_PRIVATE_MEDIA_PREFIX);

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildPrivateInboxMediaReference,
   getPrivateInboxMediaObjectPath,
-  isLegacyInboxVideoUrl,
   isPrivateInboxMediaReference,
   JOURNEY_PRIVATE_MEDIA_PREFIX,
 } from "./privateMedia";
@@ -22,20 +21,17 @@ describe("journey inbox private media references", () => {
     );
   });
 
-  it("detects legacy HTTPS inbox video URLs", () => {
-    expect(
-      isLegacyInboxVideoUrl(
-        "https://example.supabase.co/storage/v1/object/public/story-videos/prayer-videos/story-1/reply-user.mp4"
-      )
-    ).toBe(true);
+  it("detects private inbox media references", () => {
     expect(
       isPrivateInboxMediaReference(
         "journey-private-media/owner-1/thread-1/object.mp4"
       )
     ).toBe(true);
-    expect(isLegacyInboxVideoUrl("journey-private-media/a/b/c.mp4")).toBe(
-      false
-    );
+    expect(
+      isPrivateInboxMediaReference(
+        "https://example.supabase.co/storage/v1/object/public/story-videos/prayer-videos/story-1/reply-user.mp4"
+      )
+    ).toBe(false);
   });
 
   it("extracts the private object path from a stored reference", () => {

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
-import { isLegacyInboxVideoUrl } from "../../../lib/journey/inbox/privateMedia";
 import styles from "./JourneyInbox.module.css";
 
 type JourneyVideoMessageProps = {
@@ -34,15 +33,6 @@ export default function JourneyVideoMessage({
       if (!trimmedReference) {
         setPlaybackState("error");
         setPlaybackError("This video is unavailable.");
-        return;
-      }
-
-      // TEMPORARY Phase 1 legacy compatibility for pre-migration public story-videos URLs.
-      if (isLegacyInboxVideoUrl(trimmedReference)) {
-        if (!cancelled) {
-          setPlaybackUrl(trimmedReference);
-          setPlaybackState("ready");
-        }
         return;
       }
 

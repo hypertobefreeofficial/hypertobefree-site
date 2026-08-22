@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getPrivateInboxMediaObjectPath,
-  isLegacyInboxVideoUrl,
   isPrivateInboxMediaReference,
   JOURNEY_PRIVATE_MEDIA_BUCKET,
 } from "../journey/inbox/privateMedia";
@@ -20,7 +19,6 @@ export type ResolveJourneyInboxMediaSuccess = {
   ok: true;
   signedUrl: string;
   expiresAt: string;
-  legacy: boolean;
 };
 
 export type ResolveJourneyInboxMediaFailure = {
@@ -79,15 +77,6 @@ export async function resolveJourneyInboxMediaAccess(options: {
 
   const videoReference = message.video_url.trim();
 
-  if (isLegacyInboxVideoUrl(videoReference)) {
-    return {
-      ok: true,
-      signedUrl: videoReference,
-      expiresAt: new Date(Date.now() + INBOX_MEDIA_SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
-      legacy: true,
-    };
-  }
-
   if (!isPrivateInboxMediaReference(videoReference)) {
     return failure(404, "unsupported_media_reference", "Message media not found.");
   }
@@ -114,7 +103,6 @@ export async function resolveJourneyInboxMediaAccess(options: {
     ok: true,
     signedUrl: signedData.signedUrl,
     expiresAt,
-    legacy: false,
   };
 }
 

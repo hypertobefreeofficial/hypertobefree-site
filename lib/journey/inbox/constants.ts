@@ -4,7 +4,6 @@ export const BASE_SELECT = "id, title, body, read, created_at, category";
 export const MESSAGE_SELECT = `${BASE_SELECT}, sender_user_id, parent_message_id, thread_id, message_type, story_id, prayer_request_id, video_url, image_url, action_url, hidden_at`;
 
 // Private Journey Inbox videos use journey-private-media with server-issued signed URLs.
-// Legacy rows may still reference public story-videos HTTPS URLs until Phase 2 migration.
 export const MAX_PRAYER_VIDEO_SECONDS = 30;
 
 export const INBOX_CARD_STYLES: Record<
