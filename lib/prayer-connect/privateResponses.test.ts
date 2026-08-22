@@ -1,38 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUploadPrivateInboxVideo = vi.fn();
-const mockAssertUsersNotBlocked = vi.fn();
-const mockInsert = vi.fn();
+const mockGetSession = vi.fn();
+const mockFetch = vi.fn();
 
 vi.mock("../journey/inbox/privateMedia", () => ({
   uploadPrivateInboxVideo: (...args: unknown[]) =>
     mockUploadPrivateInboxVideo(...args),
 }));
 
-vi.mock("../messaging/userBlocking", () => ({
-  assertUsersNotBlocked: (...args: unknown[]) =>
-    mockAssertUsersNotBlocked(...args),
-}));
-
 vi.mock("../supabaseClient", () => ({
   supabase: {
-    from: vi.fn(() => ({
-      insert: mockInsert,
-    })),
+    auth: {
+      getSession: (...args: unknown[]) => mockGetSession(...args),
+    },
   },
 }));
 
 describe("sendPrivateVideoPrayer private media storage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAssertUsersNotBlocked.mockResolvedValue(undefined);
     mockUploadPrivateInboxVideo.mockResolvedValue(
       "journey-private-media/sender-1/thread-1/object.mp4"
     );
-    mockInsert.mockResolvedValue({ error: null });
+    mockGetSession.mockResolvedValue({
+      data: { session: { access_token: "token-abc" } },
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
   });
 
-  it("stores a private media reference instead of a public HTTPS URL", async () => {
+  it("uses the server private-prayer route instead of direct inbox inserts", async () => {
     vi.stubGlobal(
       "document",
       {
@@ -67,21 +68,22 @@ describe("sendPrivateVideoPrayer private media storage", () => {
     });
 
     expect(mockUploadPrivateInboxVideo).toHaveBeenCalled();
-    expect(mockInsert).toHaveBeenCalledWith([
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/journey/inbox/private-prayer",
       expect.objectContaining({
-        user_id: "recipient-1",
-        video_url: "journey-private-media/sender-1/thread-1/object.mp4",
-      }),
-      expect.objectContaining({
-        user_id: "sender-1",
-        video_url: "journey-private-media/sender-1/thread-1/object.mp4",
-      }),
-    ]);
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-abc",
+        }),
+      })
+    );
 
-    const insertedRows = mockInsert.mock.calls[0]?.[0] as Array<{
-      video_url: string;
-    }>;
-    expect(insertedRows[0]?.video_url).not.toMatch(/^https?:\/\//);
-    expect(insertedRows[1]?.video_url).not.toMatch(/^https?:\/\//);
+    const requestInit = mockFetch.mock.calls[0]?.[1] as RequestInit;
+    const payload = JSON.parse(String(requestInit.body));
+    expect(payload.storyId).toBe("story-1");
+    expect(payload.videoUrl).toBe(
+      "journey-private-media/sender-1/thread-1/object.mp4"
+    );
+    expect(payload).not.toHaveProperty("recipientUserId");
   });
 });

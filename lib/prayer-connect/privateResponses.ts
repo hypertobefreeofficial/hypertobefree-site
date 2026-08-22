@@ -61,8 +61,6 @@ export async function sendPrivateVideoPrayer(options: {
     | "privateVideoBodyFallback"
   >;
 }) {
-  await assertUsersNotBlocked(options.senderUserId, options.recipientUserId);
-
   const duration = await readVideoDuration(options.videoFile);
   if (duration > MAX_PRIVATE_VIDEO_SECONDS) {
     throw new Error(
@@ -80,43 +78,38 @@ export async function sendPrivateVideoPrayer(options: {
     options.note?.trim() ||
     `${options.labels?.privateVideoBodyFallback ?? "A private video prayer for"}: ${options.storyTitle}`;
 
-  const rows = [
-    {
-      user_id: options.recipientUserId,
-      sender_user_id: options.senderUserId,
-      thread_id: threadId,
-      title:
-        options.labels?.privateVideoTitleRecipient ??
-        "Someone sent you a private video prayer",
-      body,
-      category: "prayer",
-      message_type: "prayer_video_reply",
-      prayer_request_id: options.storyId,
-      story_id: options.storyId,
-      action_url: "/journey/inbox",
-      video_url: videoUrl,
-      read: false,
-    },
-    {
-      user_id: options.senderUserId,
-      sender_user_id: options.senderUserId,
-      thread_id: threadId,
-      title:
-        options.labels?.privateVideoTitleSender ??
-        "You sent a private video prayer",
-      body,
-      category: "prayer",
-      message_type: "prayer_video_reply",
-      prayer_request_id: options.storyId,
-      story_id: options.storyId,
-      action_url: "/journey/inbox",
-      video_url: videoUrl,
-      read: true,
-    },
-  ];
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const accessToken = session?.access_token;
+  if (!accessToken) {
+    throw new Error("Please sign in to continue.");
+  }
 
-  const { error } = await supabase.from("inbox_messages").insert(rows);
-  if (error) throw new Error(error.message);
+  const response = await fetch("/api/journey/inbox/private-prayer", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify({
+      storyId: options.storyId,
+      body,
+      videoUrl,
+      recipientTitle: options.labels?.privateVideoTitleRecipient,
+      senderTitle: options.labels?.privateVideoTitleSender,
+    }),
+  });
+
+  const payload = (await response.json()) as {
+    ok?: boolean;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error ?? "Could not send private video prayer.");
+  }
 
   return { destination: "/journey/inbox" };
 }

@@ -34,7 +34,6 @@ import {
   isLocalInboxMessageId,
   isPrayerConversationMessage,
   isPrayerStorySummary,
-  pickPersistedSenderReplyMessage,
   searchInboxItems,
 } from "../../../lib/journey/inbox/utils";
 import styles from "../../../components/journey/inbox/JourneyInbox.module.css";
@@ -616,61 +615,53 @@ export default function JourneyInboxPage() {
       }
     }
 
-    const messageType =
-      replyMode === "video" ? "prayer_video_reply" : "prayer_reply";
-    const threadId = getPrayerThreadIdForInsert(activeReplyTarget);
     const parentMessageId = activeReplyTarget.id;
-    const recipientReplyTitle =
-      replyMode === "video"
-        ? "Someone replied with a prayer video"
-        : "Someone replied to your prayer video";
-    const senderReplyTitle =
-      replyMode === "video"
-        ? "You replied with a prayer video"
-        : "You replied with encouragement";
 
-    const replyRows = [
-      {
-        user_id: activeReplyTarget.sender_user_id,
-        sender_user_id: userId,
-        parent_message_id: parentMessageId,
-        thread_id: threadId,
-        title: recipientReplyTitle,
-        body,
-        category: "prayer",
-        message_type: messageType,
-        story_id: activeReplyTarget.story_id,
-        prayer_request_id: activeReplyTarget.prayer_request_id,
-        action_url: "/journey/inbox",
-        video_url: videoUrl,
-        read: false,
-      },
-      {
-        user_id: userId,
-        sender_user_id: userId,
-        parent_message_id: parentMessageId,
-        thread_id: threadId,
-        title: senderReplyTitle,
-        body,
-        category: "prayer",
-        message_type: messageType,
-        story_id: activeReplyTarget.story_id,
-        prayer_request_id: activeReplyTarget.prayer_request_id,
-        action_url: "/journey/inbox",
-        video_url: videoUrl,
-        read: true,
-      },
-    ];
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
 
-    const { data: insertedRows, error } = await supabase
-      .from("inbox_messages")
-      .insert(replyRows)
-      .select(`${MESSAGE_SELECT}, user_id`);
+    if (!accessToken) {
+      setSendingReply(false);
+      setReplyStatus("Please sign in to send a reply.");
+      return;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch("/api/journey/inbox/reply", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+        body: JSON.stringify({
+          parentMessageId,
+          body,
+          replyMode,
+          videoUrl,
+        }),
+      });
+    } catch {
+      setSendingReply(false);
+      setReplyStatus("Could not send reply.");
+      return;
+    }
+
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      message?: InboxMessage;
+      error?: string;
+    };
 
     setSendingReply(false);
 
-    if (error) {
-      setReplyStatus(`Could not send reply: ${error.message}`);
+    if (!response.ok || !payload.ok || !payload.message) {
+      setReplyStatus(
+        payload.error ? `Could not send reply: ${payload.error}` : "Could not send reply."
+      );
       return;
     }
 
@@ -685,7 +676,7 @@ export default function JourneyInboxPage() {
 
     setStatusMessage("Prayer reply sent privately.");
 
-    const senderMessage = pickPersistedSenderReplyMessage(insertedRows, userId);
+    const senderMessage = payload.message;
 
     if (!senderMessage) {
       setReplyStatus("Reply sent, but it could not be shown yet. Refresh to view it.");
