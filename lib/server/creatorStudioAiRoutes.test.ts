@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AI_IMAGE_GENERATION_ENABLED_ENV } from "./aiImageGenerationGate";
 import { AI_FEATURES_DISABLED_ENV } from "./aiKillSwitch";
 import {
   CREATOR_STUDIO_AI_RATE_LIMITS,
@@ -69,6 +70,7 @@ describe("Creator Studio AI routes", () => {
     vi.unstubAllEnvs();
     resetRateLimitBucketsForTests();
     delete process.env[AI_FEATURES_DISABLED_ENV];
+    delete process.env[AI_IMAGE_GENERATION_ENABLED_ENV];
 
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
@@ -490,7 +492,35 @@ describe("Creator Studio AI routes", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it("blocks authenticated requests by default without OpenAI or quota use", async () => {
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+      const { POST } = await import(
+        "../../app/api/generate-creator-studio-image/route"
+      );
+
+      const response = await POST(
+        new Request("https://htbf.test/api/generate-creator-studio-image", {
+          method: "POST",
+          headers: authHeaders("valid-token-a"),
+          body: JSON.stringify({
+            action: "AI Background",
+            prompt: "Peaceful light",
+          }),
+        })
+      );
+
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.code).toBe("image_generation_disabled");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(quotaCounts(mockUserA.id, "generate_creator_studio_image")).toEqual([
+        { windowMs: 3_600_000, count: 0 },
+        { windowMs: 86_400_000, count: 0 },
+      ]);
+    });
+
     it("rejects oversized image prompt before OpenAI without consuming quota", async () => {
+      process.env[AI_IMAGE_GENERATION_ENABLED_ENV] = "1";
       const fetchMock = vi.spyOn(globalThis, "fetch");
       const { POST } = await import(
         "../../app/api/generate-creator-studio-image/route"
@@ -516,6 +546,7 @@ describe("Creator Studio AI routes", () => {
     });
 
     it("returns 429 when hourly image quota is exceeded", async () => {
+      process.env[AI_IMAGE_GENERATION_ENABLED_ENV] = "1";
       const fetchMock = vi
         .spyOn(globalThis, "fetch")
         .mockImplementation(() => Promise.resolve(openAiImageSuccess()));
@@ -555,7 +586,8 @@ describe("Creator Studio AI routes", () => {
       expect(fetchMock).toHaveBeenCalledTimes(hourlyLimit);
     });
 
-    it("returns successful image payload", async () => {
+    it("returns successful image payload when feature is enabled", async () => {
+      process.env[AI_IMAGE_GENERATION_ENABLED_ENV] = "1";
       vi.spyOn(globalThis, "fetch").mockResolvedValue(openAiImageSuccess());
       const { POST } = await import(
         "../../app/api/generate-creator-studio-image/route"
@@ -576,6 +608,31 @@ describe("Creator Studio AI routes", () => {
       const payload = await response.json();
       expect(payload.imageUrl).toContain("https://example.com/image.png");
       expect(payload.bucket).toBe("story-images");
+    });
+
+    it("prefers kill switch over enabled image generation", async () => {
+      process.env[AI_IMAGE_GENERATION_ENABLED_ENV] = "1";
+      process.env[AI_FEATURES_DISABLED_ENV] = "1";
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+      const { POST } = await import(
+        "../../app/api/generate-creator-studio-image/route"
+      );
+
+      const response = await POST(
+        new Request("https://htbf.test/api/generate-creator-studio-image", {
+          method: "POST",
+          headers: authHeaders("valid-token-a"),
+          body: JSON.stringify({
+            action: "AI Background",
+            prompt: "Peaceful light",
+          }),
+        })
+      );
+
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.code).toBe("ai_disabled");
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it("blocks when AI_FEATURES_DISABLED=1 without consuming quota", async () => {

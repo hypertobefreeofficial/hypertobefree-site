@@ -2,6 +2,7 @@ export type AiSafetyEventType =
   | "rate_limit_rejected"
   | "input_rejected"
   | "kill_switch_rejected"
+  | "image_generation_disabled"
   | "provider_timeout"
   | "provider_failure"
   | "request_success";

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { checkAiImageGenerationGate } from "../../../lib/server/aiImageGenerationGate";
 import { checkAiKillSwitch } from "../../../lib/server/aiKillSwitch";
 import { hashUserIdForLog, logAiSafetyEvent } from "../../../lib/server/aiSafetyLog";
 import {
@@ -69,6 +70,11 @@ export async function POST(request: Request) {
   const killSwitch = checkAiKillSwitch(endpoint);
   if (killSwitch.blocked) {
     return killSwitch.response;
+  }
+
+  const imageGenerationGate = checkAiImageGenerationGate(endpoint);
+  if (imageGenerationGate.blocked) {
+    return imageGenerationGate.response;
   }
 
   let body: unknown;
