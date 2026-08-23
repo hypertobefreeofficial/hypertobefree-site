@@ -1,4 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
+import { checkAiKillSwitch } from "../../../lib/server/aiKillSwitch";
+import { hashUserIdForLog, logAiSafetyEvent } from "../../../lib/server/aiSafetyLog";
+import {
+  CREATOR_STUDIO_CHAT_OPENAI_TIMEOUT_MS,
+  SHAPE_STORY_CREATOR_STUDIO_MAX_OUTPUT_TOKENS,
+  SHAPE_STORY_DEFAULT_MAX_OUTPUT_TOKENS,
+  enforceCreatorStudioAiRateLimit,
+  inputRejectedResponse,
+} from "../../../lib/server/creatorStudioAiLimits";
+import { validateShapeStoryInput } from "../../../lib/server/shapeStoryInputValidation";
 import {
   FAITH_STREAM_VALUES,
   creationCenterStoryTemplates,
@@ -698,6 +708,24 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  const endpoint = "shape_story";
+
+  const killSwitch = checkAiKillSwitch(endpoint);
+  if (killSwitch.blocked) {
+    return killSwitch.response;
+  }
+
+  const inputValidation = validateShapeStoryInput(body);
+  if (inputValidation.ok === false) {
+    return inputRejectedResponse({
+      endpoint,
+      userId: user.id,
+      error: inputValidation.error,
+      code: inputValidation.code,
+      field: inputValidation.field,
+    });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   const requestMode =
     readString(body.mode) || readString(body.requestMode) || "";
@@ -768,85 +796,103 @@ export async function POST(request: Request) {
     try {
       console.log("[shape-story/creator_studio] Calling OpenAI chat/completions");
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: process.env.OPENAI_STORY_SHAPING_MODEL ?? "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You return structured JSON for faith-centered design concepts. Write like an editorial storyteller — personal, vivid, and specific. Avoid generic marketing language and promotional CTAs.",
-            },
-            { role: "user", content: input },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "htbf_creator_studio_designs",
-              strict: true,
-              schema: {
-                type: "object",
-                additionalProperties: false,
-                required: ["designs"],
-                properties: {
-                  designs: {
-                    type: "array",
-                    minItems: 6,
-                    maxItems: 6,
-                    items: {
-                      type: "object",
-                      additionalProperties: false,
-                      required: [
-                        "id",
-                        "studioPath",
-                        "sourceMode",
-                        "title",
-                        "overlayText",
-                        "caption",
-                        "category",
-                        "topic",
-                        "templateId",
-                        "styleMood",
-                        "layoutType",
-                        "scriptureSuggestion",
-                        "suggestedPostFormat",
-                        "colorPalette",
-                        "typographyStyle",
-                        "designTreatment",
-                        "callToAction",
-                        "typographyPairing",
-                        "fontHierarchy",
-                        "backgroundTreatment",
-                        "layoutComposition",
-                        "overlayStyle",
-                        "decorativeElements",
-                        "visualTheme",
-                        "filterRecommendation",
-                        "cropRecommendation",
-                        "alternateTitles",
-                        "alternateCaptions",
-                        "hashtags",
-                        "conceptReason",
-                        "textStyle",
-                      ],
-                      properties: {
-                        id: { type: "string" },
-                        studioPath: {
-                          type: "string",
-                          enum: creatorStudioPathTypes,
-                        },
-                        sourceMode: {
-                          type: "string",
-                          enum: creatorStudioSourceModes,
-                        },
-                        title: { type: "string" },
-                        overlayText: { type: "string" },
-                        caption: { type: "string" },
+      const rateLimitBlocked = enforceCreatorStudioAiRateLimit({
+        userId: user.id,
+        endpoint,
+      });
+      if (rateLimitBlocked) {
+        return rateLimitBlocked;
+      }
+
+      const model = process.env.OPENAI_STORY_SHAPING_MODEL ?? "gpt-4o-mini";
+      const startedAt = Date.now();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        CREATOR_STUDIO_CHAT_OPENAI_TIMEOUT_MS
+      );
+
+      let response: Response;
+      try {
+        response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You return structured JSON for faith-centered design concepts. Write like an editorial storyteller — personal, vivid, and specific. Avoid generic marketing language and promotional CTAs.",
+              },
+              { role: "user", content: input },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "htbf_creator_studio_designs",
+                strict: true,
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["designs"],
+                  properties: {
+                    designs: {
+                      type: "array",
+                      minItems: 6,
+                      maxItems: 6,
+                      items: {
+                        type: "object",
+                        additionalProperties: false,
+                        required: [
+                          "id",
+                          "studioPath",
+                          "sourceMode",
+                          "title",
+                          "overlayText",
+                          "caption",
+                          "category",
+                          "topic",
+                          "templateId",
+                          "styleMood",
+                          "layoutType",
+                          "scriptureSuggestion",
+                          "suggestedPostFormat",
+                          "colorPalette",
+                          "typographyStyle",
+                          "designTreatment",
+                          "callToAction",
+                          "typographyPairing",
+                          "fontHierarchy",
+                          "backgroundTreatment",
+                          "layoutComposition",
+                          "overlayStyle",
+                          "decorativeElements",
+                          "visualTheme",
+                          "filterRecommendation",
+                          "cropRecommendation",
+                          "alternateTitles",
+                          "alternateCaptions",
+                          "hashtags",
+                          "conceptReason",
+                          "textStyle",
+                        ],
+                        properties: {
+                          id: { type: "string" },
+                          studioPath: {
+                            type: "string",
+                            enum: creatorStudioPathTypes,
+                          },
+                          sourceMode: {
+                            type: "string",
+                            enum: creatorStudioSourceModes,
+                          },
+                          title: { type: "string" },
+                          overlayText: { type: "string" },
+                          caption: { type: "string" },
                         category: { type: "string" },
                         topic: { type: "string" },
                         templateId: {
@@ -937,9 +983,35 @@ export async function POST(request: Request) {
             },
           },
           temperature: 0.75,
+          max_tokens: SHAPE_STORY_CREATOR_STUDIO_MAX_OUTPUT_TOKENS,
         }),
         cache: "no-store",
+        signal: controller.signal,
       });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        const isTimeout =
+          error instanceof Error && error.name === "AbortError";
+
+        logAiSafetyEvent({
+          eventType: isTimeout ? "provider_timeout" : "provider_failure",
+          endpoint,
+          userIdHash: hashUserIdForLog(user.id),
+          provider: "openai",
+          model,
+          durationMs: Date.now() - startedAt,
+          reachedProvider: isTimeout,
+        });
+
+        return Response.json({
+          ...fallback,
+          fallbackReason: isTimeout
+            ? "Creator Studio timed out while generating designs."
+            : "Creator Studio could not generate with OpenAI.",
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       console.log("[shape-story/creator_studio] OpenAI HTTP response", {
         ok: response.ok,
@@ -947,11 +1019,16 @@ export async function POST(request: Request) {
       });
 
       if (!response.ok) {
-        const errorBody = await response.text().catch(() => "");
-        console.error(
-          "[shape-story/creator_studio] OpenAI error body:",
-          errorBody.slice(0, 500)
-        );
+        logAiSafetyEvent({
+          eventType: "provider_failure",
+          endpoint,
+          userIdHash: hashUserIdForLog(user.id),
+          provider: "openai",
+          model,
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+          reachedProvider: true,
+        });
         return Response.json({
           ...fallback,
           fallbackReason: "Creator Studio could not reach OpenAI.",
@@ -968,10 +1045,16 @@ export async function POST(request: Request) {
           : null;
 
       if (typeof content !== "string") {
-        console.error(
-          "[shape-story/creator_studio] OpenAI returned no string content:",
-          payload
-        );
+        logAiSafetyEvent({
+          eventType: "provider_failure",
+          endpoint,
+          userIdHash: hashUserIdForLog(user.id),
+          provider: "openai",
+          model,
+          status: 502,
+          durationMs: Date.now() - startedAt,
+          reachedProvider: true,
+        });
         return Response.json({
           ...fallback,
           fallbackReason: "Creator Studio received an empty OpenAI response.",
@@ -982,15 +1065,17 @@ export async function POST(request: Request) {
 
       try {
         parsedContent = JSON.parse(content);
-      } catch (parseError) {
-        console.error(
-          "[shape-story/creator_studio] OpenAI content JSON.parse failed:",
-          parseError
-        );
-        console.error(
-          "[shape-story/creator_studio] Raw content preview:",
-          content.slice(0, 400)
-        );
+      } catch {
+        logAiSafetyEvent({
+          eventType: "provider_failure",
+          endpoint,
+          userIdHash: hashUserIdForLog(user.id),
+          provider: "openai",
+          model,
+          status: 502,
+          durationMs: Date.now() - startedAt,
+          reachedProvider: true,
+        });
         return Response.json({
           ...fallback,
           fallbackReason: "Creator Studio could not parse OpenAI JSON.",
@@ -998,8 +1083,14 @@ export async function POST(request: Request) {
       }
 
       const cleaned = cleanCreatorStudioResponse(parsedContent, fallback);
-      console.log("[shape-story/creator_studio] Returning designs", {
-        count: cleaned.designs.length,
+      logAiSafetyEvent({
+        eventType: "request_success",
+        endpoint,
+        userIdHash: hashUserIdForLog(user.id),
+        provider: "openai",
+        model,
+        durationMs: Date.now() - startedAt,
+        reachedProvider: true,
       });
 
       return Response.json(cleaned);
@@ -1047,78 +1138,134 @@ export async function POST(request: Request) {
   ].join("\n\n");
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_STORY_SHAPING_MODEL ?? "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You return concise structured JSON for faith-centered post suggestions. Never quote copyrighted Bible text; references only.",
-          },
-          { role: "user", content: input },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "htbf_story_shape",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: [
-                "storyType",
-                "topics",
-                "faithStreams",
-                "titles",
-                "caption",
-                "scriptureReferences",
-                "template",
-                "layoutSuggestion",
-              ],
-              properties: {
-                storyType: { type: "string" },
-                topics: {
-                  type: "array",
-                  maxItems: 6,
-                  items: { type: "string" },
-                },
-                faithStreams: {
-                  type: "array",
-                  maxItems: 5,
-                  items: {
-                    type: "string",
-                    enum: FAITH_STREAM_VALUES,
+    const rateLimitBlocked = enforceCreatorStudioAiRateLimit({
+      userId: user.id,
+      endpoint,
+    });
+    if (rateLimitBlocked) {
+      return rateLimitBlocked;
+    }
+
+    const model = process.env.OPENAI_STORY_SHAPING_MODEL ?? "gpt-4o-mini";
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      CREATOR_STUDIO_CHAT_OPENAI_TIMEOUT_MS
+    );
+
+    let response: Response;
+    try {
+      response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You return concise structured JSON for faith-centered post suggestions. Never quote copyrighted Bible text; references only.",
+            },
+            { role: "user", content: input },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "htbf_story_shape",
+              strict: true,
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                required: [
+                  "storyType",
+                  "topics",
+                  "faithStreams",
+                  "titles",
+                  "caption",
+                  "scriptureReferences",
+                  "template",
+                  "layoutSuggestion",
+                ],
+                properties: {
+                  storyType: { type: "string" },
+                  topics: {
+                    type: "array",
+                    maxItems: 6,
+                    items: { type: "string" },
                   },
+                  faithStreams: {
+                    type: "array",
+                    maxItems: 5,
+                    items: {
+                      type: "string",
+                      enum: FAITH_STREAM_VALUES,
+                    },
+                  },
+                  titles: {
+                    type: "array",
+                    maxItems: 4,
+                    items: { type: "string" },
+                  },
+                  caption: { type: "string" },
+                  scriptureReferences: {
+                    type: "array",
+                    maxItems: 4,
+                    items: { type: "string" },
+                  },
+                  template: { type: "string" },
+                  layoutSuggestion: { type: "string" },
                 },
-                titles: {
-                  type: "array",
-                  maxItems: 4,
-                  items: { type: "string" },
-                },
-                caption: { type: "string" },
-                scriptureReferences: {
-                  type: "array",
-                  maxItems: 4,
-                  items: { type: "string" },
-                },
-                template: { type: "string" },
-                layoutSuggestion: { type: "string" },
               },
             },
           },
-        },
-        temperature: 0.5,
-      }),
-      cache: "no-store",
-    });
+          temperature: 0.5,
+          max_tokens: SHAPE_STORY_DEFAULT_MAX_OUTPUT_TOKENS,
+        }),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      const isTimeout =
+        error instanceof Error && error.name === "AbortError";
+
+      logAiSafetyEvent({
+        eventType: isTimeout ? "provider_timeout" : "provider_failure",
+        endpoint,
+        userIdHash: hashUserIdForLog(user.id),
+        provider: "openai",
+        model,
+        durationMs: Date.now() - startedAt,
+        reachedProvider: isTimeout,
+      });
+
+      return Response.json(
+        isTimeout
+          ? {
+              ...fallback,
+              fallbackReason: "Story shaping timed out. Safe suggestions are shown instead.",
+            }
+          : fallback
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
+      logAiSafetyEvent({
+        eventType: "provider_failure",
+        endpoint,
+        userIdHash: hashUserIdForLog(user.id),
+        provider: "openai",
+        model,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        reachedProvider: true,
+      });
       return Response.json(fallback);
     }
 
@@ -1132,8 +1279,28 @@ export async function POST(request: Request) {
         : null;
 
     if (typeof content !== "string") {
+      logAiSafetyEvent({
+        eventType: "provider_failure",
+        endpoint,
+        userIdHash: hashUserIdForLog(user.id),
+        provider: "openai",
+        model,
+        status: 502,
+        durationMs: Date.now() - startedAt,
+        reachedProvider: true,
+      });
       return Response.json(fallback);
     }
+
+    logAiSafetyEvent({
+      eventType: "request_success",
+      endpoint,
+      userIdHash: hashUserIdForLog(user.id),
+      provider: "openai",
+      model,
+      durationMs: Date.now() - startedAt,
+      reachedProvider: true,
+    });
 
     return Response.json(cleanShape(JSON.parse(content), fallback));
   } catch (error) {

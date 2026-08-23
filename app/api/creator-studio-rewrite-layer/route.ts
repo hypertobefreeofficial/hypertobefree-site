@@ -1,4 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
+import { checkAiKillSwitch } from "../../../lib/server/aiKillSwitch";
+import { hashUserIdForLog, logAiSafetyEvent } from "../../../lib/server/aiSafetyLog";
+import {
+  CREATOR_STUDIO_CHAT_OPENAI_TIMEOUT_MS,
+  CREATOR_STUDIO_REWRITE_MAX_OUTPUT_TOKENS,
+  enforceCreatorStudioAiRateLimit,
+  inputRejectedResponse,
+} from "../../../lib/server/creatorStudioAiLimits";
+import {
+  validateCreatorStudioRewriteInput,
+} from "../../../lib/server/creatorStudioRewriteInputValidation";
 
 type RewriteAction =
   | "keep-words"
@@ -50,10 +61,6 @@ function readBearerToken(request: Request) {
 
 function readConfiguredEnv(name: string) {
   return process.env[name]?.trim() ?? "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function readString(value: unknown) {
@@ -169,7 +176,7 @@ function sanitizeRewrite(currentText: string, candidate: string) {
 }
 
 export async function POST(request: Request) {
-  const accessToken = readBearerToken(request);
+  const endpoint = "creator_studio_rewrite_layer";
   const supabaseUrl = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_URL");
   const supabaseAnonKey = readConfiguredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
@@ -180,6 +187,7 @@ export async function POST(request: Request) {
     );
   }
 
+  const accessToken = readBearerToken(request);
   if (!accessToken) {
     return Response.json({ error: "Please sign in to use AI rewrite." }, { status: 401 });
   }
@@ -195,52 +203,55 @@ export async function POST(request: Request) {
     return Response.json({ error: "Please sign in again." }, { status: 401 });
   }
 
-  let body: unknown;
+  const killSwitch = checkAiKillSwitch(endpoint);
+  if (killSwitch.blocked) {
+    return killSwitch.response;
+  }
 
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid request body." }, { status: 400 });
+    return inputRejectedResponse({
+      endpoint,
+      userId: user.id,
+      error: "Invalid request body.",
+      code: "invalid_body",
+    });
   }
 
-  if (!isRecord(body)) {
-    return Response.json({ error: "Invalid request body." }, { status: 400 });
+  const validated = validateCreatorStudioRewriteInput(body);
+  if (validated.ok === false) {
+    return inputRejectedResponse({
+      endpoint,
+      userId: user.id,
+      error: validated.error,
+      code: validated.code,
+      field: validated.field,
+    });
   }
 
-  const layer = readString(body.layer) || "title";
-  const rawAction = readString(body.action) || "clearer";
-  const action = (
-    [
-      "keep-words",
-      "clearer",
-      "worshipful",
-      "shorter",
-      "stronger",
-      "alternatives",
-    ].includes(rawAction)
-      ? rawAction
-      : "clearer"
-  ) as RewriteAction;
-  const currentText = readString(body.currentText).trim();
-  const storyContext = isRecord(body.storyContext) ? body.storyContext : {};
-
-  if (!currentText) {
-    return Response.json(
-      { error: "Add some text before asking AI to rewrite it." },
-      { status: 400 }
-    );
-  }
-
-  const apiKey = process.env.OPENAI_API_KEY;
+  const { layer, currentText, storyContext } = validated;
+  const action = validated.action as RewriteAction;
   const fallback = fallbackRewrite(currentText, action);
+  const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
     return Response.json(fallback);
   }
 
+  const rateLimitBlocked = enforceCreatorStudioAiRateLimit({
+    userId: user.id,
+    endpoint,
+  });
+  if (rateLimitBlocked) {
+    return rateLimitBlocked;
+  }
+
   const layerLabel = layerLabels[layer] ?? "text";
   const wantsAlternatives = action === "alternatives";
   const isStrongRewrite = action === "stronger";
+  const model = process.env.OPENAI_STORY_SHAPING_MODEL ?? "gpt-4o-mini";
 
   const prompt = [
     `Assist with this Creator Studio ${layerLabel} for a faith testimony post.`,
@@ -262,6 +273,13 @@ export async function POST(request: Request) {
       : "Return JSON with text: a single assisted string.",
   ].join("\n\n");
 
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    CREATOR_STUDIO_CHAT_OPENAI_TIMEOUT_MS
+  );
+
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -270,7 +288,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_STORY_SHAPING_MODEL ?? "gpt-4o-mini",
+        model,
         messages: [
           {
             role: "system",
@@ -309,11 +327,22 @@ export async function POST(request: Request) {
           },
         },
         temperature: isStrongRewrite ? 0.7 : 0.35,
+        max_tokens: CREATOR_STUDIO_REWRITE_MAX_OUTPUT_TOKENS,
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
-      console.error("[creator-studio-rewrite-layer] OpenAI error", response.status);
+      logAiSafetyEvent({
+        eventType: "provider_failure",
+        endpoint,
+        userIdHash: hashUserIdForLog(user.id),
+        provider: "openai",
+        model,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        reachedProvider: true,
+      });
       return Response.json(fallback);
     }
 
@@ -323,6 +352,16 @@ export async function POST(request: Request) {
     const content = payload.choices?.[0]?.message?.content;
 
     if (!content) {
+      logAiSafetyEvent({
+        eventType: "provider_failure",
+        endpoint,
+        userIdHash: hashUserIdForLog(user.id),
+        provider: "openai",
+        model,
+        status: 502,
+        durationMs: Date.now() - startedAt,
+        reachedProvider: true,
+      });
       return Response.json(fallback);
     }
 
@@ -330,6 +369,16 @@ export async function POST(request: Request) {
       text?: string;
       alternatives?: string[];
     };
+
+    logAiSafetyEvent({
+      eventType: "request_success",
+      endpoint,
+      userIdHash: hashUserIdForLog(user.id),
+      provider: "openai",
+      model,
+      durationMs: Date.now() - startedAt,
+      reachedProvider: true,
+    });
 
     if (wantsAlternatives && parsed.alternatives?.length) {
       return Response.json({
@@ -347,7 +396,31 @@ export async function POST(request: Request) {
 
     return Response.json(fallback);
   } catch (error) {
-    console.error("[creator-studio-rewrite-layer] rewrite failed", error);
+    const isTimeout =
+      error instanceof Error && error.name === "AbortError";
+
+    logAiSafetyEvent({
+      eventType: isTimeout ? "provider_timeout" : "provider_failure",
+      endpoint,
+      userIdHash: hashUserIdForLog(user.id),
+      provider: "openai",
+      model,
+      durationMs: Date.now() - startedAt,
+      reachedProvider: isTimeout,
+    });
+
+    if (isTimeout) {
+      return Response.json(
+        {
+          error: "Rewrite timed out. Please try again.",
+          code: "provider_timeout",
+        },
+        { status: 504 }
+      );
+    }
+
     return Response.json(fallback);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
