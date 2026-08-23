@@ -43,6 +43,7 @@ import {
 import { resolveStoryDetailDestination } from "../lib/creatorStudioStoryNavigation";
 import { resolveCreatorStudioFeedMediaUrls } from "../lib/creatorStudioFeedMedia";
 import CreatorStudioStoryRenderer from "./creation-center/CreatorStudioStoryRenderer";
+import CreatorStudioCuratedBackground from "./creation-center/CreatorStudioCuratedBackground";
 import { FeedComposer } from "./FeedComposer";
 import StoryMediaStamp from "./StoryMediaStamp";
 import StoryOverlayText from "./StoryOverlayText";
@@ -3160,9 +3161,8 @@ function ComposedFeedPostVisual({
   if (template && cleanText) {
     return (
       <div className={templateFrameClass}>
-        <img
+        <CreatorStudioCuratedBackground
           src={template.imagePath}
-          alt=""
           loading="lazy"
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />

@@ -10,6 +10,7 @@ import {
   type CreatorStudioLayoutType,
   type CreatorStudioTextLayer,
 } from "../../lib/creationCenter";
+import CreatorStudioCuratedBackground from "./CreatorStudioCuratedBackground";
 import HTBFWatermark from "./HTBFWatermark";
 
 type CreatorStudioPreviewVariant =
@@ -106,9 +107,8 @@ function MediaLayer({
 
   if (template?.imagePath) {
     return (
-      <img
+      <CreatorStudioCuratedBackground
         src={template.imagePath}
-        alt=""
         loading="lazy"
         className="absolute inset-0 h-full w-full object-cover"
       />

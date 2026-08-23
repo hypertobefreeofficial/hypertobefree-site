@@ -6,6 +6,7 @@ import {
   creationCenterStoryTemplates,
   type CreationCenterTemplateId,
 } from "../../lib/creationCenter";
+import CreatorStudioCuratedBackground from "./CreatorStudioCuratedBackground";
 
 type StoryTemplatePickerProps = {
   value: CreationCenterTemplateId;
@@ -66,7 +67,7 @@ export default function StoryTemplatePicker({
                   : "ring-transparent hover:ring-blue-200"
               }`}
             >
-              <img
+              <CreatorStudioCuratedBackground
                 src={template.imagePath}
                 alt={`${template.label} template preview`}
                 loading="lazy"

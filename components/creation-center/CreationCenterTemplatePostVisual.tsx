@@ -1,3 +1,8 @@
+"use client";
+
+import { isCuratedPackBackgroundPath } from "../../lib/creationCenterCuratedAssets";
+import CreatorStudioCuratedBackground from "./CreatorStudioCuratedBackground";
+
 type CreationCenterTemplatePostVariant = "preview" | "feed" | "detail";
 
 type CreationCenterTemplatePostVisualProps = {
@@ -35,14 +40,21 @@ export default function CreationCenterTemplatePostVisual({
 
   return (
     <div className={`${frameClass} ${className}`.trim()}>
-      {imagePath && (
-        <img
-          src={imagePath}
-          alt=""
-          loading="lazy"
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        />
-      )}
+      {imagePath &&
+        (isCuratedPackBackgroundPath(imagePath) ? (
+          <CreatorStudioCuratedBackground
+            src={imagePath}
+            loading="lazy"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <img
+            src={imagePath}
+            alt=""
+            loading="lazy"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
+        ))}
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#031d3d]/90 via-[#062a57]/55 to-transparent" />
 

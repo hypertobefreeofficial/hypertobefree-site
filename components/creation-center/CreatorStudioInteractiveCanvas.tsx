@@ -26,6 +26,7 @@ import { resolveCreatorStudioDesignForRender } from "../../lib/creatorStudioRend
 import type { CreatorStudioEditorPanel } from "./CreatorStudioLayoutEditor";
 import CreatorStudioEditorialHints from "./CreatorStudioEditorialHints";
 import CreatorStudioPositionedLayers from "./CreatorStudioPositionedLayers";
+import CreatorStudioCuratedBackground from "./CreatorStudioCuratedBackground";
 import HTBFWatermark from "./HTBFWatermark";
 
 type CreatorStudioInteractiveCanvasProps = {
@@ -93,9 +94,8 @@ function CanvasBackground({
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : template?.imagePath ? (
-        <img
+        <CreatorStudioCuratedBackground
           src={template.imagePath}
-          alt=""
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (

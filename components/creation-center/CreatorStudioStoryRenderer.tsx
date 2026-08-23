@@ -17,6 +17,7 @@ import {
   FEED_PREVIEW_VIDEO_ATTR,
   useViewportVideoAutoplay,
 } from "../../hooks/useViewportVideoAutoplay";
+import CreatorStudioCuratedBackground from "./CreatorStudioCuratedBackground";
 import CreatorStudioStoryOverlay from "./CreatorStudioStoryOverlay";
 
 export type { CreatorStudioStoryRendererVariant };
@@ -250,9 +251,8 @@ function StoryMediaLayer({
     const template = getCreationCenterTemplate(templateId);
     if (template?.imagePath) {
       return (
-        <img
+        <CreatorStudioCuratedBackground
           src={template.imagePath}
-          alt=""
           loading="lazy"
           className="absolute inset-0 z-0 h-full w-full object-cover"
         />
