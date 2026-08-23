@@ -3,9 +3,10 @@
  *
  * Limits use the in-process prayerRateLimit buckets (lib/server/prayerRateLimit.ts).
  * They are NOT distributed across Vercel instances — temporary first-layer protection.
- * Phase 4B must replace/augment with distributed rate limiting (Redis/KV or edge).
+ * Phase 4B shadow mode evaluates Upstash counters separately without blocking users.
  */
 
+import { observeCreatorStudioAiShadowRateLimit } from "./creatorStudioAiRateLimitShadow";
 import {
   checkMultiWindowRateLimit,
   CREATOR_STUDIO_AI_RATE_LIMITS,
@@ -64,6 +65,13 @@ export function enforceCreatorStudioAiRateLimit(options: {
   const config = CREATOR_STUDIO_AI_RATE_LIMITS[options.endpoint];
   const key = rateLimitKey(options.userId, options.endpoint);
   const result = checkMultiWindowRateLimit(key, config);
+
+  observeCreatorStudioAiShadowRateLimit({
+    userId: options.userId,
+    endpoint: options.endpoint,
+    localAllowed: result.allowed,
+    windows: config.windows,
+  });
 
   if (result.allowed === false) {
     logAiSafetyEvent({

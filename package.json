@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
+    "@upstash/redis": "^1.38.2",
     "framer-motion": "^12.42.2",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
@@ -29,8 +30,8 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "autoprefixer": "latest",
-    "postcss": "latest",
     "playwright": "^1.51.1",
+    "postcss": "latest",
     "tailwindcss": "^3.4.17",
     "typescript": "latest",
     "vitest": "^4.1.10"
