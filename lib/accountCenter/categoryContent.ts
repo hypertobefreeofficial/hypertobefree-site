@@ -29,7 +29,6 @@ export const accountCenterCategoryContent: Record<string, CategoryContent> = {
       {
         title: "Change Email",
         text: "Update the email used for signing in.",
-        badge: "Soon",
         href: "/profile/change-email",
       },
       {

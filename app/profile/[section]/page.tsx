@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
+  Mail,
   Save,
   Shield,
   Sparkles,
@@ -20,6 +21,7 @@ import {
   updateAuthenticatedUserPassword,
   HTBF_PASSWORD_MIN_LENGTH,
 } from "../../../lib/accountCenter/changePassword";
+import { requestAuthenticatedEmailChange } from "../../../lib/accountCenter/changeEmail";
 import {
   resolveAccountInfoDisplay,
   type AccountInfoDisplay,
@@ -127,12 +129,6 @@ const NOTIFICATION_PREFERENCE_OPTIONS: Array<{
 ];
 
 const placeholderContent: Record<string, PlaceholderContent> = {
-  "change-email": {
-    eyebrow: "Account & Security",
-    title: "Change Email",
-    description:
-      "Email change tools will be added here with safe verification steps.",
-  },
   "change-password": {
     eyebrow: "Account & Security",
     title: "Change Password",
@@ -319,6 +315,10 @@ export default function ProfileAccountCenterPlaceholderPage() {
 
   if (section === "change-password") {
     return <ChangePasswordSection />;
+  }
+
+  if (section === "change-email") {
+    return <ChangeEmailSection />;
   }
 
   if (section === "notifications") {
@@ -553,6 +553,155 @@ function AccountInfoFieldRow({
         {value}
       </div>
     </div>
+  );
+}
+
+function ChangeEmailSection() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [currentEmail, setCurrentEmail] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    async function loadCurrentEmail() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      setCurrentEmail(user.email ?? "");
+      setLoading(false);
+    }
+
+    void loadCurrentEmail();
+  }, [router]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (saving || success) {
+      return;
+    }
+
+    setMessage("");
+    setSaving(true);
+
+    const result = await requestAuthenticatedEmailChange(supabase, {
+      newEmail,
+      confirmEmail,
+      emailRedirectTo: `${window.location.origin}/profile/account-info`,
+    });
+
+    setSaving(false);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setNewEmail("");
+    setConfirmEmail("");
+    setSuccess(true);
+    setMessage(
+      result.verificationRequired
+        ? `We sent verification links to ${result.pendingEmail} and your current sign-in email. Your sign-in email will update after you confirm from both addresses. Until then, keep signing in with your current email.`
+        : `Your sign-in email was updated to ${result.pendingEmail}.`
+    );
+  }
+
+  return (
+    <AccountCenterDataShell
+      icon={<Shield className="h-4 w-4" />}
+      eyebrow="Account & Security"
+      title="Change Email"
+      description="Update the private email address you use to sign in to HTBF. Your sign-in email is never shown on your public profile."
+    >
+      {loading ? (
+        <AccountCenterLoading text="Checking your sign-in session..." />
+      ) : (
+        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+          <label className="block">
+            <div className="mb-2 text-sm font-black text-[#062a57]">
+              Current sign-in email
+            </div>
+            <input
+              value={currentEmail}
+              readOnly
+              disabled
+              className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500"
+            />
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-sm font-black text-[#062a57]">
+              New email address
+            </div>
+            <div className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-200 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50">
+              <Mail className="h-4 w-4 text-slate-400" />
+              <input
+                type="email"
+                autoComplete="email"
+                value={newEmail}
+                onChange={(event) => setNewEmail(event.target.value)}
+                placeholder="you@example.com"
+                className="w-full bg-transparent px-3 py-3 outline-none"
+              />
+            </div>
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-sm font-black text-[#062a57]">
+              Confirm new email address
+            </div>
+            <div className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-200 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50">
+              <Mail className="h-4 w-4 text-slate-400" />
+              <input
+                type="email"
+                autoComplete="email"
+                value={confirmEmail}
+                onChange={(event) => setConfirmEmail(event.target.value)}
+                placeholder="Re-enter new email"
+                className="w-full bg-transparent px-3 py-3 outline-none"
+              />
+            </div>
+          </label>
+
+          {message && (
+            <div
+              className={`rounded-[1.5rem] p-4 text-sm font-bold leading-6 ring-1 ${
+                success
+                  ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                  : "bg-red-50 text-red-700 ring-red-100"
+              }`}
+            >
+              {message}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving || success}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Sending verification..." : "Update Email"}
+            <Save className="h-4 w-4" />
+          </button>
+        </form>
+      )}
+    </AccountCenterDataShell>
   );
 }
 
