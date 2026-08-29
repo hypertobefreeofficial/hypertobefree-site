@@ -16,6 +16,11 @@ import {
   UserCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  fetchActiveAccountDeletionRequest,
+  submitAccountDeletionRequest,
+  type AccountDeletionRequest,
+} from "../../lib/accountCenter/accountDeletionRequest";
 
 type ProfileVisibility = "community" | "private";
 
@@ -44,15 +49,6 @@ type ProfileRow = {
   allow_video_responses: boolean | null;
   allow_prayer_messages: boolean | null;
   allow_journey_messages: boolean | null;
-};
-
-type AccountDeletionRequest = {
-  id: string;
-  user_id: string;
-  email: string | null;
-  reason: string | null;
-  status: string | null;
-  created_at: string | null;
 };
 
 const USERNAME_COOLDOWN_DAYS = 30;
@@ -188,17 +184,11 @@ export default function AccountPage() {
       setAllowPrayerMessages(profile?.allow_prayer_messages ?? true);
       setAllowJourneyMessages(profile?.allow_journey_messages ?? true);
 
-      const { data: deletionData, error: deletionError } = await supabase
-        .from("account_deletion_requests")
-        .select("id, user_id, email, reason, status, created_at")
-        .eq("user_id", user.id)
-        .in("status", ["submitted", "reviewing"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { request: deletionData, error: deletionError } =
+        await fetchActiveAccountDeletionRequest(supabase, user.id);
 
       if (!deletionError && deletionData) {
-        setDeletionRequest(deletionData as AccountDeletionRequest);
+        setDeletionRequest(deletionData);
       }
 
       setLoading(false);
@@ -374,25 +364,24 @@ export default function AccountPage() {
 
     setRequestingDeletion(true);
 
-    const { data, error } = await supabase
-      .from("account_deletion_requests")
-      .insert({
-        user_id: userId,
-        email: email || null,
-        reason: reason.trim() || null,
-        status: "submitted",
-      })
-      .select("id, user_id, email, reason, status, created_at")
-      .single();
+    const result = await submitAccountDeletionRequest(supabase, {
+      authenticatedUserId: userId,
+      submission: {
+        userId,
+        email,
+        reason,
+      },
+      activeRequest: deletionRequest,
+    });
 
     setRequestingDeletion(false);
 
-    if (error) {
-      setMessage(`Could not submit deletion request: ${error.message}`);
+    if (result.ok === false) {
+      setMessage(result.message);
       return;
     }
 
-    setDeletionRequest(data as AccountDeletionRequest);
+    setDeletionRequest(result.request);
     setMessage(
       "Your account deletion request was submitted. HTBF admin will review it."
     );

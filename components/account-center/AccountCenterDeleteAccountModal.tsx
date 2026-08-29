@@ -1,0 +1,320 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  fetchActiveAccountDeletionRequest,
+  submitAccountDeletionRequest,
+  type AccountDeletionRequest,
+} from "../../lib/accountCenter/accountDeletionRequest";
+import { supabase } from "../../lib/supabaseClient";
+
+type ModalView =
+  | "loading"
+  | "confirm"
+  | "submitting"
+  | "success"
+  | "already_requested"
+  | "error"
+  | "unauthenticated";
+
+type AccountCenterDeleteAccountModalProps = {
+  open: boolean;
+  onClose: () => void;
+};
+
+function formatRequestDate(value: string | null) {
+  if (!value) {
+    return "date unavailable";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "date unavailable";
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export default function AccountCenterDeleteAccountModal({
+  open,
+  onClose,
+}: AccountCenterDeleteAccountModalProps) {
+  const [view, setView] = useState<ModalView>("loading");
+  const [reason, setReason] = useState("");
+  const [message, setMessage] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [activeRequest, setActiveRequest] =
+    useState<AccountDeletionRequest | null>(null);
+  const [submittedRequest, setSubmittedRequest] =
+    useState<AccountDeletionRequest | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadDeletionState() {
+      setView("loading");
+      setMessage("");
+      setReason("");
+      setSubmittedRequest(null);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!user) {
+        setView("unauthenticated");
+        return;
+      }
+
+      setUserId(user.id);
+      setEmail(user.email ?? null);
+
+      const { request, error } = await fetchActiveAccountDeletionRequest(
+        supabase,
+        user.id
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        setMessage(
+          "Could not check your account deletion request status right now. You can try again in a moment."
+        );
+        setView("error");
+        return;
+      }
+
+      if (request) {
+        setActiveRequest(request);
+        setView("already_requested");
+        return;
+      }
+
+      setActiveRequest(null);
+      setView("confirm");
+    }
+
+    void loadDeletionState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  async function handleSubmitRequest() {
+    if (!userId || view === "submitting") {
+      return;
+    }
+
+    setView("submitting");
+    setMessage("");
+
+    const result = await submitAccountDeletionRequest(supabase, {
+      authenticatedUserId: userId,
+      submission: {
+        userId,
+        email,
+        reason,
+      },
+      activeRequest,
+    });
+
+    if (result.ok === false) {
+      if (result.code === "already_requested") {
+        setView("already_requested");
+        return;
+      }
+
+      setMessage(result.message);
+      setView("error");
+      return;
+    }
+
+    setSubmittedRequest(result.request);
+    setActiveRequest(result.request);
+    setView("success");
+  }
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+      <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
+          HYPER TO BE FREE
+        </div>
+
+        {view === "loading" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Delete account?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Checking your account deletion request status...
+            </p>
+          </>
+        )}
+
+        {view === "unauthenticated" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Sign in required
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Please sign in before requesting account deletion.
+            </p>
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        )}
+
+        {view === "confirm" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Request account deletion?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              This submits an account deletion request to HTBF for review. Your
+              account will not be deleted instantly. If approved and processed,
+              your access, uploads, messages, and prayer activity may be
+              permanently removed.
+            </p>
+
+            <label className="mt-5 block">
+              <span className="mb-2 block text-sm font-black text-[#062a57]">
+                Optional reason
+              </span>
+              <textarea
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Tell us why you want to delete your account. You can leave this blank."
+                className="min-h-24 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 outline-none focus:border-red-200 focus:bg-white focus:ring-4 focus:ring-red-50"
+              />
+            </label>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+              >
+                Not Yet
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubmitRequest()}
+                className="flex-1 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
+              >
+                Submit Request
+              </button>
+            </div>
+          </>
+        )}
+
+        {view === "submitting" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Submitting request...
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Please wait while HTBF records your account deletion request.
+            </p>
+          </>
+        )}
+
+        {view === "success" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Request submitted
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Your account deletion request was submitted on{" "}
+              {formatRequestDate(submittedRequest?.created_at ?? null)}. HTBF
+              admin will review it. Your account has not been deleted yet.
+            </p>
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        )}
+
+        {view === "already_requested" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Request already submitted
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Your account deletion request was already submitted on{" "}
+              {formatRequestDate(activeRequest?.created_at ?? null)}. Status:{" "}
+              {activeRequest?.status || "submitted"}. HTBF admin will review it.
+            </p>
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        )}
+
+        {view === "error" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Could not submit request
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("confirm")}
+                className="flex-1 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white"
+              >
+                Try Again
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

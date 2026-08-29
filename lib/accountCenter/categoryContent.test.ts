@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   accountCenterCategoryContent,
@@ -57,5 +58,18 @@ describe("accountCenterCategoryContent badges", () => {
       "content-management",
       "support",
     ]);
+  });
+
+  it("keeps unfinished Account & Security routes unchanged", () => {
+    const sectionPageSource = readFileSync(
+      "app/profile/[section]/page.tsx",
+      "utf8"
+    );
+
+    expect(sectionPageSource).toContain('if (section === "account-info")');
+    expect(sectionPageSource).toContain("<AccountInfoSection />");
+    expect(sectionPageSource).not.toContain(
+      'href: "/profile/change-email",\n        badge: undefined'
+    );
   });
 });

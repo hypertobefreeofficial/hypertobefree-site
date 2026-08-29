@@ -34,6 +34,7 @@ import {
   Video,
   X,
 } from "lucide-react";
+import AccountCenterDeleteAccountModal from "../../components/account-center/AccountCenterDeleteAccountModal";
 import { supabase } from "../../lib/supabaseClient";
 
 type ProfileRow = {
@@ -944,37 +945,10 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {deleteAccountOpen && (
-        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 sm:items-center sm:justify-center">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
-              HYPER TO BE FREE
-            </div>
-            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
-              Delete account?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Account deletion is permanent. Contact HTBF support so your
-              uploads, messages, and prayer activity can be handled safely.
-            </p>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setDeleteAccountOpen(false)}
-                className="flex-1 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
-              >
-                Not Yet
-              </button>
-              <a
-                href="mailto:support@hypertobefree.com?subject=Delete%20my%20HTBF%20account"
-                className="flex-1 rounded-full bg-red-600 px-5 py-3 text-center text-sm font-black text-white"
-              >
-                Contact Support
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+      <AccountCenterDeleteAccountModal
+        open={deleteAccountOpen}
+        onClose={() => setDeleteAccountOpen(false)}
+      />
     </main>
   );
 }
