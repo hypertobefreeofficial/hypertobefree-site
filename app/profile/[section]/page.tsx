@@ -9,11 +9,17 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  Save,
   Shield,
   Sparkles,
   UserX,
   UserCircle,
 } from "lucide-react";
+import {
+  updateAuthenticatedUserPassword,
+  HTBF_PASSWORD_MIN_LENGTH,
+} from "../../../lib/accountCenter/changePassword";
 import {
   resolveAccountInfoDisplay,
   type AccountInfoDisplay,
@@ -311,6 +317,10 @@ export default function ProfileAccountCenterPlaceholderPage() {
     return <AccountInfoSection />;
   }
 
+  if (section === "change-password") {
+    return <ChangePasswordSection />;
+  }
+
   if (section === "notifications") {
     return <NotificationSettingsSection />;
   }
@@ -543,6 +553,149 @@ function AccountInfoFieldRow({
         {value}
       </div>
     </div>
+  );
+}
+
+function ChangePasswordSection() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    async function checkAuth() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      setLoading(false);
+    }
+
+    void checkAuth();
+  }, [router]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (saving || success) {
+      return;
+    }
+
+    setMessage("");
+    setSaving(true);
+
+    const result = await updateAuthenticatedUserPassword(supabase, {
+      password,
+      confirmPassword,
+    });
+
+    setSaving(false);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setPassword("");
+    setConfirmPassword("");
+    setSuccess(true);
+    setMessage("Your password was updated.");
+  }
+
+  return (
+    <AccountCenterDataShell
+      icon={<Shield className="h-4 w-4" />}
+      eyebrow="Account & Security"
+      title="Change Password"
+      description="Update your HTBF password while signed in. HTBF uses your active Supabase session for this change and does not currently require your current password."
+    >
+      {loading ? (
+        <AccountCenterLoading text="Checking your sign-in session..." />
+      ) : (
+        <>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+            <label className="block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
+                New password
+              </div>
+              <div className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-200 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50">
+                <Lock className="h-4 w-4 text-slate-400" />
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder={`At least ${HTBF_PASSWORD_MIN_LENGTH} characters`}
+                  className="w-full bg-transparent px-3 py-3 outline-none"
+                />
+              </div>
+            </label>
+
+            <label className="block">
+              <div className="mb-2 text-sm font-black text-[#062a57]">
+                Confirm new password
+              </div>
+              <div className="flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-blue-200 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50">
+                <Lock className="h-4 w-4 text-slate-400" />
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Re-enter new password"
+                  className="w-full bg-transparent px-3 py-3 outline-none"
+                />
+              </div>
+            </label>
+
+            {message && (
+              <div
+                className={`rounded-[1.5rem] p-4 text-sm font-bold leading-6 ring-1 ${
+                  success
+                    ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                    : "bg-red-50 text-red-700 ring-red-100"
+                }`}
+              >
+                {message}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={saving || success}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? "Updating..." : "Update Password"}
+              <Save className="h-4 w-4" />
+            </button>
+          </form>
+
+          <p className="mt-5 text-sm leading-6 text-slate-600">
+            Forgot your current password?{" "}
+            <Link
+              href="/forgot-password"
+              className="font-black text-[#0b63ce] underline"
+            >
+              Use password recovery
+            </Link>
+            .
+          </p>
+        </>
+      )}
+    </AccountCenterDataShell>
   );
 }
 

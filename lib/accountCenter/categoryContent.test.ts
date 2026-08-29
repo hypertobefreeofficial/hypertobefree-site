@@ -26,7 +26,6 @@ describe("accountCenterCategoryContent badges", () => {
   it("keeps Soon badges on unfinished Account & Security items", () => {
     const unfinishedTitles = [
       "Change Email",
-      "Change Password",
       "Two-Factor Authentication",
       "Active Sessions",
     ];
@@ -35,6 +34,16 @@ describe("accountCenterCategoryContent badges", () => {
       const item = getAccountCenterCategoryItem("account-security", title);
       expect(item?.badge).toBe("Soon");
     });
+  });
+
+  it("does not show a stale Soon badge on Change Password", () => {
+    const item = getAccountCenterCategoryItem(
+      "account-security",
+      "Change Password"
+    );
+
+    expect(item).toBeDefined();
+    expect(item?.badge).toBeUndefined();
   });
 
   it("keeps Soon badges on other genuinely unfinished categories", () => {
@@ -68,6 +77,8 @@ describe("accountCenterCategoryContent badges", () => {
 
     expect(sectionPageSource).toContain('if (section === "account-info")');
     expect(sectionPageSource).toContain("<AccountInfoSection />");
+    expect(sectionPageSource).toContain('if (section === "change-password")');
+    expect(sectionPageSource).toContain("<ChangePasswordSection />");
     expect(sectionPageSource).not.toContain(
       'href: "/profile/change-email",\n        badge: undefined'
     );

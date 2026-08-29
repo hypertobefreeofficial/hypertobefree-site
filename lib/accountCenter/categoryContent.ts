@@ -35,7 +35,6 @@ export const accountCenterCategoryContent: Record<string, CategoryContent> = {
       {
         title: "Change Password",
         text: "Update your password safely.",
-        badge: "Soon",
         href: "/profile/change-password",
       },
       {
