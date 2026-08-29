@@ -9,10 +9,21 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  Shield,
   Sparkles,
   UserX,
   UserCircle,
 } from "lucide-react";
+import {
+  resolveAccountInfoDisplay,
+  type AccountInfoDisplay,
+  type AccountInfoProfileRow,
+} from "../../../lib/accountCenter/accountInfo";
+import {
+  accountCenterCategoryContent as categoryContent,
+  type CategoryContent,
+  type CategoryItem,
+} from "../../../lib/accountCenter/categoryContent";
 import { supabase } from "../../../lib/supabaseClient";
 
 type PlaceholderContent = {
@@ -34,22 +45,6 @@ type AccountCenterProfileRow = {
   avatar_url: string | null;
   display_name: string | null;
   username: string | null;
-};
-
-type CategoryItem = {
-  badge?: string;
-  href?: string;
-  text: string;
-  title: string;
-  tone?: "default" | "danger";
-  type?: "delete-account";
-};
-
-type CategoryContent = {
-  description: string;
-  eyebrow: string;
-  items: CategoryItem[];
-  title: string;
 };
 
 type NotificationPreferenceKey =
@@ -124,212 +119,7 @@ const NOTIFICATION_PREFERENCE_OPTIONS: Array<{
   },
 ];
 
-const categoryContent: Record<string, CategoryContent> = {
-  "account-security": {
-    eyebrow: "Account Center",
-    title: "Account & Security",
-    description:
-      "Manage private sign-in details, security tools, sessions, and account deletion.",
-    items: [
-      {
-        title: "Account Info",
-        text: "Private sign-in email and account details.",
-        href: "/profile/account-info",
-      },
-      {
-        title: "Change Email",
-        text: "Update the email used for signing in.",
-        badge: "Soon",
-        href: "/profile/change-email",
-      },
-      {
-        title: "Change Password",
-        text: "Update your password safely.",
-        badge: "Soon",
-        href: "/profile/change-password",
-      },
-      {
-        title: "Two-Factor Authentication",
-        text: "Add an extra layer of account protection.",
-        badge: "Soon",
-        href: "/profile/two-factor-authentication",
-      },
-      {
-        title: "Active Sessions",
-        text: "Review devices signed in to your account.",
-        badge: "Soon",
-        href: "/profile/active-sessions",
-      },
-      {
-        title: "Delete Account",
-        text: "Request safe account deletion support.",
-        tone: "danger",
-        type: "delete-account",
-      },
-    ],
-  },
-  "privacy-safety": {
-    eyebrow: "Account Center",
-    title: "Privacy & Safety",
-    description:
-      "Control visibility, location sharing, muted or blocked users, and reports.",
-    items: [
-      {
-        title: "Privacy Settings",
-        text: "Control profile privacy from one place.",
-        href: "/profile/privacy-settings",
-      },
-      {
-        title: "Profile Visibility",
-        text: "Choose who can view your HTBF profile.",
-        badge: "Soon",
-        href: "/profile/profile-visibility",
-      },
-      {
-        title: "Location Visibility",
-        text: "Control when your location appears.",
-        badge: "Soon",
-        href: "/profile/location-visibility",
-      },
-      {
-        title: "Blocked Users",
-        text: "Manage people you have blocked.",
-        badge: "Soon",
-        href: "/profile/blocked-users",
-      },
-      {
-        title: "Muted Users",
-        text: "Manage accounts you have muted.",
-        badge: "Soon",
-        href: "/profile/muted-users",
-      },
-      {
-        title: "Reported Content",
-        text: "Review content reports you have submitted.",
-        badge: "Soon",
-        href: "/profile/reported-content",
-      },
-    ],
-  },
-  notifications: {
-    eyebrow: "Account Center",
-    title: "Notifications",
-    description:
-      "Choose how HTBF keeps you aware of prayer, story, praise, and email updates.",
-    items: [
-      {
-        title: "Prayer Notifications",
-        text: "Prayer request, Prayer Circle, and answered-prayer alerts.",
-        badge: "Soon",
-        href: "/profile/prayer-notifications",
-      },
-      {
-        title: "Story Notifications",
-        text: "Story approval, reply, and community response alerts.",
-        badge: "Soon",
-        href: "/profile/story-notifications",
-      },
-      {
-        title: "Praise Notifications",
-        text: "Answered-prayer and praise report updates.",
-        badge: "Soon",
-        href: "/profile/praise-notifications",
-      },
-      {
-        title: "Email Notifications",
-        text: "Choose which HTBF emails you receive.",
-        badge: "Soon",
-        href: "/profile/email-notifications",
-      },
-    ],
-  },
-  "content-management": {
-    eyebrow: "Account Center",
-    title: "Content Management",
-    description:
-      "Review and manage your posts, videos, prayers, praise reports, and saved content.",
-    items: [
-      {
-        title: "My Stories",
-        text: "Review stories and written encouragement.",
-        href: "/profile/my-stories",
-      },
-      {
-        title: "My Videos",
-        text: "Review your video testimonies.",
-        href: "/profile/my-videos",
-      },
-      {
-        title: "My Prayer Requests",
-        text: "Manage prayer requests you shared.",
-        href: "/profile/my-prayer-requests",
-      },
-      {
-        title: "My Praise Reports",
-        text: "Review praise and answered-prayer moments.",
-        href: "/profile/my-praise-reports",
-      },
-      {
-        title: "Saved Content",
-        text: "Return to saved stories and testimonies.",
-        badge: "Soon",
-        href: "/profile/saved-content",
-      },
-      {
-        title: "Archived / Hidden Content",
-        text: "Manage items you hid or archived.",
-        badge: "Soon",
-        href: "/profile/archived-hidden-content",
-      },
-    ],
-  },
-  support: {
-    eyebrow: "Account Center",
-    title: "Support",
-    description:
-      "Find help, report an issue, and review HTBF guidelines, privacy, and terms.",
-    items: [
-      {
-        title: "Help Center",
-        text: "Find help using HTBF.",
-        badge: "Soon",
-        href: "/profile/help-center",
-      },
-      {
-        title: "Report a Problem",
-        text: "Tell HTBF about a bug or account issue.",
-        badge: "Soon",
-        href: "/profile/report-a-problem",
-      },
-      {
-        title: "Community Guidelines",
-        text: "Review how we keep HTBF safe.",
-        badge: "Soon",
-        href: "/profile/community-guidelines",
-      },
-      {
-        title: "Privacy Policy",
-        text: "Read HTBF privacy practices.",
-        badge: "Soon",
-        href: "/profile/privacy-policy",
-      },
-      {
-        title: "Terms of Service",
-        text: "Review HTBF terms and platform rules.",
-        badge: "Soon",
-        href: "/profile/terms-of-service",
-      },
-    ],
-  },
-};
-
 const placeholderContent: Record<string, PlaceholderContent> = {
-  "account-info": {
-    eyebrow: "Account & Security",
-    title: "Account Info",
-    description:
-      "Private account details, including sign-in email, will live here.",
-  },
   "change-email": {
     eyebrow: "Account & Security",
     title: "Change Email",
@@ -516,6 +306,10 @@ export default function ProfileAccountCenterPlaceholderPage() {
     return <EditProfileSection />;
   }
 
+  if (section === "account-info") {
+    return <AccountInfoSection />;
+  }
+
   if (section === "notifications") {
     return <NotificationSettingsSection />;
   }
@@ -647,6 +441,105 @@ function AccountCenterIdentity() {
         <div className="mt-1 truncate text-sm font-semibold text-slate-600">
           {username ? `@${username}` : "Account Center"}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AccountInfoSection() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [accountInfo, setAccountInfo] = useState<AccountInfoDisplay | null>(
+    null
+  );
+
+  useEffect(() => {
+    async function loadAccountInfo() {
+      setLoading(true);
+      setProfileMessage("");
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, username")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        setProfileMessage(
+          `Could not load profile details: ${error.message}. Your private sign-in information is still shown below.`
+        );
+      }
+
+      setAccountInfo(
+        resolveAccountInfoDisplay(user, (data as AccountInfoProfileRow | null) ?? null)
+      );
+      setLoading(false);
+    }
+
+    void loadAccountInfo();
+  }, [router]);
+
+  return (
+    <AccountCenterDataShell
+      icon={<Shield className="h-4 w-4" />}
+      eyebrow="Account & Security"
+      title="Account Info"
+      description="Private sign-in and account details for your HTBF account. This information is visible only to you."
+    >
+      {profileMessage && (
+        <div className="mt-5 rounded-[1.5rem] bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-900 ring-1 ring-amber-100">
+          {profileMessage}
+        </div>
+      )}
+
+      {loading ? (
+        <AccountCenterLoading text="Loading account information..." />
+      ) : accountInfo && accountInfo.fields.length > 0 ? (
+        <div className="mt-6 space-y-4">
+          {accountInfo.fields.map((field) => (
+            <AccountInfoFieldRow
+              key={field.key}
+              label={field.label}
+              value={field.value}
+            />
+          ))}
+        </div>
+      ) : (
+        <AccountCenterEmpty text="No account information is available right now. Try signing in again from the login page." />
+      )}
+
+      <p className="mt-5 text-xs font-semibold leading-5 text-slate-500">
+        Your sign-in email stays private and is not shown on your public HTBF
+        profile.
+      </p>
+    </AccountCenterDataShell>
+  );
+}
+
+function AccountInfoFieldRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100">
+      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 break-all text-sm font-bold leading-6 text-[#062a57]">
+        {value}
       </div>
     </div>
   );
