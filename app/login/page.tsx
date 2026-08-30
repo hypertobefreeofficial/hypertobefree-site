@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { ArrowLeft, LogIn, UserPlus, ShieldCheck } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  readMfaAssuranceState,
+  requiresMfaChallenge,
+  saveMfaReturnPath,
+} from "../../lib/auth/mfaChallenge";
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -22,6 +27,31 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
+  async function resolveAuthenticatedDestination(user: User) {
+    await ensureProfileExists(user);
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("profile_completed")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    return profile?.profile_completed ? "/feed" : "/account?setup=1";
+  }
+
+  async function continueAuthenticatedSession(user: User) {
+    const destination = await resolveAuthenticatedDestination(user);
+    const assurance = await readMfaAssuranceState(supabase);
+
+    if (assurance && requiresMfaChallenge(assurance)) {
+      saveMfaReturnPath(destination, sessionStorage);
+      window.location.href = "/mfa-challenge";
+      return;
+    }
+
+    window.location.href = destination;
+  }
+
   useEffect(() => {
     async function checkExistingSession() {
       const {
@@ -33,20 +63,15 @@ export default function LoginPage() {
         return;
       }
 
-      await ensureProfileExists(user);
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("profile_completed")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile?.profile_completed) {
-        window.location.href = "/feed";
+      const assurance = await readMfaAssuranceState(supabase);
+      if (assurance && requiresMfaChallenge(assurance)) {
+        const destination = await resolveAuthenticatedDestination(user);
+        saveMfaReturnPath(destination, sessionStorage);
+        window.location.href = "/mfa-challenge";
         return;
       }
 
-      window.location.href = "/account?setup=1";
+      await continueAuthenticatedSession(user);
     }
 
     checkExistingSession();
@@ -148,20 +173,7 @@ export default function LoginPage() {
         return;
       }
 
-      await ensureProfileExists(user);
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("profile_completed")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile?.profile_completed) {
-        window.location.href = "/feed";
-        return;
-      }
-
-      window.location.href = "/account?setup=1";
+      await continueAuthenticatedSession(user);
       return;
     }
 

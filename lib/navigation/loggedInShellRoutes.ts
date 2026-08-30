@@ -1,6 +1,7 @@
 export const publicRoutesWithoutLoggedInShell = [
   "/",
   "/login",
+  "/mfa-challenge",
   "/signup",
   "/privacy",
   "/terms",

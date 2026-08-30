@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { shouldUseLoggedInShell } from "../lib/navigation/loggedInShellRoutes";
+import MfaChallengeGuard from "./MfaChallengeGuard";
 
 type LoggedInAppShellProps = {
   children: ReactNode;
@@ -15,5 +16,9 @@ export default function LoggedInAppShell({ children }: LoggedInAppShellProps) {
     return <>{children}</>;
   }
 
-  return <div className="logged-in-app-shell min-h-screen">{children}</div>;
+  return (
+    <MfaChallengeGuard>
+      <div className="logged-in-app-shell min-h-screen">{children}</div>
+    </MfaChallengeGuard>
+  );
 }
