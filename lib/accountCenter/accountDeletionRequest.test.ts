@@ -53,9 +53,30 @@ function createMockClient(options?: {
     insert,
   }));
 
+  const getUser = vi.fn().mockResolvedValue({
+    data: { user: { id: "user-1", email: "owner@example.com" } },
+  });
+  const getAal = vi.fn().mockResolvedValue({
+    data: { currentLevel: "aal1", nextLevel: "aal1" },
+    error: null,
+  });
+  const listFactors = vi.fn().mockResolvedValue({
+    data: { totp: [] },
+    error: null,
+  });
+
   return {
-    client: { from },
-    spies: { from, insert, eq, inFn, maybeSingle, single },
+    client: {
+      from,
+      auth: {
+        getUser,
+        mfa: {
+          getAuthenticatorAssuranceLevel: getAal,
+          listFactors,
+        },
+      },
+    },
+    spies: { from, insert, eq, inFn, maybeSingle, single, getUser, getAal, listFactors },
   };
 }
 
@@ -236,6 +257,75 @@ describe("submitAccountDeletionRequest", () => {
     expect(spies.from).toHaveBeenCalledTimes(1);
     expect(spies.from).toHaveBeenCalledWith("account_deletion_requests");
   });
+
+  it("blocks MFA users at AAL1 before inserting a deletion request", async () => {
+    const { client, spies } = createMockClient();
+    spies.getAal.mockResolvedValue({
+      data: { currentLevel: "aal1", nextLevel: "aal2" },
+      error: null,
+    });
+    spies.listFactors.mockResolvedValue({
+      data: {
+        totp: [
+          {
+            id: "factor-1",
+            factor_type: "totp",
+            status: "verified",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const result = await submitAccountDeletionRequest(client, {
+      authenticatedUserId: "user-1",
+      submission: {
+        userId: "user-1",
+        email: "owner@example.com",
+      },
+      activeRequest: null,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("insufficient_aal");
+    }
+    expect(spies.insert).not.toHaveBeenCalled();
+  });
+
+  it("allows MFA users already at AAL2 to submit", async () => {
+    const { client, spies } = createMockClient();
+    spies.getAal.mockResolvedValue({
+      data: { currentLevel: "aal2", nextLevel: "aal2" },
+      error: null,
+    });
+    spies.listFactors.mockResolvedValue({
+      data: {
+        totp: [
+          {
+            id: "factor-1",
+            factor_type: "totp",
+            status: "verified",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const result = await submitAccountDeletionRequest(client, {
+      authenticatedUserId: "user-1",
+      submission: {
+        userId: "user-1",
+        email: "owner@example.com",
+      },
+      activeRequest: null,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(spies.insert).toHaveBeenCalled();
+  });
 });
 
 describe("admin workflow contract", () => {
@@ -258,6 +348,7 @@ describe("Account Center delete action contract", () => {
     const profilePageSource = readFileSync("app/profile/page.tsx", "utf8");
 
     expect(modalSource).toContain("Submit Request");
+    expect(modalSource).toContain("SensitiveActionMfaStepUp");
     expect(modalSource).not.toContain("mailto:support@hypertobefree.com");
     expect(sectionPageSource).not.toContain(
       "mailto:support@hypertobefree.com?subject=Delete%20my%20HTBF%20account"

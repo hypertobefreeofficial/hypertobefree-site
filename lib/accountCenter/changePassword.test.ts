@@ -10,6 +10,49 @@ import {
 const mockGetUser = vi.fn();
 const mockUpdateUser = vi.fn();
 const mockFrom = vi.fn();
+const mockGetAal = vi.fn();
+const mockListFactors = vi.fn();
+
+function mockNonMfaAssurance() {
+  mockGetAal.mockResolvedValue({
+    data: { currentLevel: "aal1", nextLevel: "aal1" },
+    error: null,
+  });
+  mockListFactors.mockResolvedValue({ data: { totp: [] }, error: null });
+}
+
+function mockMfaAal1Assurance() {
+  mockGetAal.mockResolvedValue({
+    data: { currentLevel: "aal1", nextLevel: "aal2" },
+    error: null,
+  });
+  mockListFactors.mockResolvedValue({
+    data: {
+      totp: [
+        {
+          id: "factor-1",
+          factor_type: "totp",
+          status: "verified",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    },
+    error: null,
+  });
+}
+
+function createAuthClient() {
+  return {
+    auth: {
+      getUser: mockGetUser,
+      updateUser: mockUpdateUser,
+      mfa: {
+        getAuthenticatorAssuranceLevel: mockGetAal,
+        listFactors: mockListFactors,
+      },
+    },
+  } as never;
+}
 
 vi.mock("../supabaseClient", () => ({
   supabase: {
@@ -84,6 +127,7 @@ describe("updateAuthenticatedUserPassword", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFrom.mockReset();
+    mockNonMfaAssurance();
   });
 
   it("rejects logged-out users", async () => {
@@ -94,12 +138,7 @@ describe("updateAuthenticatedUserPassword", () => {
     );
 
     const result = await updatePassword(
-      {
-        auth: {
-          getUser: mockGetUser,
-          updateUser: mockUpdateUser,
-        },
-      } as never,
+      createAuthClient(),
       {
         password: "password123",
         confirmPassword: "password123",
@@ -115,7 +154,7 @@ describe("updateAuthenticatedUserPassword", () => {
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it("updates password through Supabase Auth for authenticated users", async () => {
+  it("updates password through Supabase Auth for authenticated non-MFA users", async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: "user-1", email: "owner@example.com" } },
     });
@@ -125,22 +164,72 @@ describe("updateAuthenticatedUserPassword", () => {
       "./changePassword"
     );
 
-    const result = await updatePassword(
-      {
-        auth: {
-          getUser: mockGetUser,
-          updateUser: mockUpdateUser,
-        },
-      } as never,
-      {
-        password: "password123",
-        confirmPassword: "password123",
-      }
-    );
+    const result = await updatePassword(createAuthClient(), {
+      password: "password123",
+      confirmPassword: "password123",
+    });
 
     expect(result).toEqual({ ok: true });
     expect(mockUpdateUser).toHaveBeenCalledWith({ password: "password123" });
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("allows MFA users already at AAL2 to update password", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-1", email: "owner@example.com" } },
+    });
+    mockGetAal.mockResolvedValue({
+      data: { currentLevel: "aal2", nextLevel: "aal2" },
+      error: null,
+    });
+    mockListFactors.mockResolvedValue({
+      data: {
+        totp: [
+          {
+            id: "factor-1",
+            factor_type: "totp",
+            status: "verified",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      },
+      error: null,
+    });
+    mockUpdateUser.mockResolvedValue({ error: null });
+
+    const { updateAuthenticatedUserPassword: updatePassword } = await import(
+      "./changePassword"
+    );
+
+    const result = await updatePassword(createAuthClient(), {
+      password: "password123",
+      confirmPassword: "password123",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(mockUpdateUser).toHaveBeenCalledWith({ password: "password123" });
+  });
+
+  it("blocks MFA users at AAL1 before calling updateUser", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-1", email: "owner@example.com" } },
+    });
+    mockMfaAal1Assurance();
+
+    const { updateAuthenticatedUserPassword: updatePassword } = await import(
+      "./changePassword"
+    );
+
+    const result = await updatePassword(createAuthClient(), {
+      password: "password123",
+      confirmPassword: "password123",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("insufficient_aal");
+    }
+    expect(mockUpdateUser).not.toHaveBeenCalled();
   });
 
   it("does not trust a client-supplied user id", async () => {
@@ -153,18 +242,10 @@ describe("updateAuthenticatedUserPassword", () => {
       "./changePassword"
     );
 
-    await updatePassword(
-      {
-        auth: {
-          getUser: mockGetUser,
-          updateUser: mockUpdateUser,
-        },
-      } as never,
-      {
-        password: "password123",
-        confirmPassword: "password123",
-      }
-    );
+    await updatePassword(createAuthClient(), {
+      password: "password123",
+      confirmPassword: "password123",
+    });
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ password: "password123" });
     expect(mockUpdateUser.mock.calls[0]).not.toContain("other-user");
@@ -182,18 +263,10 @@ describe("updateAuthenticatedUserPassword", () => {
       "./changePassword"
     );
 
-    const result = await updatePassword(
-      {
-        auth: {
-          getUser: mockGetUser,
-          updateUser: mockUpdateUser,
-        },
-      } as never,
-      {
-        password: "password123",
-        confirmPassword: "password123",
-      }
-    );
+    const result = await updatePassword(createAuthClient(), {
+      password: "password123",
+      confirmPassword: "password123",
+    });
 
     expect(result.ok).toBe(false);
     if (result.ok === false) {
@@ -234,11 +307,12 @@ describe("change password page wiring", () => {
 });
 
 describe("recovery flows remain unchanged", () => {
-  it("keeps existing forgot-password and reset-password pages intact", () => {
+  it("keeps existing forgot-password page and routes reset through recovery helper", () => {
     const forgotPassword = readFileSync("app/forgot-password/page.tsx", "utf8");
     const resetPassword = readFileSync("app/reset-password/page.tsx", "utf8");
 
     expect(forgotPassword).toContain("resetPasswordForEmail");
-    expect(resetPassword).toContain("updateUser({");
+    expect(resetPassword).toContain("updateRecoveryPassword");
+    expect(resetPassword).toContain("SensitiveActionMfaStepUp");
   });
 });

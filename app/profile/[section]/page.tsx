@@ -62,12 +62,18 @@ import {
 } from "../../../lib/accountCenter/twoFactorAuthentication";
 import { isMfaChallengeComplete } from "../../../lib/auth/mfaChallenge";
 import {
+  loadSensitiveActionStepUpSnapshot,
+  stepUpTotpForSensitiveAction,
+  type SensitiveActionStepUpSnapshot,
+} from "../../../lib/auth/mfaStepUp";
+import {
   accountCenterCategoryContent as categoryContent,
   type CategoryContent,
   type CategoryItem,
 } from "../../../lib/accountCenter/categoryContent";
 import { supabase } from "../../../lib/supabaseClient";
 import AccountCenterDeleteAccountModal from "../../../components/account-center/AccountCenterDeleteAccountModal";
+import SensitiveActionMfaStepUp from "../../../components/account-center/SensitiveActionMfaStepUp";
 
 type PlaceholderContent = {
   eyebrow: string;
@@ -843,11 +849,26 @@ function ChangeEmailSection() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [stepUpVerifying, setStepUpVerifying] = useState(false);
   const [currentEmail, setCurrentEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [confirmEmail, setConfirmEmail] = useState("");
+  const [stepUpCode, setStepUpCode] = useState("");
+  const [stepUpSnapshot, setStepUpSnapshot] =
+    useState<SensitiveActionStepUpSnapshot | null>(null);
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
+
+  async function refreshStepUpSnapshot() {
+    const loaded = await loadSensitiveActionStepUpSnapshot(supabase);
+    if (loaded.ok === false) {
+      router.push("/login");
+      return null;
+    }
+
+    setStepUpSnapshot(loaded.snapshot);
+    return loaded.snapshot;
+  }
 
   useEffect(() => {
     async function loadCurrentEmail() {
@@ -861,16 +882,55 @@ function ChangeEmailSection() {
       }
 
       setCurrentEmail(user.email ?? "");
+      await refreshStepUpSnapshot();
       setLoading(false);
     }
 
     void loadCurrentEmail();
   }, [router]);
 
+  const stepUpRequired = Boolean(stepUpSnapshot?.stepUpRequired);
+  const atAal2 = Boolean(
+    stepUpSnapshot?.assurance && isMfaChallengeComplete(stepUpSnapshot.assurance)
+  );
+  const canSubmitEmailChange = !stepUpRequired || atAal2;
+
+  async function handleStepUp() {
+    if (stepUpVerifying || saving || success) {
+      return;
+    }
+
+    setMessage("");
+    setStepUpVerifying(true);
+
+    const result = await stepUpTotpForSensitiveAction(supabase, stepUpCode);
+
+    setStepUpVerifying(false);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setStepUpCode("");
+    await refreshStepUpSnapshot();
+    setMessage("");
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (saving || success) {
+    if (saving || success || stepUpVerifying) {
+      return;
+    }
+
+    if (!canSubmitEmailChange) {
+      setMessage("Verify your authenticator app before changing your email.");
       return;
     }
 
@@ -889,6 +949,10 @@ function ChangeEmailSection() {
       if (result.code === "not_authenticated") {
         router.push("/login");
         return;
+      }
+
+      if (result.code === "insufficient_aal") {
+        await refreshStepUpSnapshot();
       }
 
       setMessage(result.message);
@@ -919,6 +983,17 @@ function ChangeEmailSection() {
         <AccountCenterLoading text="Checking your sign-in session..." />
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+          {stepUpRequired && !atAal2 ? (
+            <SensitiveActionMfaStepUp
+              title="Verify before changing email"
+              description="Enter the current code from your authenticator app before HTBF can start your email change."
+              stepUpCode={stepUpCode}
+              onStepUpCodeChange={setStepUpCode}
+              onVerify={() => void handleStepUp()}
+              verifying={stepUpVerifying}
+            />
+          ) : null}
+
           <label className="block">
             <div className="mb-2 text-sm font-black text-[#062a57]">
               Current sign-in email
@@ -979,7 +1054,7 @@ function ChangeEmailSection() {
 
           <button
             type="submit"
-            disabled={saving || success}
+            disabled={saving || success || stepUpVerifying || !canSubmitEmailChange}
             className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? "Sending verification..." : "Update Email"}
@@ -995,10 +1070,25 @@ function ChangePasswordSection() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [stepUpVerifying, setStepUpVerifying] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [stepUpCode, setStepUpCode] = useState("");
+  const [stepUpSnapshot, setStepUpSnapshot] =
+    useState<SensitiveActionStepUpSnapshot | null>(null);
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
+
+  async function refreshStepUpSnapshot() {
+    const loaded = await loadSensitiveActionStepUpSnapshot(supabase);
+    if (loaded.ok === false) {
+      router.push("/login");
+      return null;
+    }
+
+    setStepUpSnapshot(loaded.snapshot);
+    return loaded.snapshot;
+  }
 
   useEffect(() => {
     async function checkAuth() {
@@ -1011,16 +1101,55 @@ function ChangePasswordSection() {
         return;
       }
 
+      await refreshStepUpSnapshot();
       setLoading(false);
     }
 
     void checkAuth();
   }, [router]);
 
+  const stepUpRequired = Boolean(stepUpSnapshot?.stepUpRequired);
+  const atAal2 = Boolean(
+    stepUpSnapshot?.assurance && isMfaChallengeComplete(stepUpSnapshot.assurance)
+  );
+  const canSubmitPasswordChange = !stepUpRequired || atAal2;
+
+  async function handleStepUp() {
+    if (stepUpVerifying || saving || success) {
+      return;
+    }
+
+    setMessage("");
+    setStepUpVerifying(true);
+
+    const result = await stepUpTotpForSensitiveAction(supabase, stepUpCode);
+
+    setStepUpVerifying(false);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setStepUpCode("");
+    await refreshStepUpSnapshot();
+    setMessage("");
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (saving || success) {
+    if (saving || success || stepUpVerifying) {
+      return;
+    }
+
+    if (!canSubmitPasswordChange) {
+      setMessage("Verify your authenticator app before changing your password.");
       return;
     }
 
@@ -1038,6 +1167,10 @@ function ChangePasswordSection() {
       if (result.code === "not_authenticated") {
         router.push("/login");
         return;
+      }
+
+      if (result.code === "insufficient_aal") {
+        await refreshStepUpSnapshot();
       }
 
       setMessage(result.message);
@@ -1062,6 +1195,17 @@ function ChangePasswordSection() {
       ) : (
         <>
           <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+            {stepUpRequired && !atAal2 ? (
+              <SensitiveActionMfaStepUp
+                title="Verify before changing password"
+                description="Enter the current code from your authenticator app before HTBF can update your password."
+                stepUpCode={stepUpCode}
+                onStepUpCodeChange={setStepUpCode}
+                onVerify={() => void handleStepUp()}
+                verifying={stepUpVerifying}
+              />
+            ) : null}
+
             <label className="block">
               <div className="mb-2 text-sm font-black text-[#062a57]">
                 New password
@@ -1110,7 +1254,9 @@ function ChangePasswordSection() {
 
             <button
               type="submit"
-              disabled={saving || success}
+              disabled={
+                saving || success || stepUpVerifying || !canSubmitPasswordChange
+              }
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "Updating..." : "Update Password"}

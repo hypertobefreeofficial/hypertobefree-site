@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertAal2ForSensitiveAction } from "../auth/mfaStepUp";
 
 export const HTBF_PASSWORD_MIN_LENGTH = 8;
 
@@ -9,7 +10,9 @@ export type PasswordChangeValidationResult =
 export type PasswordUpdateFailureCode =
   | "not_authenticated"
   | "validation_error"
-  | "auth_error";
+  | "auth_error"
+  | "insufficient_aal"
+  | "factor_not_found";
 
 export type PasswordUpdateResult =
   | { ok: true }
@@ -41,6 +44,19 @@ export function validatePasswordChangeInput(
   return { ok: true, password };
 }
 
+function readAuthErrorCode(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code.toLowerCase();
+  }
+
+  return "";
+}
+
 export function formatPasswordUpdateError(error: unknown): string {
   const message =
     error &&
@@ -49,6 +65,7 @@ export function formatPasswordUpdateError(error: unknown): string {
     typeof error.message === "string"
       ? error.message.toLowerCase()
       : "";
+  const code = readAuthErrorCode(error);
 
   if (
     message.includes("session") ||
@@ -56,6 +73,10 @@ export function formatPasswordUpdateError(error: unknown): string {
     message.includes("not authenticated")
   ) {
     return "Your session expired. Please sign in again before changing your password.";
+  }
+
+  if (code.includes("insufficient_aal")) {
+    return "Verify your authenticator app before changing your password.";
   }
 
   return "Could not update your password right now. Please try again.";
@@ -93,15 +114,25 @@ export async function updateAuthenticatedUserPassword(
     };
   }
 
+  const aalGate = await assertAal2ForSensitiveAction(client);
+  if (aalGate.ok === false) {
+    return aalGate;
+  }
+
   const { error } = await client.auth.updateUser({
     password: validation.password,
   });
 
   if (error) {
+    const formatted = formatPasswordUpdateError(error);
+    const code = readAuthErrorCode(error).includes("insufficient_aal")
+      ? "insufficient_aal"
+      : "auth_error";
+
     return {
       ok: false,
-      code: "auth_error",
-      message: formatPasswordUpdateError(error),
+      code,
+      message: formatted,
     };
   }
 

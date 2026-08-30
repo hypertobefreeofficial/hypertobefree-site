@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertAal2ForSensitiveAction } from "../auth/mfaStepUp";
 
 export const HTBF_MAX_EMAIL_LENGTH = 254;
 
@@ -11,7 +12,9 @@ export type EmailChangeValidationResult =
 export type EmailChangeFailureCode =
   | "not_authenticated"
   | "validation_error"
-  | "auth_error";
+  | "auth_error"
+  | "insufficient_aal"
+  | "factor_not_found";
 
 export type EmailChangeSuccess = {
   ok: true;
@@ -78,6 +81,19 @@ export function validateEmailChangeInput(input: {
   return { ok: true, email: newEmail };
 }
 
+function readAuthErrorCode(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code.toLowerCase();
+  }
+
+  return "";
+}
+
 export function formatEmailUpdateError(error: unknown): string {
   const message =
     error &&
@@ -86,6 +102,7 @@ export function formatEmailUpdateError(error: unknown): string {
     typeof error.message === "string"
       ? error.message.toLowerCase()
       : "";
+  const code = readAuthErrorCode(error);
 
   if (
     message.includes("session") ||
@@ -93,6 +110,10 @@ export function formatEmailUpdateError(error: unknown): string {
     message.includes("not authenticated")
   ) {
     return "Your session expired. Please sign in again before changing your email.";
+  }
+
+  if (code.includes("insufficient_aal")) {
+    return "Verify your authenticator app before changing your email.";
   }
 
   if (
@@ -171,16 +192,26 @@ export async function requestAuthenticatedEmailChange(
     };
   }
 
+  const aalGate = await assertAal2ForSensitiveAction(client);
+  if (aalGate.ok === false) {
+    return aalGate;
+  }
+
   const { data, error } = await client.auth.updateUser(
     { email: validation.email },
     input.emailRedirectTo ? { emailRedirectTo: input.emailRedirectTo } : {}
   );
 
   if (error) {
+    const formatted = formatEmailUpdateError(error);
+    const code = readAuthErrorCode(error).includes("insufficient_aal")
+      ? "insufficient_aal"
+      : "auth_error";
+
     return {
       ok: false,
-      code: "auth_error",
-      message: formatEmailUpdateError(error),
+      code,
+      message: formatted,
     };
   }
 

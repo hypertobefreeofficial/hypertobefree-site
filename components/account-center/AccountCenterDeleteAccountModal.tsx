@@ -6,11 +6,19 @@ import {
   submitAccountDeletionRequest,
   type AccountDeletionRequest,
 } from "../../lib/accountCenter/accountDeletionRequest";
+import { isMfaChallengeComplete } from "../../lib/auth/mfaChallenge";
+import {
+  loadSensitiveActionStepUpSnapshot,
+  stepUpTotpForSensitiveAction,
+  type SensitiveActionStepUpSnapshot,
+} from "../../lib/auth/mfaStepUp";
+import SensitiveActionMfaStepUp from "./SensitiveActionMfaStepUp";
 import { supabase } from "../../lib/supabaseClient";
 
 type ModalView =
   | "loading"
   | "confirm"
+  | "mfa_step_up"
   | "submitting"
   | "success"
   | "already_requested"
@@ -48,10 +56,25 @@ export default function AccountCenterDeleteAccountModal({
   const [message, setMessage] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [stepUpCode, setStepUpCode] = useState("");
+  const [stepUpVerifying, setStepUpVerifying] = useState(false);
+  const [stepUpSnapshot, setStepUpSnapshot] =
+    useState<SensitiveActionStepUpSnapshot | null>(null);
   const [activeRequest, setActiveRequest] =
     useState<AccountDeletionRequest | null>(null);
   const [submittedRequest, setSubmittedRequest] =
     useState<AccountDeletionRequest | null>(null);
+
+  async function refreshStepUpSnapshot() {
+    const loaded = await loadSensitiveActionStepUpSnapshot(supabase);
+    if (loaded.ok === false) {
+      setStepUpSnapshot(null);
+      return null;
+    }
+
+    setStepUpSnapshot(loaded.snapshot);
+    return loaded.snapshot;
+  }
 
   useEffect(() => {
     if (!open) {
@@ -64,6 +87,7 @@ export default function AccountCenterDeleteAccountModal({
       setView("loading");
       setMessage("");
       setReason("");
+      setStepUpCode("");
       setSubmittedRequest(null);
 
       const {
@@ -106,6 +130,7 @@ export default function AccountCenterDeleteAccountModal({
       }
 
       setActiveRequest(null);
+      await refreshStepUpSnapshot();
       setView("confirm");
     }
 
@@ -116,7 +141,12 @@ export default function AccountCenterDeleteAccountModal({
     };
   }, [open]);
 
-  async function handleSubmitRequest() {
+  const stepUpRequired = Boolean(stepUpSnapshot?.stepUpRequired);
+  const atAal2 = Boolean(
+    stepUpSnapshot?.assurance && isMfaChallengeComplete(stepUpSnapshot.assurance)
+  );
+
+  async function submitDeletionRequest() {
     if (!userId || view === "submitting") {
       return;
     }
@@ -140,6 +170,13 @@ export default function AccountCenterDeleteAccountModal({
         return;
       }
 
+      if (result.code === "insufficient_aal") {
+        await refreshStepUpSnapshot();
+        setView("mfa_step_up");
+        setMessage(result.message);
+        return;
+      }
+
       setMessage(result.message);
       setView("error");
       return;
@@ -148,6 +185,47 @@ export default function AccountCenterDeleteAccountModal({
     setSubmittedRequest(result.request);
     setActiveRequest(result.request);
     setView("success");
+  }
+
+  async function handleSubmitRequest() {
+    if (!userId || view === "submitting" || stepUpVerifying) {
+      return;
+    }
+
+    if (stepUpRequired && !atAal2) {
+      setMessage("");
+      setView("mfa_step_up");
+      return;
+    }
+
+    await submitDeletionRequest();
+  }
+
+  async function handleMfaStepUp() {
+    if (stepUpVerifying || view === "submitting") {
+      return;
+    }
+
+    setMessage("");
+    setStepUpVerifying(true);
+
+    const result = await stepUpTotpForSensitiveAction(supabase, stepUpCode);
+
+    setStepUpVerifying(false);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        setView("unauthenticated");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setStepUpCode("");
+    await refreshStepUpSnapshot();
+    await submitDeletionRequest();
   }
 
   if (!open) {
@@ -232,6 +310,39 @@ export default function AccountCenterDeleteAccountModal({
                 Submit Request
               </button>
             </div>
+          </>
+        )}
+
+        {view === "mfa_step_up" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Verify before submitting
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              This account uses two-factor authentication. Verify your
+              authenticator app before HTBF can submit your deletion request.
+            </p>
+
+            <div className="mt-5">
+              <SensitiveActionMfaStepUp
+                stepUpCode={stepUpCode}
+                onStepUpCodeChange={setStepUpCode}
+                onVerify={() => void handleMfaStepUp()}
+                verifying={stepUpVerifying}
+                verifyLabel="Verify and submit request"
+                onCancel={() => {
+                  setStepUpCode("");
+                  setMessage("");
+                  setView("confirm");
+                }}
+              />
+            </div>
+
+            {message ? (
+              <p className="mt-4 text-sm font-semibold leading-6 text-red-700">
+                {message}
+              </p>
+            ) : null}
           </>
         )}
 

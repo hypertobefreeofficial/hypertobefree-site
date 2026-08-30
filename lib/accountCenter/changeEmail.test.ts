@@ -14,12 +14,46 @@ import {
 const mockGetUser = vi.fn();
 const mockUpdateUser = vi.fn();
 const mockFrom = vi.fn();
+const mockGetAal = vi.fn();
+const mockListFactors = vi.fn();
+
+function mockNonMfaAssurance() {
+  mockGetAal.mockResolvedValue({
+    data: { currentLevel: "aal1", nextLevel: "aal1" },
+    error: null,
+  });
+  mockListFactors.mockResolvedValue({ data: { totp: [] }, error: null });
+}
+
+function mockMfaAal1Assurance() {
+  mockGetAal.mockResolvedValue({
+    data: { currentLevel: "aal1", nextLevel: "aal2" },
+    error: null,
+  });
+  mockListFactors.mockResolvedValue({
+    data: {
+      totp: [
+        {
+          id: "factor-1",
+          factor_type: "totp",
+          status: "verified",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    },
+    error: null,
+  });
+}
 
 function createClient() {
   return {
     auth: {
       getUser: mockGetUser,
       updateUser: mockUpdateUser,
+      mfa: {
+        getAuthenticatorAssuranceLevel: mockGetAal,
+        listFactors: mockListFactors,
+      },
     },
     from: mockFrom,
   } as never;
@@ -204,6 +238,7 @@ describe("resolveEmailChangeOutcome", () => {
 describe("requestAuthenticatedEmailChange", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNonMfaAssurance();
   });
 
   it("rejects logged-out users before touching Supabase Auth", async () => {
@@ -332,6 +367,61 @@ describe("requestAuthenticatedEmailChange", () => {
       expect(JSON.stringify(result)).not.toContain("service_role");
     }
   });
+
+  it("allows MFA users already at AAL2 to start email change", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-1", email: "owner@example.com" } },
+    });
+    mockGetAal.mockResolvedValue({
+      data: { currentLevel: "aal2", nextLevel: "aal2" },
+      error: null,
+    });
+    mockListFactors.mockResolvedValue({
+      data: {
+        totp: [
+          {
+            id: "factor-1",
+            factor_type: "totp",
+            status: "verified",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      },
+      error: null,
+    });
+    mockUpdateUser.mockResolvedValue({
+      data: {
+        user: { email: "owner@example.com", new_email: "new@example.com" },
+      },
+      error: null,
+    });
+
+    const result = await requestAuthenticatedEmailChange(createClient(), {
+      newEmail: "new@example.com",
+      confirmEmail: "new@example.com",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockUpdateUser).toHaveBeenCalledWith({ email: "new@example.com" }, {});
+  });
+
+  it("blocks MFA users at AAL1 before calling updateUser", async () => {
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-1", email: "owner@example.com" } },
+    });
+    mockMfaAal1Assurance();
+
+    const result = await requestAuthenticatedEmailChange(createClient(), {
+      newEmail: "new@example.com",
+      confirmEmail: "new@example.com",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("insufficient_aal");
+    }
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+  });
 });
 
 describe("change email page wiring", () => {
@@ -348,11 +438,11 @@ describe("change email page wiring", () => {
     expect(sectionPage).toContain("<ChangeEmailSection />");
   });
 
-  it("blocks duplicate submissions while saving", () => {
+  it("blocks duplicate submissions while saving or verifying MFA", () => {
     const source = changeEmailSectionSource();
 
-    expect(source).toContain("if (saving || success)");
-    expect(source).toContain("disabled={saving || success}");
+    expect(source).toContain("if (saving || success || stepUpVerifying)");
+    expect(source).toContain("disabled={saving || success || stepUpVerifying");
   });
 
   it("shows dual-confirmation verification messaging instead of claiming immediate change", () => {

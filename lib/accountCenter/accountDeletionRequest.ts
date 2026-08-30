@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertAal2ForSensitiveAction } from "../auth/mfaStepUp";
 
 export type AccountDeletionRequest = {
   id: string;
@@ -23,7 +24,10 @@ export type AccountDeletionSubmissionFailureCode =
   | "not_authenticated"
   | "user_mismatch"
   | "already_requested"
-  | "database_error";
+  | "database_error"
+  | "insufficient_aal"
+  | "factor_not_found"
+  | "auth_error";
 
 export type AccountDeletionSubmissionResult =
   | { ok: true; request: AccountDeletionRequest }
@@ -163,6 +167,24 @@ export async function submitAccountDeletionRequest(
 
   if (validation.ok === false) {
     return validation;
+  }
+
+  const aalGate = await assertAal2ForSensitiveAction(client);
+  if (aalGate.ok === false) {
+    const code: AccountDeletionSubmissionFailureCode =
+      aalGate.code === "not_authenticated"
+        ? "not_authenticated"
+        : aalGate.code === "insufficient_aal"
+          ? "insufficient_aal"
+          : aalGate.code === "factor_not_found"
+            ? "factor_not_found"
+            : "auth_error";
+
+    return {
+      ok: false,
+      code,
+      message: aalGate.message,
+    };
   }
 
   const { data, error } = await client
