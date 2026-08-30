@@ -23,6 +23,8 @@ export const PRAYER_RATE_LIMITS = {
   moderateStory: { limit: 30, windowMs: 60 * 60 * 1000 },
   /** IP fallback when identity cannot be resolved (should not happen on auth routes). */
   moderateStoryIp: { limit: 60, windowMs: 60 * 60 * 1000 },
+  /** Admin-only account deletion dry-run preview — per authenticated admin. */
+  accountDeletionDryRun: { limit: 30, windowMs: 60 * 1000 },
 } as const satisfies Record<string, PrayerRateLimitConfig>;
 
 export type MultiWindowRateLimitConfig = {

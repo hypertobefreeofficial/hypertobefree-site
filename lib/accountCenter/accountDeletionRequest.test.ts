@@ -4,11 +4,13 @@ import {
   ACTIVE_ACCOUNT_DELETION_STATUSES,
   ACCOUNT_DELETION_SUBMITTED_STATUS,
   buildAccountDeletionInsertRow,
-  fetchActiveAccountDeletionRequest,
+  cancelAccountDeletionRequest,
+  fetchOpenAccountDeletionRequest,
   formatAccountDeletionDatabaseError,
   submitAccountDeletionRequest,
   validateAccountDeletionSubmission,
 } from "./accountDeletionRequest";
+import { ACCOUNT_DELETION_STATUS } from "./accountDeletionLifecycle";
 
 const sampleRequest = {
   id: "req-1",
@@ -17,6 +19,11 @@ const sampleRequest = {
   reason: "Leaving HTBF",
   status: "submitted",
   created_at: "2026-06-07T09:47:07.000Z",
+  cancelled_at: null,
+  approved_at: null,
+  rejected_at: null,
+  target_user_id_snapshot: "user-1",
+  target_username_snapshot: null,
 };
 
 function createMockClient(options?: {
@@ -86,6 +93,7 @@ describe("buildAccountDeletionInsertRow", () => {
       buildAccountDeletionInsertRow({
         userId: "user-1",
         email: " owner@example.com ",
+        username: " targetuser ",
         reason: "  ",
       })
     ).toEqual({
@@ -93,6 +101,8 @@ describe("buildAccountDeletionInsertRow", () => {
       email: "owner@example.com",
       reason: null,
       status: ACCOUNT_DELETION_SUBMITTED_STATUS,
+      target_user_id_snapshot: "user-1",
+      target_username_snapshot: "targetuser",
     });
   });
 });
@@ -103,7 +113,7 @@ describe("validateAccountDeletionSubmission", () => {
       validateAccountDeletionSubmission({
         authenticatedUserId: null,
         requestedUserId: "user-1",
-        activeRequest: null,
+        openRequest: null,
       })
     ).toEqual({
       ok: false,
@@ -117,7 +127,7 @@ describe("validateAccountDeletionSubmission", () => {
       validateAccountDeletionSubmission({
         authenticatedUserId: "user-1",
         requestedUserId: "user-2",
-        activeRequest: null,
+        openRequest: null,
       })
     ).toEqual({
       ok: false,
@@ -131,7 +141,7 @@ describe("validateAccountDeletionSubmission", () => {
       validateAccountDeletionSubmission({
         authenticatedUserId: "user-1",
         requestedUserId: "user-1",
-        activeRequest: sampleRequest,
+        openRequest: sampleRequest,
       })
     ).toEqual({
       ok: false,
@@ -141,11 +151,11 @@ describe("validateAccountDeletionSubmission", () => {
   });
 });
 
-describe("fetchActiveAccountDeletionRequest", () => {
-  it("queries active submitted/reviewing requests for the authenticated user", async () => {
+describe("fetchOpenAccountDeletionRequest", () => {
+  it("queries open lifecycle requests for the authenticated user", async () => {
     const { client, spies } = createMockClient({ activeRequest: sampleRequest });
 
-    const result = await fetchActiveAccountDeletionRequest(client, "user-1");
+    const result = await fetchOpenAccountDeletionRequest(client, "user-1");
 
     expect(result.request).toEqual(sampleRequest);
     expect(spies.from).toHaveBeenCalledWith("account_deletion_requests");
@@ -170,7 +180,7 @@ describe("submitAccountDeletionRequest", () => {
         email: "owner@example.com",
         reason: "No longer using HTBF",
       },
-      activeRequest: null,
+      openRequest: null,
     });
 
     expect(result).toEqual({ ok: true, request: sampleRequest });
@@ -179,6 +189,8 @@ describe("submitAccountDeletionRequest", () => {
       email: "owner@example.com",
       reason: "No longer using HTBF",
       status: "submitted",
+      target_user_id_snapshot: "user-1",
+      target_username_snapshot: null,
     });
   });
 
@@ -191,7 +203,7 @@ describe("submitAccountDeletionRequest", () => {
         userId: "user-2",
         email: "other@example.com",
       },
-      activeRequest: null,
+      openRequest: null,
     });
 
     expect(result.ok).toBe(false);
@@ -212,7 +224,7 @@ describe("submitAccountDeletionRequest", () => {
         userId: "user-1",
         email: "owner@example.com",
       },
-      activeRequest: null,
+      openRequest: null,
     });
 
     expect(result).toEqual({
@@ -232,7 +244,7 @@ describe("submitAccountDeletionRequest", () => {
         userId: "user-1",
         email: "owner@example.com",
       },
-      activeRequest: sampleRequest,
+      openRequest: sampleRequest,
     });
 
     expect(result.ok).toBe(false);
@@ -251,7 +263,7 @@ describe("submitAccountDeletionRequest", () => {
         userId: "user-1",
         email: "owner@example.com",
       },
-      activeRequest: null,
+      openRequest: null,
     });
 
     expect(spies.from).toHaveBeenCalledTimes(1);
@@ -284,7 +296,7 @@ describe("submitAccountDeletionRequest", () => {
         userId: "user-1",
         email: "owner@example.com",
       },
-      activeRequest: null,
+      openRequest: null,
     });
 
     expect(result.ok).toBe(false);
@@ -320,7 +332,7 @@ describe("submitAccountDeletionRequest", () => {
         userId: "user-1",
         email: "owner@example.com",
       },
-      activeRequest: null,
+      openRequest: null,
     });
 
     expect(result.ok).toBe(true);
@@ -328,10 +340,57 @@ describe("submitAccountDeletionRequest", () => {
   });
 });
 
+describe("cancelAccountDeletionRequest", () => {
+  it("allows users to cancel submitted requests", async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: {
+        ...sampleRequest,
+        status: ACCOUNT_DELETION_STATUS.CANCELLED,
+        cancelled_at: "2026-06-08T09:47:07.000Z",
+      },
+      error: null,
+    });
+    const eq = vi.fn(() => ({ select: vi.fn(() => ({ single })) }));
+    const update = vi.fn(() => ({ eq }));
+    const from = vi.fn(() => ({ update }));
+
+    const result = await cancelAccountDeletionRequest(
+      { from } as never,
+      {
+        authenticatedUserId: "user-1",
+        request: sampleRequest,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.request.status).toBe(ACCOUNT_DELETION_STATUS.CANCELLED);
+  });
+
+  it("rejects cancellation after approval", async () => {
+    const result = await cancelAccountDeletionRequest(
+      { from: vi.fn() } as never,
+      {
+        authenticatedUserId: "user-1",
+        request: {
+          ...sampleRequest,
+          status: ACCOUNT_DELETION_STATUS.APPROVED,
+        },
+      }
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("invalid_transition");
+  });
+});
+
 describe("admin workflow contract", () => {
-  it("uses the same submitted status consumed by admin review", () => {
+  it("uses the lifecycle statuses consumed by admin review", () => {
     expect(ACCOUNT_DELETION_SUBMITTED_STATUS).toBe("submitted");
-    expect(ACTIVE_ACCOUNT_DELETION_STATUSES).toEqual(["submitted", "reviewing"]);
+    expect(ACTIVE_ACCOUNT_DELETION_STATUSES).toContain("submitted");
+    expect(ACTIVE_ACCOUNT_DELETION_STATUSES).toContain("reviewing");
+    expect(ACTIVE_ACCOUNT_DELETION_STATUSES).toContain("approved");
   });
 });
 
@@ -348,6 +407,7 @@ describe("Account Center delete action contract", () => {
     const profilePageSource = readFileSync("app/profile/page.tsx", "utf8");
 
     expect(modalSource).toContain("Submit Request");
+    expect(modalSource).toContain("Cancel Request");
     expect(modalSource).toContain("SensitiveActionMfaStepUp");
     expect(modalSource).not.toContain("mailto:support@hypertobefree.com");
     expect(sectionPageSource).not.toContain(
@@ -356,5 +416,12 @@ describe("Account Center delete action contract", () => {
     expect(profilePageSource).not.toContain(
       "mailto:support@hypertobefree.com?subject=Delete%20my%20HTBF%20account"
     );
+
+    const adminPageSource = readFileSync("app/admin/page.tsx", "utf8");
+    expect(adminPageSource).toContain("Approve for Deletion");
+    expect(adminPageSource).toContain("Approved — not yet deleted");
+    expect(adminPageSource).not.toContain("Mark Completed");
+    expect(adminPageSource).not.toContain("auth.admin.deleteUser");
+    expect(adminPageSource).not.toContain("completeDeletionRequest");
   });
 });

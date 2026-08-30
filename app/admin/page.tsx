@@ -40,6 +40,18 @@ import {
   createLoadTraceId,
   measureLoad,
 } from "../../lib/perf/loadDiagnostics";
+import {
+  approveAccountDeletionRequest,
+  markAccountDeletionReviewing,
+  rejectAccountDeletionRequest,
+  type AccountDeletionAdminRequest,
+} from "../../lib/accountCenter/accountDeletionAdminActions";
+import {
+  ACCOUNT_DELETION_OPEN_STATUSES,
+  ACCOUNT_DELETION_STATUS,
+  getAccountDeletionStatusAdminLabel,
+  normalizeLegacyDeletionStatus,
+} from "../../lib/accountCenter/accountDeletionLifecycle";
 
 const storyFilters: { label: string; value: StoryFilter }[] = [
   { label: "All", value: "all" },
@@ -99,18 +111,6 @@ type ContentReport = {
   story?: Story | null;
 };
 
-type AccountDeletionRequest = {
-  id: string;
-  user_id: string;
-  email: string | null;
-  reason: string | null;
-  status: string | null;
-  admin_notes: string | null;
-  reviewed_at: string | null;
-  reviewed_by: string | null;
-  created_at: string | null;
-};
-
 type PrayerVideoResponseStatus = "approved" | "rejected" | "removed";
 
 type PrayerVideoResponse = {
@@ -153,7 +153,7 @@ export default function AdminPage() {
   const [stories, setStories] = useState<Story[]>([]);
   const [reports, setReports] = useState<ContentReport[]>([]);
   const [deletionRequests, setDeletionRequests] = useState<
-    AccountDeletionRequest[]
+    AccountDeletionAdminRequest[]
   >([]);
   const [prayerVideoResponses, setPrayerVideoResponses] = useState<
     PrayerVideoResponse[]
@@ -540,7 +540,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("account_deletion_requests")
       .select(
-        "id, user_id, email, reason, status, admin_notes, reviewed_at, reviewed_by, created_at"
+        "id, user_id, email, reason, status, admin_notes, reviewed_at, reviewed_by, approved_at, approved_by, rejected_at, created_at"
       )
       .order("created_at", { ascending: false });
 
@@ -549,7 +549,7 @@ export default function AdminPage() {
       return;
     }
 
-    setDeletionRequests((data as AccountDeletionRequest[]) ?? []);
+    setDeletionRequests((data as AccountDeletionAdminRequest[]) ?? []);
   }
 
   function openVideoReviewPage(storyId: string | null | undefined) {
@@ -1032,81 +1032,156 @@ export default function AdminPage() {
     setMessage("Reported content removed and report marked as action taken.");
   }
 
-  async function markDeletionReviewing(requestId: string) {
+  async function markDeletionReviewing(request: AccountDeletionAdminRequest) {
     setMessage("");
 
-    const { error } = await supabase
-      .from("account_deletion_requests")
-      .update({
-        status: "reviewing",
-        reviewed_by: null,
-        admin_notes: "Account deletion request marked as reviewing by admin.",
-      })
-      .eq("id", requestId);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setMessage("Please sign in as an admin.");
+      return;
+    }
 
-    if (error) {
-      setMessage(`Could not mark deletion request as reviewing: ${error.message}`);
+    const result = await markAccountDeletionReviewing(supabase, request);
+
+    if (result.ok === false) {
+      setMessage(result.message);
       return;
     }
 
     setDeletionRequests((currentRequests) =>
-      currentRequests.map((request) =>
-        request.id === requestId
-          ? {
-              ...request,
-              status: "reviewing",
-              admin_notes:
-                request.admin_notes ||
-                "Account deletion request marked as reviewing by admin.",
-            }
-          : request
+      currentRequests.map((item) =>
+        item.id === request.id ? result.request : item
       )
     );
 
     setMessage("Account deletion request marked as reviewing.");
   }
 
-  async function completeDeletionRequest(requestId: string) {
+  async function approveDeletionRequest(request: AccountDeletionAdminRequest) {
     setMessage("");
 
-    const confirmed = window.confirm(
-      "Mark this account deletion request as completed? This only closes the request. It does not delete the user yet."
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setMessage("Please sign in as an admin.");
+      return;
+    }
+
+    if (request.user_id) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_owner, is_admin")
+        .eq("id", request.user_id)
+        .maybeSingle();
+
+      if (profile?.is_admin) {
+        const confirmed = window.confirm(
+          "This target account is marked admin. Approve for deletion anyway? Permanent deletion has not run yet."
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+
+    const result = await approveAccountDeletionRequest(
+      supabase,
+      request,
+      user.id
     );
 
-    if (!confirmed) return;
-
-    const { error } = await supabase
-      .from("account_deletion_requests")
-      .update({
-        status: "completed",
-        reviewed_at: new Date().toISOString(),
-        admin_notes:
-          "Account deletion request marked completed by admin. Actual account deletion must be handled separately.",
-      })
-      .eq("id", requestId);
-
-    if (error) {
-      setMessage(`Could not complete deletion request: ${error.message}`);
+    if (result.ok === false) {
+      setMessage(result.message);
       return;
     }
 
     setDeletionRequests((currentRequests) =>
-      currentRequests.map((request) =>
-        request.id === requestId
-          ? {
-              ...request,
-              status: "completed",
-              reviewed_at: new Date().toISOString(),
-              admin_notes:
-                "Account deletion request marked completed by admin. Actual account deletion must be handled separately.",
-            }
-          : request
+      currentRequests.map((item) =>
+        item.id === request.id ? result.request : item
       )
     );
 
+    const warningSuffix =
+      result.warnings && result.warnings.length > 0
+        ? ` ${result.warnings.join(" ")}`
+        : "";
+
     setMessage(
-      "Account deletion request marked completed. Account deletion itself has not been automated yet."
+      `Account deletion request approved. The account has not been deleted yet.${warningSuffix}`
     );
+  }
+
+  async function rejectDeletionRequest(request: AccountDeletionAdminRequest) {
+    setMessage("");
+
+    const confirmed = window.confirm(
+      "Reject this account deletion request? The user's account will not be deleted."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setMessage("Please sign in as an admin.");
+      return;
+    }
+
+    const result = await rejectAccountDeletionRequest(
+      supabase,
+      request,
+      user.id
+    );
+
+    if (result.ok === false) {
+      setMessage(result.message);
+      return;
+    }
+
+    setDeletionRequests((currentRequests) =>
+      currentRequests.map((item) =>
+        item.id === request.id ? result.request : item
+      )
+    );
+
+    setMessage("Account deletion request rejected. No deletion was performed.");
+  }
+
+  function deletionStatusLabel(status: string | null) {
+    return getAccountDeletionStatusAdminLabel(status);
+  }
+
+  function deletionStatusStyle(status: string | null) {
+    const normalized = normalizeLegacyDeletionStatus(status);
+
+    if (normalized === ACCOUNT_DELETION_STATUS.APPROVED) {
+      return "bg-emerald-50 text-emerald-700";
+    }
+    if (normalized === ACCOUNT_DELETION_STATUS.REJECTED) {
+      return "bg-red-50 text-red-700";
+    }
+    if (normalized === ACCOUNT_DELETION_STATUS.CANCELLED) {
+      return "bg-slate-100 text-slate-700";
+    }
+    if (normalized === ACCOUNT_DELETION_STATUS.DELETED) {
+      return "bg-slate-900 text-white";
+    }
+    if (normalized === ACCOUNT_DELETION_STATUS.FAILED) {
+      return "bg-amber-50 text-amber-800";
+    }
+    if (normalized === ACCOUNT_DELETION_STATUS.LEGACY_COMPLETED) {
+      return "bg-purple-50 text-purple-700";
+    }
+    if (normalized === ACCOUNT_DELETION_STATUS.REVIEWING) {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    return "bg-orange-50 text-orange-700";
   }
 
   function formatDate(value: string | null) {
@@ -1221,10 +1296,16 @@ export default function AdminPage() {
 
   const activeDeletionRequests = useMemo(
     () =>
-      deletionRequests.filter(
-        (request) =>
-          request.status === "submitted" || request.status === "reviewing"
-      ),
+      deletionRequests.filter((request) => {
+        const normalized = normalizeLegacyDeletionStatus(request.status);
+        if (!normalized) {
+          return false;
+        }
+
+        return ACCOUNT_DELETION_OPEN_STATUSES.includes(
+          normalized as (typeof ACCOUNT_DELETION_OPEN_STATUSES)[number]
+        );
+      }),
     [deletionRequests]
   );
 
@@ -2315,11 +2396,11 @@ export default function AdminPage() {
                           Account Deletion
                         </span>
                         <span
-                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${statusStyle(
+                          className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ${deletionStatusStyle(
                             request.status
                           )}`}
                         >
-                          {statusLabel(request.status)}
+                          {deletionStatusLabel(request.status)}
                         </span>
                       </div>
 
@@ -2357,25 +2438,58 @@ export default function AdminPage() {
                     </div>
                   )}
 
+                  {normalizeLegacyDeletionStatus(request.status) ===
+                    ACCOUNT_DELETION_STATUS.APPROVED && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold leading-6 text-emerald-800">
+                      Approved — not yet deleted. Permanent deletion has not
+                      run for this account.
+                    </div>
+                  )}
+
                   <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => markDeletionReviewing(request.id)}
-                      disabled={request.status === "completed"}
-                      className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <AlertCircle className="h-4 w-4" />
-                      Mark Reviewing
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => completeDeletionRequest(request.id)}
-                      disabled={request.status === "completed"}
-                      className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      Mark Completed
-                    </button>
+                    {normalizeLegacyDeletionStatus(request.status) ===
+                      ACCOUNT_DELETION_STATUS.SUBMITTED && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void markDeletionReviewing(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+                        >
+                          <AlertCircle className="h-4 w-4" />
+                          Mark Reviewing
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void rejectDeletionRequest(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </button>
+                      </>
+                    )}
+
+                    {normalizeLegacyDeletionStatus(request.status) ===
+                      ACCOUNT_DELETION_STATUS.REVIEWING && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void approveDeletionRequest(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Approve for Deletion
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void rejectDeletionRequest(request)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </button>
+                      </>
+                    )}
                   </div>
                 </article>
               ))}

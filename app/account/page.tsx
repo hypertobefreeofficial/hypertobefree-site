@@ -371,7 +371,7 @@ export default function AccountPage() {
         email,
         reason,
       },
-      activeRequest: deletionRequest,
+      openRequest: deletionRequest,
     });
 
     setRequestingDeletion(false);

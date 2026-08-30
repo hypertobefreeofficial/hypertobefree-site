@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import {
-  fetchActiveAccountDeletionRequest,
+  cancelAccountDeletionRequest,
+  fetchOpenAccountDeletionRequest,
+  getAccountDeletionRequestUserStatusLabel,
+  canUserCancelAccountDeletionRequest,
+  isOpenAccountDeletionRequest,
   submitAccountDeletionRequest,
   type AccountDeletionRequest,
 } from "../../lib/accountCenter/accountDeletionRequest";
@@ -21,7 +25,9 @@ type ModalView =
   | "mfa_step_up"
   | "submitting"
   | "success"
-  | "already_requested"
+  | "open_request"
+  | "cancelling"
+  | "cancelled"
   | "error"
   | "unauthenticated";
 
@@ -56,12 +62,14 @@ export default function AccountCenterDeleteAccountModal({
   const [message, setMessage] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
   const [stepUpCode, setStepUpCode] = useState("");
   const [stepUpVerifying, setStepUpVerifying] = useState(false);
   const [stepUpSnapshot, setStepUpSnapshot] =
     useState<SensitiveActionStepUpSnapshot | null>(null);
-  const [activeRequest, setActiveRequest] =
-    useState<AccountDeletionRequest | null>(null);
+  const [openRequest, setOpenRequest] = useState<AccountDeletionRequest | null>(
+    null
+  );
   const [submittedRequest, setSubmittedRequest] =
     useState<AccountDeletionRequest | null>(null);
 
@@ -106,7 +114,19 @@ export default function AccountCenterDeleteAccountModal({
       setUserId(user.id);
       setEmail(user.email ?? null);
 
-      const { request, error } = await fetchActiveAccountDeletionRequest(
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!cancelled) {
+        setUsername(
+          typeof profile?.username === "string" ? profile.username : null
+        );
+      }
+
+      const { request, error } = await fetchOpenAccountDeletionRequest(
         supabase,
         user.id
       );
@@ -123,13 +143,13 @@ export default function AccountCenterDeleteAccountModal({
         return;
       }
 
-      if (request) {
-        setActiveRequest(request);
-        setView("already_requested");
+      if (request && isOpenAccountDeletionRequest(request)) {
+        setOpenRequest(request);
+        setView("open_request");
         return;
       }
 
-      setActiveRequest(null);
+      setOpenRequest(null);
       await refreshStepUpSnapshot();
       setView("confirm");
     }
@@ -145,6 +165,7 @@ export default function AccountCenterDeleteAccountModal({
   const atAal2 = Boolean(
     stepUpSnapshot?.assurance && isMfaChallengeComplete(stepUpSnapshot.assurance)
   );
+  const canCancel = canUserCancelAccountDeletionRequest(openRequest);
 
   async function submitDeletionRequest() {
     if (!userId || view === "submitting") {
@@ -159,14 +180,15 @@ export default function AccountCenterDeleteAccountModal({
       submission: {
         userId,
         email,
+        username,
         reason,
       },
-      activeRequest,
+      openRequest,
     });
 
     if (result.ok === false) {
       if (result.code === "already_requested") {
-        setView("already_requested");
+        setView("open_request");
         return;
       }
 
@@ -183,7 +205,7 @@ export default function AccountCenterDeleteAccountModal({
     }
 
     setSubmittedRequest(result.request);
-    setActiveRequest(result.request);
+    setOpenRequest(result.request);
     setView("success");
   }
 
@@ -199,6 +221,29 @@ export default function AccountCenterDeleteAccountModal({
     }
 
     await submitDeletionRequest();
+  }
+
+  async function handleCancelRequest() {
+    if (!userId || !openRequest || view === "cancelling") {
+      return;
+    }
+
+    setView("cancelling");
+    setMessage("");
+
+    const result = await cancelAccountDeletionRequest(supabase, {
+      authenticatedUserId: userId,
+      request: openRequest,
+    });
+
+    if (result.ok === false) {
+      setMessage(result.message);
+      setView("open_request");
+      return;
+    }
+
+    setOpenRequest(null);
+    setView("cancelled");
   }
 
   async function handleMfaStepUp() {
@@ -231,6 +276,8 @@ export default function AccountCenterDeleteAccountModal({
   if (!open) {
     return null;
   }
+
+  const displayedRequest = submittedRequest ?? openRequest;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -364,8 +411,8 @@ export default function AccountCenterDeleteAccountModal({
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Your account deletion request was submitted on{" "}
-              {formatRequestDate(submittedRequest?.created_at ?? null)}. HTBF
-              admin will review it. Your account has not been deleted yet.
+              {formatRequestDate(displayedRequest?.created_at ?? null)}.{" "}
+              {getAccountDeletionRequestUserStatusLabel(displayedRequest)}
             </p>
             <div className="mt-5">
               <button
@@ -379,21 +426,69 @@ export default function AccountCenterDeleteAccountModal({
           </>
         )}
 
-        {view === "already_requested" && (
+        {(view === "open_request" || view === "cancelling") && (
           <>
             <h2 className="mt-2 text-2xl font-black text-[#062a57]">
-              Request already submitted
+              Deletion request in progress
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Your account deletion request was already submitted on{" "}
-              {formatRequestDate(activeRequest?.created_at ?? null)}. Status:{" "}
-              {activeRequest?.status || "submitted"}. HTBF admin will review it.
+              Your account deletion request was submitted on{" "}
+              {formatRequestDate(displayedRequest?.created_at ?? null)}.{" "}
+              {getAccountDeletionRequestUserStatusLabel(displayedRequest)}
+            </p>
+
+            {canCancel ? (
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCancelRequest()}
+                  disabled={view === "cancelling"}
+                  className="flex-1 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+                >
+                  {view === "cancelling" ? "Cancelling..." : "Cancel Request"}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-5">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {message ? (
+              <p className="mt-4 text-sm font-semibold leading-6 text-red-700">
+                {message}
+              </p>
+            ) : null}
+          </>
+        )}
+
+        {view === "cancelled" && (
+          <>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Request cancelled
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Your account deletion request was cancelled. Your HTBF account
+              remains active.
             </p>
             <div className="mt-5">
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700"
+                className="w-full rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white"
               >
                 Close
               </button>
