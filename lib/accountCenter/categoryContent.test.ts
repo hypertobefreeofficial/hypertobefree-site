@@ -24,7 +24,7 @@ describe("accountCenterCategoryContent badges", () => {
   });
 
   it("keeps Soon badges on unfinished Account & Security items", () => {
-    const unfinishedTitles = ["Two-Factor Authentication", "Active Sessions"];
+    const unfinishedTitles = ["Two-Factor Authentication"];
 
     unfinishedTitles.forEach((title) => {
       const item = getAccountCenterCategoryItem("account-security", title);
@@ -44,6 +44,16 @@ describe("accountCenterCategoryContent badges", () => {
 
   it("does not show a stale Soon badge on Change Email", () => {
     const item = getAccountCenterCategoryItem("account-security", "Change Email");
+
+    expect(item).toBeDefined();
+    expect(item?.badge).toBeUndefined();
+  });
+
+  it("does not show a stale Soon badge on Active Sessions", () => {
+    const item = getAccountCenterCategoryItem(
+      "account-security",
+      "Active Sessions"
+    );
 
     expect(item).toBeDefined();
     expect(item?.badge).toBeUndefined();
@@ -84,6 +94,19 @@ describe("accountCenterCategoryContent badges", () => {
     expect(sectionPageSource).toContain("<ChangePasswordSection />");
     expect(sectionPageSource).toContain('if (section === "change-email")');
     expect(sectionPageSource).toContain("<ChangeEmailSection />");
+    expect(sectionPageSource).toContain('if (section === "active-sessions")');
+    expect(sectionPageSource).toContain("<ActiveSessionsSection />");
+  });
+
+  it("no longer renders a placeholder for active-sessions", () => {
+    const sectionPageSource = readFileSync(
+      "app/profile/[section]/page.tsx",
+      "utf8"
+    );
+
+    expect(sectionPageSource).not.toContain(
+      "Signed-in device and session management will be added here"
+    );
   });
 
   it("no longer renders a placeholder for change-email", () => {

@@ -45,7 +45,6 @@ export const accountCenterCategoryContent: Record<string, CategoryContent> = {
       {
         title: "Active Sessions",
         text: "Review devices signed in to your account.",
-        badge: "Soon",
         href: "/profile/active-sessions",
       },
       {

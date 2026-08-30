@@ -18,6 +18,15 @@ import {
   UserCircle,
 } from "lucide-react";
 import {
+  ACTIVE_SESSIONS_EXPLANATORY_NOTE,
+  ACTIVE_SESSIONS_OTHER_DEVICES_SUCCESS_MESSAGE,
+  resolveCurrentSessionDisplay,
+  signOutCurrentSession,
+  signOutEverywhere,
+  signOutOtherSessions,
+  type CurrentSessionDisplay,
+} from "../../../lib/accountCenter/activeSessions";
+import {
   updateAuthenticatedUserPassword,
   HTBF_PASSWORD_MIN_LENGTH,
 } from "../../../lib/accountCenter/changePassword";
@@ -144,12 +153,6 @@ const placeholderContent: Record<string, PlaceholderContent> = {
     title: "Two-Factor Authentication",
     description:
       "Two-factor authentication setup will live here in a future security pass.",
-  },
-  "active-sessions": {
-    eyebrow: "Account & Security",
-    title: "Active Sessions",
-    description:
-      "Signed-in device and session management will be added here.",
   },
   "download-my-data": {
     eyebrow: "Account & Security",
@@ -323,6 +326,10 @@ export default function ProfileAccountCenterPlaceholderPage() {
 
   if (section === "change-email") {
     return <ChangeEmailSection />;
+  }
+
+  if (section === "active-sessions") {
+    return <ActiveSessionsSection />;
   }
 
   if (section === "notifications") {
@@ -557,6 +564,259 @@ function AccountInfoFieldRow({
         {value}
       </div>
     </div>
+  );
+}
+
+function ActiveSessionsSection() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [sessionDisplay, setSessionDisplay] =
+    useState<CurrentSessionDisplay | null>(null);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [actionInFlight, setActionInFlight] = useState<
+    "local" | "others" | "global" | null
+  >(null);
+  const [confirmEverywhereOpen, setConfirmEverywhereOpen] = useState(false);
+
+  useEffect(() => {
+    async function loadCurrentSession() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      setSessionDisplay(resolveCurrentSessionDisplay(user, session));
+      setLoading(false);
+    }
+
+    void loadCurrentSession();
+  }, [router]);
+
+  async function handleSignOutCurrentDevice() {
+    if (actionInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setActionInFlight("local");
+
+    const result = await signOutCurrentSession(supabase);
+
+    setActionInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    router.push("/login");
+  }
+
+  async function handleSignOutOtherDevices() {
+    if (actionInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setActionInFlight("others");
+
+    const result = await signOutOtherSessions(supabase);
+
+    setActionInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setSuccess(true);
+    setMessage(ACTIVE_SESSIONS_OTHER_DEVICES_SUCCESS_MESSAGE);
+  }
+
+  async function handleSignOutEverywhere() {
+    if (actionInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setActionInFlight("global");
+    setConfirmEverywhereOpen(false);
+
+    const result = await signOutEverywhere(supabase);
+
+    setActionInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    router.push("/login");
+  }
+
+  return (
+    <AccountCenterDataShell
+      icon={<Shield className="h-4 w-4" />}
+      eyebrow="Account & Security"
+      title="Active Sessions"
+      description="Review this browser session and manage HTBF sign-in security without guessing about other devices."
+    >
+      <p className="mt-5 text-sm font-semibold leading-6 text-slate-600">
+        {ACTIVE_SESSIONS_EXPLANATORY_NOTE}
+      </p>
+
+      {loading ? (
+        <AccountCenterLoading text="Loading session security..." />
+      ) : sessionDisplay ? (
+        <div className="mt-6 space-y-6">
+          <div className="rounded-[1.75rem] bg-slate-50 p-5 ring-1 ring-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-[#062a57]">Current Session</h2>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-700 ring-1 ring-emerald-100">
+                This session
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {sessionDisplay.signInEmail ? (
+                <AccountInfoFieldRow
+                  label="Signed-in email"
+                  value={sessionDisplay.signInEmail}
+                />
+              ) : null}
+
+              {sessionDisplay.signInProvider ? (
+                <AccountInfoFieldRow
+                  label="Authentication provider"
+                  value={sessionDisplay.signInProvider}
+                />
+              ) : null}
+
+              {sessionDisplay.sessionExpiresAt ? (
+                <AccountInfoFieldRow
+                  label="Session expiration"
+                  value={sessionDisplay.sessionExpiresAt}
+                />
+              ) : null}
+            </div>
+          </div>
+
+          {message ? (
+            <div
+              className={`rounded-[1.5rem] p-4 text-sm font-bold leading-6 ring-1 ${
+                success
+                  ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                  : "bg-red-50 text-red-700 ring-red-100"
+              }`}
+            >
+              {message}
+            </div>
+          ) : null}
+
+          <div className="space-y-3">
+            <h2 className="text-lg font-black text-[#062a57]">Security Actions</h2>
+
+            <button
+              type="button"
+              onClick={() => void handleSignOutCurrentDevice()}
+              disabled={Boolean(actionInFlight)}
+              className="inline-flex w-full items-center justify-center rounded-full bg-slate-100 px-6 py-3 text-sm font-black text-slate-800 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {actionInFlight === "local"
+                ? "Signing out this device..."
+                : "Sign out on this device"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleSignOutOtherDevices()}
+              disabled={Boolean(actionInFlight)}
+              className="inline-flex w-full items-center justify-center rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {actionInFlight === "others"
+                ? "Signing out other devices..."
+                : "Sign out other devices"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setConfirmEverywhereOpen(true)}
+              disabled={Boolean(actionInFlight)}
+              className="inline-flex w-full items-center justify-center rounded-full bg-red-50 px-6 py-3 text-sm font-black text-red-700 ring-1 ring-red-100 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {actionInFlight === "global"
+                ? "Signing out everywhere..."
+                : "Sign out everywhere"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <AccountCenterEmpty text="No session information is available right now. Try signing in again from the login page." />
+      )}
+
+      {confirmEverywhereOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-lg rounded-[2rem] bg-white p-5 text-slate-900 shadow-2xl">
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-red-700">
+              Session Security
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-[#062a57]">
+              Sign out everywhere?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              This will revoke all HTBF sessions, including this browser. You
+              will need to sign in again on every device. Other devices may
+              keep using an already-issued access token until it expires.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setConfirmEverywhereOpen(false)}
+                disabled={Boolean(actionInFlight)}
+                className="flex-1 rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSignOutEverywhere()}
+                disabled={Boolean(actionInFlight)}
+                className="flex-1 rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Sign out everywhere
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </AccountCenterDataShell>
   );
 }
 
