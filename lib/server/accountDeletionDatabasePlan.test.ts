@@ -6,6 +6,9 @@ import {
   ACCOUNT_DELETION_MODERATION_PII_RETENTION,
   ACCOUNT_DELETION_NON_FK_UUID_FIELD_POLICIES,
   ACCOUNT_DELETION_SCHEMA_PREREQUISITES,
+  ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION,
+  ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE,
+  describeSchemaExecutionReadiness,
   ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY,
   ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY,
   assertDatabaseActionDoesNotEscalate,
@@ -206,7 +209,21 @@ describe("accountDeletionDatabasePolicy", () => {
     );
     expect(blocker?.currentState).toContain("NOT NULL");
     expect(blocker?.satisfied).toBe(false);
+    expect(blocker?.migrationFile).toBe(
+      ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION.relativePath
+    );
     expect(getSchemaExecutionBlockers().join(" ")).toContain("stories.user_id");
+  });
+
+  it("does not enable schemaExecutionReady from local hardening migration design", () => {
+    expect(describeSchemaExecutionReadiness().migrationDesignedLocally).toBe(true);
+    expect(describeSchemaExecutionReadiness().prerequisitesEnvironmentVerified).toBe(
+      false
+    );
+    expect(describeSchemaExecutionReadiness().schemaExecutionReady).toBe(false);
+    expect(ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE).toContain(
+      "target-environment verification"
+    );
   });
 
   it("represents prayer author FK cascades as schema blockers", () => {

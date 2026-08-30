@@ -145,7 +145,7 @@ export async function loadWrittenPrayers(storyId: string) {
   return (data as {
     id: string;
     body: string;
-    author_user_id: string;
+    author_user_id: string | null;
     created_at: string;
     status: string;
   }[]) ?? [];

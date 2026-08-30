@@ -52,6 +52,11 @@ export type AccountDeletionDatabaseTablePolicy = {
   rlsNotes?: readonly string[];
 };
 
+export type AccountDeletionSchemaPrerequisiteVerificationSource =
+  | "baseline_migration"
+  | "hardening_migration_designed"
+  | "target_environment_verified";
+
 export type AccountDeletionSchemaPrerequisite = {
   id: string;
   table: string;
@@ -59,8 +64,29 @@ export type AccountDeletionSchemaPrerequisite = {
   currentState: string;
   requiredState: string;
   reason: string;
+  /**
+   * True only after target-environment schema verification confirms the
+   * hardening migration is applied. Never true from local file existence alone.
+   */
   satisfied: boolean;
+  /** Phase 4C.7B.1E.2A migration file implementing this prerequisite. */
+  migrationFile: string;
+  verificationSource: AccountDeletionSchemaPrerequisiteVerificationSource;
 };
+
+export const ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION = {
+  version: "20260830100000",
+  filename: "20260830100000_account_deletion_schema_hardening_phase4c7b1e2a.sql",
+  relativePath:
+    "supabase/migrations/20260830100000_account_deletion_schema_hardening_phase4c7b1e2a.sql",
+  phase: "4C.7B.1E.2A",
+} as const;
+
+export const ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE =
+  "schemaExecutionReady requires target-environment verification of all prerequisites — designing the hardening migration locally does not enable destructive execution." as const;
+
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_DEFERRAL_NOTE =
+  "story_video_replies.story_id ON DELETE CASCADE is deferred — 1E.1 lifecycle blocks parent story HARD_DELETE for public/tombstone stories and never-published stories with replies." as const;
 
 export type AccountDeletionDirectAuthFkEntry = {
   table: string;
@@ -132,67 +158,87 @@ export const CONTENT_REPORT_DETACH_FIELDS = ["reported_user_id"] as const;
 
 export const CONTENT_REPORT_STORY_DETACH_FIELDS = ["story_id"] as const;
 
+const SCHEMA_HARDENING_MIGRATION_FILE =
+  ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION.relativePath;
+
 export const ACCOUNT_DELETION_SCHEMA_PREREQUISITES: AccountDeletionSchemaPrerequisite[] =
   [
     {
       id: "stories_user_id_nullable",
       table: "stories",
       column: "user_id",
-      currentState: "uuid NOT NULL, no auth.users FK",
-      requiredState: "nullable for approved-story anonymization (user_id → NULL)",
+      currentState: "uuid NOT NULL, no auth.users FK (baseline 20260816183000)",
+      requiredState: "uuid NULLABLE, no auth.users FK",
       reason:
         "Planned public-story anonymization sets user_id NULL; cannot succeed on current schema.",
       satisfied: false,
+      migrationFile: SCHEMA_HARDENING_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
     },
     {
       id: "prayer_video_responses_user_id_set_null",
       table: "prayer_video_responses",
       column: "user_id",
-      currentState: "uuid NOT NULL, ON DELETE CASCADE → auth.users",
-      requiredState: "nullable + ON DELETE SET NULL",
+      currentState:
+        "uuid NOT NULL, prayer_video_responses_user_id_fkey ON DELETE CASCADE → auth.users",
+      requiredState: "uuid NULLABLE, ON DELETE SET NULL → auth.users",
       reason:
         "Auth delete before anonymize cascade-deletes approved public prayer video responses.",
       satisfied: false,
+      migrationFile: SCHEMA_HARDENING_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
     },
     {
       id: "prayer_written_responses_author_set_null",
       table: "prayer_written_responses",
       column: "author_user_id",
-      currentState: "uuid NOT NULL, ON DELETE CASCADE → auth.users",
-      requiredState: "nullable + ON DELETE SET NULL",
+      currentState:
+        "uuid NOT NULL, prayer_written_responses_author_user_id_fkey ON DELETE CASCADE → auth.users",
+      requiredState: "uuid NULLABLE, ON DELETE SET NULL → auth.users",
       reason:
         "Auth delete before anonymize cascade-deletes visible written prayer responses.",
       satisfied: false,
+      migrationFile: SCHEMA_HARDENING_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
     },
     {
       id: "prayer_updates_author_set_null",
       table: "prayer_updates",
       column: "author_user_id",
-      currentState: "uuid NOT NULL, ON DELETE CASCADE → auth.users",
-      requiredState: "nullable + ON DELETE SET NULL",
+      currentState:
+        "uuid NOT NULL, prayer_updates_author_user_id_fkey ON DELETE CASCADE → auth.users",
+      requiredState: "uuid NULLABLE, ON DELETE SET NULL → auth.users",
       reason:
         "Auth delete before anonymize cascade-deletes visible prayer updates and can transitively delete inbox rows.",
       satisfied: false,
+      migrationFile: SCHEMA_HARDENING_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
     },
     {
       id: "inbox_messages_prayer_update_id_set_null",
       table: "inbox_messages",
       column: "prayer_update_id",
-      currentState: "uuid nullable, ON DELETE CASCADE → prayer_updates",
-      requiredState: "ON DELETE SET NULL",
+      currentState:
+        "uuid NULLABLE, inbox_messages_prayer_update_id_fkey ON DELETE CASCADE → prayer_updates",
+      requiredState: "uuid NULLABLE, ON DELETE SET NULL → prayer_updates",
       reason:
         "Deleting/anonymizing prayer updates must not cascade-delete inbox rows belonging to surviving users.",
       satisfied: false,
+      migrationFile: SCHEMA_HARDENING_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
     },
     {
       id: "content_reports_story_id_set_null",
       table: "content_reports",
       column: "story_id",
-      currentState: "uuid nullable, ON DELETE CASCADE → stories",
-      requiredState: "ON DELETE SET NULL",
+      currentState:
+        "uuid NULLABLE, content_reports_story_id_fkey ON DELETE CASCADE → stories",
+      requiredState: "uuid NULLABLE, ON DELETE SET NULL → stories",
       reason:
         "Non-public story HARD_DELETE must not cascade-delete preserved moderation reports.",
       satisfied: false,
+      migrationFile: SCHEMA_HARDENING_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
     },
   ];
 
@@ -1013,6 +1059,28 @@ export function isSchemaExecutionReady(
   });
 }
 
+export function areSchemaPrerequisitesEnvironmentVerified(): boolean {
+  return ACCOUNT_DELETION_SCHEMA_PREREQUISITES.every((entry) => entry.satisfied);
+}
+
+export function describeSchemaExecutionReadiness(): {
+  migrationDesignedLocally: true;
+  migrationFile: string;
+  prerequisiteCount: number;
+  prerequisitesEnvironmentVerified: boolean;
+  schemaExecutionReady: boolean;
+  readinessNote: string;
+} {
+  return {
+    migrationDesignedLocally: true,
+    migrationFile: ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION.relativePath,
+    prerequisiteCount: ACCOUNT_DELETION_SCHEMA_PREREQUISITES.length,
+    prerequisitesEnvironmentVerified: areSchemaPrerequisitesEnvironmentVerified(),
+    schemaExecutionReady: isSchemaExecutionReady(),
+    readinessNote: ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE,
+  };
+}
+
 export function getUnsafeAuthDeleteCascadeBlockers(): readonly string[] {
   const direct = UNSAFE_AUTH_DELETE_CASCADE_TABLES.map(
     (table) =>
@@ -1110,6 +1178,9 @@ export const ACCOUNT_DELETION_DATABASE_INVENTORY_NOTES = [
   "prayer_hidden_stories exists in archive/dev only — not in Production baseline.",
   "Non-public story HARD_DELETE may require future 1D storage cleanup rules for draft media — not implemented in 1D yet.",
   "Never-published HARD_DELETE uses story-level lifecycle + authoritative child inventory — not global bucket reclassification.",
+  ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE,
+  `Phase 1E.2A hardening migration designed at ${ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION.relativePath} — not applied until target-environment verification.`,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_DEFERRAL_NOTE,
 ] as const;
 
 export function classifyUnknownDatabaseTable(
