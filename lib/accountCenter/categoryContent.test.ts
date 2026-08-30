@@ -23,13 +23,27 @@ describe("accountCenterCategoryContent badges", () => {
     expect(item?.badge).toBeUndefined();
   });
 
-  it("keeps Soon badges on unfinished Account & Security items", () => {
-    const unfinishedTitles = ["Two-Factor Authentication"];
+  it("does not show a stale Soon badge on Two-Factor Authentication", () => {
+    const item = getAccountCenterCategoryItem(
+      "account-security",
+      "Two-Factor Authentication"
+    );
 
-    unfinishedTitles.forEach((title) => {
-      const item = getAccountCenterCategoryItem("account-security", title);
-      expect(item?.badge).toBe("Soon");
-    });
+    expect(item).toBeDefined();
+    expect(item?.badge).toBeUndefined();
+  });
+
+  it("keeps Soon badges on other genuinely unfinished categories", () => {
+    expect(
+      getAccountCenterCategoryItem("privacy-safety", "Muted Users")?.badge
+    ).toBe("Soon");
+    expect(
+      getAccountCenterCategoryItem("content-management", "Archived / Hidden Content")
+        ?.badge
+    ).toBe("Soon");
+    expect(
+      getAccountCenterCategoryItem("notifications", "Email Notifications")?.badge
+    ).toBe("Soon");
   });
 
   it("does not show a stale Soon badge on Change Password", () => {
@@ -59,19 +73,6 @@ describe("accountCenterCategoryContent badges", () => {
     expect(item?.badge).toBeUndefined();
   });
 
-  it("keeps Soon badges on other genuinely unfinished categories", () => {
-    expect(
-      getAccountCenterCategoryItem("privacy-safety", "Muted Users")?.badge
-    ).toBe("Soon");
-    expect(
-      getAccountCenterCategoryItem("content-management", "Archived / Hidden Content")
-        ?.badge
-    ).toBe("Soon");
-    expect(
-      getAccountCenterCategoryItem("notifications", "Email Notifications")?.badge
-    ).toBe("Soon");
-  });
-
   it("exposes category hubs for Account Center navigation", () => {
     expect(Object.keys(accountCenterCategoryContent)).toEqual([
       "account-security",
@@ -96,6 +97,10 @@ describe("accountCenterCategoryContent badges", () => {
     expect(sectionPageSource).toContain("<ChangeEmailSection />");
     expect(sectionPageSource).toContain('if (section === "active-sessions")');
     expect(sectionPageSource).toContain("<ActiveSessionsSection />");
+    expect(sectionPageSource).toContain(
+      'if (section === "two-factor-authentication")'
+    );
+    expect(sectionPageSource).toContain("<TwoFactorAuthenticationSection />");
   });
 
   it("no longer renders a placeholder for active-sessions", () => {

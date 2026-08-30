@@ -39,7 +39,6 @@ export const accountCenterCategoryContent: Record<string, CategoryContent> = {
       {
         title: "Two-Factor Authentication",
         text: "Add an extra layer of account protection.",
-        badge: "Soon",
         href: "/profile/two-factor-authentication",
       },
       {

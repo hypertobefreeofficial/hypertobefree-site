@@ -41,6 +41,27 @@ import {
   type AccountInfoProfileRow,
 } from "../../../lib/accountCenter/accountInfo";
 import {
+  TWO_FACTOR_DISABLE_CONFIRMATION,
+  TWO_FACTOR_ENROLLMENT_SUCCESS_MESSAGE,
+  TWO_FACTOR_EXPLANATORY_NOTE,
+  TWO_FACTOR_INCOMPLETE_ENROLLMENT_MESSAGE,
+  TWO_FACTOR_LOST_DEVICE_NOTE,
+  TWO_FACTOR_MULTIPLE_FACTORS_NOTE,
+  TWO_FACTOR_DISABLED_SUCCESS_MESSAGE,
+  beginTotpEnrollment,
+  cancelTotpEnrollment,
+  disableVerifiedTotpFactor,
+  formatTotpFactorCreatedAt,
+  loadTwoFactorAuthSnapshot,
+  selectPrimaryUnverifiedTotpFactor,
+  selectPrimaryVerifiedTotpFactor,
+  stepUpTotpForDisable,
+  verifyTotpEnrollment,
+  type TotpEnrollmentMaterial,
+  type TwoFactorAuthSnapshot,
+} from "../../../lib/accountCenter/twoFactorAuthentication";
+import { isMfaChallengeComplete } from "../../../lib/auth/mfaChallenge";
+import {
   accountCenterCategoryContent as categoryContent,
   type CategoryContent,
   type CategoryItem,
@@ -147,12 +168,6 @@ const placeholderContent: Record<string, PlaceholderContent> = {
     title: "Change Password",
     description:
       "Password update tools will be added here when account security settings are connected.",
-  },
-  "two-factor-authentication": {
-    eyebrow: "Account & Security",
-    title: "Two-Factor Authentication",
-    description:
-      "Two-factor authentication setup will live here in a future security pass.",
   },
   "download-my-data": {
     eyebrow: "Account & Security",
@@ -330,6 +345,10 @@ export default function ProfileAccountCenterPlaceholderPage() {
 
   if (section === "active-sessions") {
     return <ActiveSessionsSection />;
+  }
+
+  if (section === "two-factor-authentication") {
+    return <TwoFactorAuthenticationSection />;
   }
 
   if (section === "notifications") {
@@ -1111,6 +1130,555 @@ function ChangePasswordSection() {
           </p>
         </>
       )}
+    </AccountCenterDataShell>
+  );
+}
+
+function TwoFactorAuthenticationSection() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<TwoFactorAuthSnapshot | null>(null);
+  const [enrollment, setEnrollment] = useState<TotpEnrollmentMaterial | null>(
+    null
+  );
+  const [verifyCode, setVerifyCode] = useState("");
+  const [stepUpCode, setStepUpCode] = useState("");
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [operationInFlight, setOperationInFlight] = useState<
+    "enroll" | "verify" | "cancel" | "step_up" | "disable" | null
+  >(null);
+  const [disableStep, setDisableStep] = useState<"idle" | "step_up" | "confirm">(
+    "idle"
+  );
+  const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
+  async function refreshSnapshot() {
+    const loaded = await loadTwoFactorAuthSnapshot(supabase);
+    if (loaded.ok === false) {
+      router.push("/login");
+      return null;
+    }
+
+    setSnapshot(loaded.snapshot);
+    return loaded.snapshot;
+  }
+
+  useEffect(() => {
+    async function initialize() {
+      const loaded = await loadTwoFactorAuthSnapshot(supabase);
+      if (loaded.ok === false) {
+        router.push("/login");
+        return;
+      }
+
+      setSnapshot(loaded.snapshot);
+      setLoading(false);
+    }
+
+    void initialize();
+  }, [router]);
+
+  useEffect(() => {
+    return () => {
+      setEnrollment(null);
+      setVerifyCode("");
+      setStepUpCode("");
+      setShowSecret(false);
+    };
+  }, []);
+
+  const primaryVerifiedFactor = selectPrimaryVerifiedTotpFactor(
+    snapshot?.verifiedTotpFactors
+  );
+  const primaryUnverifiedFactor = selectPrimaryUnverifiedTotpFactor(
+    snapshot?.unverifiedTotpFactors ?? []
+  );
+  const hasVerifiedTotp = Boolean(primaryVerifiedFactor);
+  const hasIncompleteEnrollment = Boolean(primaryUnverifiedFactor) && !enrollment;
+
+  async function handleBeginEnrollment() {
+    if (operationInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setOperationInFlight("enroll");
+
+    const result = await beginTotpEnrollment(supabase);
+
+    setOperationInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setEnrollment(result.enrollment);
+    setVerifyCode("");
+    setShowSecret(false);
+  }
+
+  async function handleVerifyEnrollment() {
+    if (!enrollment || operationInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setOperationInFlight("verify");
+
+    const result = await verifyTotpEnrollment(
+      supabase,
+      enrollment.factorId,
+      verifyCode
+    );
+
+    setOperationInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setEnrollment(null);
+    setVerifyCode("");
+    setShowSecret(false);
+    setSuccess(true);
+    setMessage(TWO_FACTOR_ENROLLMENT_SUCCESS_MESSAGE);
+    await refreshSnapshot();
+  }
+
+  async function handleCancelEnrollment(factorId: string) {
+    if (operationInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setOperationInFlight("cancel");
+
+    const result = await cancelTotpEnrollment(supabase, factorId);
+
+    setOperationInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setEnrollment(null);
+    setVerifyCode("");
+    setShowSecret(false);
+    await refreshSnapshot();
+  }
+
+  async function handleStepUpForDisable() {
+    if (!primaryVerifiedFactor || operationInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setOperationInFlight("step_up");
+
+    const result = await stepUpTotpForDisable(
+      supabase,
+      primaryVerifiedFactor.id,
+      stepUpCode
+    );
+
+    setOperationInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setStepUpCode("");
+    setDisableStep("confirm");
+    setConfirmDisableOpen(true);
+  }
+
+  async function handleDisableVerifiedFactor() {
+    if (!primaryVerifiedFactor || operationInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+    setOperationInFlight("disable");
+    setConfirmDisableOpen(false);
+    setDisableStep("idle");
+
+    const result = await disableVerifiedTotpFactor(
+      supabase,
+      primaryVerifiedFactor.id
+    );
+
+    setOperationInFlight(null);
+
+    if (result.ok === false) {
+      if (result.code === "not_authenticated") {
+        router.push("/login");
+        return;
+      }
+
+      if (result.code === "insufficient_aal") {
+        setDisableStep("step_up");
+      }
+
+      setMessage(result.message);
+      return;
+    }
+
+    setStepUpCode("");
+    setSuccess(true);
+    setMessage(TWO_FACTOR_DISABLED_SUCCESS_MESSAGE);
+    await refreshSnapshot();
+  }
+
+  function beginDisableFlow() {
+    if (!primaryVerifiedFactor || operationInFlight) {
+      return;
+    }
+
+    setMessage("");
+    setSuccess(false);
+
+    if (snapshot?.assurance && isMfaChallengeComplete(snapshot.assurance)) {
+      setDisableStep("confirm");
+      setConfirmDisableOpen(true);
+      return;
+    }
+
+    setDisableStep("step_up");
+  }
+
+  return (
+    <AccountCenterDataShell
+      icon={<Shield className="h-4 w-4" />}
+      eyebrow="Account & Security"
+      title="Two-Factor Authentication"
+      description="Protect your HTBF account with an authenticator app using Supabase native TOTP."
+    >
+      <p className="mt-5 text-sm font-semibold leading-6 text-slate-600">
+        {TWO_FACTOR_EXPLANATORY_NOTE}
+      </p>
+
+      {loading ? (
+        <AccountCenterLoading text="Loading two-factor authentication..." />
+      ) : (
+        <div className="mt-6 space-y-6">
+          <div className="rounded-[1.75rem] bg-slate-50 p-5 ring-1 ring-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-[#062a57]">
+                Authenticator app
+              </h2>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.14em] ring-1 ${
+                  hasVerifiedTotp
+                    ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                    : "bg-slate-100 text-slate-600 ring-slate-200"
+                }`}
+              >
+                {hasVerifiedTotp ? "Enabled" : "Off"}
+              </span>
+            </div>
+
+            {hasVerifiedTotp && primaryVerifiedFactor ? (
+              <div className="mt-4 space-y-4">
+                {primaryVerifiedFactor.friendly_name ? (
+                  <AccountInfoFieldRow
+                    label="Authenticator label"
+                    value={primaryVerifiedFactor.friendly_name}
+                  />
+                ) : null}
+
+                {formatTotpFactorCreatedAt(primaryVerifiedFactor.created_at) ? (
+                  <AccountInfoFieldRow
+                    label="Enabled on"
+                    value={
+                      formatTotpFactorCreatedAt(primaryVerifiedFactor.created_at) ??
+                      ""
+                    }
+                  />
+                ) : null}
+
+                {(snapshot?.verifiedTotpFactors.length ?? 0) > 1 ? (
+                  <p className="text-sm leading-6 text-slate-600">
+                    {TWO_FACTOR_MULTIPLE_FACTORS_NOTE}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-slate-600">
+                Two-factor authentication is not enabled for this account.
+              </p>
+            )}
+          </div>
+
+          {hasIncompleteEnrollment && primaryUnverifiedFactor ? (
+            <div className="rounded-[1.75rem] bg-amber-50 p-5 ring-1 ring-amber-100">
+              <h3 className="text-base font-black text-[#062a57]">
+                Setup incomplete
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {TWO_FACTOR_INCOMPLETE_ENROLLMENT_MESSAGE}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  void handleCancelEnrollment(primaryUnverifiedFactor.id)
+                }
+                disabled={Boolean(operationInFlight)}
+                className="mt-4 inline-flex items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {operationInFlight === "cancel"
+                  ? "Canceling..."
+                  : "Cancel incomplete setup"}
+              </button>
+            </div>
+          ) : null}
+
+          {enrollment ? (
+            <div className="rounded-[1.75rem] bg-white p-5 ring-1 ring-slate-200">
+              <h3 className="text-base font-black text-[#062a57]">
+                Set up your authenticator app
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Scan the QR code with your authenticator app, or enter the setup
+                key manually. Then enter the 6-digit code to finish setup.
+              </p>
+
+              <div className="mt-5 flex justify-center rounded-[1.5rem] bg-slate-50 p-4 ring-1 ring-slate-100">
+                <img
+                  src={enrollment.qrCode}
+                  alt="Authenticator app QR code"
+                  className="h-48 w-48"
+                />
+              </div>
+
+              <div className="mt-5">
+                <div className="mb-2 text-sm font-black text-[#062a57]">
+                  Manual setup key
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="font-mono text-sm tracking-[0.18em] text-slate-700">
+                    {showSecret ? enrollment.secret : "••••••••••••••••"}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSecret((current) => !current)}
+                    className="mt-3 text-sm font-black text-[#0b63ce]"
+                  >
+                    {showSecret ? "Hide setup key" : "Show setup key"}
+                  </button>
+                </div>
+              </div>
+
+              <label className="mt-5 block">
+                <div className="mb-2 text-sm font-black text-[#062a57]">
+                  Verification code
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={verifyCode}
+                  onChange={(event) =>
+                    setVerifyCode(
+                      event.target.value.replace(/\D/g, "").slice(0, 6)
+                    )
+                  }
+                  placeholder="000000"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 tracking-[0.35em] outline-none focus:border-blue-200 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                />
+              </label>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void handleVerifyEnrollment()}
+                  disabled={Boolean(operationInFlight)}
+                  className="inline-flex flex-1 items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {operationInFlight === "verify"
+                    ? "Verifying..."
+                    : "Verify and enable"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleCancelEnrollment(enrollment.factorId)
+                  }
+                  disabled={Boolean(operationInFlight)}
+                  className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-[#0b63ce] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {operationInFlight === "cancel"
+                    ? "Canceling..."
+                    : "Cancel setup"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {!hasVerifiedTotp && !enrollment && !hasIncompleteEnrollment ? (
+            <button
+              type="button"
+              onClick={() => void handleBeginEnrollment()}
+              disabled={Boolean(operationInFlight)}
+              className="inline-flex w-full items-center justify-center rounded-full bg-[#0b63ce] px-6 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {operationInFlight === "enroll"
+                ? "Starting setup..."
+                : "Set up authenticator"}
+            </button>
+          ) : null}
+
+          {hasVerifiedTotp && primaryVerifiedFactor ? (
+            <div className="space-y-4">
+              {disableStep === "step_up" ? (
+                <div className="rounded-[1.75rem] bg-white p-5 ring-1 ring-slate-200">
+                  <h3 className="text-base font-black text-[#062a57]">
+                    Verify before disabling
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Enter the current code from your authenticator app to
+                    continue.
+                  </p>
+                  <label className="mt-4 block">
+                    <div className="mb-2 text-sm font-black text-[#062a57]">
+                      Authenticator code
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={stepUpCode}
+                      onChange={(event) =>
+                        setStepUpCode(
+                          event.target.value.replace(/\D/g, "").slice(0, 6)
+                        )
+                      }
+                      placeholder="000000"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 tracking-[0.35em] outline-none focus:border-blue-200 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                    />
+                  </label>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => void handleStepUpForDisable()}
+                      disabled={Boolean(operationInFlight)}
+                      className="inline-flex flex-1 items-center justify-center rounded-full bg-[#0b63ce] px-5 py-3 text-sm font-black text-white hover:bg-[#084f9f] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {operationInFlight === "step_up"
+                        ? "Verifying..."
+                        : "Continue"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDisableStep("idle");
+                        setStepUpCode("");
+                      }}
+                      disabled={Boolean(operationInFlight)}
+                      className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-[#0b63ce] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={beginDisableFlow}
+                  disabled={Boolean(operationInFlight)}
+                  className="inline-flex w-full items-center justify-center rounded-full border border-red-200 bg-red-50 px-6 py-3 text-sm font-black text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Disable two-factor authentication
+                </button>
+              )}
+            </div>
+          ) : null}
+
+          {message ? (
+            <div
+              className={`rounded-[1.5rem] p-4 text-sm font-bold leading-6 ring-1 ${
+                success
+                  ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                  : "bg-red-50 text-red-700 ring-red-100"
+              }`}
+            >
+              {message}
+            </div>
+          ) : null}
+
+          <p className="text-sm leading-6 text-slate-600">
+            {TWO_FACTOR_LOST_DEVICE_NOTE}
+          </p>
+        </div>
+      )}
+
+      {confirmDisableOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 px-4">
+          <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-xl ring-1 ring-slate-200">
+            <h3 className="text-xl font-black text-[#062a57]">
+              Disable two-factor authentication?
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {TWO_FACTOR_DISABLE_CONFIRMATION}
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => void handleDisableVerifiedFactor()}
+                disabled={Boolean(operationInFlight)}
+                className="inline-flex flex-1 items-center justify-center rounded-full bg-red-600 px-5 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {operationInFlight === "disable"
+                  ? "Disabling..."
+                  : "Disable two-factor authentication"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmDisableOpen(false);
+                  setDisableStep("idle");
+                }}
+                disabled={Boolean(operationInFlight)}
+                className="inline-flex flex-1 items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-black text-[#0b63ce] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Keep enabled
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AccountCenterDataShell>
   );
 }

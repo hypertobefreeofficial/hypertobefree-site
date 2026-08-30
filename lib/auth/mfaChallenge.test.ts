@@ -343,24 +343,31 @@ describe("central MFA guard wiring", () => {
   });
 });
 
-describe("Account Center MFA enrollment remains deferred", () => {
+describe("Account Center MFA enrollment wiring", () => {
   const categoryContent = readFileSync(
     "lib/accountCenter/categoryContent.ts",
     "utf8"
   );
   const sectionPage = readFileSync("app/profile/[section]/page.tsx", "utf8");
 
-  it("keeps the Two-Factor Authentication Soon badge", () => {
+  it("removed the Two-Factor Authentication Soon badge", () => {
     expect(categoryContent).toContain('"Two-Factor Authentication"');
-    expect(categoryContent).toContain('badge: "Soon"');
+    expect(categoryContent).not.toContain(
+      'title: "Two-Factor Authentication",\n        text: "Add an extra layer of account protection.",\n        badge: "Soon"'
+    );
     expect(categoryContent).toContain(
       'href: "/profile/two-factor-authentication"'
     );
   });
 
-  it("does not wire a live two-factor-authentication section yet", () => {
-    expect(sectionPage).not.toContain('if (section === "two-factor-authentication")');
-    expect(sectionPage).toContain('"two-factor-authentication"');
+  it("wires the live two-factor-authentication section", () => {
+    expect(sectionPage).toContain(
+      'if (section === "two-factor-authentication")'
+    );
+    expect(sectionPage).toContain("<TwoFactorAuthenticationSection />");
+    expect(sectionPage).not.toContain(
+      "Two-factor authentication setup will live here in a future security pass."
+    );
   });
 });
 
