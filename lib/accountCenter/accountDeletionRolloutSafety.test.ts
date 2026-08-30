@@ -110,10 +110,19 @@ describe("account deletion rollout safety", () => {
       "lib/server/accountDeletionDryRunHandler.ts",
       "utf8"
     );
+    const executeHandler = readFileSync(
+      "lib/server/accountDeletionExecuteHandler.ts",
+      "utf8"
+    );
+    const executor = readFileSync("lib/server/accountDeletionExecutor.ts", "utf8");
 
     expect(adminPage).not.toContain("auth.admin.deleteUser");
     expect(adminPage).not.toContain("completeDeletionRequest");
     expect(adminPage).not.toContain("Mark Completed");
+    expect(adminPage).not.toContain("Execute Permanent Deletion");
     expect(dryRunHandler).not.toContain("deleteUser");
+    expect(executeHandler).not.toContain("deleteUser");
+    expect(executor).not.toContain("deleteUser");
+    expect(executor).not.toContain(".remove(");
   });
 });

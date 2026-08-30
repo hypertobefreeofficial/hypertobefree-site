@@ -25,6 +25,8 @@ export const PRAYER_RATE_LIMITS = {
   moderateStoryIp: { limit: 60, windowMs: 60 * 60 * 1000 },
   /** Admin-only account deletion dry-run preview — per authenticated admin. */
   accountDeletionDryRun: { limit: 30, windowMs: 60 * 1000 },
+  /** Admin-only account deletion execution gate — per authenticated admin. */
+  accountDeletionExecute: { limit: 5, windowMs: 60 * 60 * 1000 },
 } as const satisfies Record<string, PrayerRateLimitConfig>;
 
 export type MultiWindowRateLimitConfig = {

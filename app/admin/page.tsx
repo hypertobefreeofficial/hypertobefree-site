@@ -2442,7 +2442,8 @@ export default function AdminPage() {
                     ACCOUNT_DELETION_STATUS.APPROVED && (
                     <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold leading-6 text-emerald-800">
                       Approved — not yet deleted. Permanent deletion has not
-                      run for this account.
+                      run for this account. Permanent deletion execution is not
+                      enabled yet.
                     </div>
                   )}
 
