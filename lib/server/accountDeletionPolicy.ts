@@ -11,9 +11,13 @@ export type AccountDeletionTableAction =
   | "preserve_anonymized"
   | "manual_review";
 
+/** Execution-aligned storage policy used by Phase 1A manifest and Phase 1D engine. */
 export type AccountDeletionStorageAction =
-  | "hard_delete"
-  | "manual_review";
+  | "preserve_public"
+  | "preserve_shared"
+  | "delete_private"
+  | "block_unresolved"
+  | "skip_unknown";
 
 export const ACCOUNT_DELETION_TABLE_POLICY = {
   profiles: "hard_delete",
@@ -51,11 +55,11 @@ export type StoryAnonymizationField =
   (typeof STORY_ANONYMIZATION_PII_FIELDS)[number];
 
 export const ACCOUNT_DELETION_STORAGE_BUCKET_POLICY = {
-  "profile-avatars": "hard_delete",
-  "story-images": "hard_delete",
-  "story-videos": "hard_delete",
-  "story-thumbnails": "hard_delete",
-  "journey-private-media": "hard_delete",
+  "profile-avatars": "delete_private",
+  "story-images": "preserve_public",
+  "story-videos": "preserve_public",
+  "story-thumbnails": "preserve_public",
+  "journey-private-media": "delete_private",
 } as const satisfies Record<string, AccountDeletionStorageAction>;
 
 export type AccountDeletionStorageBucket =
@@ -84,4 +88,16 @@ export function classifyStorageBucketAction(
   bucket: AccountDeletionStorageBucket
 ): AccountDeletionStorageAction {
   return ACCOUNT_DELETION_STORAGE_BUCKET_POLICY[bucket];
+}
+
+export function isDeletableStorageBucketPolicy(
+  action: AccountDeletionStorageAction
+): boolean {
+  return action === "delete_private";
+}
+
+export function isPreservedStorageBucketPolicy(
+  action: AccountDeletionStorageAction
+): boolean {
+  return action === "preserve_public" || action === "preserve_shared";
 }

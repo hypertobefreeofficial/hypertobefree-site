@@ -57,7 +57,10 @@ function buildDeps(
         thumbnail_url: null,
       },
     ]),
-    listInboxMediaReferences: vi.fn(async () => [
+    listPrayerVideoResponses: vi.fn(async () => []),
+    listInboxMediaReferences: vi.fn(async () => ({
+      ok: true as const,
+      rows: [
       {
         id: "msg-1",
         user_id: "user-target",
@@ -72,7 +75,8 @@ function buildDeps(
         video_url: "journey-private-media/user-target/thread-2/video.mp4",
         image_url: null,
       },
-    ]),
+    ],
+    })),
     listStorageObjectsForUser: vi.fn(async (_bucket, userId) => [
       { path: `${userId}/thread-1/video.mp4` },
     ]),
@@ -298,9 +302,9 @@ describe("buildAccountDeletionDryRunManifest", () => {
     if (!result.ok) return;
 
     const ambiguous = result.manifest.storage.objects.find(
-      (object) => object.plannedAction === "manual_review"
+      (object) => object.path === "unknown-format-ref"
     );
-    expect(ambiguous?.ownershipSource).toBe("ambiguous_reference");
+    expect(ambiguous?.plannedClassification).toBe("BLOCK_UNRESOLVED");
   });
 
   it("preserves audit records and deletion request retention warning", async () => {

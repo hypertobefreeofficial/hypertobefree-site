@@ -104,6 +104,15 @@ describe("account deletion rollout safety", () => {
     ]);
   });
 
+  it("preserves story media in dry-run policy modules", () => {
+    const manifestSource = readFileSync(
+      "lib/server/accountDeletionManifest.ts",
+      "utf8"
+    );
+    expect(manifestSource).toContain("plannedClassification");
+    expect(manifestSource).toContain("listPrayerVideoResponses");
+  });
+
   it("does not ship a destructive executor endpoint in admin or API surfaces", () => {
     const adminPage = readFileSync("app/admin/page.tsx", "utf8");
     const dryRunHandler = readFileSync(
@@ -115,6 +124,14 @@ describe("account deletion rollout safety", () => {
       "utf8"
     );
     const executor = readFileSync("lib/server/accountDeletionExecutor.ts", "utf8");
+    const executeRoute = readFileSync(
+      "app/api/admin/account-deletion/[requestId]/execute/route.ts",
+      "utf8"
+    );
+    const storageExecutor = readFileSync(
+      "lib/server/accountDeletionStorageExecutor.ts",
+      "utf8"
+    );
 
     expect(adminPage).not.toContain("auth.admin.deleteUser");
     expect(adminPage).not.toContain("completeDeletionRequest");
@@ -124,5 +141,22 @@ describe("account deletion rollout safety", () => {
     expect(executeHandler).not.toContain("deleteUser");
     expect(executor).not.toContain("deleteUser");
     expect(executor).not.toContain(".remove(");
+    expect(executeHandler).not.toContain("accountDeletionStorageExecutor");
+    expect(executeRoute).not.toContain("accountDeletionStorageExecutor");
+    expect(executeHandler).not.toContain(".remove(");
+    expect(executeRoute).not.toContain(".remove(");
+    expect(storageExecutor).not.toContain("deleteUser");
+    expect(readFileSync("lib/server/accountDeletionPolicy.ts", "utf8")).toContain(
+      "preserve_public"
+    );
+    expect(readFileSync("lib/server/accountDeletionStoragePolicy.ts", "utf8")).toContain(
+      "PRESERVE_SHARED"
+    );
+  });
+
+  it("keeps story media out of DELETE_PRIVATE classifications in policy modules", () => {
+    const policy = readFileSync("lib/server/accountDeletionPolicy.ts", "utf8");
+    expect(policy).toContain('"story-videos": "preserve_public"');
+    expect(policy).not.toContain('"story-videos": "hard_delete"');
   });
 });

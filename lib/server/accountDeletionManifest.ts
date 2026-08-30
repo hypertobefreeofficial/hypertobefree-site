@@ -9,11 +9,24 @@ import {
   ACCOUNT_DELETION_SCHEMA_REQUIREMENTS,
   BLOCKED_OWNER_ACCOUNT_CODE,
   STORY_ANONYMIZATION_PII_FIELDS,
-  classifyStorageBucketAction,
   classifyTableAction,
+  classifyStorageBucketAction,
   type AccountDeletionStorageBucket,
   type AccountDeletionTableAction,
 } from "./accountDeletionPolicy";
+import {
+  classifyAccountDeletionStorageObject,
+  type AccountDeletionStorageClassification,
+} from "./accountDeletionStoragePolicy";
+import {
+  resolveStorageReference,
+  resolveInboxJourneyOwnershipSource,
+  PATH_PREFIX_DISCOVERY_SOURCE_PREFIX,
+} from "./accountDeletionStorageReferenceRules";
+import {
+  parseStorageObjectKey,
+  storageObjectKey,
+} from "./accountDeletionStorageKeys";
 
 export const ACCOUNT_DELETION_REQUEST_COLUMNS =
   "id, user_id, email, reason, status, created_at, target_user_id_snapshot, target_username_snapshot";
@@ -41,9 +54,11 @@ export type ManifestStorageObject = {
   bucket: string;
   path: string;
   ownershipSource: string;
+  ownershipSources?: string[];
   referencingTable?: string;
   referencingRowId?: string;
-  plannedAction: "hard_delete" | "manual_review";
+  plannedClassification: AccountDeletionStorageClassification;
+  requiresReferencesCleared?: boolean;
   exists: boolean | null;
 };
 
@@ -60,6 +75,8 @@ export type ManifestJourneySection = {
   sentToOtherUserRows: ManifestRowRef;
   privateMediaObjects: ManifestStorageObject[];
   relationshipNotes: string[];
+  journeyReferenceInventoryComplete: boolean;
+  unresolvedJourneyReferenceCount: number;
 };
 
 export type AccountDeletionManifest = {
@@ -110,7 +127,8 @@ export type AccountDeletionManifest = {
 export type AccountDeletionDryRunFailureCode =
   | "not_found"
   | "database_error"
-  | "service_unavailable";
+  | "service_unavailable"
+  | "manifest_failed";
 
 export type AccountDeletionDryRunResult =
   | { ok: true; manifest: AccountDeletionManifest }
@@ -138,9 +156,15 @@ export type AccountDeletionDryRunDeps = {
   countContentReportsForUser: (userId: string) => Promise<number | null>;
   countAdminLogsForUser: (userId: string) => Promise<number | null>;
   listStories: (userId: string) => Promise<StoryRow[]>;
+  listPrayerVideoResponses: (
+    userId: string
+  ) => Promise<PrayerVideoResponseRow[]>;
   listInboxMediaReferences: (
     userId: string
-  ) => Promise<InboxMediaReferenceRow[]>;
+  ) => Promise<
+    | { ok: true; rows: InboxMediaReferenceRow[] }
+    | { ok: false; code: "inbox_media_query_failed" }
+  >;
   listStorageObjectsForUser: (
     bucket: AccountDeletionStorageBucket,
     userId: string
@@ -166,6 +190,12 @@ type StoryRow = {
   status: string | null;
   story_type: string | null;
   image_url: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+};
+
+type PrayerVideoResponseRow = {
+  id: string;
   video_url: string | null;
   thumbnail_url: string | null;
 };
@@ -277,25 +307,61 @@ function sumCounts(rows: ManifestRowRef[]): number {
   return rows.reduce((total, row) => total + row.count, 0);
 }
 
-function storageActionForBucket(
-  bucket: string,
-  ownershipSource: string
-): "hard_delete" | "manual_review" {
-  if (ownershipSource === "ambiguous_reference") {
-    return "manual_review";
+function bucketDefaultClassification(
+  bucket: AccountDeletionStorageBucket
+): AccountDeletionStorageClassification {
+  switch (classifyStorageBucketAction(bucket)) {
+    case "preserve_public":
+      return "PRESERVE_PUBLIC";
+    case "preserve_shared":
+      return "PRESERVE_SHARED";
+    case "delete_private":
+      return "DELETE_PRIVATE";
+    case "block_unresolved":
+      return "BLOCK_UNRESOLVED";
+    case "skip_unknown":
+    default:
+      return "SKIP_UNKNOWN";
   }
+}
 
-  if (
-    bucket === "profile-avatars" ||
-    bucket === "story-images" ||
-    bucket === "story-videos" ||
-    bucket === "story-thumbnails" ||
-    bucket === "journey-private-media"
-  ) {
-    return classifyStorageBucketAction(bucket);
-  }
+export { bucketDefaultClassification };
 
-  return "manual_review";
+type PendingStorageReference = {
+  bucket: string;
+  path: string;
+  ownershipSource: string;
+  referencingTable?: string;
+  referencingRowId?: string;
+  exists?: boolean | null;
+};
+
+function resolveManifestStorageClassification(input: {
+  bucket: string;
+  path: string;
+  targetUserId: string;
+  refs: PendingStorageReference[];
+  journeyReferenceInventoryComplete: boolean;
+}): Pick<
+  ManifestStorageObject,
+  "plannedClassification" | "requiresReferencesCleared" | "ownershipSource" | "ownershipSources"
+> {
+  const ownershipSources = input.refs.map((ref) => ref.ownershipSource);
+  const classified = classifyAccountDeletionStorageObject({
+    bucket: input.bucket,
+    path: input.path,
+    targetUserId: input.targetUserId,
+    ownershipSources,
+    referencingTable: input.refs[0]?.referencingTable ?? null,
+    journeyReferenceInventoryComplete: input.journeyReferenceInventoryComplete,
+  });
+
+  return {
+    ownershipSource: ownershipSources.join(" | "),
+    ownershipSources,
+    plannedClassification: classified.classification,
+    requiresReferencesCleared: classified.requiresReferencesCleared,
+  };
 }
 
 export async function buildAccountDeletionDryRunManifest(
@@ -573,24 +639,51 @@ export async function buildAccountDeletionDryRunManifest(
   );
 
   const storageObjects: ManifestStorageObject[] = [];
-  const seenStorageKeys = new Set<string>();
+  const pendingStorage = new Map<string, PendingStorageReference[]>();
+  let unresolvedJourneyReferenceCount = 0;
 
-  async function addStorageObject(
-    object: Omit<ManifestStorageObject, "exists"> & { exists?: boolean | null }
+  function queueStorageReference(reference: PendingStorageReference) {
+    const key = storageObjectKey(reference.bucket, reference.path);
+    const existing = pendingStorage.get(key) ?? [];
+    existing.push(reference);
+    pendingStorage.set(key, existing);
+  }
+
+  async function finalizeStorageObjects(
+    journeyReferenceInventoryComplete: boolean
   ) {
-    const key = `${object.bucket}:${object.path}`;
-    if (seenStorageKeys.has(key)) {
-      return;
-    }
+    for (const [key, refs] of pendingStorage.entries()) {
+      const parsedKey = parseStorageObjectKey(key);
+      if (!parsedKey) {
+        continue;
+      }
 
-    seenStorageKeys.add(key);
-    storageObjects.push({
-      ...object,
-      exists:
-        object.exists === undefined
-          ? await deps.resolveStorageExists(object.bucket, object.path)
-          : object.exists,
-    });
+      const { bucket, path } = parsedKey;
+
+      const resolved = resolveManifestStorageClassification({
+        bucket,
+        path,
+        targetUserId,
+        refs,
+        journeyReferenceInventoryComplete,
+      });
+
+      const exists =
+        refs.find((ref) => ref.exists !== undefined)?.exists ??
+        (await deps.resolveStorageExists(bucket, path));
+
+      storageObjects.push({
+        bucket,
+        path,
+        ownershipSource: resolved.ownershipSource,
+        ownershipSources: resolved.ownershipSources,
+        referencingTable: refs.find((ref) => ref.referencingTable)?.referencingTable,
+        referencingRowId: refs.find((ref) => ref.referencingRowId)?.referencingRowId,
+        plannedClassification: resolved.plannedClassification,
+        requiresReferencesCleared: resolved.requiresReferencesCleared,
+        exists,
+      });
+    }
   }
 
   for (const bucket of STORAGE_BUCKETS) {
@@ -602,14 +695,31 @@ export async function buildAccountDeletionDryRunManifest(
 
     for (const entry of listed) {
       const ownershipSource = entry.path.startsWith(`${targetUserId}/`)
-        ? `path_prefix:${targetUserId}`
+        ? `${PATH_PREFIX_DISCOVERY_SOURCE_PREFIX}${targetUserId}`
         : "ambiguous_reference";
 
-      await addStorageObject({
+      if (bucket === "profile-avatars" && !/^avatar\.(png|webp|jpg|jpeg)$/i.test(entry.path.split("/").pop() ?? "")) {
+        queueStorageReference({
+          bucket,
+          path: entry.path,
+          ownershipSource: "ambiguous_reference",
+        });
+        continue;
+      }
+
+      if (ownershipSource === "ambiguous_reference") {
+        queueStorageReference({
+          bucket,
+          path: entry.path,
+          ownershipSource,
+        });
+        continue;
+      }
+
+      queueStorageReference({
         bucket,
         path: entry.path,
         ownershipSource,
-        plannedAction: storageActionForBucket(bucket, ownershipSource),
       });
     }
   }
@@ -620,22 +730,20 @@ export async function buildAccountDeletionDryRunManifest(
       "profile-avatars"
     );
     if (avatarPath) {
-      await addStorageObject({
+      queueStorageReference({
         bucket: "profile-avatars",
         path: avatarPath,
         ownershipSource: "profiles.avatar_url",
         referencingTable: "profiles",
         referencingRowId: profile.id,
-        plannedAction: "hard_delete",
       });
     } else if (!profile.avatar_url.startsWith("http")) {
-      await addStorageObject({
+      queueStorageReference({
         bucket: "profile-avatars",
         path: profile.avatar_url,
         ownershipSource: "ambiguous_reference",
         referencingTable: "profiles",
         referencingRowId: profile.id,
-        plannedAction: "manual_review",
         exists: null,
       });
     }
@@ -645,10 +753,23 @@ export async function buildAccountDeletionDryRunManifest(
     const refs: Array<{
       bucket: AccountDeletionStorageBucket;
       url: string | null;
+      ownershipSource: string;
     }> = [
-      { bucket: "story-images", url: story.image_url },
-      { bucket: "story-videos", url: story.video_url },
-      { bucket: "story-thumbnails", url: story.thumbnail_url },
+      {
+        bucket: "story-images",
+        url: story.image_url,
+        ownershipSource: "stories.story-images_url",
+      },
+      {
+        bucket: "story-videos",
+        url: story.video_url,
+        ownershipSource: "stories.story-videos_url",
+      },
+      {
+        bucket: "story-thumbnails",
+        url: story.thumbnail_url,
+        ownershipSource: "stories.story-thumbnails_url",
+      },
     ];
 
     for (const ref of refs) {
@@ -656,80 +777,135 @@ export async function buildAccountDeletionDryRunManifest(
         continue;
       }
 
-      const path = parseStoragePathFromReference(ref.url, ref.bucket);
-      if (!path) {
-        if (!ref.url.startsWith("http")) {
-          await addStorageObject({
+      const resolved = resolveStorageReference({
+        value: ref.url,
+        bucket: ref.bucket,
+      });
+
+      if (!resolved.path) {
+        if (resolved.ownershipSource === "ambiguous_reference") {
+          queueStorageReference({
             bucket: ref.bucket,
             path: ref.url,
             ownershipSource: "ambiguous_reference",
             referencingTable: "stories",
             referencingRowId: story.id,
-            plannedAction: "manual_review",
             exists: null,
           });
         }
         continue;
       }
 
-      const ownershipSource = path.startsWith(`${targetUserId}/`)
-        ? `path_prefix:${targetUserId}`
-        : `stories.${ref.bucket}_url`;
-
-      await addStorageObject({
+      queueStorageReference({
         bucket: ref.bucket,
-        path,
-        ownershipSource,
+        path: resolved.path,
+        ownershipSource: ref.ownershipSource,
         referencingTable: "stories",
         referencingRowId: story.id,
-        plannedAction: storageActionForBucket(ref.bucket, ownershipSource),
       });
     }
   }
 
-  const inboxMediaRefs = await deps.listInboxMediaReferences(targetUserId);
-  for (const row of inboxMediaRefs) {
+  const prayerVideoResponses = await deps.listPrayerVideoResponses(targetUserId);
+  for (const response of prayerVideoResponses) {
+    const refs: Array<{
+      bucket: AccountDeletionStorageBucket;
+      url: string | null;
+      ownershipSource: string;
+    }> = [
+      {
+        bucket: "story-videos",
+        url: response.video_url,
+        ownershipSource: "prayer_video_responses.video_url",
+      },
+      {
+        bucket: "story-thumbnails",
+        url: response.thumbnail_url,
+        ownershipSource: "prayer_video_responses.thumbnail_url",
+      },
+    ];
+
+    for (const ref of refs) {
+      if (!ref.url) {
+        continue;
+      }
+
+      const resolved = resolveStorageReference({
+        value: ref.url,
+        bucket: ref.bucket,
+      });
+
+      if (!resolved.path) {
+        if (resolved.ownershipSource === "ambiguous_reference") {
+          queueStorageReference({
+            bucket: ref.bucket,
+            path: ref.url,
+            ownershipSource: "ambiguous_reference",
+            referencingTable: "prayer_video_responses",
+            referencingRowId: response.id,
+            exists: null,
+          });
+        }
+        continue;
+      }
+
+      queueStorageReference({
+        bucket: ref.bucket,
+        path: resolved.path,
+        ownershipSource: ref.ownershipSource,
+        referencingTable: "prayer_video_responses",
+        referencingRowId: response.id,
+      });
+    }
+  }
+
+  const inboxMediaResult = await deps.listInboxMediaReferences(targetUserId);
+  if (inboxMediaResult.ok === false) {
+    return {
+      ok: false,
+      code: "manifest_failed",
+      message:
+        "Journey inbox media references could not be enumerated for account deletion planning.",
+    };
+  }
+
+  for (const row of inboxMediaResult.rows) {
     for (const mediaUrl of [row.video_url, row.image_url]) {
       if (!mediaUrl) {
         continue;
       }
 
-      const path = parseStoragePathFromReference(
-        mediaUrl,
-        "journey-private-media"
-      );
-      const ownershipSource =
-        row.user_id === targetUserId
-          ? "inbox_messages.user_id (recipient-owned)"
-          : row.sender_user_id === targetUserId
-            ? "inbox_messages.sender_user_id (sent copy in other inbox)"
-            : "ambiguous_reference";
+      const resolved = resolveStorageReference({
+        value: mediaUrl,
+        bucket: "journey-private-media",
+      });
+      const ownershipSource = resolveInboxJourneyOwnershipSource({
+        rowUserId: row.user_id,
+        senderUserId: row.sender_user_id,
+        targetUserId,
+      });
 
-      if (path) {
-        await addStorageObject({
+      if (resolved.path) {
+        queueStorageReference({
           bucket: "journey-private-media",
-          path,
+          path: resolved.path,
           ownershipSource,
           referencingTable: "inbox_messages",
           referencingRowId: row.id,
-          plannedAction:
-            ownershipSource === "ambiguous_reference"
-              ? "manual_review"
-              : "hard_delete",
         });
-      } else if (mediaUrl.includes("journey-private-media")) {
-        await addStorageObject({
-          bucket: "journey-private-media",
-          path: mediaUrl,
-          ownershipSource: "ambiguous_reference",
-          referencingTable: "inbox_messages",
-          referencingRowId: row.id,
-          plannedAction: "manual_review",
-          exists: null,
-        });
+        continue;
       }
+
+      unresolvedJourneyReferenceCount += 1;
+      warnings.push(
+        "Unresolved Journey inbox media URL could not be mapped to a canonical storage object path."
+      );
     }
   }
+
+  const journeyReferenceInventoryComplete = unresolvedJourneyReferenceCount === 0;
+
+  await finalizeStorageObjects(journeyReferenceInventoryComplete);
 
   const publicContent: AccountDeletionManifest["publicContent"] = {
     stories: stories.map((story) => ({
@@ -760,7 +936,10 @@ export async function buildAccountDeletionDryRunManifest(
       "Recipient-owned inbox_messages.user_id rows would CASCADE on auth delete.",
       "Sent messages in other users' inboxes keep rows with sender_user_id SET NULL on auth delete.",
       "inbox_messages.parent_message_id uses ON DELETE SET NULL — surviving thread integrity preserved.",
+      "Storage prefix listing is discovery-only and never authorizes Journey private deletion.",
     ],
+    journeyReferenceInventoryComplete,
+    unresolvedJourneyReferenceCount,
   };
 
   const auditRetain: ManifestRowRef[] = [
@@ -1008,6 +1187,19 @@ export function createAccountDeletionDryRunDeps(
       return data as StoryRow[];
     },
 
+    async listPrayerVideoResponses(userId) {
+      const { data, error } = await serviceRoleClient
+        .from("prayer_video_responses")
+        .select("id, video_url, thumbnail_url")
+        .eq("user_id", userId);
+
+      if (error || !Array.isArray(data)) {
+        return [];
+      }
+
+      return data as PrayerVideoResponseRow[];
+    },
+
     async listInboxMediaReferences(userId) {
       const [recipientRows, senderRows] = await Promise.all([
         serviceRoleClient
@@ -1024,7 +1216,7 @@ export function createAccountDeletionDryRunDeps(
       ]);
 
       if (recipientRows.error || senderRows.error) {
-        return [];
+        return { ok: false, code: "inbox_media_query_failed" };
       }
 
       const byId = new Map<string, InboxMediaReferenceRow>();
@@ -1032,7 +1224,7 @@ export function createAccountDeletionDryRunDeps(
         byId.set(row.id, row as InboxMediaReferenceRow);
       }
 
-      return [...byId.values()];
+      return { ok: true, rows: [...byId.values()] };
     },
 
     async listStorageObjectsForUser(bucket, userId) {
