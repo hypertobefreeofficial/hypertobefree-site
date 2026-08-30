@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  EMAIL_CHANGE_DUAL_CONFIRMATION_NOTE,
   HTBF_MAX_EMAIL_LENGTH,
+  formatEmailChangeVerificationMessage,
   formatEmailUpdateError,
   normalizeEmail,
   requestAuthenticatedEmailChange,
@@ -104,6 +106,32 @@ describe("validateEmailChangeInput", () => {
 describe("normalizeEmail", () => {
   it("trims and lowercases", () => {
     expect(normalizeEmail("  Mixed@Case.COM ")).toBe("mixed@case.com");
+  });
+});
+
+describe("email change dual-confirmation copy", () => {
+  it("explains that verification links go to both current and new email addresses", () => {
+    expect(EMAIL_CHANGE_DUAL_CONFIRMATION_NOTE).toContain(
+      "both your current sign-in email and your new email address"
+    );
+    expect(EMAIL_CHANGE_DUAL_CONFIRMATION_NOTE).toContain(
+      "confirm the change from both addresses"
+    );
+  });
+
+  it("states that both addresses must be confirmed before sign-in email updates", () => {
+    const message = formatEmailChangeVerificationMessage("new@example.com");
+
+    expect(message).toContain(
+      "We sent verification links to your current sign-in email and to new@example.com"
+    );
+    expect(message).toContain(
+      "You must confirm the change from both email addresses before your sign-in email will update"
+    );
+    expect(message).toContain(
+      "Until then, keep signing in with your current email"
+    );
+    expect(message).not.toContain("Your sign-in email was updated");
   });
 });
 
@@ -327,12 +355,12 @@ describe("change email page wiring", () => {
     expect(source).toContain("disabled={saving || success}");
   });
 
-  it("shows a verification-pending message instead of claiming immediate change", () => {
+  it("shows dual-confirmation verification messaging instead of claiming immediate change", () => {
     const source = changeEmailSectionSource();
 
     expect(source).toContain("result.verificationRequired");
-    expect(source).toContain("confirm from both");
-    expect(source).toContain("current sign-in email");
+    expect(source).toContain("formatEmailChangeVerificationMessage");
+    expect(source).toContain("EMAIL_CHANGE_DUAL_CONFIRMATION_NOTE");
   });
 
   it("uses a trusted same-origin redirect and never a client-supplied URL", () => {

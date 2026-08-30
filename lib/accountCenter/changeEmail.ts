@@ -31,6 +31,15 @@ export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+export const EMAIL_CHANGE_DUAL_CONFIRMATION_NOTE =
+  "HTBF sends verification links to both your current sign-in email and your new email address. You must confirm the change from both addresses before your sign-in email will update.";
+
+export function formatEmailChangeVerificationMessage(
+  pendingEmail: string
+): string {
+  return `We sent verification links to your current sign-in email and to ${pendingEmail}. You must confirm the change from both email addresses before your sign-in email will update. Until then, keep signing in with your current email.`;
+}
+
 export function validateEmailChangeInput(input: {
   currentEmail: string | null | undefined;
   newEmail: string;

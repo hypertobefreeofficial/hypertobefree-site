@@ -21,7 +21,11 @@ import {
   updateAuthenticatedUserPassword,
   HTBF_PASSWORD_MIN_LENGTH,
 } from "../../../lib/accountCenter/changePassword";
-import { requestAuthenticatedEmailChange } from "../../../lib/accountCenter/changeEmail";
+import {
+  EMAIL_CHANGE_DUAL_CONFIRMATION_NOTE,
+  formatEmailChangeVerificationMessage,
+  requestAuthenticatedEmailChange,
+} from "../../../lib/accountCenter/changeEmail";
 import {
   resolveAccountInfoDisplay,
   type AccountInfoDisplay,
@@ -617,7 +621,7 @@ function ChangeEmailSection() {
     setSuccess(true);
     setMessage(
       result.verificationRequired
-        ? `We sent verification links to ${result.pendingEmail} and your current sign-in email. Your sign-in email will update after you confirm from both addresses. Until then, keep signing in with your current email.`
+        ? formatEmailChangeVerificationMessage(result.pendingEmail)
         : `Your sign-in email was updated to ${result.pendingEmail}.`
     );
   }
@@ -629,6 +633,9 @@ function ChangeEmailSection() {
       title="Change Email"
       description="Update the private email address you use to sign in to HTBF. Your sign-in email is never shown on your public profile."
     >
+      <p className="mt-5 text-sm font-semibold leading-6 text-slate-600">
+        {EMAIL_CHANGE_DUAL_CONFIRMATION_NOTE}
+      </p>
       {loading ? (
         <AccountCenterLoading text="Checking your sign-in session..." />
       ) : (
