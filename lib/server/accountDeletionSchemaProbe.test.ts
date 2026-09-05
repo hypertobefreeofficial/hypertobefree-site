@@ -133,6 +133,26 @@ describe("accountDeletionSchemaProbe", () => {
     ).toBe(false);
   });
 
+  it("fail-closed when parent_reply_id FK prerequisite is unsatisfied", () => {
+    const parsed = parseAccountDeletionSchemaProbePayload({
+      ready: true,
+      checked_at: "2026-09-04T00:00:00.000Z",
+      prerequisites: [
+        ...allSatisfiedPrerequisites(),
+        {
+          id: "story_video_replies_parent_reply_id_set_null",
+          satisfied: false,
+          detail: "still CASCADE",
+        },
+      ],
+    });
+
+    expect(isSchemaExecutionReadyFromLiveProbe(parsed)).toBe(false);
+    expect(summarizeSchemaProbeReadiness(parsed).unsatisfiedPrerequisiteIds).toContain(
+      "story_video_replies_parent_reply_id_set_null"
+    );
+  });
+
   it("fail-closed when story_video_replies auth FK prerequisites are unsatisfied", () => {
     const parsed = parseAccountDeletionSchemaProbePayload({
       ready: true,

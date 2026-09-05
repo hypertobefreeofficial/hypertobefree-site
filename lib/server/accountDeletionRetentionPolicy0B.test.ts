@@ -3,6 +3,8 @@ import {
   ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS,
   ACCOUNT_DELETION_DIRECT_AUTH_FK_REGISTRY,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
   ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY,
   UNSAFE_TRANSITIVE_CASCADE_IDS,
   classifyDatabaseTablePolicy,
@@ -93,6 +95,29 @@ describe("Phase 4C.7B.1E.2B.0B retention policy corrections", () => {
     expect(ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY.some(
       (entry) => entry.id === "story_delete_story_video_replies"
     )).toBe(true);
+  });
+
+  it("documents parent_reply CASCADE as unsafe pre-2B.3a with SET NULL target", () => {
+    const parentCascade = ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY.find(
+      (entry) => entry.id === "reply_parent_delete_descendant_cascade"
+    );
+    expect(parentCascade?.classification).toBe("UNSAFE_PRESERVED_DATA_LOSS");
+    expect(parentCascade?.chain.join(" ")).toContain("parent_reply_id");
+    expect(parentCascade?.requiredFutureBehavior).toContain("SET NULL");
+    expect(UNSAFE_TRANSITIVE_CASCADE_IDS).toContain(
+      "reply_parent_delete_descendant_cascade"
+    );
+  });
+
+  it("documents story_video_replies HARD_DELETE is not executor-ready after 2B.3a", () => {
+    const hardDelete = classifyDatabaseTablePolicy("story_video_replies").find(
+      (entry) => entry.action === "HARD_DELETE"
+    );
+    expect(hardDelete?.fkNotes?.join(" ")).toContain("2B.3b");
+    expect(ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE).toContain(
+      "not executor-ready"
+    );
+    expect(isAccountDeletionExecutionEnabled()).toBe(false);
   });
 
   it("documents story_video_replies FK hardening prerequisite before auth delete", () => {

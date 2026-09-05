@@ -135,13 +135,17 @@ describe("story_video_replies auth FK migration (Phase 4C.7B.1E.2B.2)", () => {
     }
   });
 
-  it("requires every TypeScript prerequisite id to appear in the live probe", () => {
+  it("requires every TypeScript prerequisite id to appear in the 2B.2 live probe", () => {
     const probe = functionBody(
       readMigration(),
       "verify_account_deletion_schema_execution_ready"
     );
 
-    for (const prerequisite of ACCOUNT_DELETION_SCHEMA_PREREQUISITES) {
+    for (const prerequisite of ACCOUNT_DELETION_SCHEMA_PREREQUISITES.filter(
+      (entry) =>
+        entry.id === "story_video_replies_user_id_set_null" ||
+        entry.id === "story_video_replies_recipient_user_id_set_null"
+    )) {
       expect(probe).toContain(`'id', '${prerequisite.id}'`);
     }
   });

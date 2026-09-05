@@ -95,6 +95,15 @@ export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION = {
   phase: "4C.7B.1E.2B.2",
 } as const;
 
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_MIGRATION = {
+  version: "20260830130000",
+  filename:
+    "20260830130000_story_video_replies_parent_fk_set_null_phase4c7b1e2b3a.sql",
+  relativePath:
+    "supabase/migrations/20260830130000_story_video_replies_parent_fk_set_null_phase4c7b1e2b3a.sql",
+  phase: "4C.7B.1E.2B.3a",
+} as const;
+
 export const ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE =
   "schemaExecutionReady requires target-environment verification of all prerequisites — designing the hardening migration locally does not enable destructive execution." as const;
 
@@ -121,6 +130,12 @@ export type AccountDeletionTransitiveCascadeEntry = {
 
 export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE =
   "Before auth.users deletion, story_video_replies.user_id and recipient_user_id require ON DELETE SET NULL hardening so auth delete cannot CASCADE-delete a surviving party's shared reply row." as const;
+
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE =
+  "Before any executor may physically delete a parent story_video_reply row, parent_reply_id requires ON DELETE SET NULL so descendant replies belonging to surviving users are not CASCADE-deleted by the database." as const;
+
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE =
+  "story_video_replies HARD_DELETE registry entries are design-only — not executor-ready until reply-tree inventory (2B.3b) and policy revision (2B.3c). Phase 2B.3a schema hardening alone does not enable reply row deletion." as const;
 
 export const DELETED_PUBLIC_AUTHOR_DISPLAY_NAME = "Deleted User" as const;
 
@@ -187,6 +202,9 @@ const SCHEMA_HARDENING_MIGRATION_FILE =
 
 const STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION_FILE =
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION.relativePath;
+
+const STORY_VIDEO_REPLIES_PARENT_FK_MIGRATION_FILE =
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_MIGRATION.relativePath;
 
 export const ACCOUNT_DELETION_SCHEMA_PREREQUISITES: AccountDeletionSchemaPrerequisite[] =
   [
@@ -291,6 +309,20 @@ export const ACCOUNT_DELETION_SCHEMA_PREREQUISITES: AccountDeletionSchemaPrerequ
         "Auth delete must not CASCADE-delete shared story_video_replies when target is recipient — surviving sender must keep the row.",
       satisfied: false,
       migrationFile: STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
+    },
+    {
+      id: "story_video_replies_parent_reply_id_set_null",
+      table: "story_video_replies",
+      column: "parent_reply_id",
+      currentState:
+        "uuid NULLABLE, story_video_replies_parent_reply_id_fkey ON DELETE CASCADE → story_video_replies(id)",
+      requiredState:
+        "uuid NULLABLE, ON DELETE SET NULL → public.story_video_replies(id)",
+      reason:
+        "Physical parent reply deletion must not CASCADE-delete descendant replies involving surviving users.",
+      satisfied: false,
+      migrationFile: STORY_VIDEO_REPLIES_PARENT_FK_MIGRATION_FILE,
       verificationSource: "hardening_migration_designed",
     },
   ];
@@ -605,7 +637,22 @@ export const ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY: AccountDeletionTransi
       currentBehavior:
         "Auth delete can CASCADE-delete shared story_video_replies rows and destroy the surviving party's copy.",
       requiredFutureBehavior:
-        "user_id and recipient_user_id nullable + ON DELETE SET NULL before auth.users delete; executor party-detaches target participation; preserve row for surviving party; HARD_DELETE only when no surviving party remains.",
+        "user_id and recipient_user_id nullable + ON DELETE SET NULL before auth.users delete (Phase 4C.7B.1E.2B.2 Production); executor party-detaches target participation; preserve row for surviving party.",
+      executionNote:
+        "Auth-user participant FK hardening applied in Production — executor still requires reply-tree inventory before any reply HARD_DELETE.",
+    },
+    {
+      id: "reply_parent_delete_descendant_cascade",
+      chain: [
+        "story_video_replies(parent row) DELETE",
+        "→ story_video_replies.parent_reply_id ON DELETE CASCADE (pre-2B.3a baseline)",
+      ],
+      classification: "UNSAFE_PRESERVED_DATA_LOSS",
+      currentBehavior:
+        "Physical parent reply deletion recursively deletes descendant reply rows, destroying surviving users' messages.",
+      requiredFutureBehavior:
+        "parent_reply_id ON DELETE SET NULL (Phase 4C.7B.1E.2B.3a); descendant row survives with parent_reply_id nulled; executor HARD_DELETE policy still blocked until reply-tree inventory (2B.3b) and revision (2B.3c).",
+      executionNote: ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
     },
     {
       id: "auth_audit_set_null",
@@ -699,6 +746,7 @@ export const UNSAFE_TRANSITIVE_CASCADE_IDS = [
   "auth_prayer_written_responses_public_loss",
   "auth_prayer_updates_public_loss",
   "auth_story_video_replies_shared_party_preservation",
+  "reply_parent_delete_descendant_cascade",
   "story_hard_delete_content_reports",
   "story_delete_other_user_prayer_video_responses",
   "story_delete_other_user_prayer_written_responses",
@@ -988,6 +1036,9 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
         "Cross-user replies require DETACH party semantics — not this selector.",
         "Story-attached replies involving surviving users require DETACH_AND_PRESERVE — never cascade via parent story HARD_DELETE.",
         "Never-published story HARD_DELETE blocked when storyVideoReplyCount > 0.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
+        "Do not wire this HARD_DELETE selector into executor until reply-tree inventory (2B.3b) proves no cross-user descendant loss.",
       ],
     },
     {
@@ -1295,6 +1346,8 @@ export const ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS = [
   "Public prayer response/update body text must be preserved — identity detach only.",
   "story_video_replies cross-user rows must use party-specific DETACH semantics — never whole-row HARD_DELETE merely because one party is the deletion target.",
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
   "Surviving other-user Journey inbox rows cannot be HARD_DELETE.",
   "Audit and account_deletion_requests rows cannot be HARD_DELETE.",
   "Unknown tables or unresolved selectors become BLOCK_UNRESOLVED.",
