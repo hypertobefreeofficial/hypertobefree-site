@@ -114,3 +114,45 @@ Known future gate:
 
 Execution status:
 Permanent account deletion remains disabled. Database deletion executor, Auth-user deletion, profile deletion, and final destructive orchestration are not enabled.
+
+## Phase 4C.7B.1E.2B.3a — story_video_replies Parent-Reply FK Preservation Hardening
+Status: Production PASS
+
+Deployment method:
+Supabase schema migration was manually applied by the owner through the Supabase Production SQL Editor. Application/schema-policy changes were deployed through GitHub `main` and Vercel Production.
+
+Production database verification:
+- `story_video_replies.parent_reply_id` remains nullable.
+- `story_video_replies_parent_reply_id_fkey` now uses `ON DELETE SET NULL`.
+- No CASCADE FK remains on `parent_reply_id`.
+- Exactly one FK remains on `parent_reply_id`.
+- `story_video_replies.user_id` and `recipient_user_id` Auth FKs remain `ON DELETE SET NULL`.
+- `story_video_replies.story_id` remains `ON DELETE CASCADE`.
+- All 52 existing `story_video_replies` rows were preserved.
+- Reply-tree counts remained 47 root replies and 5 child replies.
+- No participant IDs were changed by the DDL.
+- No self-parent rows, orphan parent referencescross-story parent links, or detected cycles were present in Production prechecks.
+- Approximate maximum observed reply-tree depth was 3.
+- RLS remained enabled.
+- Live schema-readiness prerequisite `story_video_replies_parent_reply_id_set_null` passed.
+- Overall live schema-readiness probe returned `ready = true`.
+- Readiness RPC remained SECURITY DEFINER, owned by postgres, with hardened search_path and service-role-only execution.
+- Existing approved account deletion request remained unchanged and approved.
+
+Application verification:
+- Vercel Production deployment for commit `6ff13eb1` completed successfully.
+- Admin account-deletion request still displays `APPROVED — NOT YET DELETED`.
+- Permanent deletion execution remains disabled.
+- No Execute/Delete Permanently control is exposed.
+- Messages/Journey loaded normally in Production.
+
+Important:
+A `ready = true` schema-readiness result does not enable permanent deletion. The execution environment gate, destructive database executor, Auth-user deletion,rofile deletion, and final orchestration remain disabled/unimplemented.
+
+Known future gates:
+- Phase 2B.3b must implement an authoritative reply-tree safety inventory with complete descendant traversal, cycle/depth handling, and fail-closed behavior.
+- Phase 2B.3c must revise the current `story_video_replies` account-deletion HARD_DELETE policy toward DETACH/TOMBSTONE preservation before any destructive executor can use it.
+- `story_video_replies.story_id` remains `ON DELETE CASCADE`; 2B.1 continues to block parent-story HARD_DELETE whenever replies exist.
+
+Execution status:
+Permanent account deletion remains disabled. Database deletion executor, Auth-user deletion, profile deletion, and final destructive orchestration are not enabled.
