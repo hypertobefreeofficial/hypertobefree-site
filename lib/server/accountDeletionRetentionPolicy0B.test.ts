@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS,
+  ACCOUNT_DELETION_DIRECT_AUTH_FK_REGISTRY,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
   ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY,
   UNSAFE_TRANSITIVE_CASCADE_IDS,
@@ -71,6 +72,27 @@ describe("Phase 4C.7B.1E.2B.0B retention policy corrections", () => {
     expect(STORY_SUBSTANTIVE_CHILD_POLICIES.prayer_updates).toBe(
       "ANONYMIZE_AND_PRESERVE"
     );
+  });
+
+  it("documents story_video_replies auth FK registry targets SET NULL after 2B.2", () => {
+    const userId = ACCOUNT_DELETION_DIRECT_AUTH_FK_REGISTRY.find(
+      (entry) =>
+        entry.table === "story_video_replies" && entry.column === "user_id"
+    );
+    const recipient = ACCOUNT_DELETION_DIRECT_AUTH_FK_REGISTRY.find(
+      (entry) =>
+        entry.table === "story_video_replies" &&
+        entry.column === "recipient_user_id"
+    );
+
+    expect(userId?.onDelete).toBe("SET NULL");
+    expect(recipient?.onDelete).toBe("SET NULL");
+  });
+
+  it("documents story_id CASCADE remains protected by 2B.1 parent-story blocking", () => {
+    expect(ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY.some(
+      (entry) => entry.id === "story_delete_story_video_replies"
+    )).toBe(true);
   });
 
   it("documents story_video_replies FK hardening prerequisite before auth delete", () => {

@@ -106,12 +106,35 @@ describe("account deletion schema hardening migration (Phase 4C.7B.1E.2A)", () =
 });
 
 describe("schema readiness model after 1E.2A migration design", () => {
-  it("links all six prerequisites to the hardening migration file", () => {
-    expect(ACCOUNT_DELETION_SCHEMA_PREREQUISITES).toHaveLength(6);
+  it("links schema prerequisites to their owning migration files", () => {
+    expect(ACCOUNT_DELETION_SCHEMA_PREREQUISITES).toHaveLength(8);
+
+    const hardeningIds = new Set([
+      "stories_user_id_nullable",
+      "prayer_video_responses_user_id_set_null",
+      "prayer_written_responses_author_set_null",
+      "prayer_updates_author_set_null",
+      "inbox_messages_prayer_update_id_set_null",
+      "content_reports_story_id_set_null",
+    ]);
+    const storyReplyIds = new Set([
+      "story_video_replies_user_id_set_null",
+      "story_video_replies_recipient_user_id_set_null",
+    ]);
+
     for (const prerequisite of ACCOUNT_DELETION_SCHEMA_PREREQUISITES) {
-      expect(prerequisite.migrationFile).toBe(MIGRATION_PATH);
       expect(prerequisite.satisfied).toBe(false);
       expect(prerequisite.verificationSource).toBe("hardening_migration_designed");
+
+      if (hardeningIds.has(prerequisite.id)) {
+        expect(prerequisite.migrationFile).toBe(MIGRATION_PATH);
+      } else if (storyReplyIds.has(prerequisite.id)) {
+        expect(prerequisite.migrationFile).toBe(
+          "supabase/migrations/20260830120000_story_video_replies_auth_fk_set_null_phase4c7b1e2b2.sql"
+        );
+      } else {
+        throw new Error(`unexpected prerequisite id: ${prerequisite.id}`);
+      }
     }
   });
 

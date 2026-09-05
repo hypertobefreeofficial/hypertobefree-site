@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { getDeletedUserAuthorProfile } from "../../lib/prayer-connect/authorProfiles";
 type MessageTab = "inbox" | "sent" | "all";
 
 type ReplyRow = {
@@ -208,7 +209,7 @@ export default function MessagesPage() {
   }, [activeTab, messages, userId]);
 
   function getProfileName(profileId: string | null) {
-    if (!profileId) return "HTBF Community";
+    if (!profileId) return getDeletedUserAuthorProfile().displayName;
 
     const profile = profiles[profileId];
 

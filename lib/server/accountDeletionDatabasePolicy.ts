@@ -86,6 +86,15 @@ export const ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION = {
   phase: "4C.7B.1E.2A",
 } as const;
 
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION = {
+  version: "20260830120000",
+  filename:
+    "20260830120000_story_video_replies_auth_fk_set_null_phase4c7b1e2b2.sql",
+  relativePath:
+    "supabase/migrations/20260830120000_story_video_replies_auth_fk_set_null_phase4c7b1e2b2.sql",
+  phase: "4C.7B.1E.2B.2",
+} as const;
+
 export const ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE =
   "schemaExecutionReady requires target-environment verification of all prerequisites — designing the hardening migration locally does not enable destructive execution." as const;
 
@@ -176,6 +185,9 @@ export const CONTENT_REPORT_STORY_DETACH_FIELDS = ["story_id"] as const;
 const SCHEMA_HARDENING_MIGRATION_FILE =
   ACCOUNT_DELETION_SCHEMA_HARDENING_MIGRATION.relativePath;
 
+const STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION_FILE =
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION.relativePath;
+
 export const ACCOUNT_DELETION_SCHEMA_PREREQUISITES: AccountDeletionSchemaPrerequisite[] =
   [
     {
@@ -253,6 +265,32 @@ export const ACCOUNT_DELETION_SCHEMA_PREREQUISITES: AccountDeletionSchemaPrerequ
         "Non-public story HARD_DELETE must not cascade-delete preserved moderation reports.",
       satisfied: false,
       migrationFile: SCHEMA_HARDENING_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
+    },
+    {
+      id: "story_video_replies_user_id_set_null",
+      table: "story_video_replies",
+      column: "user_id",
+      currentState:
+        "uuid NOT NULL, story_video_replies_user_id_fkey ON DELETE CASCADE → auth.users",
+      requiredState: "uuid NULLABLE, ON DELETE SET NULL → auth.users",
+      reason:
+        "Auth delete must not CASCADE-delete shared story_video_replies when target is sender — surviving recipient must keep the row.",
+      satisfied: false,
+      migrationFile: STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION_FILE,
+      verificationSource: "hardening_migration_designed",
+    },
+    {
+      id: "story_video_replies_recipient_user_id_set_null",
+      table: "story_video_replies",
+      column: "recipient_user_id",
+      currentState:
+        "uuid NULLABLE, story_video_replies_recipient_user_id_fkey ON DELETE CASCADE → auth.users",
+      requiredState: "uuid NULLABLE, ON DELETE SET NULL → auth.users",
+      reason:
+        "Auth delete must not CASCADE-delete shared story_video_replies when target is recipient — surviving sender must keep the row.",
+      satisfied: false,
+      migrationFile: STORY_VIDEO_REPLIES_AUTH_FK_MIGRATION_FILE,
       verificationSource: "hardening_migration_designed",
     },
   ];
@@ -394,15 +432,19 @@ export const ACCOUNT_DELETION_DIRECT_AUTH_FK_REGISTRY: AccountDeletionDirectAuth
       table: "story_video_replies",
       column: "user_id",
       references: "auth.users(id)",
-      onDelete: "CASCADE",
-      columnNullable: false,
+      onDelete: "SET NULL",
+      columnNullable: true,
+      executionNote:
+        "Party-detach target sender identity; preserve row for surviving recipient. Requires Phase 4C.7B.1E.2B.2 migration.",
     },
     {
       table: "story_video_replies",
       column: "recipient_user_id",
       references: "auth.users(id)",
-      onDelete: "CASCADE",
+      onDelete: "SET NULL",
       columnNullable: true,
+      executionNote:
+        "Party-detach target recipient identity; preserve row for surviving sender. Requires Phase 4C.7B.1E.2B.2 migration.",
     },
   ];
 
