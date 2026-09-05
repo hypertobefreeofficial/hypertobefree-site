@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import type { ReplyMode } from "../../../../../lib/journey/inbox/types";
+import {
+  accountDeletionInProgressResponse,
+  assertAccountDeletionActorCanWrite,
+  createAccountDeletionActorWriteGuardDeps,
+} from "../../../../../lib/server/accountDeletionActorWriteGuard";
 import { authenticateSupabaseRequest } from "../../../../../lib/server/authenticateSupabaseRequest";
 import { createJourneyThreadReply } from "../../../../../lib/server/journeyInboxReply";
 
@@ -81,6 +86,14 @@ export async function POST(request: Request) {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  const writeGuard = await assertAccountDeletionActorCanWrite(
+    auth.context.user.id,
+    createAccountDeletionActorWriteGuardDeps(adminClient)
+  );
+  if (writeGuard.blocked) {
+    return accountDeletionInProgressResponse();
+  }
 
   const result = await createJourneyThreadReply({
     adminClient,

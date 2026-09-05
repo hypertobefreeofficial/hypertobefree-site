@@ -1,4 +1,8 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
+import {
+  assertAccountDeletionActorCanWrite,
+  createAccountDeletionActorWriteGuardDeps,
+} from "./accountDeletionActorWriteGuard";
 import {
   checkPrayerRateLimit,
   PRAYER_RATE_LIMITS,
@@ -141,6 +145,18 @@ export async function handlePublicVideoResponseRequest(
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  const writeGuard = await assertAccountDeletionActorCanWrite(
+    user.id,
+    createAccountDeletionActorWriteGuardDeps(adminClient)
+  );
+  if (writeGuard.blocked) {
+    return fail(
+      "Account deletion is in progress. Changes are temporarily unavailable.",
+      "account_deletion_in_progress",
+      403
+    );
+  }
 
   if (!sourceType) {
     const { data: sourceRow, error: sourceLookupError } = await adminClient

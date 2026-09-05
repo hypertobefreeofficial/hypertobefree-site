@@ -1,5 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import {
+  assertAccountDeletionActorCanWrite,
+  createAccountDeletionActorWriteGuardDeps,
+} from "../../../lib/server/accountDeletionActorWriteGuard";
+import {
   parseSupabaseStorageUrl,
   STORY_VIDEO_BUCKET,
 } from "../../../lib/server/prayerMediaValidation";
@@ -138,6 +142,18 @@ export async function POST(request: Request) {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  const writeGuard = await assertAccountDeletionActorCanWrite(
+    user.id,
+    createAccountDeletionActorWriteGuardDeps(adminClient)
+  );
+  if (writeGuard.blocked) {
+    return fail(
+      "Account deletion is in progress. Changes are temporarily unavailable.",
+      "account_deletion_in_progress",
+      403
+    );
+  }
 
   let resolvedStoryId = storyId;
   // Never trust client-supplied reported_user_id when a story or response target

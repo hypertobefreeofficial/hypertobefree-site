@@ -340,6 +340,9 @@ describe("policy registry reconciliation", () => {
     expect(STORY_SUBSTANTIVE_CHILD_POLICIES.story_video_replies).toBe(
       "DETACH_AND_PRESERVE"
     );
+    expect(STORY_SUBSTANTIVE_CHILD_POLICIES.prayer_updates).toBe(
+      "ANONYMIZE_AND_PRESERVE"
+    );
     expect(STORY_SUBSTANTIVE_CHILD_POLICIES.content_reports).toBe(
       "PRESERVE_AND_DETACH"
     );

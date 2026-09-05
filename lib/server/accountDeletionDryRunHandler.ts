@@ -6,6 +6,8 @@ import {
   sanitizeManifestForResponse,
   verifyAdminForAccountDeletionDryRun,
 } from "./accountDeletionManifest";
+import { resolveCombinedSchemaExecutionReady } from "./accountDeletionDatabasePolicy";
+import { fetchAccountDeletionSchemaProbe } from "./accountDeletionSchemaProbe";
 import {
   checkPrayerRateLimit,
   PRAYER_RATE_LIMITS,
@@ -117,6 +119,11 @@ export async function handleAccountDeletionDryRunRequest(options: {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const liveSchemaProbe = await fetchAccountDeletionSchemaProbe(serviceRoleClient);
+  const schemaReadiness = resolveCombinedSchemaExecutionReady({
+    liveProbe: liveSchemaProbe,
+  });
+
   const result = await buildAccountDeletionDryRunManifest(
     requestId,
     createAccountDeletionDryRunDeps(serviceRoleClient)
@@ -141,6 +148,12 @@ export async function handleAccountDeletionDryRunRequest(options: {
     body: {
       ok: true,
       manifest: sanitizeManifestForResponse(result.manifest),
+      schemaReadiness: {
+        staticPrerequisitesReady: schemaReadiness.staticPrerequisitesReady,
+        liveCatalogProbeReady: schemaReadiness.liveCatalogProbeReady,
+        combinedSchemaExecutionReady: schemaReadiness.combinedReady,
+        liveSchemaProbe,
+      },
     },
   };
 }

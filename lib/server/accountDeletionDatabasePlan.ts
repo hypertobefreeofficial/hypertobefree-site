@@ -1,5 +1,6 @@
 import type { AccountDeletionManifest } from "./accountDeletionManifest";
 import { BLOCKED_OWNER_ACCOUNT_CODE } from "./accountDeletionPolicy";
+import type { AccountDeletionSchemaProbeResult } from "./accountDeletionSchemaProbe";
 import {
   ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS,
   ACCOUNT_DELETION_SCHEMA_PREREQUISITES,
@@ -12,7 +13,7 @@ import {
   isApprovedPublicStoryHardDelete,
   isKnownAccountDeletionDatabaseTable,
   isPublicTestimonyTable,
-  isSchemaExecutionReady,
+  resolveCombinedSchemaExecutionReady,
   PROFILE_ANONYMIZATION_IDENTITY_FIELDS,
   PUBLIC_TESTIMONY_TABLES,
   resolveMostRestrictiveDatabaseAction,
@@ -68,6 +69,8 @@ export type AccountDeletionDatabasePlanBuildInput = {
   manifest: AccountDeletionManifest;
   /** Server-derived per-story lifecycle inputs — never accept from browser/HTTP body. */
   storyPlanningInputs?: readonly StoryRowLifecycleInput[];
+  /** Optional live catalog probe — never accept from browser/HTTP body. */
+  liveSchemaProbe?: AccountDeletionSchemaProbeResult | null;
 };
 
 type ManifestCountSource = {
@@ -279,7 +282,10 @@ export function buildAccountDeletionDatabasePlan(
   input: AccountDeletionDatabasePlanBuildInput
 ): AccountDeletionDatabasePlan {
   const { manifest, storyPlanningInputs } = input;
-  const schemaExecutionReady = isSchemaExecutionReady();
+  const schemaReadiness = resolveCombinedSchemaExecutionReady({
+    liveProbe: input.liveSchemaProbe,
+  });
+  const schemaExecutionReady = schemaReadiness.combinedReady;
   const schemaBlockers = getSchemaExecutionBlockers();
 
   const plan: AccountDeletionDatabasePlan = {

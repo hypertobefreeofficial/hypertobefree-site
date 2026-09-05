@@ -5,6 +5,16 @@ import { resetRateLimitBucketsForTests } from "./prayerRateLimit";
 const mockAuthenticateSupabaseRequest = vi.fn();
 const mockVerifyAdmin = vi.fn();
 const mockBuildManifest = vi.fn();
+const mockFetchSchemaProbe = vi.fn();
+
+vi.mock("./accountDeletionSchemaProbe", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./accountDeletionSchemaProbe")>();
+  return {
+    ...actual,
+    fetchAccountDeletionSchemaProbe: (...args: unknown[]) =>
+      mockFetchSchemaProbe(...args),
+  };
+});
 
 vi.mock("./authenticateSupabaseRequest", () => ({
   authenticateSupabaseRequest: (...args: unknown[]) =>
@@ -60,6 +70,19 @@ describe("account deletion dry-run handler and route", () => {
         },
         blocked: false,
       },
+    });
+    mockFetchSchemaProbe.mockResolvedValue({
+      valid: true,
+      ready: true,
+      probeError: false,
+      checkedAt: "2026-09-04T00:00:00.000Z",
+      prerequisites: [
+        {
+          id: "write_freeze_public_rls_present",
+          satisfied: true,
+          detail: "ok",
+        },
+      ],
     });
   });
 
@@ -130,6 +153,8 @@ describe("account deletion dry-run handler and route", () => {
     });
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.body.schemaReadiness?.liveCatalogProbeReady).toBe(true);
     expect(mockBuildManifest).toHaveBeenCalledWith(
       "req-1",
       expect.anything()
@@ -180,6 +205,7 @@ describe("account deletion dry-run handler and route", () => {
     const json = await response.json();
     expect(json.ok).toBe(true);
     expect(json.manifest.identity.targetUserId).toBe("user-target");
+    expect(json.schemaReadiness.combinedSchemaExecutionReady).toBe(false);
     expect(JSON.stringify(json)).not.toMatch(/service-role/i);
     expect(JSON.stringify(json)).not.toMatch(/refresh_token/i);
   });

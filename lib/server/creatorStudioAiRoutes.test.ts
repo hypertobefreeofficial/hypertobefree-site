@@ -10,10 +10,20 @@ import { readCreatorStudioAiQuotaCounts } from "./creatorStudioAiLimits";
 const mockGetUser = vi.fn();
 const mockUpload = vi.fn();
 const mockGetPublicUrl = vi.fn();
+const mockDeletionRequestLimit = vi.fn();
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
     auth: { getUser: (...args: unknown[]) => mockGetUser(...args) },
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          or: vi.fn(() => ({
+            limit: (...args: unknown[]) => mockDeletionRequestLimit(...args),
+          })),
+        })),
+      })),
+    })),
     storage: {
       from: vi.fn(() => ({
         upload: (...args: unknown[]) => mockUpload(...args),
@@ -24,13 +34,13 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 const mockUserA = {
-  id: "user-a-1111-2222-3333-444455556666",
+  id: "aaaaaaaa-1111-4111-8111-111111111111",
   aud: "authenticated",
   role: "authenticated",
 };
 
 const mockUserB = {
-  id: "user-b-aaaa-bbbb-cccc-dddddddddddd",
+  id: "bbbbbbbb-2222-4222-8222-222222222222",
   aud: "authenticated",
   role: "authenticated",
 };
@@ -74,7 +84,10 @@ describe("Creator Studio AI routes", () => {
 
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
     process.env.OPENAI_API_KEY = "sk-test-key";
+
+    mockDeletionRequestLimit.mockResolvedValue({ data: [], error: null });
 
     mockGetUser.mockImplementation(async (token: string) => {
       if (token === "valid-token-a") {

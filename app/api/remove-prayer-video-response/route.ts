@@ -1,5 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import {
+  assertAccountDeletionActorCanWrite,
+  createAccountDeletionActorWriteGuardDeps,
+} from "../../../lib/server/accountDeletionActorWriteGuard";
+import {
   checkPrayerRateLimit,
   PRAYER_RATE_LIMITS,
   rateLimitKey,
@@ -146,6 +150,21 @@ export async function POST(request: Request) {
       "forbidden",
       403
     );
+  }
+
+  const actorRequiresWriteGuard = isAuthor || isOwner;
+  if (actorRequiresWriteGuard) {
+    const writeGuard = await assertAccountDeletionActorCanWrite(
+      user.id,
+      createAccountDeletionActorWriteGuardDeps(adminClient)
+    );
+    if (writeGuard.blocked) {
+      return fail(
+        "Account deletion is in progress. Changes are temporarily unavailable.",
+        "account_deletion_in_progress",
+        403
+      );
+    }
   }
 
   const removalSource = isAuthor

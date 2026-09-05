@@ -216,8 +216,12 @@ export async function loadCommunityPrayerResponses(
     }
 
     const authorIds = [
-      ...filteredWrittenRows.map((row) => row.author_user_id),
-      ...filteredVideoRows.map((row) => row.user_id),
+      ...filteredWrittenRows
+        .map((row) => row.author_user_id)
+        .filter((id): id is string => Boolean(id)),
+      ...filteredVideoRows
+        .map((row) => row.user_id)
+        .filter((id): id is string => Boolean(id)),
     ];
     const profiles = await loadPrayerAuthorProfiles(authorIds);
 

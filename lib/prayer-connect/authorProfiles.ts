@@ -51,12 +51,23 @@ export function getAnonymousAuthorProfile(): PrayerAuthorProfile {
   };
 }
 
+export function getDeletedUserAuthorProfile(): PrayerAuthorProfile {
+  return {
+    id: "deleted-user",
+    displayName: "Deleted User",
+    avatarUrl: null,
+    isAnonymous: true,
+  };
+}
+
 export function resolveAuthorPresentation(
-  authorUserId: string,
+  authorUserId: string | null | undefined,
   profiles: Map<string, PrayerAuthorProfile>,
   options?: { forceAnonymous?: boolean }
 ) {
-  if (options?.forceAnonymous) return getAnonymousAuthorProfile();
+  if (options?.forceAnonymous || !authorUserId) {
+    return getDeletedUserAuthorProfile();
+  }
   return profiles.get(authorUserId) ?? {
     id: authorUserId,
     displayName: "HTBF community member",

@@ -24,7 +24,7 @@ export const STORY_SUBSTANTIVE_CHILD_POLICIES = {
   story_reactions: "DELETE_AS_DERIVED_ENGAGEMENT",
   prayer_follows: "DELETE_AS_DERIVED_ENGAGEMENT",
   saved_content: "DELETE_AS_DERIVED_ENGAGEMENT",
-  prayer_updates: "DELETE_AS_DERIVED_ENGAGEMENT",
+  prayer_updates: "ANONYMIZE_AND_PRESERVE",
 } as const satisfies Record<string, StorySubstantiveChildPolicy>;
 
 export type StoryDeletionChildInventory = {

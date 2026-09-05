@@ -1,4 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  ACCOUNT_DELETION_IN_PROGRESS_CODE,
+  accountDeletionInProgressErrorMessage,
+  assertAccountDeletionActorCanWrite,
+  createAccountDeletionActorWriteGuardDeps,
+} from "../../../lib/server/accountDeletionActorWriteGuard";
 import { checkAiImageGenerationGate } from "../../../lib/server/aiImageGenerationGate";
 import { checkAiKillSwitch } from "../../../lib/server/aiKillSwitch";
 import { hashUserIdForLog, logAiSafetyEvent } from "../../../lib/server/aiSafetyLog";
@@ -65,6 +71,31 @@ export async function POST(request: Request) {
 
   if (userError || !user) {
     return Response.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    return Response.json(
+      { error: "Creator Studio storage is unavailable." },
+      { status: 503 }
+    );
+  }
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const writeGuard = await assertAccountDeletionActorCanWrite(
+    user.id,
+    createAccountDeletionActorWriteGuardDeps(adminClient)
+  );
+  if (writeGuard.blocked) {
+    return Response.json(
+      {
+        error: accountDeletionInProgressErrorMessage(),
+        code: ACCOUNT_DELETION_IN_PROGRESS_CODE,
+      },
+      { status: 403 }
+    );
   }
 
   const killSwitch = checkAiKillSwitch(endpoint);

@@ -318,9 +318,9 @@ describe("accountDeletionDatabasePolicy", () => {
 
   it("documents mutation ordering with auth delete last", () => {
     const order = getDatabaseMutationOrderHints().join(" ");
-    expect(order).toContain("anonymize");
-    expect(order).toContain("auth.users row LAST");
-    expect(order).toContain("schemaExecutionReady");
+    expect(order).toContain("anonymize public testimony");
+    expect(order).toContain("delete auth.users row LAST");
+    expect(order).toContain("live schema probe");
   });
 
   it("protects all public testimony tables in invariants list", () => {

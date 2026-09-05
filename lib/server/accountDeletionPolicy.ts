@@ -26,7 +26,7 @@ export const ACCOUNT_DELETION_TABLE_POLICY = {
   prayer_written_responses: "anonymize",
   prayer_updates: "anonymize",
   story_reactions: "hard_delete",
-  story_video_replies: "hard_delete",
+  story_video_replies: "preserve_anonymized",
   saved_content: "hard_delete",
   prayer_follows: "hard_delete",
   prayer_search_preferences: "hard_delete",

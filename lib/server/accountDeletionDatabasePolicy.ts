@@ -5,6 +5,10 @@
 
 import { STORY_ANONYMIZATION_PII_FIELDS } from "./accountDeletionPolicy";
 import {
+  isSchemaExecutionReadyFromLiveProbe,
+  type AccountDeletionSchemaProbeResult,
+} from "./accountDeletionSchemaProbe";
+import {
   ACCOUNT_DELETION_STORY_CROSS_USER_INVARIANT,
   STORY_LIFECYCLE_STORAGE_NOTES,
 } from "./accountDeletionStoryLifecycle";
@@ -106,6 +110,9 @@ export type AccountDeletionTransitiveCascadeEntry = {
   executionNote?: string;
 };
 
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE =
+  "Before auth.users deletion, story_video_replies.user_id and recipient_user_id require ON DELETE SET NULL hardening so auth delete cannot CASCADE-delete a surviving party's shared reply row." as const;
+
 export const DELETED_PUBLIC_AUTHOR_DISPLAY_NAME = "Deleted User" as const;
 
 export const APPROVED_PUBLIC_STORY_STATUSES = ["approved"] as const;
@@ -143,11 +150,19 @@ export const PROFILE_ANONYMIZATION_IDENTITY_FIELDS = [
 
 export const PROFILE_HARD_DELETE_TABLE = "profiles" as const;
 
-export const PRAYER_VIDEO_RESPONSE_ANONYMIZATION_FIELDS = ["body"] as const;
+export const PRAYER_VIDEO_RESPONSE_ANONYMIZATION_FIELDS = [] as const;
+
+export const PRAYER_VIDEO_RESPONSE_IDENTITY_DETACH_FIELDS = ["user_id"] as const;
 
 export const PRAYER_WRITTEN_RESPONSE_ANONYMIZATION_FIELDS = [] as const;
 
+export const PRAYER_WRITTEN_RESPONSE_IDENTITY_DETACH_FIELDS = [
+  "author_user_id",
+] as const;
+
 export const PRAYER_UPDATE_ANONYMIZATION_FIELDS = [] as const;
+
+export const PRAYER_UPDATE_IDENTITY_DETACH_FIELDS = ["author_user_id"] as const;
 
 export const INBOX_SURVIVING_COPY_ANONYMIZATION_FIELDS = [
   "title",
@@ -532,10 +547,23 @@ export const ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY: AccountDeletionTransi
       id: "auth_private_engagement_cleanup",
       chain: [
         "auth.users(target)",
-        "→ story_reactions / saved_content / prayer_follows / prayer_search_preferences / blocked_users / story_video_replies ON DELETE CASCADE",
+        "→ story_reactions / saved_content / prayer_follows / prayer_search_preferences / blocked_users ON DELETE CASCADE",
       ],
       classification: "EXPECTED_PRIVATE_CLEANUP",
       currentBehavior: "Private per-user engagement rows are removed.",
+    },
+    {
+      id: "auth_story_video_replies_shared_party_preservation",
+      chain: [
+        "auth.users(target)",
+        "→ story_video_replies.user_id ON DELETE CASCADE (current schema)",
+        "→ story_video_replies.recipient_user_id ON DELETE CASCADE (current schema)",
+      ],
+      classification: "UNSAFE_PRESERVED_DATA_LOSS",
+      currentBehavior:
+        "Auth delete can CASCADE-delete shared story_video_replies rows and destroy the surviving party's copy.",
+      requiredFutureBehavior:
+        "user_id and recipient_user_id nullable + ON DELETE SET NULL before auth.users delete; executor party-detaches target participation; preserve row for surviving party; HARD_DELETE only when no surviving party remains.",
     },
     {
       id: "auth_audit_set_null",
@@ -628,6 +656,7 @@ export const UNSAFE_TRANSITIVE_CASCADE_IDS = [
   "auth_prayer_video_responses_public_loss",
   "auth_prayer_written_responses_public_loss",
   "auth_prayer_updates_public_loss",
+  "auth_story_video_replies_shared_party_preservation",
   "story_hard_delete_content_reports",
   "story_delete_other_user_prayer_video_responses",
   "story_delete_other_user_prayer_written_responses",
@@ -806,12 +835,13 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
       action: "ANONYMIZE",
       selector: "user_id = targetUserId",
       reason:
-        "Approved public prayer video responses survive anonymized; video/thumbnail media preserved per storage policy.",
-      identityFields: PRAYER_VIDEO_RESPONSE_ANONYMIZATION_FIELDS,
+        "Approved public prayer video responses survive with author identity detached; video_url, thumbnail_url, and body are preserved.",
+      identityFields: PRAYER_VIDEO_RESPONSE_IDENTITY_DETACH_FIELDS,
       orderHint: 210,
       fkNotes: [
         "user_id NOT NULL + ON DELETE CASCADE — auth delete before anonymize would destroy rows (BLOCKER).",
         "Future executor must detach author FK before auth.users delete (schema change required in 1E.2A).",
+        "Do not blank body — substantive prayer response text remains public.",
       ],
       rlsNotes: [
         "Public read uses approved status; author update rights lost after auth removal.",
@@ -822,11 +852,12 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
       action: "ANONYMIZE",
       selector: "author_user_id = targetUserId",
       reason:
-        "Visible written prayer responses on public prayer posts survive with author identity removed.",
-      identityFields: PRAYER_WRITTEN_RESPONSE_ANONYMIZATION_FIELDS,
+        "Visible written prayer responses on public prayer posts survive with author_user_id detached; body is preserved.",
+      identityFields: PRAYER_WRITTEN_RESPONSE_IDENTITY_DETACH_FIELDS,
       orderHint: 220,
       fkNotes: [
         "author_user_id NOT NULL + ON DELETE CASCADE — auth delete before anonymize would destroy rows (BLOCKER).",
+        "Future executor sets author_user_id NULL; body must not be blanked.",
       ],
     },
     {
@@ -834,12 +865,13 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
       action: "ANONYMIZE",
       selector: "author_user_id = targetUserId",
       reason:
-        "Prayer update posts on surviving prayer requests remain visible with author identity removed.",
-      identityFields: PRAYER_UPDATE_ANONYMIZATION_FIELDS,
+        "Prayer update posts on surviving prayer requests remain visible with author_user_id detached; body is preserved.",
+      identityFields: PRAYER_UPDATE_IDENTITY_DETACH_FIELDS,
       orderHint: 230,
       fkNotes: [
         "author_user_id NOT NULL + ON DELETE CASCADE — auth delete before anonymize would destroy rows (BLOCKER).",
         "Transitive risk: deleted updates cascade to inbox_messages.prayer_update_id until schema hardened.",
+        "Future executor sets author_user_id NULL; body must not be blanked.",
       ],
     },
     {
@@ -877,12 +909,41 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
     },
     {
       table: "story_video_replies",
-      action: "HARD_DELETE",
-      selector: "user_id = targetUserId OR recipient_user_id = targetUserId",
+      action: "DETACH",
+      selector: "user_id = targetUserId AND recipient_user_id IS DISTINCT FROM targetUserId",
       reason:
-        "Account-scoped private video reply participation is removed for the target user.",
+        "Target is sender — preserve shared reply row for surviving recipient; future executor sets deleted_by_sender and nulls user_id after FK hardening.",
+      identityFields: ["user_id"],
+      orderHint: 540,
+      fkNotes: [
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
+        "Never whole-row HARD_DELETE merely because target participated as sender.",
+      ],
+    },
+    {
+      table: "story_video_replies",
+      action: "DETACH",
+      selector:
+        "recipient_user_id = targetUserId AND user_id IS DISTINCT FROM targetUserId",
+      reason:
+        "Target is recipient — preserve shared reply row for surviving sender; future executor sets deleted_by_recipient and nulls recipient_user_id after FK hardening.",
+      identityFields: ["recipient_user_id"],
+      orderHint: 545,
+      fkNotes: [
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
+        "Never whole-row HARD_DELETE merely because target participated as recipient.",
+      ],
+    },
+    {
+      table: "story_video_replies",
+      action: "HARD_DELETE",
+      selector:
+        "user_id = targetUserId AND (recipient_user_id IS NULL OR recipient_user_id = targetUserId)",
+      reason:
+        "Target-only or self-directed reply rows with no surviving cross-user party may be hard-deleted.",
       orderHint: 550,
       fkNotes: [
+        "Cross-user replies require DETACH party semantics — not this selector.",
         "Story-attached replies involving surviving users require DETACH_AND_PRESERVE — never cascade via parent story HARD_DELETE.",
         "Never-published story HARD_DELETE blocked when storyVideoReplyCount > 0.",
       ],
@@ -1059,6 +1120,37 @@ export function isSchemaExecutionReady(
   });
 }
 
+export function resolveCombinedSchemaExecutionReady(input?: {
+  prerequisiteOverrides?: Partial<Record<string, boolean>>;
+  liveProbe?: AccountDeletionSchemaProbeResult | null;
+}): {
+  staticPrerequisitesReady: boolean;
+  liveCatalogProbeReady: boolean;
+  combinedReady: boolean;
+} {
+  const staticPrerequisitesReady = isSchemaExecutionReady(
+    input?.prerequisiteOverrides
+  );
+
+  if (!input?.liveProbe) {
+    return {
+      staticPrerequisitesReady,
+      liveCatalogProbeReady: false,
+      combinedReady: staticPrerequisitesReady,
+    };
+  }
+
+  const liveCatalogProbeReady = isSchemaExecutionReadyFromLiveProbe(
+    input.liveProbe
+  );
+
+  return {
+    staticPrerequisitesReady,
+    liveCatalogProbeReady,
+    combinedReady: staticPrerequisitesReady && liveCatalogProbeReady,
+  };
+}
+
 export function areSchemaPrerequisitesEnvironmentVerified(): boolean {
   return ACCOUNT_DELETION_SCHEMA_PREREQUISITES.every((entry) => entry.satisfied);
 }
@@ -1137,19 +1229,17 @@ export function getAuthDeleteBlastRadius(input: {
 
 export function getDatabaseMutationOrderHints(): readonly string[] {
   return [
-    "1. acquire deletion lock / verify request approved",
-    "2. build fresh manifest + database plan + storage plan; refuse if schemaExecutionReady is false",
-    "3. refuse owner/admin privileged targets",
-    "4. detach content_reports.story_id for non-public stories slated for HARD_DELETE",
-    "5. anonymize surviving public content (approved stories, prayer responses, prayer updates, written responses)",
-    "6. hard-delete non-public target-owned stories after report detach",
-    "7. detach/anonymize surviving Journey inbox sent copies in other users' inboxes",
-    "8. verify profile avatar_url and other avatar references cleared in DB",
-    "9. hard-delete private/account-owned rows (reactions, saves, blocks, recipient inbox, profile)",
-    "10. execute storage cleanup (private Journey media + avatar) using verified reference state",
-    "11. revoke sessions",
-    "12. delete auth.users row LAST after cascade blockers are neutralized and schema is hardened",
-    "13. finalize account_deletion_requests → deleted with audit metadata",
+    "1. verify live schema probe + static schema prerequisites before any destructive stage",
+    "2. build fresh manifest, database plan, and storage plan from server-derived inventory",
+    "3. transition approved → deletion_in_progress lock (write freeze active for target actor)",
+    "4. revoke sessions BEFORE destructive database mutation",
+    "5. post-lock inventory revalidation against fresh manifest",
+    "6. staged database mutation: detach reports, anonymize public testimony, detach inbox sent copies, party-detach story_video_replies",
+    "7. hard-delete private/account-owned rows after cross-user preservation checks",
+    "8. execute storage cleanup using verified reference state",
+    "9. hard-delete profile row after avatar references cleared in DB",
+    "10. delete auth.users row LAST in final orchestrator after cascade blockers neutralized",
+    "11. finalize account_deletion_requests → deleted with audit metadata",
   ];
 }
 
@@ -1160,6 +1250,9 @@ export const ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS = [
   "Previously public or removed stories (status = removed OR removed_at IS NOT NULL) cannot be HARD_DELETE — tombstone ANONYMIZE only.",
   "Never-published story HARD_DELETE requires evaluateNeverPublishedStoryDeletionEligibility() with complete server-derived child inventory.",
   "prayer_video_responses, prayer_written_responses, and prayer_updates cannot be HARD_DELETE.",
+  "Public prayer response/update body text must be preserved — identity detach only.",
+  "story_video_replies cross-user rows must use party-specific DETACH semantics — never whole-row HARD_DELETE merely because one party is the deletion target.",
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
   "Surviving other-user Journey inbox rows cannot be HARD_DELETE.",
   "Audit and account_deletion_requests rows cannot be HARD_DELETE.",
   "Unknown tables or unresolved selectors become BLOCK_UNRESOLVED.",
@@ -1175,7 +1268,8 @@ export const ACCOUNT_DELETION_DATABASE_INVENTORY_NOTES = [
   "No separate support/contact ticket table in public schema baseline.",
   "Auth session/device state lives in Supabase Auth — not public.profiles.",
   "Storage objects are planned separately in Phase 1D modules.",
-  "prayer_hidden_stories exists in archive/dev only — not in Production baseline.",
+  "story_video_replies exists in archive/dev only — not in Production baseline.",
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
   "Non-public story HARD_DELETE may require future 1D storage cleanup rules for draft media — not implemented in 1D yet.",
   "Never-published HARD_DELETE uses story-level lifecycle + authoritative child inventory — not global bucket reclassification.",
   ACCOUNT_DELETION_SCHEMA_READINESS_MODEL_NOTE,
