@@ -56,3 +56,26 @@ This migration was applied manually through the Supabase SQL Editor. Do not assu
 Operational warning:
 Do not use automated Supabase migration push workflows until migration history is deliberately reconciled.
 
+
+## Phase 4C.7B.1E.2B.0B — Service-Role Actor Guards + Retention Policy Corrections
+Status: Production PASS
+
+Deployment method:
+Application-code deployment through GitHub `main` and Vercel Production. No Supabase SQL migration was required.
+
+Production verification:
+- Existing approved account deletion request remained `APPROVED — NOT YET DELETED`.
+- Permanent account deletion execution remained disabled.
+- No permanent-delete execution control was exposed.
+- Feed, Prayer, and Journey loaded normally for a non-frozen Production user.
+- Service-role normal-user mutation routes now use server-derived actor write-freeze guards.
+- Public prayer/testimony retention policy preserves substantive content while modeling author identity detachment.
+- Shared `story_video_replies` are no longer planned for whole-row deletion merely because one participant deletes their account.
+- Live schema-readiness handling is fail-closed.
+- Null-author presentation supportsure anonymized/deleted-user content.
+
+Known future gate:
+`story_video_replies` auth-user foreign keys still require future `ON DELETE SET NULL` hardening before Auth-user deletion can ever be enabled.
+
+Execution status:
+Permanent account deletion remains disabled. Database deletion executor, Auth-user deletion, profile deletion, and final destructive orchestration are not enabled.
