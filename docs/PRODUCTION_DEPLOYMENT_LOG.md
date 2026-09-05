@@ -79,3 +79,38 @@ Known future gate:
 
 Execution status:
 Permanent account deletion remains disabled. Database deletion executor, Auth-user deletion, profile deletion, and final destructive orchestration are not enabled.
+
+## Phase 4C.7B.1E.2B.2 — story_video_replies Auth-FK Preservation Hardening
+Status: Production PASS
+
+Deployment method:
+Supabase schema migration was manually applied by the owner through the Supabase Production SQL Editor. Application-code changes were deployed through GitHub `main` and Vercel Production.
+
+Production database verification:
+- `story_video_replies.user_id` is nullable.
+- `story_video_replies.recipient_user_id` is nullable.
+- `story_video_replies_user_id_fkey` now uses `ON DELETE SET NULL`.
+- `story_video_replies_recipient_user_id_fkey` now uses `ON DELETE SET NULL`.
+- No Auth-user CASCADE FK remains on those participant columns.
+- `story_video_replies.story_id` remains `ON DELETE CASCADE`.
+- `story_video_replies.parent_reply_id` remains `ON DELETE CASCADE`.
+- All 52 existing `story_video_replies` rows were preserved.
+- No new NULL participant rows were created by the DDL.
+- No orphan Auth references were present.
+- RLS remained enable
+- Live schema-readiness probe includes the new story-video-reply FK prerequisites.
+- Existing approved account deletion request remained unchanged and approved.
+
+Application verification:
+- Vercel Production deployment for commit `665bbecb` completed successfully.
+- Admin account-deletion request still displays `APPROVED — NOT YET DELETED`.
+- Permanent deletion execution remains disabled.
+- No Execute/Delete Permanently control is exposed.
+- Messages/Journey loaded normally in Production.
+- NULL participant esentation is now modeled as `Deleted User`.
+
+Known future gate:
+`story_video_replies.parent_reply_id` still uses `ON DELETE CASCADE`. Before any future executor can hard-delete target-only/self reply rows, descendant reply-tree preservation must be proven so a surviving user's descendant reply cannot be cascade-deleted.
+
+Execution status:
+Permanent account deletion remains disabled. Database deletion executor, Auth-user deletion, profile deletion, and final destructive orchestration are not enabled.
