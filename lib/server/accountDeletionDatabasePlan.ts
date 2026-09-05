@@ -28,6 +28,10 @@ import {
   STORY_LIFECYCLE_STORAGE_NOTES,
   type StoryRowLifecycleInput,
 } from "./accountDeletionStoryLifecycle";
+import {
+  validateTargetStorySafetyInventoryBatchForPlanning,
+  type TargetStorySafetyInventoryBatch,
+} from "./accountDeletionStorySafetyInventory";
 import type { AccountDeletionStoragePlan } from "./accountDeletionStoragePlan";
 import { assertManifestStoragePlanContract } from "./accountDeletionStoragePlan";
 
@@ -65,10 +69,13 @@ export type AccountDeletionDatabasePlan = {
   invariants: readonly string[];
 };
 
+export const ACCOUNT_DELETION_STORY_INVENTORY_NOT_AUTHORITATIVE_CODE =
+  "STORY_INVENTORY_NOT_AUTHORITATIVE" as const;
+
 export type AccountDeletionDatabasePlanBuildInput = {
   manifest: AccountDeletionManifest;
-  /** Server-derived per-story lifecycle inputs — never accept from browser/HTTP body. */
-  storyPlanningInputs?: readonly StoryRowLifecycleInput[];
+  /** Authoritative loader-produced batch — never accept from browser/HTTP body. */
+  storySafetyInventoryBatch?: TargetStorySafetyInventoryBatch;
   /** Optional live catalog probe — never accept from browser/HTTP body. */
   liveSchemaProbe?: AccountDeletionSchemaProbeResult | null;
 };
@@ -278,10 +285,62 @@ function buildStoryDeletionPlanEntries(input: {
   return entries;
 }
 
+function pushStoryInventoryValidationBlocks(
+  plan: AccountDeletionDatabasePlan,
+  validation: Extract<
+    ReturnType<typeof validateTargetStorySafetyInventoryBatchForPlanning>,
+    { ok: false }
+  >
+) {
+  for (const storyId of validation.missingStoryIds) {
+    plan.blocked.push({
+      table: "stories",
+      action: "BLOCK_UNRESOLVED",
+      selector: `storyId = ${storyId} AND inventoryMissing = true`,
+      estimatedCount: 1,
+      reason: `Missing authoritative safety inventory for target-owned story ${storyId}.`,
+      orderHint: 0,
+      identityFields: [],
+      dependencyNotes: [],
+    });
+  }
+
+  plan.blocked.push({
+    table: "stories",
+    action: "BLOCK_UNRESOLVED",
+    selector: "storySafetyInventoryBatch validation failed",
+    estimatedCount: validation.blockers.length,
+    reason:
+      "Authoritative story safety inventory batch failed validation — HARD_DELETE planning blocked.",
+    orderHint: 0,
+    identityFields: [],
+    dependencyNotes: validation.blockers.map(
+      (entry) => `${entry.code}: ${entry.reason}`
+    ),
+  });
+
+  plan.blockedExecution = true;
+  plan.blockCode =
+    plan.blockCode ?? ACCOUNT_DELETION_STORY_INVENTORY_NOT_AUTHORITATIVE_CODE;
+  for (const blocker of validation.blockers) {
+    plan.warnings.push(`Story inventory blocker: ${blocker.code} — ${blocker.reason}`);
+  }
+}
+
 export function buildAccountDeletionDatabasePlan(
   input: AccountDeletionDatabasePlanBuildInput
 ): AccountDeletionDatabasePlan {
-  const { manifest, storyPlanningInputs } = input;
+  const batchValidation = input.storySafetyInventoryBatch
+    ? validateTargetStorySafetyInventoryBatchForPlanning({
+        batch: input.storySafetyInventoryBatch,
+        manifestTargetUserId: input.manifest.identity.targetUserId,
+      })
+    : null;
+
+  const storyPlanningInputs =
+    batchValidation?.ok === true ? batchValidation.planningInputs : undefined;
+
+  const { manifest } = input;
   const schemaReadiness = resolveCombinedSchemaExecutionReady({
     liveProbe: input.liveSchemaProbe,
   });
@@ -357,6 +416,10 @@ export function buildAccountDeletionDatabasePlan(
     storyPlanningInputs,
   })) {
     pushEntry(plan, storyEntry);
+  }
+
+  if (batchValidation?.ok === false) {
+    pushStoryInventoryValidationBlocks(plan, batchValidation);
   }
 
   for (const table of [

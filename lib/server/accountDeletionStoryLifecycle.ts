@@ -38,10 +38,74 @@ export type StoryDeletionChildInventory = {
   followCount: number;
   savedContentCount: number;
   reportEvidencePreservedBeforeStoryDelete: boolean;
+  thirdPartyPrayerVideoResponseCount: number;
+  thirdPartyPrayerWrittenResponseCount: number;
+  thirdPartyPrayerUpdateCount: number;
+  crossUserStoryVideoReplyCount: number;
+  ambiguousStoryVideoReplyCount: number;
+  nullAuthorPrayerVideoResponseCount: number;
+  nullAuthorPrayerWrittenResponseCount: number;
+  nullAuthorPrayerUpdateCount: number;
+  thirdPartyReactionCount: number;
+  thirdPartySavedContentCount: number;
+  thirdPartyFollowCount: number;
+  nullOwnerReactionCount: number;
+  nullOwnerSavedContentCount: number;
+  nullOwnerFollowCount: number;
 };
 
-export type StoryDeletionSafetyInventory = StoryDeletionChildInventory & {
+export type StoryAuthorClassificationCounts = {
+  total: number;
+  targetAuthored: number;
+  thirdPartyAuthored: number;
+  nullAuthor: number;
+  querySucceeded: boolean;
+};
+
+export type StoryVideoReplyClassificationCounts = {
+  total: number;
+  targetOnly: number;
+  crossUser: number;
+  ambiguousParticipant: number;
+  querySucceeded: boolean;
+};
+
+export type StoryEngagementClassificationCounts = {
+  total: number;
+  targetOwned: number;
+  thirdPartyOwned: number;
+  nullOwner: number;
+  querySucceeded: boolean;
+};
+
+export type StoryDeletionDependencyInventory = {
+  prayerVideoResponses: StoryAuthorClassificationCounts;
+  prayerWrittenResponses: StoryAuthorClassificationCounts;
+  prayerUpdates: StoryAuthorClassificationCounts;
+  storyVideoReplies: StoryVideoReplyClassificationCounts;
+  contentReports: { total: number; querySucceeded: boolean };
+  storyReactions: StoryEngagementClassificationCounts;
+  savedContent: StoryEngagementClassificationCounts;
+  prayerFollows: StoryEngagementClassificationCounts;
+};
+
+export type StoryDeletionSafetyBlocker = {
+  code: string;
+  reason: string;
+};
+
+export type StoryDeletionSafetyInventory = {
   storyId: string;
+  targetUserId: string;
+  ownershipVerified: boolean;
+  status: string | null;
+  removedAt: string | null;
+  lifecycle: StoryLifecycle;
+  queriesComplete: boolean;
+  blockers: readonly StoryDeletionSafetyBlocker[];
+  dependencies: StoryDeletionDependencyInventory;
+  fingerprint: string;
+  childInventory: StoryDeletionChildInventory;
 };
 
 export type StoryRowLifecycleInput = {
@@ -84,7 +148,7 @@ export type LoadStoryDeletionSafetyInventoryDeps = {
   loadStoryDeletionSafetyInventory: (
     storyId: string,
     targetUserId: string
-  ) => Promise<StoryDeletionSafetyInventory | null>;
+  ) => Promise<StoryDeletionSafetyInventory>;
 };
 
 export function emptyStoryDeletionChildInventory(): StoryDeletionChildInventory {
@@ -99,6 +163,20 @@ export function emptyStoryDeletionChildInventory(): StoryDeletionChildInventory 
     followCount: 0,
     savedContentCount: 0,
     reportEvidencePreservedBeforeStoryDelete: false,
+    thirdPartyPrayerVideoResponseCount: 0,
+    thirdPartyPrayerWrittenResponseCount: 0,
+    thirdPartyPrayerUpdateCount: 0,
+    crossUserStoryVideoReplyCount: 0,
+    ambiguousStoryVideoReplyCount: 0,
+    nullAuthorPrayerVideoResponseCount: 0,
+    nullAuthorPrayerWrittenResponseCount: 0,
+    nullAuthorPrayerUpdateCount: 0,
+    thirdPartyReactionCount: 0,
+    thirdPartySavedContentCount: 0,
+    thirdPartyFollowCount: 0,
+    nullOwnerReactionCount: 0,
+    nullOwnerSavedContentCount: 0,
+    nullOwnerFollowCount: 0,
   };
 }
 
@@ -158,6 +236,15 @@ export function evaluateNeverPublishedStoryDeletionEligibility(input: {
     };
   }
 
+  if (childInventory.nullAuthorPrayerVideoResponseCount > 0) {
+    return {
+      eligible: false,
+      blockCode: "STORY_HAS_AMBIGUOUS_CHILD",
+      reason:
+        "Never-published story has prayer_video_responses with NULL author — cannot authorize HARD_DELETE.",
+    };
+  }
+
   if (childInventory.prayerWrittenResponseCount > 0) {
     return {
       eligible: false,
@@ -167,12 +254,74 @@ export function evaluateNeverPublishedStoryDeletionEligibility(input: {
     };
   }
 
+  if (childInventory.nullAuthorPrayerWrittenResponseCount > 0) {
+    return {
+      eligible: false,
+      blockCode: "STORY_HAS_AMBIGUOUS_CHILD",
+      reason:
+        "Never-published story has prayer_written_responses with NULL author — cannot authorize HARD_DELETE.",
+    };
+  }
+
+  if (childInventory.prayerUpdateCount > 0) {
+    return {
+      eligible: false,
+      blockCode: "STORY_HAS_SUBSTANTIVE_CHILD",
+      reason:
+        "Never-published story has prayer_updates — ANONYMIZE_AND_PRESERVE policy blocks parent HARD_DELETE (including indirect inbox cascade risk).",
+    };
+  }
+
   if (childInventory.storyVideoReplyCount > 0) {
     return {
       eligible: false,
       blockCode: "STORY_HAS_STORY_VIDEO_REPLY",
       reason:
         "Never-published story has story_video_replies — cross-user private reply risk blocks HARD_DELETE.",
+    };
+  }
+
+  if (childInventory.crossUserStoryVideoReplyCount > 0) {
+    return {
+      eligible: false,
+      blockCode: "STORY_HAS_CROSS_USER_REPLY",
+      reason:
+        "Never-published story has cross-user story_video_replies — surviving party preservation blocks HARD_DELETE.",
+    };
+  }
+
+  if (childInventory.ambiguousStoryVideoReplyCount > 0) {
+    return {
+      eligible: false,
+      blockCode: "STORY_HAS_AMBIGUOUS_CHILD",
+      reason:
+        "Never-published story has story_video_replies with NULL participant — cannot authorize HARD_DELETE.",
+    };
+  }
+
+  if (
+    childInventory.thirdPartyReactionCount > 0 ||
+    childInventory.thirdPartySavedContentCount > 0 ||
+    childInventory.thirdPartyFollowCount > 0
+  ) {
+    return {
+      eligible: false,
+      blockCode: "STORY_HAS_THIRD_PARTY_ENGAGEMENT",
+      reason:
+        "Never-published story has third-party engagement rows — cannot assume disposable engagement on HARD_DELETE.",
+    };
+  }
+
+  if (
+    childInventory.nullOwnerReactionCount > 0 ||
+    childInventory.nullOwnerSavedContentCount > 0 ||
+    childInventory.nullOwnerFollowCount > 0
+  ) {
+    return {
+      eligible: false,
+      blockCode: "STORY_HAS_AMBIGUOUS_ENGAGEMENT",
+      reason:
+        "Never-published story has engagement rows with NULL owner — cannot authorize HARD_DELETE.",
     };
   }
 
@@ -275,5 +424,33 @@ export function isRemovedOrTombstoneStoryHardDelete(entry: {
   );
 }
 
+export function storySafetyInventoryToPlanningInput(
+  inventory: StoryDeletionSafetyInventory
+): StoryRowLifecycleInput {
+  return {
+    storyId: inventory.storyId,
+    status: inventory.status,
+    removedAt: inventory.removedAt,
+    targetUserId: inventory.targetUserId,
+    childInventory: inventory.childInventory,
+  };
+}
+
+export function buildStoryPlanningInputsFromSafetyInventories(
+  inventories: readonly StoryDeletionSafetyInventory[]
+): StoryRowLifecycleInput[] {
+  return inventories.map(storySafetyInventoryToPlanningInput);
+}
+
 export const ACCOUNT_DELETION_STORY_CROSS_USER_INVARIANT =
   "Deleting Account A must not HARD_DELETE substantive content authored by surviving Account B solely because that content references Account A's story." as const;
+
+export const ACCOUNT_DELETION_STORY_SAFETY_INVARIANTS = [
+  ACCOUNT_DELETION_STORY_CROSS_USER_INVARIANT,
+  "Incomplete story dependency inventory cannot authorize NEVER_PUBLISHED HARD_DELETE.",
+  "NULL or ambiguous child authorship cannot be treated as target-owned.",
+  "content_reports referencing a story require explicit detach — reports must not silently disappear via cascade.",
+  "Third-party substantive children block parent HARD_DELETE even when aggregate target-owned counts are zero.",
+  "Any prayer_updates row blocks NEVER_PUBLISHED parent HARD_DELETE — ANONYMIZE_AND_PRESERVE applies regardless of author.",
+  "Authoritative story safety inventory batch must cover every expected target-owned story before HARD_DELETE planning.",
+] as const;

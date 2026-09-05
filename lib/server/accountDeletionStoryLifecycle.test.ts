@@ -6,11 +6,6 @@ import {
   classifyDatabaseTablePolicy,
   UNSAFE_TRANSITIVE_CASCADE_IDS,
 } from "./accountDeletionDatabasePolicy";
-import type { AccountDeletionManifest } from "./accountDeletionManifest";
-import {
-  buildAccountDeletionDatabasePlan,
-  validateDatabasePlanInvariants,
-} from "./accountDeletionDatabasePlan";
 import {
   classifyStoryLifecycle,
   emptyStoryDeletionChildInventory,
@@ -31,6 +26,20 @@ function cleanInventory(
     ...emptyStoryDeletionChildInventory(),
     inventoryComplete: true,
     reportEvidencePreservedBeforeStoryDelete: true,
+    thirdPartyPrayerVideoResponseCount: 0,
+    thirdPartyPrayerWrittenResponseCount: 0,
+    thirdPartyPrayerUpdateCount: 0,
+    crossUserStoryVideoReplyCount: 0,
+    ambiguousStoryVideoReplyCount: 0,
+    nullAuthorPrayerVideoResponseCount: 0,
+    nullAuthorPrayerWrittenResponseCount: 0,
+    nullAuthorPrayerUpdateCount: 0,
+    thirdPartyReactionCount: 0,
+    thirdPartySavedContentCount: 0,
+    thirdPartyFollowCount: 0,
+    nullOwnerReactionCount: 0,
+    nullOwnerSavedContentCount: 0,
+    nullOwnerFollowCount: 0,
     ...overrides,
   };
 }
@@ -45,56 +54,6 @@ function storyInput(
     targetUserId: TARGET,
     childInventory: cleanInventory(),
     ...overrides,
-  };
-}
-
-function minimalManifest(): AccountDeletionManifest {
-  return {
-    identity: {
-      requestId: "req-1",
-      targetUserId: TARGET,
-      username: "member",
-      displayName: "Member",
-      email: "member@example.com",
-      requestStatus: "approved",
-      requestCreatedAt: "2026-01-01T00:00:00.000Z",
-      authUserExists: true,
-      isOwner: false,
-      isAdmin: false,
-    },
-    blocked: false,
-    blockCode: null,
-    database: {
-      hardDelete: [],
-      anonymize: [{ table: "stories", count: 1, plannedAction: "anonymize" }],
-      preserve: [],
-      manualReview: [],
-    },
-    storage: { objects: [] },
-    journey: {
-      recipientOwnedRows: { table: "inbox_messages", count: 0, plannedAction: "hard_delete" },
-      sentToOtherUserRows: {
-        table: "inbox_messages",
-        count: 0,
-        plannedAction: "preserve_anonymized",
-      },
-      privateMediaObjects: [],
-      relationshipNotes: [],
-      journeyReferenceInventoryComplete: true,
-      unresolvedJourneyReferenceCount: 0,
-    },
-    publicContent: { stories: [], profileFieldsToStrip: [] },
-    audit: { retain: [], deletionRequestRetentionWarning: "" },
-    warnings: [],
-    schemaRequirements: [],
-    counts: {
-      hardDeleteRows: 0,
-      anonymizeRows: 0,
-      preserveRows: 0,
-      manualReviewRows: 0,
-      storageObjects: 0,
-      unresolvedWarnings: 0,
-    },
   };
 }
 
@@ -195,7 +154,50 @@ describe("never-published deletion eligibility", () => {
     }
   });
 
-  it("allows derived engagement counts without blocking eligibility", () => {
+  it("blocks any prayer_updates on never-published stories (ANONYMIZE_AND_PRESERVE)", () => {
+    const targetAuthored = evaluateNeverPublishedStoryDeletionEligibility({
+      lifecycle: "NEVER_PUBLISHED",
+      childInventory: cleanInventory({
+        prayerUpdateCount: 1,
+        thirdPartyPrayerUpdateCount: 0,
+      }),
+    });
+    expect(targetAuthored.eligible).toBe(false);
+    if (!targetAuthored.eligible) {
+      expect(targetAuthored.blockCode).toBe("STORY_HAS_SUBSTANTIVE_CHILD");
+    }
+
+    const thirdParty = evaluateNeverPublishedStoryDeletionEligibility({
+      lifecycle: "NEVER_PUBLISHED",
+      childInventory: cleanInventory({
+        prayerUpdateCount: 1,
+        thirdPartyPrayerUpdateCount: 1,
+      }),
+    });
+    expect(thirdParty.eligible).toBe(false);
+
+    const nullAuthor = evaluateNeverPublishedStoryDeletionEligibility({
+      lifecycle: "NEVER_PUBLISHED",
+      childInventory: cleanInventory({
+        prayerUpdateCount: 1,
+        nullAuthorPrayerUpdateCount: 1,
+      }),
+    });
+    expect(nullAuthor.eligible).toBe(false);
+  });
+
+  it("blocks NULL-owner engagement on never-published stories", () => {
+    const result = evaluateNeverPublishedStoryDeletionEligibility({
+      lifecycle: "NEVER_PUBLISHED",
+      childInventory: cleanInventory({ nullOwnerReactionCount: 1 }),
+    });
+    expect(result.eligible).toBe(false);
+    if (!result.eligible) {
+      expect(result.blockCode).toBe("STORY_HAS_AMBIGUOUS_ENGAGEMENT");
+    }
+  });
+
+  it("allows derived target-only engagement counts without blocking eligibility", () => {
     expect(
       evaluateNeverPublishedStoryDeletionEligibility({
         lifecycle: "NEVER_PUBLISHED",
@@ -203,10 +205,20 @@ describe("never-published deletion eligibility", () => {
           reactionCount: 4,
           followCount: 2,
           savedContentCount: 1,
-          prayerUpdateCount: 1,
         }),
       }).eligible
     ).toBe(true);
+  });
+
+  it("blocks third-party engagement on never-published stories", () => {
+    const result = evaluateNeverPublishedStoryDeletionEligibility({
+      lifecycle: "NEVER_PUBLISHED",
+      childInventory: cleanInventory({ thirdPartyReactionCount: 1 }),
+    });
+    expect(result.eligible).toBe(false);
+    if (!result.eligible) {
+      expect(result.blockCode).toBe("STORY_HAS_THIRD_PARTY_ENGAGEMENT");
+    }
   });
 });
 
@@ -246,58 +258,35 @@ describe("planStoryDeletionDecision adversarial scenarios", () => {
   });
 });
 
-describe("lifecycle-aware database plan", () => {
+describe("lifecycle-aware story deletion decisions", () => {
   it("does not hard-delete removed stories", () => {
-    const plan = buildAccountDeletionDatabasePlan({
-      manifest: minimalManifest(),
-      storyPlanningInputs: [
-        storyInput({
-          status: "removed",
-          removedAt: "2026-01-01T00:00:00.000Z",
-          childInventory: cleanInventory({ prayerVideoResponseCount: 1 }),
-        }),
-      ],
-    });
+    const decision = planStoryDeletionDecision(
+      storyInput({
+        status: "removed",
+        removedAt: "2026-01-01T00:00:00.000Z",
+        childInventory: cleanInventory({ prayerVideoResponseCount: 1 }),
+      })
+    );
 
-    expect(plan.hardDelete.some((entry) => entry.table === "stories")).toBe(false);
-    expect(
-      plan.anonymize.some(
-        (entry) =>
-          entry.table === "stories" &&
-          entry.selector.includes("PREVIOUSLY_PUBLIC_OR_REMOVED")
-      )
-    ).toBe(true);
-    expect(validateDatabasePlanInvariants(plan).ok).toBe(true);
+    expect(decision.action).not.toBe("HARD_DELETE");
+    expect(decision.action).toBe("ANONYMIZE_TOMBSTONE");
   });
 
   it("plans never-published hard delete only when eligible", () => {
-    const plan = buildAccountDeletionDatabasePlan({
-      manifest: minimalManifest(),
-      storyPlanningInputs: [storyInput({ status: "pending" })],
-    });
-
-    expect(
-      plan.hardDelete.some(
-        (entry) =>
-          entry.table === "stories" &&
-          entry.selector.includes("NEVER_PUBLISHED")
-      )
-    ).toBe(true);
+    const decision = planStoryDeletionDecision(storyInput({ status: "pending" }));
+    expect(decision.action).toBe("HARD_DELETE");
   });
 
   it("blocks never-published hard delete when substantive child exists", () => {
-    const plan = buildAccountDeletionDatabasePlan({
-      manifest: minimalManifest(),
-      storyPlanningInputs: [
-        storyInput({
-          status: "pending",
-          childInventory: cleanInventory({ prayerVideoResponseCount: 1 }),
-        }),
-      ],
-    });
+    const decision = planStoryDeletionDecision(
+      storyInput({
+        status: "pending",
+        childInventory: cleanInventory({ prayerVideoResponseCount: 1 }),
+      })
+    );
 
-    expect(plan.hardDelete.some((entry) => entry.table === "stories")).toBe(false);
-    expect(plan.blocked.some((entry) => entry.table === "stories")).toBe(true);
+    expect(decision.action).not.toBe("HARD_DELETE");
+    expect(decision.action).toBe("BLOCK_UNRESOLVED");
   });
 });
 
