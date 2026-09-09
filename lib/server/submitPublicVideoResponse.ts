@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  assertTargetUserResourceNotFrozen,
+  createAccountDeletionActorWriteGuardDeps,
+} from "./accountDeletionActorWriteGuard";
 import { getPublicVideoEligibility } from "../prayer-connect/eligibility";
 import { moderatePublicContent } from "./moderatePublicContent";
 import { areUsersBlocked } from "./prayerBlocking";
@@ -164,6 +168,18 @@ export async function submitPublicVideoResponse(
         : "You cannot submit a public response to your own post.",
       "self_response",
       400
+    );
+  }
+
+  const storyOwnerGuard = await assertTargetUserResourceNotFrozen(
+    approvedSource.user_id,
+    createAccountDeletionActorWriteGuardDeps(adminClient)
+  );
+  if (storyOwnerGuard.blocked) {
+    return failure(
+      "Account deletion is in progress. Changes are temporarily unavailable.",
+      "account_deletion_in_progress",
+      403
     );
   }
 

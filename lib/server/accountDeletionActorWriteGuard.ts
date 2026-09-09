@@ -147,3 +147,39 @@ export function accountDeletionInProgressJsonBody() {
 export function accountDeletionInProgressResponse(): Response {
   return Response.json(accountDeletionInProgressJsonBody(), { status: 403 });
 }
+
+/**
+ * Blocks service-role mutations affecting resources owned by a target in deletion_in_progress.
+ * Used when the acting user is not the frozen owner (e.g. public response to frozen owner's story).
+ */
+export async function assertTargetUserResourceNotFrozen(
+  targetUserId: string | null | undefined,
+  deps: AccountDeletionActorWriteGuardDeps
+): Promise<AccountDeletionActorWriteBlockResult> {
+  if (!isValidActorUserId(targetUserId)) {
+    return { blocked: false };
+  }
+
+  const lookup = await isTargetUserDeletionInProgress(targetUserId, deps);
+  if (lookup.ok === false) {
+    return accountDeletionActorWriteBlockedResult("lookup_failed");
+  }
+
+  if (lookup.matched) {
+    return accountDeletionActorWriteBlockedResult("deletion_in_progress");
+  }
+
+  return { blocked: false };
+}
+
+/** Service-role routes inspected for story-owner deletion_in_progress stability (Phase 2C.3A). */
+export const ACCOUNT_DELETION_STORY_SERVICE_ROLE_MUTATION_ROUTES = [
+  "lib/server/publicVideoResponseRequest.ts → handlePublicVideoResponseRequest (prayer_video_responses insert; stories read-only)",
+  "lib/server/submitPublicVideoResponse.ts → submitPublicVideoResponse (source story owner guard)",
+  "app/api/remove-prayer-video-response/route.ts → actor guard when non-admin author",
+  "app/api/moderate-prayer-video-response/route.ts → admin-only prayer_video_responses (no direct stories mutation)",
+  "lib/server/journeyInboxReply.ts → inbox insert only (stories read-only)",
+] as const;
+
+/** No dedicated service-role profile mutation API routes — profile writes are user-JWT + RLS. */
+export const ACCOUNT_DELETION_PROFILE_SERVICE_ROLE_MUTATION_ROUTES = [] as const;

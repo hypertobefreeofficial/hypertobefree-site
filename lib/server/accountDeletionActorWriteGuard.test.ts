@@ -3,6 +3,7 @@ import {
   ACCOUNT_DELETION_IN_PROGRESS_CODE,
   accountDeletionInProgressJsonBody,
   assertAccountDeletionActorCanWrite,
+  assertTargetUserResourceNotFrozen,
   checkAccountDeletionActorWriteBlock,
   createAccountDeletionActorWriteGuardDeps,
   isTargetUserDeletionInProgress,
@@ -135,6 +136,18 @@ describe("accountDeletionActorWriteGuard", () => {
       isTargetUserDeletionInProgress: undefined as never,
     });
     expect(result).toEqual({ ok: false });
+  });
+
+  it("assertTargetUserResourceNotFrozen blocks frozen story owner resources", async () => {
+    const deps = {
+      hasDeletionInProgressMatch: vi.fn(),
+      isTargetUserDeletionInProgress: vi.fn(async () => ({
+        ok: true as const,
+        matched: true,
+      })),
+    };
+    const result = await assertTargetUserResourceNotFrozen(ACTOR_A, deps);
+    expect(result.blocked).toBe(true);
   });
 
   it("isTargetUserDeletionInProgress fails closed on DB lookup error", async () => {

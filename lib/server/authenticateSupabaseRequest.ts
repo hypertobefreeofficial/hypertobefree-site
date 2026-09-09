@@ -1,4 +1,8 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import {
+  checkCurrentUserDeletionInProgress,
+  isStateChangingHttpMethod,
+} from "./accountDeletionAccessBarrier";
 import { readBearerToken } from "./publicVideoResponseRequest";
 
 export type AuthenticatedSupabaseContext = {
@@ -9,7 +13,7 @@ export type AuthenticatedSupabaseContext = {
 
 export type AuthenticateSupabaseResult =
   | { ok: true; context: AuthenticatedSupabaseContext }
-  | { ok: false; status: 401 | 503; code: string; error: string };
+  | { ok: false; status: 401 | 403 | 503; code: string; error: string };
 
 export async function authenticateSupabaseRequest(
   request: Request
@@ -48,6 +52,19 @@ export async function authenticateSupabaseRequest(
       code: "unauthorized",
       error: "Please sign in to continue.",
     };
+  }
+
+  if (isStateChangingHttpMethod(request.method)) {
+    const deletionBlock = await checkCurrentUserDeletionInProgress(supabase);
+    if (deletionBlock.blocked) {
+      return {
+        ok: false,
+        status: 403,
+        code: deletionBlock.code,
+        error:
+          "Account deletion is in progress. Changes are temporarily unavailable.",
+      };
+    }
   }
 
   return {

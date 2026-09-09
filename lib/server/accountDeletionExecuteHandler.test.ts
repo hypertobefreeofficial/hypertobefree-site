@@ -12,6 +12,7 @@ import { ACCOUNT_DELETION_STATUS } from "../accountCenter/accountDeletionLifecyc
 
 const mockAuthenticateSupabaseRequest = vi.fn();
 const mockVerifyAdmin = vi.fn();
+const mockVerifyOwner = vi.fn();
 const mockVerifyAdminAal2 = vi.fn();
 const mockPrepareExecution = vi.fn();
 const mockCreateExecutionDeps = vi.fn();
@@ -43,6 +44,11 @@ vi.mock("./accountDeletionExecutor", async (importOriginal) => {
       mockCreateExecutionDeps(...args),
   };
 });
+
+vi.mock("./accountDeletionOwnerAuthorization", () => ({
+  verifyOwnerForAccountDeletionExecution: (...args: unknown[]) =>
+    mockVerifyOwner(...args),
+}));
 
 const mockUser: User = {
   id: "admin-user",
@@ -89,6 +95,7 @@ describe("account deletion execute handler and route", () => {
       isExecutionEnabled: () =>
         process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] === "true",
     });
+    mockVerifyOwner.mockResolvedValue(true);
 
     mockPrepareExecution.mockResolvedValue({
       ok: true,
@@ -121,6 +128,30 @@ describe("account deletion execute handler and route", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.status).toBe(401);
+    expect(mockPrepareExecution).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for staff admin without owner privilege", async () => {
+    mockAuthenticateSupabaseRequest.mockResolvedValue({
+      ok: true,
+      context: { user: mockUser, accessToken: "staff-token", supabase: {} },
+    });
+    mockVerifyAdmin.mockResolvedValue(true);
+    mockVerifyOwner.mockResolvedValue(false);
+
+    const { handleAccountDeletionExecuteRequest } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+    const result = await handleAccountDeletionExecuteRequest({
+      request: buildRequest("req-1", { token: "staff-token" }),
+      requestId: "req-1",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.status).toBe(403);
+    expect(result.body).toMatchObject({ code: "owner_required" });
+    expect(mockVerifyAdminAal2).not.toHaveBeenCalled();
     expect(mockPrepareExecution).not.toHaveBeenCalled();
   });
 
@@ -422,13 +453,15 @@ describe("account deletion execute handler and route", () => {
     expect(JSON.stringify(json)).not.toMatch(/deleteUser|service-role/i);
   });
 
-  it("does not ship auth.admin.deleteUser in execute handler", () => {
+  it("does not ship auth.admin.deleteUser or acquisition wiring in execute handler", () => {
     const source = readFileSync(
       "lib/server/accountDeletionExecuteHandler.ts",
       "utf8"
     );
     expect(source).not.toContain("deleteUser");
     expect(source).not.toContain(".remove(");
+    expect(source).not.toContain("acquireAccountDeletionExecutionLock");
+    expect(source).not.toContain("revokeAccountDeletionTargetSessions");
   });
 });
 

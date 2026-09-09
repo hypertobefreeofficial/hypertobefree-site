@@ -15,6 +15,7 @@ import {
   prepareAccountDeletionExecution,
   verifyAdminAal2ForAccountDeletionExecution,
 } from "./accountDeletionExecutor";
+import { verifyOwnerForAccountDeletionExecution } from "./accountDeletionOwnerAuthorization";
 import {
   checkPrayerRateLimit,
   PRAYER_RATE_LIMITS,
@@ -146,6 +147,17 @@ export async function handleAccountDeletionExecuteRequest(options: {
       ok: false,
       status: 403,
       body: executionErrorBody("forbidden"),
+    };
+  }
+
+  const isOwner = await verifyOwnerForAccountDeletionExecution(
+    auth.context.accessToken
+  );
+  if (!isOwner) {
+    return {
+      ok: false,
+      status: 403,
+      body: executionErrorBody("owner_required"),
     };
   }
 

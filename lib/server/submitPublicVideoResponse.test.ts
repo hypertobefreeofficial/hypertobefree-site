@@ -89,6 +89,14 @@ function createMockAdminClient(options?: {
       return builder;
     }
 
+    if (table === "account_deletion_requests") {
+      builder.select = vi.fn(() => builder);
+      builder.eq = vi.fn(() => builder);
+      builder.or = vi.fn(() => builder);
+      builder.limit = vi.fn(async () => ({ data: [], error: null }));
+      return builder;
+    }
+
     if (table === "prayer_video_responses") {
       builder.select = vi.fn(() => builder);
       builder.eq = vi.fn(() => builder);

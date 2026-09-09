@@ -9,6 +9,7 @@ export const ACCOUNT_DELETION_EXECUTION_ENV_FLAG =
 export type AccountDeletionExecutionErrorCode =
   | "unauthorized"
   | "forbidden"
+  | "owner_required"
   | "mfa_step_up_required"
   | "execution_disabled"
   | "request_not_found"
@@ -101,6 +102,8 @@ export function sanitizeAccountDeletionExecutionErrorMessage(
       return "Please sign in as an admin.";
     case "forbidden":
       return "Admin access is required.";
+    case "owner_required":
+      return "Founder owner access is required to execute permanent account deletion.";
     case "mfa_step_up_required":
       return "Verify your authenticator app before executing account deletion.";
     case "execution_disabled":
@@ -139,6 +142,7 @@ export function httpStatusForAccountDeletionExecutionError(
     case "unauthorized":
       return 401;
     case "forbidden":
+    case "owner_required":
     case "mfa_step_up_required":
     case "blocked_owner":
     case "blocked_admin":

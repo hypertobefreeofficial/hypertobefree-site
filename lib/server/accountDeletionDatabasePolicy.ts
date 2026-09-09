@@ -165,6 +165,22 @@ export const ACCOUNT_DELETION_EXECUTION_FOUNDATION_MIGRATION = {
   phase: "4C.7B.1E.2C.2A",
 } as const;
 
+export const ACCOUNT_DELETION_ACQUISITION_MIGRATION = {
+  version: "20260830150000",
+  filename:
+    "20260830150000_account_deletion_acquisition_phase4c7b1e2c3a.sql",
+  relativePath:
+    "supabase/migrations/20260830150000_account_deletion_acquisition_phase4c7b1e2c3a.sql",
+  phase: "4C.7B.1E.2C.3A",
+} as const;
+
+/** Phase 2C.3B only — nondestructive DB executor RPC contract (not implemented in 2C.3A). */
+export const ACCOUNT_DELETION_FUTURE_NONDESTRUCTIVE_DB_STAGE_NOTE =
+  "Future execute_account_deletion_nondestructive_database_stage(p_request_id, p_attempt_id) "
+  + "accepts only server-derived request/attempt identifiers; target derived inside DB; no plan JSON; "
+  + "one transaction with request FOR UPDATE, advisory lock, readiness, row locks, live reclassification, "
+  + "nondestructive mutations, story.user_id anonymization LAST, row-count assertions, durable database stage marker.";
+
 /** Future DB executor accepts narrow identifiers only — never caller-supplied plan JSON or arbitrary table/selector/action. */
 export const ACCOUNT_DELETION_FUTURE_EXECUTOR_API_CONTRACT_NOTE =
   "Future account-deletion DB executor must accept only server-derived identifiers (request_id, attempt_id, expected target for cross-check) — PostgreSQL must independently revalidate live state; never trust dry-run plan JSON, mutationIntents JSON, or arbitrary table/selector/action payloads from HTTP." as const;
