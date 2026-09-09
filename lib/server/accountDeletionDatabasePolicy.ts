@@ -156,6 +156,47 @@ export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT =
 export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE =
   "story_video_replies per-row detach/tombstone execution requires authoritative reply-tree inventory (2B.3b) and validated 2B.3c mutation plan — planning-only until atomic executor is wired; no physical row delete." as const;
 
+export const ACCOUNT_DELETION_EXECUTION_FOUNDATION_MIGRATION = {
+  version: "20260830140000",
+  filename:
+    "20260830140000_account_deletion_execution_foundation_phase4c7b1e2c2.sql",
+  relativePath:
+    "supabase/migrations/20260830140000_account_deletion_execution_foundation_phase4c7b1e2c2.sql",
+  phase: "4C.7B.1E.2C.2A",
+} as const;
+
+/** Future DB executor accepts narrow identifiers only — never caller-supplied plan JSON or arbitrary table/selector/action. */
+export const ACCOUNT_DELETION_FUTURE_EXECUTOR_API_CONTRACT_NOTE =
+  "Future account-deletion DB executor must accept only server-derived identifiers (request_id, attempt_id, expected target for cross-check) — PostgreSQL must independently revalidate live state; never trust dry-run plan JSON, mutationIntents JSON, or arbitrary table/selector/action payloads from HTTP." as const;
+
+/** Future DB stage must use request FOR UPDATE, advisory lock, live preconditions, exact row counts, atomic reply intents, Auth outside transaction and LAST. */
+export const ACCOUNT_DELETION_FUTURE_DB_TRANSACTION_REQUIREMENTS_NOTE =
+  "Future DB stage: SELECT account_deletion_requests FOR UPDATE + pg_advisory_xact_lock per target/request → live precondition revalidation → exact expected-before UPDATE predicates with row-count assertions → all storyVideoReplyPlan mutations atomic in one transaction → rollback entire transaction on mismatch → Auth delete outside DB transaction and LAST." as const;
+
+/** Initial Production executor rollout must not execute story HARD_DELETE — anonymize/tombstone/detach only until executor matures. */
+export const ACCOUNT_DELETION_INITIAL_EXECUTOR_NO_STORY_HARD_DELETE_NOTE =
+  "Initial account-deletion executor rollout must NOT execute never-published or other story HARD_DELETE — use ANONYMIZE/tombstone/DETACH preservation paths only; 2B.1 inventory remains authoritative but physical story delete is deferred." as const;
+
+/** Target sessions must be revoked before authoritative post-freeze inventory; not implemented until Auth stage wiring. */
+export const ACCOUNT_DELETION_TARGET_SESSION_REVOCATION_PREREQUISITE_NOTE =
+  "Once execution begins, target application sessions must be revoked/denied before authoritative post-freeze inventory rebuild — admin executor session remains separate; 2C.2 documents prerequisite only." as const;
+
+/** Shared-party write freeze (2C.2A) via PostgreSQL BEFORE triggers — applies to authenticated AND service_role. */
+export const ACCOUNT_DELETION_SHARED_WRITE_FREEZE_NOTE =
+  "Phase 2C.2A shared-party write freeze blocks INSERT/UPDATE/DELETE on deletion_in_progress target dependencies (reply threads, story engagement, inbox rows) via SECURITY DEFINER BEFORE triggers — not RLS alone; internal helpers are not granted to authenticated (no deletion-status enumeration)." as const;
+
+/** Gate C: executor must not NULL stories.user_id until shared-freeze window closes inside one DB transaction. */
+export const ACCOUNT_DELETION_STORY_OWNER_NULL_GATE_C_INVARIANT =
+  "Future executor must complete all shared-freeze-dependent DB mutations before stories.user_id anonymization within one atomic transaction; active execution attempt + reply-tree association extends story freeze when owner is already NULL." as const;
+
+/** content_reports intentionally not shared-frozen — abuse reporting preserved; reports are PRESERVE/DETACH in deletion plan. */
+export const ACCOUNT_DELETION_CONTENT_REPORTS_NOT_SHARED_FROZEN_NOTE =
+  "content_reports INSERT is intentionally not shared-frozen during deletion_in_progress — legitimate abuse reporting must remain available; executor revalidates report rows inside DB transaction." as const;
+
+/** blocked_users INSERT freeze removed in 2C.2A — low inventory staleness relevance. */
+export const ACCOUNT_DELETION_BLOCKED_USERS_NOT_SHARED_FROZEN_NOTE =
+  "blocked_users is not shared-frozen during deletion_in_progress — low staleness risk for execution inventory." as const;
+
 export const DELETED_PUBLIC_AUTHOR_DISPLAY_NAME = "Deleted User" as const;
 
 export const APPROVED_PUBLIC_STORY_STATUSES = ["approved"] as const;
@@ -1383,6 +1424,11 @@ export const ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS = [
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
   ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE,
+  ACCOUNT_DELETION_FUTURE_EXECUTOR_API_CONTRACT_NOTE,
+  ACCOUNT_DELETION_FUTURE_DB_TRANSACTION_REQUIREMENTS_NOTE,
+  ACCOUNT_DELETION_INITIAL_EXECUTOR_NO_STORY_HARD_DELETE_NOTE,
+  ACCOUNT_DELETION_TARGET_SESSION_REVOCATION_PREREQUISITE_NOTE,
+  ACCOUNT_DELETION_SHARED_WRITE_FREEZE_NOTE,
   "Surviving other-user Journey inbox rows cannot be HARD_DELETE.",
   "Audit and account_deletion_requests rows cannot be HARD_DELETE.",
   "Unknown tables or unresolved selectors become BLOCK_UNRESOLVED.",

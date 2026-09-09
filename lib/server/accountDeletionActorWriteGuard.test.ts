@@ -5,6 +5,7 @@ import {
   assertAccountDeletionActorCanWrite,
   checkAccountDeletionActorWriteBlock,
   createAccountDeletionActorWriteGuardDeps,
+  isTargetUserDeletionInProgress,
   isValidActorUserId,
 } from "./accountDeletionActorWriteGuard";
 
@@ -109,5 +110,39 @@ describe("accountDeletionActorWriteGuard", () => {
       `user_id.eq.${ACTOR_A},and(user_id.is.null,target_user_id_snapshot.eq.${ACTOR_A})`
     );
     expect(result.blocked).toBe(true);
+  });
+
+  it("isTargetUserDeletionInProgress uses shared lookup for arbitrary target UUID", async () => {
+    const deps = createAccountDeletionActorWriteGuardDeps({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            or: () => ({
+              limit: async () => ({ data: [], error: null }),
+            }),
+          }),
+        }),
+      }),
+    } as never);
+
+    const result = await isTargetUserDeletionInProgress(ACTOR_B, deps);
+    expect(result).toEqual({ ok: true, matched: false });
+  });
+
+  it("isTargetUserDeletionInProgress fails closed when deps omit target lookup", async () => {
+    const result = await isTargetUserDeletionInProgress(ACTOR_B, {
+      hasDeletionInProgressMatch: vi.fn(),
+      isTargetUserDeletionInProgress: undefined as never,
+    });
+    expect(result).toEqual({ ok: false });
+  });
+
+  it("isTargetUserDeletionInProgress fails closed on DB lookup error", async () => {
+    const deps = {
+      hasDeletionInProgressMatch: vi.fn(),
+      isTargetUserDeletionInProgress: vi.fn(async () => ({ ok: false as const })),
+    };
+    const result = await isTargetUserDeletionInProgress(ACTOR_A, deps);
+    expect(result).toEqual({ ok: false });
   });
 });

@@ -27,7 +27,16 @@ export type AccountDeletionActorWriteGuardDeps = {
   hasDeletionInProgressMatch: (
     actorUserId: string
   ) => Promise<{ ok: true; matched: boolean } | { ok: false }>;
+  isTargetUserDeletionInProgress: (
+    targetUserId: string
+  ) => Promise<{ ok: true; matched: boolean } | { ok: false }>;
 };
+
+/**
+ * Defense-in-depth for service-role routes. Safety-critical shared freeze is enforced
+ * in PostgreSQL via BEFORE INSERT/UPDATE/DELETE triggers (2C.2A) — not RLS alone.
+ */
+export const ACCOUNT_DELETION_SERVICE_ROLE_UNCOVERED_MUTATION_ROUTES = [] as const;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -75,25 +84,50 @@ export async function assertAccountDeletionActorCanWrite(
   return checkAccountDeletionActorWriteBlock(actorUserId, deps);
 }
 
+async function queryDeletionInProgressMatch(
+  adminClient: SupabaseClient,
+  targetUserId: string
+): Promise<{ ok: true; matched: boolean } | { ok: false }> {
+  const { data, error } = await adminClient
+    .from("account_deletion_requests")
+    .select("id")
+    .eq("status", "deletion_in_progress")
+    .or(
+      `user_id.eq.${targetUserId},and(user_id.is.null,target_user_id_snapshot.eq.${targetUserId})`
+    )
+    .limit(1);
+
+  if (error) {
+    return { ok: false };
+  }
+
+  return { ok: true, matched: (data?.length ?? 0) > 0 };
+}
+
+export async function isTargetUserDeletionInProgress(
+  targetUserId: string | null | undefined,
+  deps: AccountDeletionActorWriteGuardDeps
+): Promise<{ ok: true; matched: boolean } | { ok: false }> {
+  if (!isValidActorUserId(targetUserId)) {
+    return { ok: true, matched: false };
+  }
+
+  if (typeof deps.isTargetUserDeletionInProgress !== "function") {
+    return { ok: false };
+  }
+
+  return deps.isTargetUserDeletionInProgress(targetUserId);
+}
+
 export function createAccountDeletionActorWriteGuardDeps(
   adminClient: SupabaseClient
 ): AccountDeletionActorWriteGuardDeps {
   return {
     async hasDeletionInProgressMatch(actorUserId) {
-      const { data, error } = await adminClient
-        .from("account_deletion_requests")
-        .select("id")
-        .eq("status", "deletion_in_progress")
-        .or(
-          `user_id.eq.${actorUserId},and(user_id.is.null,target_user_id_snapshot.eq.${actorUserId})`
-        )
-        .limit(1);
-
-      if (error) {
-        return { ok: false };
-      }
-
-      return { ok: true, matched: (data?.length ?? 0) > 0 };
+      return queryDeletionInProgressMatch(adminClient, actorUserId);
+    },
+    async isTargetUserDeletionInProgress(targetUserId) {
+      return queryDeletionInProgressMatch(adminClient, targetUserId);
     },
   };
 }
