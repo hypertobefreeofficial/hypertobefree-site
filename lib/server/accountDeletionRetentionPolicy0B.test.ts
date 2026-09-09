@@ -5,6 +5,7 @@ import {
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE,
   ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY,
   UNSAFE_TRANSITIVE_CASCADE_IDS,
   classifyDatabaseTablePolicy,
@@ -109,13 +110,19 @@ describe("Phase 4C.7B.1E.2B.0B retention policy corrections", () => {
     );
   });
 
-  it("documents story_video_replies HARD_DELETE is not executor-ready after 2B.3a", () => {
+  it("documents story_video_replies HARD_DELETE is not executor-ready after 2B.3b inventory", () => {
     const hardDelete = classifyDatabaseTablePolicy("story_video_replies").find(
       (entry) => entry.action === "HARD_DELETE"
     );
-    expect(hardDelete?.fkNotes?.join(" ")).toContain("2B.3b");
+    expect(hardDelete?.fkNotes?.join(" ")).toContain("2B.3c");
     expect(ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE).toContain(
       "not executor-ready"
+    );
+    expect(ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE).toContain(
+      "paginated target discovery"
+    );
+    expect(ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE).toContain(
+      "fixed-point closure succeed"
     );
     expect(isAccountDeletionExecutionEnabled()).toBe(false);
   });

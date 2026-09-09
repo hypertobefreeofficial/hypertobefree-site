@@ -134,8 +134,11 @@ export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE =
 export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE =
   "Before any executor may physically delete a parent story_video_reply row, parent_reply_id requires ON DELETE SET NULL so descendant replies belonging to surviving users are not CASCADE-deleted by the database." as const;
 
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE =
+  "Authoritative reply-tree inventory (Phase 4C.7B.1E.2B.3b) proves graph safety only when paginated target discovery and bidirectional fixed-point closure succeed (explicit page exhaustion, not PostgREST defaults) and validateTargetReplyTreeInventoryBatchForPlanning() passes — read-only evidence with same-process runtime authority only; no snapshot isolation; future destructive orchestration must rebuild inventory after write freeze; inventory alone never authorizes HARD_DELETE; 2B.3c must revise policy before executor." as const;
+
 export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE =
-  "story_video_replies HARD_DELETE registry entries are design-only — not executor-ready until reply-tree inventory (2B.3b) and policy revision (2B.3c). Phase 2B.3a schema hardening alone does not enable reply row deletion." as const;
+  "story_video_replies HARD_DELETE registry entries are design-only — not executor-ready until 2B.3c policy revision integrates authoritative reply-tree inventory (2B.3b); schema hardening (2B.2/2B.3a) and inventory alone do not enable reply row deletion." as const;
 
 export const DELETED_PUBLIC_AUTHOR_DISPLAY_NAME = "Deleted User" as const;
 
@@ -651,7 +654,7 @@ export const ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY: AccountDeletionTransi
       currentBehavior:
         "Physical parent reply deletion recursively deletes descendant reply rows, destroying surviving users' messages.",
       requiredFutureBehavior:
-        "parent_reply_id ON DELETE SET NULL (Phase 4C.7B.1E.2B.3a); descendant row survives with parent_reply_id nulled; executor HARD_DELETE policy still blocked until reply-tree inventory (2B.3b) and revision (2B.3c).",
+        "parent_reply_id ON DELETE SET NULL (Phase 4C.7B.1E.2B.3a); descendant row survives with parent_reply_id nulled; authoritative reply-tree inventory (2B.3b) exists but executor HARD_DELETE policy remains blocked until revision (2B.3c).",
       executionNote: ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
     },
     {
@@ -1038,7 +1041,8 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
         "Never-published story HARD_DELETE blocked when storyVideoReplyCount > 0.",
         ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
         ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
-        "Do not wire this HARD_DELETE selector into executor until reply-tree inventory (2B.3b) proves no cross-user descendant loss.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE,
+        "Do not wire this HARD_DELETE selector into executor until 2B.3c integrates reply-tree inventory and proves no cross-user descendant loss.",
       ],
     },
     {
@@ -1348,6 +1352,7 @@ export const ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS = [
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE,
   "Surviving other-user Journey inbox rows cannot be HARD_DELETE.",
   "Audit and account_deletion_requests rows cannot be HARD_DELETE.",
   "Unknown tables or unresolved selectors become BLOCK_UNRESOLVED.",
