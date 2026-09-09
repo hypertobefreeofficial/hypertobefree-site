@@ -1062,16 +1062,17 @@ describe("read-only and execution safety", () => {
     expect(source).not.toContain("storage.from");
   });
 
-  it("does not wire reply-tree inventory into database plan executor path", () => {
+  it("does not wire reply-tree loader into database plan — batch is caller-supplied", () => {
     const planSource = readFileSync(
       "lib/server/accountDeletionDatabasePlan.ts",
       "utf8"
     );
-    expect(planSource).not.toContain("ReplyTreeInventory");
     expect(planSource).not.toContain("loadTargetReplyTreeInventoryBatch");
+    expect(planSource).toContain("replyTreeInventoryBatch");
+    expect(planSource).toContain("buildStoryVideoReplyMutationPlan");
   });
 
-  it("database plan remains blocked without inventory integration", () => {
+  it("database plan blocks when reply-tree inventory batch is missing", () => {
     const plan = buildAccountDeletionDatabasePlan({
       manifest: {
         identity: {
@@ -1124,8 +1125,10 @@ describe("read-only and execution safety", () => {
           unresolvedWarnings: 0,
         },
       },
+      replyTreeInventoryBatch: undefined as unknown as import("./accountDeletionStoryVideoReplyTreeInventory").TargetReplyTreeInventoryBatch,
     });
     expect(plan.blockedExecution).toBe(true);
+    expect(plan.storyVideoReplyPlan.mutationIntents).toHaveLength(0);
     expect(isAccountDeletionExecutionEnabled()).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS,
@@ -31,12 +31,51 @@ import {
   assertDestructiveExecutionAllowed,
   buildAccountDeletionDatabasePlan,
   getAnonymizedStoryIdentityPatch,
+  planHasGenericStoryVideoReplyExecutionEntries,
   rejectBrowserSuppliedDatabasePlanTargets,
   validateDatabasePlanInvariants,
+  type AccountDeletionDatabasePlanBuildInput,
 } from "./accountDeletionDatabasePlan";
+import type { TargetReplyTreeInventoryBatch } from "./accountDeletionStoryVideoReplyTreeInventory";
 import { buildAccountDeletionStoragePlan } from "./accountDeletionStoragePlan";
 
+const mockCreateClient = vi.fn();
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: (...args: unknown[]) => mockCreateClient(...args),
+}));
+
 const TARGET = "11111111-1111-4111-8111-111111111111";
+
+async function loadEmptyReplyTreeBatch() {
+  mockCreateClient.mockReturnValue({
+    from: () => ({
+      select: () => ({
+        or: () => ({
+          order: () => ({
+            range: async () => ({ data: [], error: null }),
+          }),
+        }),
+      }),
+    }),
+  });
+  const { loadTargetReplyTreeInventoryBatch } = await import(
+    "./accountDeletionStoryVideoReplyTreeInventory"
+  );
+  return loadTargetReplyTreeInventoryBatch(TARGET);
+}
+
+async function buildPlan(
+  input: Omit<AccountDeletionDatabasePlanBuildInput, "replyTreeInventoryBatch"> & {
+    replyTreeInventoryBatch?: TargetReplyTreeInventoryBatch;
+  }
+) {
+  return buildAccountDeletionDatabasePlan({
+    ...input,
+    replyTreeInventoryBatch:
+      input.replyTreeInventoryBatch ?? (await loadEmptyReplyTreeBatch()),
+  });
+}
 
 function buildManifest(
   overrides: Partial<AccountDeletionManifest> = {}
@@ -332,8 +371,8 @@ describe("accountDeletionDatabasePolicy", () => {
 });
 
 describe("accountDeletionDatabasePlan", () => {
-  it("builds typed plan sections from manifest without SQL execution", () => {
-    const plan = buildAccountDeletionDatabasePlan({ manifest: buildManifest() });
+  it("builds typed plan sections from manifest without SQL execution", async () => {
+    const plan = await buildPlan({ manifest: buildManifest() });
 
     expect(plan.anonymize.some((entry) => entry.table === "stories")).toBe(true);
     expect(plan.hardDelete.some((entry) => entry.table === "profiles")).toBe(true);
@@ -342,11 +381,12 @@ describe("accountDeletionDatabasePlan", () => {
     expect(plan.preserve.some((entry) => entry.table === "account_deletion_requests")).toBe(
       true
     );
+    expect(planHasGenericStoryVideoReplyExecutionEntries(plan)).toBe(false);
     expect(validateDatabasePlanInvariants(plan).ok).toBe(true);
   });
 
-  it("blocks destructive execution while schema prerequisites are unsatisfied", () => {
-    const plan = buildAccountDeletionDatabasePlan({ manifest: buildManifest() });
+  it("blocks destructive execution while schema prerequisites are unsatisfied", async () => {
+    const plan = await buildPlan({ manifest: buildManifest() });
 
     expect(isSchemaExecutionReady()).toBe(false);
     expect(plan.schemaExecutionReady).toBe(false);
@@ -357,13 +397,13 @@ describe("accountDeletionDatabasePlan", () => {
     expect(assertDestructiveExecutionAllowed(plan).ok).toBe(false);
   });
 
-  it("sets profileAvatarReferencesWillBeCleared when profile hard-delete includes avatar_url", () => {
-    const plan = buildAccountDeletionDatabasePlan({ manifest: buildManifest() });
+  it("sets profileAvatarReferencesWillBeCleared when profile hard-delete includes avatar_url", async () => {
+    const plan = await buildPlan({ manifest: buildManifest() });
     expect(plan.profileAvatarReferencesWillBeCleared).toBe(true);
   });
 
-  it("blocks plan when Journey inventory is incomplete", () => {
-    const plan = buildAccountDeletionDatabasePlan({
+  it("blocks plan when Journey inventory is incomplete", async () => {
+    const plan = await buildPlan({
       manifest: buildManifest({
         journey: {
           ...buildManifest().journey,
@@ -390,9 +430,9 @@ describe("accountDeletionDatabasePlan", () => {
     ).toBe(true);
   });
 
-  it("aligns with storage plan contract for preserved Journey media and avatar clearing", () => {
+  it("aligns with storage plan contract for preserved Journey media and avatar clearing", async () => {
     const manifest = buildManifest();
-    const databasePlan = buildAccountDeletionDatabasePlan({ manifest });
+    const databasePlan = await buildPlan({ manifest });
     const storagePlan = buildAccountDeletionStoragePlan({
       targetUserId: TARGET,
       manifest,
@@ -403,8 +443,8 @@ describe("accountDeletionDatabasePlan", () => {
     ).toBe(true);
   });
 
-  it("blocks privileged owner targets via manifest blocked flag", () => {
-    const plan = buildAccountDeletionDatabasePlan({
+  it("blocks privileged owner targets via manifest blocked flag", async () => {
+    const plan = await buildPlan({
       manifest: buildManifest({
         blocked: true,
         blockCode: "BLOCKED_OWNER_ACCOUNT",
@@ -418,8 +458,8 @@ describe("accountDeletionDatabasePlan", () => {
     expect(plan.blockedExecution).toBe(true);
   });
 
-  it("does not hard-delete approved public stories or prayer testimony tables", () => {
-    const plan = buildAccountDeletionDatabasePlan({ manifest: buildManifest() });
+  it("does not hard-delete approved public stories or prayer testimony tables", async () => {
+    const plan = await buildPlan({ manifest: buildManifest() });
     expect(
       plan.hardDelete.some(
         (entry) =>
@@ -430,6 +470,50 @@ describe("accountDeletionDatabasePlan", () => {
       false
     );
     expect(plan.hardDelete.some((entry) => entry.table === "prayer_updates")).toBe(false);
+    expect(plan.hardDelete.some((entry) => entry.table === "story_video_replies")).toBe(
+      false
+    );
+  });
+
+  it("rejects malicious story_video_replies HARD_DELETE in plan invariants", async () => {
+    const plan = await buildPlan({ manifest: buildManifest() });
+    plan.hardDelete.push({
+      table: "story_video_replies",
+      action: "HARD_DELETE",
+      selector: "forged",
+      estimatedCount: 1,
+      reason: "malicious",
+      orderHint: 999,
+      identityFields: [],
+      dependencyNotes: [],
+    });
+    expect(validateDatabasePlanInvariants(plan).ok).toBe(false);
+  });
+
+  it("rejects generic story_video_replies detach entries in plan invariants", async () => {
+    const plan = await buildPlan({ manifest: buildManifest() });
+    plan.detach.push({
+      table: "story_video_replies",
+      action: "DETACH",
+      selector: "forged",
+      estimatedCount: 1,
+      reason: "malicious",
+      orderHint: 999,
+      identityFields: [],
+      dependencyNotes: [],
+    });
+    expect(validateDatabasePlanInvariants(plan).ok).toBe(false);
+    expect(planHasGenericStoryVideoReplyExecutionEntries(plan)).toBe(true);
+  });
+
+  it("blocks when reply-tree inventory batch is missing at runtime", async () => {
+    const plan = buildAccountDeletionDatabasePlan({
+      manifest: buildManifest(),
+      replyTreeInventoryBatch: undefined as unknown as TargetReplyTreeInventoryBatch,
+    });
+    expect(plan.blockedExecution).toBe(true);
+    expect(plan.storyVideoReplyPlan.mutationIntents).toHaveLength(0);
+    expect(planHasGenericStoryVideoReplyExecutionEntries(plan)).toBe(false);
   });
 });
 
@@ -477,7 +561,7 @@ describe("account deletion database planning safety", () => {
 });
 
 describe("database/storage cross-contract adversarial cases", () => {
-  it("requires DETACH for inbox when storage marks Journey media PRESERVE_SHARED", () => {
+  it("requires DETACH for inbox when storage marks Journey media PRESERVE_SHARED", async () => {
     const manifest = buildManifest({
       journey: {
         ...buildManifest().journey,
@@ -504,7 +588,7 @@ describe("database/storage cross-contract adversarial cases", () => {
       },
     });
 
-    const databasePlan = buildAccountDeletionDatabasePlan({ manifest });
+    const databasePlan = await buildPlan({ manifest });
     const storagePlan = buildAccountDeletionStoragePlan({
       targetUserId: TARGET,
       manifest,

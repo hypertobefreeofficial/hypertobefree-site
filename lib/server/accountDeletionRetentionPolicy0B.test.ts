@@ -64,8 +64,8 @@ describe("Phase 4C.7B.1E.2B.0B retention policy corrections", () => {
         entry.selector.includes("recipient_user_id = targetUserId")
     );
 
-    expect(senderDetach?.reason).toContain("surviving recipient");
-    expect(recipientDetach?.reason).toContain("surviving sender");
+    expect(senderDetach?.reason).toContain("dedicated storyVideoReplyPlan");
+    expect(recipientDetach?.reason).toContain("surviving sender message preserved");
     expect(ACCOUNT_DELETION_TABLE_POLICY.story_video_replies).toBe(
       "preserve_anonymized"
     );
@@ -110,13 +110,18 @@ describe("Phase 4C.7B.1E.2B.0B retention policy corrections", () => {
     );
   });
 
-  it("documents story_video_replies HARD_DELETE is not executor-ready after 2B.3b inventory", () => {
-    const hardDelete = classifyDatabaseTablePolicy("story_video_replies").find(
-      (entry) => entry.action === "HARD_DELETE"
-    );
-    expect(hardDelete?.fkNotes?.join(" ")).toContain("2B.3c");
+  it("documents story_video_replies never use HARD_DELETE after 2B.3c preservation policy", () => {
+    const policies = classifyDatabaseTablePolicy("story_video_replies");
+    expect(policies.some((entry) => entry.action === "HARD_DELETE")).toBe(false);
+    expect(
+      policies.some(
+        (entry) =>
+          entry.action === "PRESERVE" &&
+          entry.selector.includes("user_id = targetUserId")
+      )
+    ).toBe(true);
     expect(ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE).toContain(
-      "not executor-ready"
+      "planning-only"
     );
     expect(ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE).toContain(
       "paginated target discovery"

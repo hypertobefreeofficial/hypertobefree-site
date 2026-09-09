@@ -12,6 +12,19 @@ import {
   ACCOUNT_DELETION_STORY_CROSS_USER_INVARIANT,
   STORY_LIFECYCLE_STORAGE_NOTES,
 } from "./accountDeletionStoryLifecycle";
+import {
+  ACCOUNT_DELETION_REPLY_MANIFEST_COUNT_DIAGNOSTIC_NOTE,
+  ACCOUNT_DELETION_REPLY_MESSAGE_EXCLUSION_NOTE,
+  ACCOUNT_DELETION_REPLY_PLAN_MUTABILITY_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
+} from "./accountDeletionStoryVideoReplyPlan";
+
+export {
+  ACCOUNT_DELETION_REPLY_MANIFEST_COUNT_DIAGNOSTIC_NOTE,
+  ACCOUNT_DELETION_REPLY_MESSAGE_EXCLUSION_NOTE,
+  ACCOUNT_DELETION_REPLY_PLAN_MUTABILITY_NOTE,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
+} from "./accountDeletionStoryVideoReplyPlan";
 
 export type AccountDeletionDatabaseAction =
   | "HARD_DELETE"
@@ -137,8 +150,11 @@ export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE =
 export const ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE =
   "Authoritative reply-tree inventory (Phase 4C.7B.1E.2B.3b) proves graph safety only when paginated target discovery and bidirectional fixed-point closure succeed (explicit page exhaustion, not PostgREST defaults) and validateTargetReplyTreeInventoryBatchForPlanning() passes — read-only evidence with same-process runtime authority only; no snapshot isolation; future destructive orchestration must rebuild inventory after write freeze; inventory alone never authorizes HARD_DELETE; 2B.3c must revise policy before executor." as const;
 
+export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT =
+  "Account deletion must NEVER produce HARD_DELETE for public.story_video_replies — preserve row, detach target identity, tombstone target-authored message only." as const;
+
 export const ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE =
-  "story_video_replies HARD_DELETE registry entries are design-only — not executor-ready until 2B.3c policy revision integrates authoritative reply-tree inventory (2B.3b); schema hardening (2B.2/2B.3a) and inventory alone do not enable reply row deletion." as const;
+  "story_video_replies per-row detach/tombstone execution requires authoritative reply-tree inventory (2B.3b) and validated 2B.3c mutation plan — planning-only until atomic executor is wired; no physical row delete." as const;
 
 export const DELETED_PUBLIC_AUTHOR_DISPLAY_NAME = "Deleted User" as const;
 
@@ -642,7 +658,7 @@ export const ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY: AccountDeletionTransi
       requiredFutureBehavior:
         "user_id and recipient_user_id nullable + ON DELETE SET NULL before auth.users delete (Phase 4C.7B.1E.2B.2 Production); executor party-detaches target participation; preserve row for surviving party.",
       executionNote:
-        "Auth-user participant FK hardening applied in Production — executor still requires reply-tree inventory before any reply HARD_DELETE.",
+        "Auth-user participant FK hardening applied in Production — executor party-detaches target participation via dedicated storyVideoReplyPlan only; reply rows are preserved (no account-deletion HARD_DELETE).",
     },
     {
       id: "reply_parent_delete_descendant_cascade",
@@ -654,7 +670,7 @@ export const ACCOUNT_DELETION_TRANSITIVE_CASCADE_REGISTRY: AccountDeletionTransi
       currentBehavior:
         "Physical parent reply deletion recursively deletes descendant reply rows, destroying surviving users' messages.",
       requiredFutureBehavior:
-        "parent_reply_id ON DELETE SET NULL (Phase 4C.7B.1E.2B.3a); descendant row survives with parent_reply_id nulled; authoritative reply-tree inventory (2B.3b) exists but executor HARD_DELETE policy remains blocked until revision (2B.3c).",
+        "parent_reply_id ON DELETE SET NULL (Phase 4C.7B.1E.2B.3a); descendant row survives with parent_reply_id nulled; account deletion preserves reply rows via dedicated 2B.3c mutation plan — no reply HARD_DELETE.",
       executionNote: ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
     },
     {
@@ -1005,12 +1021,16 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
       action: "DETACH",
       selector: "user_id = targetUserId AND recipient_user_id IS DISTINCT FROM targetUserId",
       reason:
-        "Target is sender — preserve shared reply row for surviving recipient; future executor sets deleted_by_sender and nulls user_id after FK hardening.",
+        "POLICY METADATA ONLY — target is sender; dedicated storyVideoReplyPlan detaches user_id, tombstones message, sets deleted_by_sender (2B.3c per-row plan).",
       identityFields: ["user_id"],
       orderHint: 540,
       fkNotes: [
+        "Registry entry is policy metadata only — not a generic executor instruction.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
         ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
-        "Never whole-row HARD_DELETE merely because target participated as sender.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT,
+        "Target-authored message must be replaced with server tombstone constant — never retain original text after detach.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE,
       ],
     },
     {
@@ -1019,30 +1039,37 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
       selector:
         "recipient_user_id = targetUserId AND user_id IS DISTINCT FROM targetUserId",
       reason:
-        "Target is recipient — preserve shared reply row for surviving sender; future executor sets deleted_by_recipient and nulls recipient_user_id after FK hardening.",
+        "POLICY METADATA ONLY — target is recipient; dedicated storyVideoReplyPlan nulls recipient_user_id and sets deleted_by_recipient only — surviving sender message preserved.",
       identityFields: ["recipient_user_id"],
       orderHint: 545,
       fkNotes: [
+        "Registry entry is policy metadata only — not a generic executor instruction.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
         ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
-        "Never whole-row HARD_DELETE merely because target participated as recipient.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT,
+        "Recipient deletion must NEVER rewrite or tombstone surviving sender content.",
+        ACCOUNT_DELETION_REPLY_MESSAGE_EXCLUSION_NOTE,
+        ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE,
       ],
     },
     {
       table: "story_video_replies",
-      action: "HARD_DELETE",
+      action: "PRESERVE",
       selector:
         "user_id = targetUserId AND (recipient_user_id IS NULL OR recipient_user_id = targetUserId)",
       reason:
-        "Target-only or self-directed reply rows with no surviving cross-user party may be hard-deleted.",
+        "POLICY METADATA ONLY — target-only/self replies preserved for tree integrity; dedicated storyVideoReplyPlan detaches target identity and tombstones target-authored message (never HARD_DELETE).",
+      identityFields: ["user_id", "recipient_user_id"],
       orderHint: 550,
       fkNotes: [
-        "Cross-user replies require DETACH party semantics — not this selector.",
-        "Story-attached replies involving surviving users require DETACH_AND_PRESERVE — never cascade via parent story HARD_DELETE.",
-        "Never-published story HARD_DELETE blocked when storyVideoReplyCount > 0.",
+        "Registry entry is policy metadata only — not a generic executor instruction.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
+        "Ambiguous NULL participant rows (A→NULL, NULL→A) must BLOCK via 2B.3b inventory — no tombstone inference.",
+        "Self-reply (A→A): dedicated plan detaches both participant IDs, tombstones message, sets both delete flags.",
+        ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT,
         ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,
         ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE,
         ACCOUNT_DELETION_STORY_VIDEO_REPLY_TREE_INVENTORY_NOTE,
-        "Do not wire this HARD_DELETE selector into executor until 2B.3c integrates reply-tree inventory and proves no cross-user descendant loss.",
       ],
     },
     {
@@ -1331,7 +1358,7 @@ export function getDatabaseMutationOrderHints(): readonly string[] {
     "3. transition approved → deletion_in_progress lock (write freeze active for target actor)",
     "4. revoke sessions BEFORE destructive database mutation",
     "5. post-lock inventory revalidation against fresh manifest",
-    "6. staged database mutation: detach reports, anonymize public testimony, detach inbox sent copies, party-detach story_video_replies",
+    "6. staged database mutation: detach reports, anonymize public testimony, detach inbox sent copies, apply dedicated storyVideoReplyPlan atomically",
     "7. hard-delete private/account-owned rows after cross-user preservation checks",
     "8. execute storage cleanup using verified reference state",
     "9. hard-delete profile row after avatar references cleared in DB",
@@ -1348,6 +1375,9 @@ export const ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS = [
   "Never-published story HARD_DELETE requires evaluateNeverPublishedStoryDeletionEligibility() with complete server-derived child inventory.",
   "prayer_video_responses, prayer_written_responses, and prayer_updates cannot be HARD_DELETE.",
   "Public prayer response/update body text must be preserved — identity detach only.",
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
+  ACCOUNT_DELETION_REPLY_MANIFEST_COUNT_DIAGNOSTIC_NOTE,
   "story_video_replies cross-user rows must use party-specific DETACH semantics — never whole-row HARD_DELETE merely because one party is the deletion target.",
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_FK_HARDENING_NOTE,
   ACCOUNT_DELETION_STORY_VIDEO_REPLIES_PARENT_FK_HARDENING_NOTE,

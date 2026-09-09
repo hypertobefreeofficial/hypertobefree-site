@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { buildAccountDeletionDatabasePlan } from "./accountDeletionDatabasePlan";
+import { buildAccountDeletionDatabasePlan, type AccountDeletionDatabasePlanBuildInput } from "./accountDeletionDatabasePlan";
 import type { AccountDeletionManifest } from "./accountDeletionManifest";
+import type { TargetReplyTreeInventoryBatch } from "./accountDeletionStoryVideoReplyTreeInventory";
 import {
   evaluateNeverPublishedStoryDeletionEligibility,
   planStoryDeletionDecision,
@@ -26,9 +27,45 @@ import {
 } from "./accountDeletionStoryLifecycle";
 import { isAccountDeletionExecutionEnabled } from "./accountDeletionExecutionPolicy";
 
+const mockCreateClient = vi.fn();
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: (...args: unknown[]) => mockCreateClient(...args),
+}));
+
 const TARGET = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 const STORY = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+async function loadEmptyReplyTreeBatch() {
+  mockCreateClient.mockReturnValue({
+    from: () => ({
+      select: () => ({
+        or: () => ({
+          order: () => ({
+            range: async () => ({ data: [], error: null }),
+          }),
+        }),
+      }),
+    }),
+  });
+  const { loadTargetReplyTreeInventoryBatch } = await import(
+    "./accountDeletionStoryVideoReplyTreeInventory"
+  );
+  return loadTargetReplyTreeInventoryBatch(TARGET);
+}
+
+async function buildDatabasePlan(
+  input: Omit<AccountDeletionDatabasePlanBuildInput, "replyTreeInventoryBatch"> & {
+    replyTreeInventoryBatch?: TargetReplyTreeInventoryBatch;
+  }
+) {
+  return buildAccountDeletionDatabasePlan({
+    ...input,
+    replyTreeInventoryBatch:
+      input.replyTreeInventoryBatch ?? (await loadEmptyReplyTreeBatch()),
+  });
+}
 
 function storyRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -571,7 +608,7 @@ describe("inventory fingerprint and authoritative batch loader", () => {
 describe("batch validation and database plan integration", () => {
   it("plans never-published hard delete from authoritative batch", async () => {
     const batch = await loadAuthoritativeBatch();
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: batch,
     });
@@ -598,7 +635,7 @@ describe("batch validation and database plan integration", () => {
       }),
     });
 
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: batch,
     });
@@ -696,7 +733,7 @@ describe("batch validation and database plan integration", () => {
       );
     }
 
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: forged,
     });
@@ -707,7 +744,7 @@ describe("batch validation and database plan integration", () => {
   it("blocks spread-cloned batch with mismatched targetUserId", async () => {
     const batch = await loadAuthoritativeBatch();
     const cloned = { ...batch, targetUserId: OTHER };
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: cloned,
     });
@@ -721,7 +758,7 @@ describe("batch validation and database plan integration", () => {
         okRows([{ user_id: OTHER }])
       ),
     });
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: batch,
     });
@@ -735,7 +772,7 @@ describe("batch validation and database plan integration", () => {
         okRows([{ author_user_id: TARGET }])
       ),
     });
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: batch,
     });
@@ -747,15 +784,15 @@ describe("batch validation and database plan integration", () => {
     const batch = await loadAuthoritativeBatch({
       loadStoryReactions: vi.fn(async () => okRows([{ user_id: null }])),
     });
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: batch,
     });
     expect(plan.hardDelete.some((entry) => entry.table === "stories")).toBe(false);
   });
 
-  it("absent batch cannot authorize never-published hard-delete alone", () => {
-    const plan = buildAccountDeletionDatabasePlan({
+  it("absent batch cannot authorize never-published hard-delete alone", async () => {
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
     });
     expect(
@@ -963,7 +1000,7 @@ describe("trust-boundary security regressions", () => {
       ).toBe(true);
     }
 
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
       storySafetyInventoryBatch: subsetForgery,
     });
@@ -1083,7 +1120,7 @@ describe("trust-boundary security regressions", () => {
 
   it("cannot authorize HARD_DELETE via direct StoryRowLifecycleInput through plan API", async () => {
     const forgedInput = storySafetyInventoryToPlanningInput(buildForgedInventory());
-    const plan = buildAccountDeletionDatabasePlan({
+    const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
     });
     expect(planStoryDeletionDecision(forgedInput).action).toBe("HARD_DELETE");

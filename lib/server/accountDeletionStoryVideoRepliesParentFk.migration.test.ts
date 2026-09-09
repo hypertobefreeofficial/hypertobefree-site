@@ -160,9 +160,12 @@ describe("story_video_replies parent FK migration (Phase 4C.7B.1E.2B.3a)", () =>
     expect(entry?.requiredState).toContain("SET NULL");
   });
 
-  it("documents executor-not-ready note for reply HARD_DELETE", () => {
+  it("documents executor-not-ready note for reply preservation planning", () => {
     expect(ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE).toContain(
       "2B.3b"
+    );
+    expect(ACCOUNT_DELETION_STORY_VIDEO_REPLIES_EXECUTOR_NOT_READY_NOTE).toContain(
+      "planning-only"
     );
     expect(UNSAFE_TRANSITIVE_CASCADE_IDS).toContain(
       "reply_parent_delete_descendant_cascade"
@@ -171,6 +174,6 @@ describe("story_video_replies parent FK migration (Phase 4C.7B.1E.2B.3a)", () =>
       (entry) => entry.id === "reply_parent_delete_descendant_cascade"
     );
     expect(cascade?.requiredFutureBehavior).toContain("SET NULL");
-    expect(cascade?.executionNote).toContain("not executor-ready");
+    expect(cascade?.executionNote).toContain("planning-only");
   });
 });

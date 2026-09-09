@@ -18,6 +18,8 @@ import {
   PUBLIC_TESTIMONY_TABLES,
   resolveMostRestrictiveDatabaseAction,
   STORY_ANONYMIZATION_IDENTITY_FIELDS,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT,
+  ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
   type AccountDeletionDatabaseAction,
   type AccountDeletionDatabaseTablePolicy,
   type AccountDeletionSchemaPrerequisite,
@@ -32,6 +34,14 @@ import {
   validateTargetStorySafetyInventoryBatchForPlanning,
   type TargetStorySafetyInventoryBatch,
 } from "./accountDeletionStorySafetyInventory";
+import {
+  buildStoryVideoReplyMutationPlan,
+  buildMissingReplyTreeInventoryBlockedPlan,
+  ACCOUNT_DELETION_REPLY_TREE_INVENTORY_NOT_AUTHORITATIVE_CODE,
+  ACCOUNT_DELETION_REPLY_MANIFEST_COUNT_DIAGNOSTIC_NOTE,
+  type StoryVideoReplyMutationPlan,
+} from "./accountDeletionStoryVideoReplyPlan";
+import type { TargetReplyTreeInventoryBatch } from "./accountDeletionStoryVideoReplyTreeInventory";
 import type { AccountDeletionStoragePlan } from "./accountDeletionStoragePlan";
 import { assertManifestStoragePlanContract } from "./accountDeletionStoragePlan";
 
@@ -67,6 +77,7 @@ export type AccountDeletionDatabasePlan = {
   authDeleteRequiresPriorAnonymization: boolean;
   mutationOrder: readonly string[];
   invariants: readonly string[];
+  storyVideoReplyPlan: StoryVideoReplyMutationPlan;
 };
 
 export const ACCOUNT_DELETION_STORY_INVENTORY_NOT_AUTHORITATIVE_CODE =
@@ -76,6 +87,8 @@ export type AccountDeletionDatabasePlanBuildInput = {
   manifest: AccountDeletionManifest;
   /** Authoritative loader-produced batch — never accept from browser/HTTP body. */
   storySafetyInventoryBatch?: TargetStorySafetyInventoryBatch;
+  /** Authoritative 2B.3b reply-tree batch — required for every database plan build. */
+  replyTreeInventoryBatch: TargetReplyTreeInventoryBatch;
   /** Optional live catalog probe — never accept from browser/HTTP body. */
   liveSchemaProbe?: AccountDeletionSchemaProbeResult | null;
 };
@@ -327,6 +340,66 @@ function pushStoryInventoryValidationBlocks(
   }
 }
 
+function pushReplyInventoryValidationBlocks(
+  plan: AccountDeletionDatabasePlan,
+  validation: {
+    blockers: readonly { code: string; reason: string }[];
+  }
+) {
+  plan.blocked.push({
+    table: "story_video_replies",
+    action: "BLOCK_UNRESOLVED",
+    selector: "replyTreeInventoryBatch validation failed",
+    estimatedCount: validation.blockers.length,
+    reason:
+      "Authoritative reply-tree inventory batch failed validation — reply mutation planning blocked.",
+    orderHint: 0,
+    identityFields: [],
+    dependencyNotes: validation.blockers.map(
+      (entry) => `${entry.code}: ${entry.reason}`
+    ),
+  });
+
+  plan.blockedExecution = true;
+  plan.blockCode =
+    plan.blockCode ?? ACCOUNT_DELETION_REPLY_TREE_INVENTORY_NOT_AUTHORITATIVE_CODE;
+  for (const blocker of validation.blockers) {
+    plan.warnings.push(`Reply inventory blocker: ${blocker.code} — ${blocker.reason}`);
+  }
+}
+
+function pushReplyInventoryMissingBlock(plan: AccountDeletionDatabasePlan) {
+  plan.blocked.push({
+    table: "story_video_replies",
+    action: "BLOCK_UNRESOLVED",
+    selector: "replyTreeInventoryBatch missing",
+    estimatedCount: null,
+    reason:
+      "Authoritative 2B.3b reply-tree inventory batch is required for every database plan build — missing batch cannot prove zero target-associated replies.",
+    orderHint: 0,
+    identityFields: [],
+    dependencyNotes: [ACCOUNT_DELETION_REPLY_MANIFEST_COUNT_DIAGNOSTIC_NOTE],
+  });
+  plan.blockedExecution = true;
+  plan.blockCode =
+    plan.blockCode ?? ACCOUNT_DELETION_REPLY_TREE_INVENTORY_NOT_AUTHORITATIVE_CODE;
+  plan.warnings.push(
+    "Reply-tree inventory batch missing — database plan blocked fail-closed."
+  );
+}
+
+/** Generic executable buckets must never carry story_video_replies mutation authority. */
+export function planHasGenericStoryVideoReplyExecutionEntries(
+  plan: AccountDeletionDatabasePlan
+): boolean {
+  return [
+    ...plan.hardDelete,
+    ...plan.anonymize,
+    ...plan.detach,
+    ...plan.preserve,
+  ].some((entry) => entry.table === "story_video_replies");
+}
+
 export function buildAccountDeletionDatabasePlan(
   input: AccountDeletionDatabasePlanBuildInput
 ): AccountDeletionDatabasePlan {
@@ -339,6 +412,15 @@ export function buildAccountDeletionDatabasePlan(
 
   const storyPlanningInputs =
     batchValidation?.ok === true ? batchValidation.planningInputs : undefined;
+
+  const replyBatch = input.replyTreeInventoryBatch;
+  const storyVideoReplyPlan: StoryVideoReplyMutationPlan =
+    replyBatch == null
+      ? buildMissingReplyTreeInventoryBlockedPlan(input.manifest.identity.targetUserId)
+      : buildStoryVideoReplyMutationPlan({
+          batch: replyBatch,
+          manifestTargetUserId: input.manifest.identity.targetUserId,
+        });
 
   const { manifest } = input;
   const schemaReadiness = resolveCombinedSchemaExecutionReady({
@@ -365,6 +447,7 @@ export function buildAccountDeletionDatabasePlan(
     authDeleteRequiresPriorAnonymization: true,
     mutationOrder: getDatabaseMutationOrderHints(),
     invariants: ACCOUNT_DELETION_DATABASE_PLAN_INVARIANTS,
+    storyVideoReplyPlan,
   };
 
   if (!schemaExecutionReady) {
@@ -422,13 +505,20 @@ export function buildAccountDeletionDatabasePlan(
     pushStoryInventoryValidationBlocks(plan, batchValidation);
   }
 
+  if (replyBatch == null) {
+    pushReplyInventoryMissingBlock(plan);
+  } else if (storyVideoReplyPlan.ok === false) {
+    pushReplyInventoryValidationBlocks(plan, {
+      blockers: storyVideoReplyPlan.blockers,
+    });
+  }
+
   for (const table of [
     "prayer_video_responses",
     "prayer_written_responses",
     "prayer_updates",
     "inbox_messages",
     "story_reactions",
-    "story_video_replies",
     "saved_content",
     "prayer_follows",
     "prayer_search_preferences",
@@ -514,6 +604,23 @@ export function validateDatabasePlanInvariants(
         reason: `Public testimony table ${table} cannot be HARD_DELETE.`,
       };
     }
+  }
+
+  const replyHardDelete = plan.hardDelete.filter(
+    (entry) => entry.table === "story_video_replies"
+  );
+  if (replyHardDelete.length > 0) {
+    return {
+      ok: false,
+      reason: ACCOUNT_DELETION_STORY_VIDEO_REPLIES_NO_HARD_DELETE_INVARIANT,
+    };
+  }
+
+  if (planHasGenericStoryVideoReplyExecutionEntries(plan)) {
+    return {
+      ok: false,
+      reason: ACCOUNT_DELETION_STORY_VIDEO_REPLIES_DEDICATED_PLAN_ONLY_INVARIANT,
+    };
   }
 
   const survivingJourneyHardDelete = plan.hardDelete.filter(
