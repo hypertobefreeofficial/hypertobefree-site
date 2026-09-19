@@ -26,6 +26,21 @@ describe("accountDeletionSessionRevocation", () => {
     expect(signOut).not.toHaveBeenCalledWith(expect.anything(), "local");
   });
 
+  it("fails closed when auth.admin.signOut throws", async () => {
+    const result = await revokeAccountDeletionTargetSessions({
+      serviceRoleClient: {
+        auth: {
+          admin: {
+            signOut: vi.fn().mockRejectedValue(new Error("network down")),
+          },
+        },
+      } as never,
+      targetUserId: TARGET,
+    });
+
+    expect(result).toEqual({ ok: false, code: "session_revocation_failed" });
+  });
+
   it("fails closed on auth admin signOut error", async () => {
     const result = await revokeAccountDeletionTargetSessions({
       serviceRoleClient: {

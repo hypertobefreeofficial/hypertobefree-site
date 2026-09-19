@@ -69,20 +69,24 @@ export async function revokeAccountDeletionTargetSessions(options: {
     return { ok: false, code: "invalid_target" };
   }
 
-  const { error } = await options.serviceRoleClient.auth.admin.signOut(
-    options.targetUserId,
-    "global"
-  );
+  try {
+    const { error } = await options.serviceRoleClient.auth.admin.signOut(
+      options.targetUserId,
+      "global"
+    );
 
-  if (error) {
-    return {
-      ok: false,
-      code: "session_revocation_failed",
-      detail: error.message,
-    };
+    if (error) {
+      return {
+        ok: false,
+        code: "session_revocation_failed",
+        detail: error.message,
+      };
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, code: "session_revocation_failed" };
   }
-
-  return { ok: true };
 }
 
 export async function markAttemptSessionsPending(options: {
