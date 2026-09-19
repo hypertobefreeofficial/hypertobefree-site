@@ -136,6 +136,33 @@ export type StoryDeletionPlanDecision = {
 
 export const NEVER_PUBLISHED_STORY_STATUSES = ["pending", "submitted"] as const;
 
+/**
+ * Mirrors 3B.1 story preflight in execute_account_deletion_nondestructive_database_stage
+ * (pending/submitted with removed_at IS NULL, and any lifecycle outside approved-live /
+ * removed / tombstone).
+ */
+export function targetOwnedStoryBlocksNondestructiveDatabaseStage(input: {
+  status: string | null;
+  removedAt: string | null;
+}): boolean {
+  const removedAt = input.removedAt;
+  const status = input.status ?? "";
+
+  if (
+    removedAt == null &&
+    (status === "pending" || status === "submitted")
+  ) {
+    return true;
+  }
+
+  const supported =
+    (status === "approved" && removedAt == null) ||
+    status === "removed" ||
+    removedAt != null;
+
+  return !supported;
+}
+
 export const STORY_LIFECYCLE_STORAGE_NOTES = {
   LIVE_PUBLIC: "Story media remains PRESERVE_PUBLIC per Phase 1D bucket policy.",
   PREVIOUSLY_PUBLIC_OR_REMOVED:

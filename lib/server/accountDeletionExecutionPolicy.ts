@@ -151,7 +151,10 @@ export type AccountDeletionExecutionOrchestrationHttpCode =
   | "invariant_failed"
   | "invalid_arguments"
   | "database_completed"
-  | "already_completed";
+  | "already_completed"
+  | "execution_preflight_blocked"
+  | "preflight_lookup_failed"
+  | "preflight_invariant_failed";
 
 export function sanitizeAccountDeletionOrchestrationErrorMessage(
   code: AccountDeletionExecutionOrchestrationHttpCode
@@ -178,6 +181,11 @@ export function sanitizeAccountDeletionOrchestrationErrorMessage(
       return "Could not advance to inventory stage.";
     case "database_stage_failed":
       return "Nondestructive database stage failed.";
+    case "execution_preflight_blocked":
+      return "Execution preflight blocked this deletion request.";
+    case "preflight_lookup_failed":
+    case "preflight_invariant_failed":
+      return "Account deletion execution preflight is unavailable right now.";
     case "invariant_failed":
     case "invalid_arguments":
       return "Account deletion execution is unavailable right now.";
@@ -202,9 +210,13 @@ export function httpStatusForAccountDeletionOrchestrationError(
     case "failure_recording_failed":
     case "inventory_transition_failed":
     case "database_stage_failed":
+    case "preflight_lookup_failed":
+    case "preflight_invariant_failed":
     case "invariant_failed":
     case "invalid_arguments":
       return 503;
+    case "execution_preflight_blocked":
+      return 403;
     case "attempt_request_mismatch":
     case "target_mismatch":
     case "attempt_not_active":

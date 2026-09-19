@@ -52,11 +52,21 @@ function databaseSuccess(code: "completed" | "already_completed" = "completed") 
   };
 }
 
+function preflightReady() {
+  return {
+    ok: true as const,
+    code: "preflight_ready" as const,
+    requestId: REQUEST,
+    targetUserId: TARGET,
+  };
+}
+
 function createDeps(
   overrides: Partial<AccountDeletionExecutionOrchestratorDeps> = {}
 ): AccountDeletionExecutionOrchestratorDeps {
   return {
     verifySchemaReadiness: vi.fn(async () => true),
+    runPreflight: vi.fn(async () => preflightReady()),
     acquire: vi.fn(async () => acquiredContext()),
     runSessionPhase: vi.fn(async () => sessionSuccess("sessions_revoked", "sessions_revoked")),
     advanceToInventory: vi.fn(async () => inventorySuccess()),
@@ -406,6 +416,120 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
 
     expect(acquire).toHaveBeenCalledTimes(2);
     expect(deps.runSessionPhase).toHaveBeenCalledTimes(2);
+  });
+
+  it("EO-PF-A: readiness + preflight_ready → acquisition proceeds", async () => {
+    const deps = createDeps();
+    await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(deps.runPreflight).toHaveBeenCalledWith({ requestId: REQUEST });
+    expect(deps.acquire).toHaveBeenCalledOnce();
+  });
+
+  it("EO-PF-B: blocked_owner → acquire NOT called", async () => {
+    const deps = createDeps({
+      runPreflight: vi.fn(async () => ({
+        ok: false as const,
+        code: "blocked_owner" as const,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "blocked_owner" });
+    expect(deps.acquire).not.toHaveBeenCalled();
+    expect(deps.runSessionPhase).not.toHaveBeenCalled();
+    expect(deps.advanceToInventory).not.toHaveBeenCalled();
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
+  });
+
+  it("EO-PF-C: blocked_admin → acquire NOT called", async () => {
+    const deps = createDeps({
+      runPreflight: vi.fn(async () => ({
+        ok: false as const,
+        code: "blocked_admin" as const,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "blocked_admin" });
+    expect(deps.acquire).not.toHaveBeenCalled();
+    expect(deps.runSessionPhase).not.toHaveBeenCalled();
+    expect(deps.advanceToInventory).not.toHaveBeenCalled();
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
+  });
+
+  it("EO-PF-D: unsupported_story_lifecycle → acquire NOT called", async () => {
+    const deps = createDeps({
+      runPreflight: vi.fn(async () => ({
+        ok: false as const,
+        code: "unsupported_story_lifecycle" as const,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "execution_preflight_blocked" });
+    expect(deps.acquire).not.toHaveBeenCalled();
+    expect(deps.runSessionPhase).not.toHaveBeenCalled();
+    expect(deps.advanceToInventory).not.toHaveBeenCalled();
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
+  });
+
+  it("EO-PF-E: preflight lookup failure → acquire NOT called", async () => {
+    const deps = createDeps({
+      runPreflight: vi.fn(async () => ({
+        ok: false as const,
+        code: "preflight_lookup_failed" as const,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "preflight_lookup_failed" });
+    expect(deps.acquire).not.toHaveBeenCalled();
+  });
+
+  it("EO-PF-F: request_not_approved → acquire NOT called", async () => {
+    const deps = createDeps({
+      runPreflight: vi.fn(async () => ({
+        ok: false as const,
+        code: "request_not_approved" as const,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "request_not_approved" });
+    expect(deps.acquire).not.toHaveBeenCalled();
+  });
+
+  it("EO-PF-G: valid preflight still runs session/inventory/3B.1 chain", async () => {
+    const deps = createDeps();
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result.ok).toBe(true);
+    expect(deps.runPreflight).toHaveBeenCalledOnce();
+    expect(deps.runSessionPhase).toHaveBeenCalledOnce();
+    expect(deps.advanceToInventory).toHaveBeenCalledOnce();
+    expect(deps.executeDatabaseStage).toHaveBeenCalledOnce();
   });
 
   it("EO-P: no storage/profile/Auth deletion in orchestrator source", async () => {

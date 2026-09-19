@@ -13,6 +13,11 @@ import {
   isSchemaExecutionReadyFromLiveProbe,
 } from "./accountDeletionSchemaProbe";
 import {
+  createAccountDeletionExecutionPreflightDeps,
+  runAccountDeletionExecutionPreflight,
+  type AccountDeletionExecutionPreflightResult,
+} from "./accountDeletionExecutionPreflight";
+import {
   createAccountDeletionSessionRevocationOrchestratorDeps,
   runAccountDeletionSessionRevocationPhase,
   type AccountDeletionSessionRevocationOrchestratorResult,
@@ -29,6 +34,12 @@ export type AccountDeletionExecutionOrchestratorSuccessCode =
 export type AccountDeletionExecutionOrchestratorFailureCode =
   | "invalid_arguments"
   | "schema_not_ready"
+  | "target_not_found"
+  | "blocked_owner"
+  | "blocked_admin"
+  | "execution_preflight_blocked"
+  | "preflight_lookup_failed"
+  | "preflight_invariant_failed"
   | "acquisition_failed"
   | "request_not_approved"
   | "execution_in_progress"
@@ -135,8 +146,36 @@ function parseInventoryTransition(
   return null;
 }
 
+function mapPreflightFailure(
+  result: Extract<AccountDeletionExecutionPreflightResult, { ok: false }>
+): AccountDeletionExecutionOrchestratorFailureCode {
+  switch (result.code) {
+    case "target_not_found":
+      return "target_not_found";
+    case "blocked_owner":
+      return "blocked_owner";
+    case "blocked_admin":
+      return "blocked_admin";
+    case "unsupported_story_lifecycle":
+      return "execution_preflight_blocked";
+    case "preflight_lookup_failed":
+      return "preflight_lookup_failed";
+    case "preflight_invariant_failed":
+      return "preflight_invariant_failed";
+    case "execution_in_progress":
+      return "execution_in_progress";
+    case "request_not_approved":
+      return "request_not_approved";
+    default:
+      return "preflight_invariant_failed";
+  }
+}
+
 export type AccountDeletionExecutionOrchestratorDeps = {
   verifySchemaReadiness: () => Promise<boolean>;
+  runPreflight: (input: {
+    requestId: string;
+  }) => Promise<AccountDeletionExecutionPreflightResult>;
   acquire: (input: {
     requestId: string;
     initiatedBy: string;
@@ -161,11 +200,19 @@ export function createAccountDeletionExecutionOrchestratorDeps(
   const sessionDeps = createAccountDeletionSessionRevocationOrchestratorDeps(
     serviceRoleClient
   );
+  const preflightDeps =
+    createAccountDeletionExecutionPreflightDeps(serviceRoleClient);
 
   return {
     async verifySchemaReadiness() {
       const probe = await fetchAccountDeletionSchemaProbe(serviceRoleClient);
       return isSchemaExecutionReadyFromLiveProbe(probe);
+    },
+    runPreflight(input) {
+      return runAccountDeletionExecutionPreflight({
+        requestId: input.requestId,
+        deps: preflightDeps,
+      });
     },
     acquire(input) {
       return acquireAccountDeletionExecutionLock({
@@ -252,6 +299,11 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     return { ok: false, code: "schema_not_ready" };
   }
 
+  const preflight = await deps.runPreflight({ requestId });
+  if (preflight.ok === false) {
+    return { ok: false, code: mapPreflightFailure(preflight) };
+  }
+
   const acquired = await deps.acquire({ requestId, initiatedBy });
   if (acquired.ok === false) {
     return { ok: false, code: mapAcquisitionFailure(acquired) };
@@ -331,4 +383,6 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
 
 export const ACCOUNT_DELETION_EXECUTION_ORCHESTRATOR_SCOPE_NOTE =
   "runAccountDeletionExecutionOrchestrator stops at database_completed. "
-  + "Storage, profile, auth user deletion, and request finalize=deleted are later phases.";
+  + "Storage, profile, auth user deletion, and request finalize=deleted are later phases. "
+  + "Pre-acquisition preflight reduces predictable failures but does not eliminate TOCTOU; "
+  + "3B.1 in-transaction preflight remains authoritative after acquisition.";

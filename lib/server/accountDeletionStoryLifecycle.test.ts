@@ -11,6 +11,7 @@ import {
   emptyStoryDeletionChildInventory,
   evaluateNeverPublishedStoryDeletionEligibility,
   planStoryDeletionDecision,
+  targetOwnedStoryBlocksNondestructiveDatabaseStage,
   STORY_SUBSTANTIVE_CHILD_POLICIES,
   type StoryDeletionChildInventory,
   type StoryRowLifecycleInput,
@@ -92,6 +93,56 @@ describe("story lifecycle classification", () => {
     expect(classifyStoryLifecycle({ status: "legacy", removedAt: null })).toBe(
       "UNKNOWN"
     );
+  });
+});
+
+describe("targetOwnedStoryBlocksNondestructiveDatabaseStage (3B.1 parity)", () => {
+  it("blocks pending/submitted with removed_at IS NULL", () => {
+    expect(
+      targetOwnedStoryBlocksNondestructiveDatabaseStage({
+        status: "pending",
+        removedAt: null,
+      })
+    ).toBe(true);
+    expect(
+      targetOwnedStoryBlocksNondestructiveDatabaseStage({
+        status: "submitted",
+        removedAt: null,
+      })
+    ).toBe(true);
+  });
+
+  it("allows pending/submitted when removed_at is set", () => {
+    expect(
+      targetOwnedStoryBlocksNondestructiveDatabaseStage({
+        status: "pending",
+        removedAt: "2026-01-01T00:00:00.000Z",
+      })
+    ).toBe(false);
+  });
+
+  it("allows approved live public and removed statuses", () => {
+    expect(
+      targetOwnedStoryBlocksNondestructiveDatabaseStage({
+        status: "approved",
+        removedAt: null,
+      })
+    ).toBe(false);
+    expect(
+      targetOwnedStoryBlocksNondestructiveDatabaseStage({
+        status: "removed",
+        removedAt: null,
+      })
+    ).toBe(false);
+  });
+
+  it("blocks unknown unsupported lifecycle rows", () => {
+    expect(
+      targetOwnedStoryBlocksNondestructiveDatabaseStage({
+        status: "legacy",
+        removedAt: null,
+      })
+    ).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 import { Client } from "pg";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   ACCOUNT_DELETION_INTEGRATION_DB_URL_ENV,
   applyAccountDeletionMigrations,
@@ -36,7 +36,12 @@ const SURVIVOR_EMAIL = "survivor-e2e@example.test";
 let authenticatedDeletionGrantsApplied = false;
 let serviceRoleGrantsApplied = false;
 
-function createPgServiceRoleClient(pg: Client): SupabaseClient {
+function createPgServiceRoleClient(
+  pg: Client,
+  options: { signOut?: () => Promise<{ error: null }> } = {}
+): SupabaseClient {
+  const signOut =
+    options.signOut ?? (async () => ({ error: null as const }));
   async function runServiceRpc<T>(
     sql: string,
     params: unknown[]
@@ -105,15 +110,25 @@ function createPgServiceRoleClient(pg: Client): SupabaseClient {
         select(cols: string) {
           return {
             eq(column: string, value: unknown) {
-              return {
+              const sql = `SELECT ${cols} FROM public.${table} WHERE ${column} = $1`;
+              const builder = {
                 maybeSingle: async () => {
-                  const result = await pg.query(
-                    `SELECT ${cols} FROM public.${table} WHERE ${column} = $1 LIMIT 1`,
-                    [value]
-                  );
+                  const result = await pg.query(`${sql} LIMIT 1`, [value]);
                   return { data: result.rows[0] ?? null, error: null };
                 },
+                then(
+                  onFulfilled: (value: { data: unknown[]; error: null }) => unknown,
+                  onRejected?: (reason: unknown) => unknown
+                ) {
+                  return pg
+                    .query(sql, [value])
+                    .then((result) =>
+                      onFulfilled({ data: result.rows, error: null })
+                    )
+                    .catch(onRejected);
+                },
               };
+              return builder;
             },
           };
         },
@@ -121,7 +136,7 @@ function createPgServiceRoleClient(pg: Client): SupabaseClient {
     },
     auth: {
       admin: {
-        signOut: async () => ({ error: null }),
+        signOut,
       },
     },
   } as unknown as SupabaseClient;
@@ -262,16 +277,19 @@ async function approveDeletionRequestAsOwner(client: Client) {
   expect(request.rows[0]?.status).toBe("approved");
 }
 
-async function seedTargetContentBeforeAcquisition(client: Client) {
+async function seedTargetContentBeforeAcquisition(
+  client: Client,
+  storyStatus: "approved" | "pending" | "submitted" = "approved"
+) {
   await client.query(
     `
     INSERT INTO public.stories (
       id, user_id, name, email, location, story_text, video_url, status
     ) VALUES (
-      $1, $2, 'Target Author', $3, 'City', 'Substantive story body', 'https://example.com/v.mp4', 'approved'
+      $1, $2, 'Target Author', $3, 'City', 'Substantive story body', 'https://example.com/v.mp4', $4
     )
     `,
-    [STORY_ID, TARGET, TARGET_EMAIL]
+    [STORY_ID, TARGET, TARGET_EMAIL, storyStatus]
   );
 
   await client.query(
@@ -331,7 +349,10 @@ async function seedTargetContentBeforeAcquisition(client: Client) {
   );
 }
 
-async function seedApprovedDeletionLifecycle(client: Client) {
+async function seedApprovedDeletionLifecycle(
+  client: Client,
+  storyStatus: "approved" | "pending" | "submitted" = "approved"
+) {
   try {
     await client.query("ROLLBACK");
   } catch {
@@ -384,7 +405,7 @@ async function seedApprovedDeletionLifecycle(client: Client) {
 
   await ensureAuthenticatedDeletionRequestGrants(client);
   await bootstrapFirstOwnerProfile(client);
-  await seedTargetContentBeforeAcquisition(client);
+  await seedTargetContentBeforeAcquisition(client, storyStatus);
   await submitDeletionRequestAsTarget(client);
   await approveDeletionRequestAsOwner(client);
 }
@@ -406,6 +427,58 @@ describeIntegration(
     afterAll(async () => {
       await client?.end();
     });
+
+    it("preflight blocks pending never-published story with zero execution side effects", async () => {
+      await seedApprovedDeletionLifecycle(client, "pending");
+
+      const signOut = vi.fn(async () => ({ error: null as const }));
+      const serviceRoleClient = createPgServiceRoleClient(client, { signOut });
+      const deps = createAccountDeletionExecutionOrchestratorDeps(serviceRoleClient);
+
+      const result = await runAccountDeletionExecutionOrchestrator({
+        requestId: REQUEST_ID,
+        initiatedBy: OWNER,
+        deps,
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        code: "execution_preflight_blocked",
+      });
+      expect(signOut).not.toHaveBeenCalled();
+
+      const request = await client.query<{ status: string }>(
+        `SELECT status FROM public.account_deletion_requests WHERE id = $1`,
+        [REQUEST_ID]
+      );
+      expect(request.rows[0]?.status).toBe("approved");
+
+      const inProgress = await client.query<{ count: string }>(
+        `
+        SELECT count(*)::text AS count
+        FROM public.account_deletion_requests
+        WHERE id = $1 AND status = 'deletion_in_progress'
+        `,
+        [REQUEST_ID]
+      );
+      expect(Number(inProgress.rows[0]?.count ?? 0)).toBe(0);
+
+      const attempts = await client.query<{ count: string }>(
+        `
+        SELECT count(*)::text AS count
+        FROM public.account_deletion_execution_attempts
+        WHERE deletion_request_id = $1
+        `,
+        [REQUEST_ID]
+      );
+      expect(Number(attempts.rows[0]?.count ?? 0)).toBe(0);
+
+      const story = await client.query<{ status: string }>(
+        `SELECT status FROM public.stories WHERE id = $1`,
+        [STORY_ID]
+      );
+      expect(story.rows[0]?.status).toBe("pending");
+    }, 120_000);
 
     it("runs acquisition → session → inventory → 3B.1 and retries idempotently", async () => {
       await seedApprovedDeletionLifecycle(client);
