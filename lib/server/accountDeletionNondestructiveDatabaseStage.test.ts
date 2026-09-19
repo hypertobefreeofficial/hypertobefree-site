@@ -95,7 +95,7 @@ describe("accountDeletionNondestructiveDatabaseStage wrapper", () => {
 
   it("documents disconnected orchestration status", () => {
     expect(ACCOUNT_DELETION_NONDESTRUCTIVE_DATABASE_STAGE_DISCONNECTED_NOTE).toContain(
-      "2C.3B.2"
+      "accountDeletionExecutionOrchestrator"
     );
   });
 });

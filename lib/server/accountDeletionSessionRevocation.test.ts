@@ -58,7 +58,6 @@ describe("accountDeletionSessionRevocation", () => {
     expect(result).toEqual({
       ok: false,
       code: "session_revocation_failed",
-      detail: "upstream failure",
     });
   });
 

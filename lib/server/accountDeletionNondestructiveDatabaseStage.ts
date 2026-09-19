@@ -106,5 +106,5 @@ export async function executeAccountDeletionNondestructiveDatabaseStage(options:
 }
 
 export const ACCOUNT_DELETION_NONDESTRUCTIVE_DATABASE_STAGE_DISCONNECTED_NOTE =
-  "executeAccountDeletionNondestructiveDatabaseStage is intentionally disconnected from "
-  + "accountDeletionExecuteHandler, acquisition, session revocation, and UI until Phase 2C.3B.2 orchestration.";
+  "executeAccountDeletionNondestructiveDatabaseStage is invoked from "
+  + "accountDeletionExecutionOrchestrator when HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED is true.";

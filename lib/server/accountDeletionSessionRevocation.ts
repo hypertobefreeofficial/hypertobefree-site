@@ -15,7 +15,7 @@ export type AccountDeletionSessionRevocationErrorCode =
 
 export type AccountDeletionSessionRevocationResult =
   | { ok: true }
-  | { ok: false; code: AccountDeletionSessionRevocationErrorCode; detail?: string };
+  | { ok: false; code: AccountDeletionSessionRevocationErrorCode };
 
 export type AccountDeletionSessionStageUpdateResult =
   | { ok: true; stage: "sessions_revoked" | "sessions_pending" }
@@ -76,11 +76,7 @@ export async function revokeAccountDeletionTargetSessions(options: {
     );
 
     if (error) {
-      return {
-        ok: false,
-        code: "session_revocation_failed",
-        detail: error.message,
-      };
+      return { ok: false, code: "session_revocation_failed" };
     }
 
     return { ok: true };

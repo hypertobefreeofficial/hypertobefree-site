@@ -1,21 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 import { authenticateSupabaseRequest } from "./authenticateSupabaseRequest";
+import { verifyAdminForAccountDeletionDryRun } from "./accountDeletionManifest";
 import {
-  createAccountDeletionDryRunDeps,
-  verifyAdminForAccountDeletionDryRun,
-} from "./accountDeletionManifest";
-import {
-  httpStatusForAccountDeletionExecutionError,
+  httpStatusForAccountDeletionOrchestrationError,
   isAccountDeletionExecutionEnabled,
-  sanitizeAccountDeletionExecutionErrorMessage,
-  type AccountDeletionExecutionErrorCode,
+  sanitizeAccountDeletionOrchestrationErrorMessage,
+  type AccountDeletionExecutionOrchestrationHttpCode,
 } from "./accountDeletionExecutionPolicy";
-import {
-  createAccountDeletionExecutionDeps,
-  prepareAccountDeletionExecution,
-  verifyAdminAal2ForAccountDeletionExecution,
-} from "./accountDeletionExecutor";
+import { verifyAdminAal2ForAccountDeletionExecution } from "./accountDeletionExecutor";
 import { verifyOwnerForAccountDeletionExecution } from "./accountDeletionOwnerAuthorization";
+import {
+  createAccountDeletionExecutionOrchestratorDeps,
+  runAccountDeletionExecutionOrchestrator,
+  type AccountDeletionExecutionOrchestratorFailureCode,
+  type AccountDeletionExecutionOrchestratorResult,
+} from "./accountDeletionExecutionOrchestrator";
 import {
   checkPrayerRateLimit,
   PRAYER_RATE_LIMITS,
@@ -26,11 +25,42 @@ export type AccountDeletionExecuteHandlerResult =
   | { ok: true; status: number; body: unknown }
   | { ok: false; status: number; body: unknown };
 
-function executionErrorBody(code: AccountDeletionExecutionErrorCode) {
+function orchestrationErrorBody(code: AccountDeletionExecutionOrchestrationHttpCode) {
   return {
     ok: false,
     code,
-    error: sanitizeAccountDeletionExecutionErrorMessage(code),
+    error: sanitizeAccountDeletionOrchestrationErrorMessage(code),
+  };
+}
+
+function mapOrchestratorFailureCode(
+  code: AccountDeletionExecutionOrchestratorFailureCode
+): AccountDeletionExecutionOrchestrationHttpCode {
+  return code;
+}
+
+function mapOrchestratorResultToHandler(
+  result: AccountDeletionExecutionOrchestratorResult
+): AccountDeletionExecuteHandlerResult {
+  if (result.ok === false) {
+    const code = mapOrchestratorFailureCode(result.code);
+    return {
+      ok: false,
+      status: httpStatusForAccountDeletionOrchestrationError(code),
+      body: orchestrationErrorBody(code),
+    };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    body: {
+      ok: true,
+      code: result.code,
+      requestId: result.requestId,
+      attemptId: result.attemptId,
+      error: sanitizeAccountDeletionOrchestrationErrorMessage(result.code),
+    },
   };
 }
 
@@ -50,6 +80,10 @@ const FORBIDDEN_EXECUTION_BODY_KEYS = new Set([
   "username",
   "targetUserId",
   "target_user_id",
+  "attemptId",
+  "attempt_id",
+  "initiatedBy",
+  "initiated_by",
   "manifest",
   "deletionManifest",
   "status",
@@ -126,7 +160,7 @@ export async function handleAccountDeletionExecuteRequest(options: {
     return {
       ok: false,
       status: 503,
-      body: executionErrorBody("internal_error"),
+      body: orchestrationErrorBody("internal_error"),
     };
   }
 
@@ -135,7 +169,7 @@ export async function handleAccountDeletionExecuteRequest(options: {
     return {
       ok: false,
       status: auth.status === 503 ? 503 : 401,
-      body: executionErrorBody("unauthorized"),
+      body: orchestrationErrorBody("unauthorized"),
     };
   }
 
@@ -146,7 +180,7 @@ export async function handleAccountDeletionExecuteRequest(options: {
     return {
       ok: false,
       status: 403,
-      body: executionErrorBody("forbidden"),
+      body: orchestrationErrorBody("forbidden"),
     };
   }
 
@@ -157,7 +191,7 @@ export async function handleAccountDeletionExecuteRequest(options: {
     return {
       ok: false,
       status: 403,
-      body: executionErrorBody("owner_required"),
+      body: orchestrationErrorBody("owner_required"),
     };
   }
 
@@ -165,7 +199,7 @@ export async function handleAccountDeletionExecuteRequest(options: {
     return {
       ok: false,
       status: 503,
-      body: executionErrorBody("execution_disabled"),
+      body: orchestrationErrorBody("execution_disabled"),
     };
   }
 
@@ -179,8 +213,8 @@ export async function handleAccountDeletionExecuteRequest(options: {
         : "internal_error";
     return {
       ok: false,
-      status: httpStatusForAccountDeletionExecutionError(code),
-      body: executionErrorBody(code),
+      status: httpStatusForAccountDeletionOrchestrationError(code),
+      body: orchestrationErrorBody(code),
     };
   }
 
@@ -193,7 +227,7 @@ export async function handleAccountDeletionExecuteRequest(options: {
       ok: false,
       status: 429,
       body: {
-        ...executionErrorBody("rate_limited"),
+        ...orchestrationErrorBody("rate_limited"),
         retryAfterSeconds: rateCheck.retryAfterSeconds,
       },
     };
@@ -203,60 +237,11 @@ export async function handleAccountDeletionExecuteRequest(options: {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const deps = createAccountDeletionExecutionDeps({
-    serviceRoleClient,
-    verifyAdmin: verifyAdminForAccountDeletionDryRun,
-    verifyAdminAal2: verifyAdminAal2ForAccountDeletionExecution,
-    buildManifestDeps: createAccountDeletionDryRunDeps(serviceRoleClient),
-  });
-
-  const prepared = await prepareAccountDeletionExecution({
+  const orchestratorResult = await runAccountDeletionExecutionOrchestrator({
     requestId,
-    actorUserId: auth.context.user.id,
-    deps,
+    initiatedBy: auth.context.user.id,
+    deps: createAccountDeletionExecutionOrchestratorDeps(serviceRoleClient),
   });
 
-  if (prepared.ok === false) {
-    const status = httpStatusForAccountDeletionExecutionError(prepared.code);
-
-    if (prepared.code === "already_deleted") {
-      return {
-        ok: true,
-        status,
-        body: {
-          ok: true,
-          code: prepared.code,
-          error: sanitizeAccountDeletionExecutionErrorMessage(prepared.code),
-          requestStatus: prepared.request?.status ?? null,
-        },
-      };
-    }
-
-    return {
-      ok: false,
-      status,
-      body: {
-        ...executionErrorBody(prepared.code),
-        stages: prepared.stages,
-      },
-    };
-  }
-
-  return {
-    ok: true,
-    status: 200,
-    body: {
-      ok: true,
-      code: "execution_prepared",
-      message:
-        "Execution eligibility verified. Destructive stages are not implemented in Phase 4C.7B.1C.",
-      requestId: prepared.requestId,
-      targetUserId: prepared.targetUserId,
-      requestStatus: prepared.requestStatus,
-      stages: prepared.stages,
-      destructiveStages: prepared.destructiveStages,
-      manifestSummary: prepared.manifestSummary,
-      auditPreview: prepared.auditPreview,
-    },
-  };
+  return mapOrchestratorResultToHandler(orchestratorResult);
 }

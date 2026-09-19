@@ -1,9 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * Parsed prerequisite from verify_account_deletion_schema_execution_ready().
+ * Production emits legacy entries ({ satisfied }) and newer entries ({ ready }).
+ */
 export type AccountDeletionSchemaProbePrerequisite = {
   id: string;
-  satisfied: boolean;
   detail: string;
+  satisfied?: boolean;
+  ready?: boolean;
 };
 
 export type AccountDeletionSchemaProbeResult = {
@@ -18,20 +23,44 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parsePrerequisite(value: unknown): AccountDeletionSchemaProbePrerequisite | null {
+/**
+ * A prerequisite is ready only when it signals success via strict boolean true.
+ * Fail closed on explicit false on either field, or contradictory true/false pairs.
+ */
+export function isPrerequisiteReady(
+  entry: AccountDeletionSchemaProbePrerequisite
+): boolean {
+  if (entry.satisfied === false || entry.ready === false) {
+    return false;
+  }
+
+  return entry.satisfied === true || entry.ready === true;
+}
+
+function parsePrerequisite(
+  value: unknown
+): AccountDeletionSchemaProbePrerequisite | null {
   if (!isRecord(value)) {
     return null;
   }
 
-  const id = typeof value.id === "string" ? value.id : "";
-  const satisfied = value.satisfied === true;
+  const id = typeof value.id === "string" ? value.id.trim() : "";
   const detail = typeof value.detail === "string" ? value.detail : "";
 
   if (!id) {
     return null;
   }
 
-  return { id, satisfied, detail };
+  const satisfied =
+    value.satisfied === true
+      ? true
+      : value.satisfied === false
+        ? false
+        : undefined;
+  const ready =
+    value.ready === true ? true : value.ready === false ? false : undefined;
+
+  return { id, detail, satisfied, ready };
 }
 
 export function parseAccountDeletionSchemaProbePayload(
@@ -145,11 +174,11 @@ export function summarizeSchemaProbeReadiness(
   }
 
   const unsatisfiedPrerequisiteIds = probe.prerequisites
-    .filter((entry) => entry.satisfied !== true)
+    .filter((entry) => !isPrerequisiteReady(entry))
     .map((entry) => entry.id);
 
-  const allPrerequisitesSatisfied = unsatisfiedPrerequisiteIds.length === 0;
-  const liveCatalogReady = probe.ready === true && allPrerequisitesSatisfied;
+  const allPrerequisitesReady = unsatisfiedPrerequisiteIds.length === 0;
+  const liveCatalogReady = probe.ready === true && allPrerequisitesReady;
 
   return {
     liveCatalogReady,

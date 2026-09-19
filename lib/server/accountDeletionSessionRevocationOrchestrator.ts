@@ -29,8 +29,10 @@ export type AccountDeletionSessionRevocationOrchestratorFailureCode =
   | "attempt_not_found"
   | "attempt_not_active"
   | "request_not_in_progress"
+  | "attempt_request_mismatch"
   | "target_mismatch"
   | "stage_conflict"
+  | "pre_signout_state_conflict"
   | "session_revocation_failed"
   | "failure_recording_failed"
   | "transition_failed";
@@ -53,6 +55,7 @@ export type AccountDeletionSessionExecutionSnapshot = {
   attemptTargetUserId: string;
   attemptRequestId: string;
   requestStatus: string;
+  requestResolvedTargetUserId: string | null;
 };
 
 const LATER_THAN_SESSION_REVOCATION_STAGES = new Set([
@@ -97,8 +100,9 @@ function mapTransitionFailure(
       return "attempt_not_active";
     case "request_not_in_progress":
       return "request_not_in_progress";
-    case "target_mismatch":
     case "attempt_request_mismatch":
+      return "attempt_request_mismatch";
+    case "target_mismatch":
       return "target_mismatch";
     case "stage_conflict":
       return "stage_conflict";
@@ -144,13 +148,16 @@ export type AccountDeletionSessionRevocationOrchestratorDeps = {
   ) => Promise<{ ok: true } | { ok: false }>;
   revokeTargetSessions: (
     context: AccountDeletionTrustedSessionExecutionContext
-  ) => Promise<{ ok: true } | { ok: false }>;
+  ) => Promise<
+    | { ok: true }
+    | { ok: false; preSignOutFailure?: AccountDeletionSessionRevocationOrchestratorFailureCode }
+  >;
 };
 
 export function createAccountDeletionSessionRevocationOrchestratorDeps(
   serviceRoleClient: SupabaseClient
 ): AccountDeletionSessionRevocationOrchestratorDeps {
-  return {
+  const deps: AccountDeletionSessionRevocationOrchestratorDeps = {
     async loadExecutionSnapshot(context) {
       const { data: attemptRow, error: attemptError } = await serviceRoleClient
         .from("account_deletion_execution_attempts")
@@ -172,13 +179,21 @@ export function createAccountDeletionSessionRevocationOrchestratorDeps(
 
       const { data: requestRow, error: requestError } = await serviceRoleClient
         .from("account_deletion_requests")
-        .select("status")
+        .select("status, user_id, target_user_id_snapshot")
         .eq("id", context.requestId)
         .maybeSingle();
 
       if (requestError || !requestRow) {
         return { ok: false, code: "request_not_in_progress" };
       }
+
+      const request = requestRow as {
+        status: string;
+        user_id: string | null;
+        target_user_id_snapshot: string | null;
+      };
+      const requestResolvedTargetUserId =
+        request.user_id ?? request.target_user_id_snapshot ?? null;
 
       return {
         ok: true,
@@ -187,7 +202,8 @@ export function createAccountDeletionSessionRevocationOrchestratorDeps(
           attemptStatus: attempt.status,
           attemptTargetUserId: attempt.target_user_id,
           attemptRequestId: attempt.deletion_request_id,
-          requestStatus: (requestRow as { status: string }).status,
+          requestStatus: request.status,
+          requestResolvedTargetUserId,
         },
       };
     },
@@ -216,13 +232,71 @@ export function createAccountDeletionSessionRevocationOrchestratorDeps(
       return recorded.ok ? { ok: true } : { ok: false };
     },
     async revokeTargetSessions(context) {
+      const preSignOut = await validateImmediatelyBeforeSignOut(context, deps);
+      if (preSignOut) {
+        return { ok: false as const, preSignOutFailure: preSignOut };
+      }
+
       const revoked = await revokeAccountDeletionTargetSessions({
         serviceRoleClient,
         targetUserId: context.targetUserId,
       });
-      return revoked.ok ? { ok: true } : { ok: false };
+      return revoked.ok ? { ok: true as const } : { ok: false as const };
     },
   };
+
+  return deps;
+}
+
+function validateSnapshotAgainstContext(
+  snapshot: AccountDeletionSessionExecutionSnapshot,
+  context: AccountDeletionTrustedSessionExecutionContext
+): AccountDeletionSessionRevocationOrchestratorFailureCode | null {
+  if (snapshot.attemptRequestId !== context.requestId) {
+    return "attempt_request_mismatch";
+  }
+
+  if (snapshot.attemptTargetUserId !== context.targetUserId) {
+    return "target_mismatch";
+  }
+
+  if (
+    snapshot.requestResolvedTargetUserId !== null &&
+    snapshot.requestResolvedTargetUserId !== context.targetUserId
+  ) {
+    return "target_mismatch";
+  }
+
+  if (snapshot.attemptStatus !== "active") {
+    return "attempt_not_active";
+  }
+
+  if (snapshot.requestStatus !== "deletion_in_progress") {
+    return "request_not_in_progress";
+  }
+
+  return null;
+}
+
+export async function validateImmediatelyBeforeSignOut(
+  context: AccountDeletionTrustedSessionExecutionContext,
+  deps: AccountDeletionSessionRevocationOrchestratorDeps
+): Promise<AccountDeletionSessionRevocationOrchestratorFailureCode | null> {
+  const loaded = await deps.loadExecutionSnapshot(context);
+  if (loaded.ok === false) {
+    return loaded.code;
+  }
+
+  const conflict = validateSnapshotAgainstContext(loaded.snapshot, context);
+  if (conflict) {
+    return conflict;
+  }
+
+  if (loaded.snapshot.attemptStage !== "sessions_pending") {
+    return "pre_signout_state_conflict";
+  }
+
+  return null;
 }
 
 async function ensureSessionsPendingStage(
@@ -270,20 +344,9 @@ export async function runAccountDeletionSessionRevocationPhase(options: {
 
   const { snapshot } = loaded;
 
-  if (snapshot.attemptRequestId !== options.context.requestId) {
-    return { ok: false, code: "target_mismatch" };
-  }
-
-  if (snapshot.attemptTargetUserId !== options.context.targetUserId) {
-    return { ok: false, code: "target_mismatch" };
-  }
-
-  if (snapshot.attemptStatus !== "active") {
-    return { ok: false, code: "attempt_not_active" };
-  }
-
-  if (snapshot.requestStatus !== "deletion_in_progress") {
-    return { ok: false, code: "request_not_in_progress" };
+  const routingConflict = validateSnapshotAgainstContext(snapshot, options.context);
+  if (routingConflict) {
+    return { ok: false, code: routingConflict };
   }
 
   if (LATER_THAN_SESSION_REVOCATION_STAGES.has(snapshot.attemptStage)) {
@@ -313,6 +376,10 @@ export async function runAccountDeletionSessionRevocationPhase(options: {
 
   const revoked = await options.deps.revokeTargetSessions(options.context);
   if (revoked.ok === false) {
+    if (revoked.preSignOutFailure) {
+      return { ok: false, code: revoked.preSignOutFailure };
+    }
+
     const recorded = await options.deps.recordSessionRevocationFailure(
       options.context
     );
@@ -339,8 +406,8 @@ export async function runAccountDeletionSessionRevocationPhase(options: {
 }
 
 export const ACCOUNT_DELETION_SESSION_REVOCATION_ORCHESTRATOR_DISCONNECTED_NOTE =
-  "runAccountDeletionSessionRevocationPhase is not wired to accountDeletionExecuteHandler "
-  + "until Phase 3B.2E. Global signOut does not replace DB/RLS stale-JWT write barriers.";
+  "runAccountDeletionSessionRevocationPhase is invoked from accountDeletionExecutionOrchestrator "
+  + "when HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED is true. Global signOut does not replace DB/RLS stale-JWT write barriers.";
 
 export const ACCOUNT_DELETION_STALE_JWT_SESSION_REVOCATION_NOTE =
   "auth.admin.signOut(global) invalidates refresh/session state but access JWTs may remain "

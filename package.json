@@ -4,7 +4,7 @@
     "build": "next build",
     "start": "next start",
     "test:unit": "vitest run",
-    "test:account-deletion-integration": "vitest run --pool=forks --maxWorkers=1 lib/server/accountDeletionNondestructiveDatabaseStage.integration.test.ts lib/server/accountDeletionSessionTransition.integration.test.ts",
+    "test:account-deletion-integration": "vitest run --pool=forks --maxWorkers=1 lib/server/accountDeletionNondestructiveDatabaseStage.integration.test.ts lib/server/accountDeletionSessionTransition.integration.test.ts lib/server/accountDeletionExecutionOrchestrator.integration.test.ts",
     "test:community-feed-auth": "node scripts/test-community-feed-auth.mjs",
     "test:community-feed-auth:apply": "node scripts/apply-community-feed-auth-migration.mjs",
     "test:prayer": "playwright test --config=playwright.config.ts",

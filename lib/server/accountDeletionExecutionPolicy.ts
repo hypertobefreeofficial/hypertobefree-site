@@ -135,6 +135,92 @@ export function sanitizeAccountDeletionExecutionErrorMessage(
   }
 }
 
+export type AccountDeletionExecutionOrchestrationHttpCode =
+  | AccountDeletionExecutionErrorCode
+  | "schema_not_ready"
+  | "acquisition_failed"
+  | "attempt_request_mismatch"
+  | "target_mismatch"
+  | "attempt_not_active"
+  | "request_not_in_progress"
+  | "stage_conflict"
+  | "session_revocation_failed"
+  | "failure_recording_failed"
+  | "inventory_transition_failed"
+  | "database_stage_failed"
+  | "invariant_failed"
+  | "invalid_arguments"
+  | "database_completed"
+  | "already_completed";
+
+export function sanitizeAccountDeletionOrchestrationErrorMessage(
+  code: AccountDeletionExecutionOrchestrationHttpCode
+): string {
+  switch (code) {
+    case "schema_not_ready":
+      return "Account deletion schema is not ready for execution.";
+    case "acquisition_failed":
+      return "Could not acquire the deletion execution lock.";
+    case "attempt_request_mismatch":
+    case "target_mismatch":
+      return "Deletion execution context did not match the active attempt.";
+    case "attempt_not_active":
+      return "The active deletion attempt is not runnable.";
+    case "request_not_in_progress":
+      return "This deletion request is not in progress.";
+    case "stage_conflict":
+      return "Deletion execution stage conflict.";
+    case "session_revocation_failed":
+      return "Could not revoke target sessions.";
+    case "failure_recording_failed":
+      return "Could not record session revocation failure metadata.";
+    case "inventory_transition_failed":
+      return "Could not advance to inventory stage.";
+    case "database_stage_failed":
+      return "Nondestructive database stage failed.";
+    case "invariant_failed":
+    case "invalid_arguments":
+      return "Account deletion execution is unavailable right now.";
+    case "database_completed":
+      return "Nondestructive database stage completed.";
+    case "already_completed":
+      return "Nondestructive database stage was already completed.";
+    default:
+      return sanitizeAccountDeletionExecutionErrorMessage(
+        code as AccountDeletionExecutionErrorCode
+      );
+  }
+}
+
+export function httpStatusForAccountDeletionOrchestrationError(
+  code: AccountDeletionExecutionOrchestrationHttpCode
+): number {
+  switch (code) {
+    case "schema_not_ready":
+    case "acquisition_failed":
+    case "session_revocation_failed":
+    case "failure_recording_failed":
+    case "inventory_transition_failed":
+    case "database_stage_failed":
+    case "invariant_failed":
+    case "invalid_arguments":
+      return 503;
+    case "attempt_request_mismatch":
+    case "target_mismatch":
+    case "attempt_not_active":
+    case "request_not_in_progress":
+    case "stage_conflict":
+      return 409;
+    case "database_completed":
+    case "already_completed":
+      return 200;
+    default:
+      return httpStatusForAccountDeletionExecutionError(
+        code as AccountDeletionExecutionErrorCode
+      );
+  }
+}
+
 export function httpStatusForAccountDeletionExecutionError(
   code: AccountDeletionExecutionErrorCode
 ): number {

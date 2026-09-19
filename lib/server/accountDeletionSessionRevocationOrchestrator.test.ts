@@ -23,6 +23,7 @@ function activeSnapshot(stage: string) {
     attemptTargetUserId: TARGET,
     attemptRequestId: REQUEST,
     requestStatus: "deletion_in_progress",
+    requestResolvedTargetUserId: TARGET,
   };
 }
 
@@ -205,6 +206,55 @@ describe("runAccountDeletionSessionRevocationPhase", () => {
 
     expect(result).toEqual({ ok: false, code: "target_mismatch" });
     expect(deps.revokeTargetSessions).not.toHaveBeenCalled();
+  });
+
+  it("attempt_request_mismatch → no signOut", async () => {
+    const deps = createDeps({
+      loadExecutionSnapshot: vi.fn(async () => ({
+        ok: true,
+        snapshot: { ...activeSnapshot("lock_acquired"), attemptRequestId: OTHER },
+      })),
+    });
+
+    const result = await runAccountDeletionSessionRevocationPhase({ context: CONTEXT, deps });
+
+    expect(result).toEqual({ ok: false, code: "attempt_request_mismatch" });
+    expect(deps.revokeTargetSessions).not.toHaveBeenCalled();
+  });
+
+  it("pre-signOut fresh validation blocks stale pending state", async () => {
+    const loadExecutionSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        snapshot: activeSnapshot("lock_acquired"),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        snapshot: { ...activeSnapshot("sessions_pending"), requestStatus: "approved" },
+      });
+
+    const revokeTargetSessions = vi.fn(async (context) => {
+      const { validateImmediatelyBeforeSignOut } = await import(
+        "./accountDeletionSessionRevocationOrchestrator"
+      );
+      const failure = await validateImmediatelyBeforeSignOut(context, {
+        loadExecutionSnapshot,
+      } as never);
+      if (failure) {
+        return { ok: false as const, preSignOutFailure: failure };
+      }
+      return { ok: true as const };
+    });
+
+    const deps = createDeps({
+      loadExecutionSnapshot,
+      revokeTargetSessions,
+    });
+
+    const result = await runAccountDeletionSessionRevocationPhase({ context: CONTEXT, deps });
+
+    expect(result).toEqual({ ok: false, code: "request_not_in_progress" });
   });
 
   it("SR-K: inactive attempt → no signOut", async () => {

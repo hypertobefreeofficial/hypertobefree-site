@@ -8,14 +8,12 @@ import {
   resetRateLimitBucketsForTests,
   PRAYER_RATE_LIMITS,
 } from "./prayerRateLimit";
-import { ACCOUNT_DELETION_STATUS } from "../accountCenter/accountDeletionLifecycle";
-
 const mockAuthenticateSupabaseRequest = vi.fn();
 const mockVerifyAdmin = vi.fn();
 const mockVerifyOwner = vi.fn();
 const mockVerifyAdminAal2 = vi.fn();
-const mockPrepareExecution = vi.fn();
-const mockCreateExecutionDeps = vi.fn();
+const mockRunOrchestrator = vi.fn();
+const mockCreateOrchestratorDeps = vi.fn();
 
 vi.mock("./authenticateSupabaseRequest", () => ({
   authenticateSupabaseRequest: (...args: unknown[]) =>
@@ -38,12 +36,15 @@ vi.mock("./accountDeletionExecutor", async (importOriginal) => {
     ...actual,
     verifyAdminAal2ForAccountDeletionExecution: (...args: unknown[]) =>
       mockVerifyAdminAal2(...args),
-    prepareAccountDeletionExecution: (...args: unknown[]) =>
-      mockPrepareExecution(...args),
-    createAccountDeletionExecutionDeps: (...args: unknown[]) =>
-      mockCreateExecutionDeps(...args),
   };
 });
+
+vi.mock("./accountDeletionExecutionOrchestrator", () => ({
+  runAccountDeletionExecutionOrchestrator: (...args: unknown[]) =>
+    mockRunOrchestrator(...args),
+  createAccountDeletionExecutionOrchestratorDeps: (...args: unknown[]) =>
+    mockCreateOrchestratorDeps(...args),
+}));
 
 vi.mock("./accountDeletionOwnerAuthorization", () => ({
   verifyOwnerForAccountDeletionExecution: (...args: unknown[]) =>
@@ -91,21 +92,15 @@ describe("account deletion execute handler and route", () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
 
-    mockCreateExecutionDeps.mockReturnValue({
-      isExecutionEnabled: () =>
-        process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] === "true",
-    });
+    mockCreateOrchestratorDeps.mockReturnValue({ mocked: true });
     mockVerifyOwner.mockResolvedValue(true);
 
-    mockPrepareExecution.mockResolvedValue({
+    mockRunOrchestrator.mockResolvedValue({
       ok: true,
-      requestId: "req-1",
-      targetUserId: "target-from-request",
-      requestStatus: ACCOUNT_DELETION_STATUS.APPROVED,
-      stages: [],
-      destructiveStages: [],
-      manifestSummary: { blocked: false, blockCode: null, warningCount: 0 },
-      auditPreview: { action: "account_deletion_execution" },
+      code: "database_completed",
+      requestId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      attemptId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      targetUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     });
   });
 
@@ -128,7 +123,7 @@ describe("account deletion execute handler and route", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.status).toBe(401);
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
   it("returns 403 for staff admin without owner privilege", async () => {
@@ -152,7 +147,7 @@ describe("account deletion execute handler and route", () => {
     expect(result.status).toBe(403);
     expect(result.body).toMatchObject({ code: "owner_required" });
     expect(mockVerifyAdminAal2).not.toHaveBeenCalled();
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
   it("returns 403 for authenticated non-admin", async () => {
@@ -173,7 +168,7 @@ describe("account deletion execute handler and route", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.status).toBe(403);
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
   it("returns mfa_step_up_required for admin AAL1 when execution is enabled", async () => {
@@ -203,7 +198,28 @@ describe("account deletion execute handler and route", () => {
       code: "mfa_step_up_required",
       error: expect.stringContaining("authenticator"),
     });
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+  });
+
+  it("EH-A: env false → execution_disabled and orchestrator not called", async () => {
+    mockAuthenticateSupabaseRequest.mockResolvedValue({
+      ok: true,
+      context: { user: mockUser, accessToken: "admin-token", supabase: {} },
+    });
+    mockVerifyAdmin.mockResolvedValue(true);
+
+    const { handleAccountDeletionExecuteRequest } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+    const result = await handleAccountDeletionExecuteRequest({
+      request: buildRequest("req-1", { token: "admin-token" }),
+      requestId: "req-1",
+    });
+
+    expect(result.status).toBe(503);
+    expect(result.body).toMatchObject({ code: "execution_disabled" });
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+    expect(mockCreateOrchestratorDeps).not.toHaveBeenCalled();
   });
 
   it("skips AAL2 and rate limiting when execution is globally disabled", async () => {
@@ -229,8 +245,8 @@ describe("account deletion execute handler and route", () => {
       error: "account_deletion_execution_disabled",
     });
     expect(mockVerifyAdminAal2).not.toHaveBeenCalled();
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
-    expect(mockCreateExecutionDeps).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+    expect(mockCreateOrchestratorDeps).not.toHaveBeenCalled();
   });
 
   it("returns execution_disabled when flag is missing after admin auth", async () => {
@@ -255,7 +271,7 @@ describe("account deletion execute handler and route", () => {
       code: "execution_disabled",
       error: "account_deletion_execution_disabled",
     });
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
   it("returns execution_disabled when flag is false", async () => {
@@ -276,10 +292,10 @@ describe("account deletion execute handler and route", () => {
 
     expect(result.status).toBe(503);
     expect(mockVerifyAdminAal2).not.toHaveBeenCalled();
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
-  it("runs preparation only when server flag is true", async () => {
+  it("EH-F/G: env true + owner/AAL2 → orchestrator called with initiatedBy from auth", async () => {
     process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
@@ -297,9 +313,9 @@ describe("account deletion execute handler and route", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(mockPrepareExecution).toHaveBeenCalledWith({
+    expect(mockRunOrchestrator).toHaveBeenCalledWith({
       requestId: "req-1",
-      actorUserId: mockUser.id,
+      initiatedBy: mockUser.id,
       deps: expect.anything(),
     });
   });
@@ -337,10 +353,25 @@ describe("account deletion execute handler and route", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.status).toBe(400);
-    expect(mockPrepareExecution).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
-  it("returns idempotent success for already_deleted", async () => {
+  it("EH-H: rejects body attemptId/targetUserId/initiatedBy injection", async () => {
+    const { rejectExecutionIdentityFromBody } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+
+    expect(
+      await rejectExecutionIdentityFromBody(
+        buildRequest("req-1", {
+          token: "t",
+          body: { attemptId: "evil", targetUserId: "evil", initiatedBy: "evil" },
+        })
+      )
+    ).toBe(true);
+  });
+
+  it("EH-I/J: orchestrator success and safe failure mapping", async () => {
     process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
@@ -348,23 +379,37 @@ describe("account deletion execute handler and route", () => {
     });
     mockVerifyAdmin.mockResolvedValue(true);
     mockVerifyAdminAal2.mockResolvedValue({ ok: true });
-    mockPrepareExecution.mockResolvedValue({
-      ok: false,
-      code: "already_deleted",
-      stages: [],
-      request: { status: ACCOUNT_DELETION_STATUS.DELETED },
+
+    mockRunOrchestrator.mockResolvedValueOnce({
+      ok: true,
+      code: "database_completed",
+      requestId: "req-1",
+      attemptId: "attempt-1",
+      targetUserId: "target-1",
     });
 
     const { handleAccountDeletionExecuteRequest } = await import(
       "./accountDeletionExecuteHandler"
     );
-    const result = await handleAccountDeletionExecuteRequest({
-      request: buildRequest("req-deleted", { token: "admin-token" }),
-      requestId: "req-deleted",
+    const success = await handleAccountDeletionExecuteRequest({
+      request: buildRequest("req-1", { token: "admin-token" }),
+      requestId: "req-1",
     });
+    expect(success.ok).toBe(true);
+    expect(success.body).toMatchObject({ code: "database_completed" });
 
-    expect(result.ok).toBe(true);
-    expect(result.status).toBe(200);
+    mockRunOrchestrator.mockResolvedValueOnce({
+      ok: false,
+      code: "session_revocation_failed",
+      retryable: true,
+    });
+    const failure = await handleAccountDeletionExecuteRequest({
+      request: buildRequest("req-1", { token: "admin-token" }),
+      requestId: "req-1",
+    });
+    expect(failure.ok).toBe(false);
+    expect(failure.body).toMatchObject({ code: "session_revocation_failed" });
+    expect(JSON.stringify(failure.body)).not.toMatch(/upstream|JWT|service.role/i);
   });
 
   it("applies dedicated execution rate limit per admin", async () => {
@@ -449,19 +494,18 @@ describe("account deletion execute handler and route", () => {
 
     expect(response.status).toBe(200);
     const json = await response.json();
-    expect(json.code).toBe("execution_prepared");
+    expect(json.code).toBe("database_completed");
     expect(JSON.stringify(json)).not.toMatch(/deleteUser|service-role/i);
   });
 
-  it("does not ship auth.admin.deleteUser or acquisition wiring in execute handler", () => {
+  it("does not ship auth.admin.deleteUser in execute handler", () => {
     const source = readFileSync(
       "lib/server/accountDeletionExecuteHandler.ts",
       "utf8"
     );
     expect(source).not.toContain("deleteUser");
     expect(source).not.toContain(".remove(");
-    expect(source).not.toContain("acquireAccountDeletionExecutionLock");
-    expect(source).not.toContain("revokeAccountDeletionTargetSessions");
+    expect(source).toContain("runAccountDeletionExecutionOrchestrator");
   });
 });
 
