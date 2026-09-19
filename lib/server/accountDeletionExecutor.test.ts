@@ -14,8 +14,6 @@ import {
   validatePrivilegedTarget,
   validateManifestForExecution,
   prepareAccountDeletionExecution,
-  createDefaultExecutionLockUpdater,
-  acquireExecutionLock,
   type AccountDeletionExecutionDeps,
   type AccountDeletionExecutionRequestRow,
   ACCOUNT_DELETION_EXECUTION_LOCK_DESIGN_NOTE,
@@ -57,12 +55,6 @@ function buildDeps(
         blockCode: null,
         warnings: [],
       },
-    })),
-    tryAcquireExecutionLock: vi.fn(async () => ({
-      ok: true as const,
-      request: approvedRequest({
-        status: ACCOUNT_DELETION_STATUS.DELETION_IN_PROGRESS,
-      }),
     })),
     ...overrides,
   };
@@ -228,7 +220,6 @@ describe("prepareAccountDeletionExecution", () => {
       true
     );
     expect(deps.buildManifest).toHaveBeenCalledWith("req-approved");
-    expect(deps.tryAcquireExecutionLock).not.toHaveBeenCalled();
   });
 
   it("does not mutate approved fixture status during preparation", async () => {
@@ -248,74 +239,18 @@ describe("prepareAccountDeletionExecution", () => {
 });
 
 describe("execution lock design", () => {
-  it("uses conditional update for atomic approved → deletion_in_progress", async () => {
-    const updateEq = vi.fn().mockReturnThis();
-    const updateSelect = vi.fn().mockReturnThis();
-    const updateMaybeSingle = vi
-      .fn()
-      .mockResolvedValueOnce({ data: null, error: null })
-      .mockResolvedValueOnce({
-        data: approvedRequest({
-          status: ACCOUNT_DELETION_STATUS.DELETION_IN_PROGRESS,
-        }),
-        error: null,
-      });
-
-    const selectEq = vi.fn().mockReturnThis();
-    const selectMaybeSingle = vi.fn().mockResolvedValue({
-      data: approvedRequest({
-        status: ACCOUNT_DELETION_STATUS.DELETION_IN_PROGRESS,
-      }),
-      error: null,
-    });
-
-    const serviceRoleClient = {
-      from: vi.fn((table: string) => {
-        expect(table).toBe("account_deletion_requests");
-        return {
-          update: vi.fn(() => ({
-            eq: updateEq,
-            select: updateSelect,
-            maybeSingle: updateMaybeSingle,
-          })),
-          select: vi.fn(() => ({
-            eq: selectEq,
-            maybeSingle: selectMaybeSingle,
-          })),
-        };
-      }),
-    };
-
-    const tryAcquire = createDefaultExecutionLockUpdater(
-      serviceRoleClient as never
+  it("documents acquisition RPC as the only approved → deletion_in_progress authority", () => {
+    expect(ACCOUNT_DELETION_EXECUTION_LOCK_DESIGN_NOTE).toContain(
+      "acquire_account_deletion_execution_lock"
     );
-    const lock = await tryAcquire("req-approved");
-
-    expect(updateEq).toHaveBeenCalledWith("id", "req-approved");
-    expect(updateEq).toHaveBeenCalledWith("status", ACCOUNT_DELETION_STATUS.APPROVED);
-    expect(lock.ok).toBe(false);
-    if (lock.ok) return;
-    expect(lock.code).toBe("execution_in_progress");
-    expect(ACCOUNT_DELETION_EXECUTION_LOCK_DESIGN_NOTE).toContain("conditional UPDATE");
-  });
-
-  it("prevents duplicate lock acquisition conceptually", async () => {
-    const deps = buildDeps({
-      tryAcquireExecutionLock: vi.fn(async () => ({
-        ok: false as const,
-        code: "execution_in_progress" as const,
-        request: approvedRequest({
-          status: ACCOUNT_DELETION_STATUS.DELETION_IN_PROGRESS,
-        }),
-      })),
-    });
-
-    const first = await acquireExecutionLock("req-approved", deps);
-    const second = await acquireExecutionLock("req-approved", deps);
-
-    expect(first.ok).toBe(false);
-    expect(second.ok).toBe(false);
-    expect(deps.tryAcquireExecutionLock).toHaveBeenCalledTimes(2);
+    const executorSource = readFileSync(
+      "lib/server/accountDeletionExecutor.ts",
+      "utf8"
+    );
+    expect(executorSource).not.toContain("createDefaultExecutionLockUpdater");
+    expect(executorSource).not.toMatch(
+      /\.from\([\"']account_deletion_requests[\"']\)[\s\S]*\.update\(/
+    );
   });
 });
 

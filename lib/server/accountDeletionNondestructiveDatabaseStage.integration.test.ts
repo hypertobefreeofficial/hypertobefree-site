@@ -396,24 +396,53 @@ async function acquireExecutionLock(client: Client): Promise<string> {
   return payload!.attempt_id!;
 }
 
-async function advanceAttemptToInventory(client: Client, attemptId: string) {
+async function callStageRpc(
+  client: Client,
+  rpcName: string,
+  attemptId: string
+): Promise<{ ok?: boolean; code?: string; stage?: string }> {
+  const result = await client.query<{ payload: { ok?: boolean; code?: string; stage?: string } }>(
+    `SELECT public.${rpcName}($1::uuid, $2::uuid) AS payload`,
+    [REQUEST_ID, attemptId]
+  );
+  return result.rows[0]?.payload ?? {};
+}
+
+async function advanceAttemptThroughSessionStagesToInventory(
+  client: Client,
+  attemptId: string
+) {
   await client.query("BEGIN");
   try {
     await client.query("SET LOCAL ROLE service_role");
-    const update = await client.query<{ id: string }>(
-      `
-      UPDATE public.account_deletion_execution_attempts
-      SET stage = 'inventory'
-      WHERE id = $1
-        AND deletion_request_id = $2
-        AND target_user_id = $3
-        AND status = 'active'
-        AND stage = 'lock_acquired'
-      RETURNING id
-      `,
-      [attemptId, REQUEST_ID, TARGET]
+
+    let payload = await callStageRpc(
+      client,
+      "advance_account_deletion_attempt_to_sessions_pending",
+      attemptId
     );
-    expect(update.rowCount).toBe(1);
+    expect(payload.ok).toBe(true);
+    expect(payload.code).toBe("advanced");
+    expect(payload.stage).toBe("sessions_pending");
+
+    payload = await callStageRpc(
+      client,
+      "advance_account_deletion_attempt_to_sessions_revoked",
+      attemptId
+    );
+    expect(payload.ok).toBe(true);
+    expect(payload.code).toBe("advanced");
+    expect(payload.stage).toBe("sessions_revoked");
+
+    payload = await callStageRpc(
+      client,
+      "advance_account_deletion_attempt_to_inventory",
+      attemptId
+    );
+    expect(payload.ok).toBe(true);
+    expect(payload.code).toBe("advanced");
+    expect(payload.stage).toBe("inventory");
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -549,7 +578,7 @@ async function seedBaseScenario(client: Client): Promise<SeedScenarioResult> {
   await submitDeletionRequestAsTarget(client);
   await approveDeletionRequestAsOwner(client);
   const attemptId = await acquireExecutionLock(client);
-  await advanceAttemptToInventory(client, attemptId);
+  await advanceAttemptThroughSessionStagesToInventory(client, attemptId);
 
   return { attemptId };
 }
@@ -803,7 +832,7 @@ describeIntegration(
       await submitDeletionRequestAsTarget(client);
       await approveDeletionRequestAsOwner(client);
       const attemptId = await acquireExecutionLock(client);
-      await advanceAttemptToInventory(client, attemptId);
+      await advanceAttemptThroughSessionStagesToInventory(client, attemptId);
 
       const replyBefore = await client.query(
         `SELECT user_id FROM public.story_video_replies WHERE id = $1`,
@@ -1634,7 +1663,7 @@ describeIntegration(
         await submitDeletionRequestAsTarget(client);
         await approveDeletionRequestAsOwner(client);
         const attemptId = await acquireExecutionLock(client);
-        await advanceAttemptToInventory(client, attemptId);
+        await advanceAttemptThroughSessionStagesToInventory(client, attemptId);
 
         const payload = await execRpc(client, REQUEST_ID, attemptId);
         expect(payload).toMatchObject({ ok: false, code: "unsupported_destructive_action" });

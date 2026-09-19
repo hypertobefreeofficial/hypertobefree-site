@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACCOUNT_DELETION_RETRYABLE_FAILURE_FREEZE_NOTE } from "./accountDeletionAcquisition";
+import {
+  advanceAccountDeletionAttemptToSessionsPending,
+  advanceAccountDeletionAttemptToSessionsRevoked,
+  type AccountDeletionAttemptStageTransitionResult,
+  type AccountDeletionSessionRevocationFailureRecordResult,
+  recordAccountDeletionSessionRevocationFailure,
+} from "./accountDeletionAttemptStageTransitions";
 
 export type AccountDeletionSessionRevocationErrorCode =
   | "invalid_target"
@@ -12,7 +19,15 @@ export type AccountDeletionSessionRevocationResult =
 
 export type AccountDeletionSessionStageUpdateResult =
   | { ok: true; stage: "sessions_revoked" | "sessions_pending" }
-  | { ok: false; code: "invalid_arguments" | "attempt_update_failed"; detail?: string };
+  | {
+      ok: false;
+      code:
+        | "invalid_arguments"
+        | "attempt_update_failed"
+        | "stage_conflict"
+        | "rpc_error";
+      detail?: string;
+    };
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,6 +36,25 @@ export function isValidSessionRevocationTargetUserId(
   targetUserId: string | null | undefined
 ): targetUserId is string {
   return typeof targetUserId === "string" && UUID_PATTERN.test(targetUserId);
+}
+
+function isValidAttemptId(attemptId: string | null | undefined): attemptId is string {
+  return typeof attemptId === "string" && UUID_PATTERN.test(attemptId);
+}
+
+function transitionFailure(
+  result: AccountDeletionAttemptStageTransitionResult
+): AccountDeletionSessionStageUpdateResult {
+  return {
+    ok: false,
+    code:
+      result.code === "stage_conflict" || result.code === "invalid_arguments"
+        ? result.code === "stage_conflict"
+          ? "stage_conflict"
+          : "invalid_arguments"
+        : "attempt_update_failed",
+    detail: result.code,
+  };
 }
 
 /**
@@ -51,94 +85,122 @@ export async function revokeAccountDeletionTargetSessions(options: {
   return { ok: true };
 }
 
-export async function markAttemptSessionsRevoked(options: {
+export async function markAttemptSessionsPending(options: {
   serviceRoleClient: SupabaseClient;
+  requestId: string;
   attemptId: string;
 }): Promise<AccountDeletionSessionStageUpdateResult> {
-  if (!isValidSessionRevocationTargetUserId(options.attemptId)) {
+  if (
+    !isValidAttemptId(options.attemptId) ||
+    !isValidAttemptId(options.requestId)
+  ) {
     return { ok: false, code: "invalid_arguments" };
   }
 
-  const { error } = await options.serviceRoleClient
-    .from("account_deletion_execution_attempts")
-    .update({
-      stage: "sessions_revoked",
-      last_error_code: null,
-      last_error_detail_safe: null,
-    })
-    .eq("id", options.attemptId)
-    .eq("status", "active");
+  const result = await advanceAccountDeletionAttemptToSessionsPending({
+    serviceRoleClient: options.serviceRoleClient,
+    requestId: options.requestId,
+    attemptId: options.attemptId,
+  });
 
-  if (error) {
-    return {
-      ok: false,
-      code: "attempt_update_failed",
-      detail: error.message,
-    };
+  if (result.ok === false) {
+    return transitionFailure(result);
+  }
+
+  return { ok: true, stage: "sessions_pending" };
+}
+
+export async function markAttemptSessionsRevoked(options: {
+  serviceRoleClient: SupabaseClient;
+  requestId: string;
+  attemptId: string;
+}): Promise<AccountDeletionSessionStageUpdateResult> {
+  if (
+    !isValidAttemptId(options.attemptId) ||
+    !isValidAttemptId(options.requestId)
+  ) {
+    return { ok: false, code: "invalid_arguments" };
+  }
+
+  const result = await advanceAccountDeletionAttemptToSessionsRevoked({
+    serviceRoleClient: options.serviceRoleClient,
+    requestId: options.requestId,
+    attemptId: options.attemptId,
+  });
+
+  if (result.ok === false) {
+    return transitionFailure(result);
   }
 
   return { ok: true, stage: "sessions_revoked" };
 }
 
+/** @deprecated Use recordAccountDeletionSessionRevocationFailure with requestId */
 export async function markAttemptSessionsPendingWithError(options: {
   serviceRoleClient: SupabaseClient;
   attemptId: string;
   errorCode: string;
   errorDetailSafe?: string | null;
   incrementRetry?: boolean;
+  requestId: string;
 }): Promise<AccountDeletionSessionStageUpdateResult> {
-  if (!isValidSessionRevocationTargetUserId(options.attemptId)) {
+  if (
+    !isValidAttemptId(options.attemptId) ||
+    !isValidAttemptId(options.requestId)
+  ) {
     return { ok: false, code: "invalid_arguments" };
   }
 
-  const { data: current, error: loadError } = await options.serviceRoleClient
-    .from("account_deletion_execution_attempts")
-    .select("retry_count")
-    .eq("id", options.attemptId)
-    .eq("status", "active")
-    .maybeSingle();
-
-  if (loadError || !current) {
+  if (options.incrementRetry === false) {
     return {
       ok: false,
       code: "attempt_update_failed",
-      detail: loadError?.message ?? "attempt_not_found",
+      detail: "retry_increment_required",
     };
   }
 
-  const nextRetryCount =
-    options.incrementRetry === false
-      ? (current.retry_count as number)
-      : (current.retry_count as number) + 1;
+  const result = await recordAccountDeletionSessionRevocationFailure({
+    serviceRoleClient: options.serviceRoleClient,
+    requestId: options.requestId,
+    attemptId: options.attemptId,
+    errorCode: options.errorCode,
+    errorFingerprint: options.errorDetailSafe,
+  });
 
-  const { error } = await options.serviceRoleClient
-    .from("account_deletion_execution_attempts")
-    .update({
-      stage: "sessions_pending",
-      status: "active",
-      last_error_code: options.errorCode,
-      last_error_detail_safe: options.errorDetailSafe ?? null,
-      retry_count: nextRetryCount,
-    })
-    .eq("id", options.attemptId)
-    .eq("status", "active");
+  return failureRecordToStageUpdate(result);
+}
 
-  if (error) {
-    return {
-      ok: false,
-      code: "attempt_update_failed",
-      detail: error.message,
-    };
+export async function recordSessionRevocationFailureOnAttempt(options: {
+  serviceRoleClient: SupabaseClient;
+  requestId: string;
+  attemptId: string;
+  errorCode: string;
+  errorFingerprint?: string | null;
+}): Promise<AccountDeletionSessionStageUpdateResult> {
+  const result = await recordAccountDeletionSessionRevocationFailure(options);
+  return failureRecordToStageUpdate(result);
+}
+
+function failureRecordToStageUpdate(
+  result: AccountDeletionSessionRevocationFailureRecordResult
+): AccountDeletionSessionStageUpdateResult {
+  if (result.ok === true) {
+    return { ok: true, stage: "sessions_pending" };
   }
 
-  return { ok: true, stage: "sessions_pending" };
+  if (result.code === "stage_conflict" || result.code === "invalid_arguments") {
+    return { ok: false, code: result.code, detail: result.code };
+  }
+
+  return { ok: false, code: "attempt_update_failed", detail: result.code };
 }
 
 export const ACCOUNT_DELETION_SESSION_REVOCATION_STAGE_NOTE =
   "Future orchestration: acquisition committed → lock_acquired → sessions_pending → "
-  + "revokeAccountDeletionTargetSessions → sessions_revoked → post-freeze inventory. "
-  + "On revocation failure: request stays deletion_in_progress, attempt stays active with "
-  + "stage=sessions_pending and retry metadata — inventory and DB executor must not run.";
+  + "revokeAccountDeletionTargetSessions → sessions_revoked → inventory via narrow RPCs → "
+  + "3B.1 database stage. "
+  + "On revocation failure: record_account_deletion_session_revocation_failure keeps "
+  + "stage=sessions_pending — inventory and DB executor must not run.";
 
 export const ACCOUNT_DELETION_SESSION_REVOCATION_DESIGN_NOTE =
   ACCOUNT_DELETION_SESSION_REVOCATION_STAGE_NOTE;

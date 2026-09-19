@@ -36,14 +36,6 @@ export type AccountDeletionExecutionProfileRow = {
   is_admin: boolean;
 };
 
-export type AccountDeletionExecutionLockResult =
-  | { ok: true; request: AccountDeletionExecutionRequestRow }
-  | {
-      ok: false;
-      code: "execution_in_progress" | "request_not_approved" | "already_deleted";
-      request: AccountDeletionExecutionRequestRow | null;
-    };
-
 export type AccountDeletionExecutionDeps = {
   isExecutionEnabled: () => boolean;
   verifyAdmin: (accessToken: string) => Promise<boolean>;
@@ -62,9 +54,6 @@ export type AccountDeletionExecutionDeps = {
   buildManifest: (
     requestId: string
   ) => Promise<AccountDeletionDryRunResult>;
-  tryAcquireExecutionLock: (
-    requestId: string
-  ) => Promise<AccountDeletionExecutionLockResult>;
   writeAuditEvent?: (event: ReturnType<typeof buildAccountDeletionExecutionAuditEvent>) => Promise<void>;
 };
 
@@ -320,59 +309,6 @@ export async function prepareAccountDeletionExecution(options: {
   };
 }
 
-export async function acquireExecutionLock(
-  requestId: string,
-  deps: Pick<AccountDeletionExecutionDeps, "tryAcquireExecutionLock">
-): Promise<AccountDeletionExecutionLockResult> {
-  return deps.tryAcquireExecutionLock(requestId);
-}
-
-export function createDefaultExecutionLockUpdater(
-  serviceRoleClient: SupabaseClient
-) {
-  return async function tryAcquireExecutionLock(
-    requestId: string
-  ): Promise<AccountDeletionExecutionLockResult> {
-    const { data, error } = await serviceRoleClient
-      .from("account_deletion_requests")
-      .update({
-        status: ACCOUNT_DELETION_STATUS.DELETION_IN_PROGRESS,
-        execution_started_at: new Date().toISOString(),
-      })
-      .eq("id", requestId)
-      .eq("status", ACCOUNT_DELETION_STATUS.APPROVED)
-      .select(EXECUTION_REQUEST_COLUMNS)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
-    if (data) {
-      return { ok: true, request: data as AccountDeletionExecutionRequestRow };
-    }
-
-    const { data: current } = await serviceRoleClient
-      .from("account_deletion_requests")
-      .select(EXECUTION_REQUEST_COLUMNS)
-      .eq("id", requestId)
-      .maybeSingle();
-
-    const row = current as AccountDeletionExecutionRequestRow | null;
-    const normalized = normalizeLegacyDeletionStatus(row?.status ?? null);
-
-    if (normalized === ACCOUNT_DELETION_STATUS.DELETED) {
-      return { ok: false, code: "already_deleted", request: row };
-    }
-
-    if (normalized === ACCOUNT_DELETION_STATUS.DELETION_IN_PROGRESS) {
-      return { ok: false, code: "execution_in_progress", request: row };
-    }
-
-    return { ok: false, code: "request_not_approved", request: row };
-  };
-}
-
 export function createAccountDeletionExecutionDeps(options: {
   serviceRoleClient: SupabaseClient;
   verifyAdmin: (accessToken: string) => Promise<boolean>;
@@ -420,7 +356,6 @@ export function createAccountDeletionExecutionDeps(options: {
     async buildManifest(requestId) {
       return buildAccountDeletionDryRunManifest(requestId, buildManifestDeps);
     },
-    tryAcquireExecutionLock: createDefaultExecutionLockUpdater(serviceRoleClient),
   };
 }
 
@@ -461,4 +396,6 @@ export async function verifyAdminAal2ForAccountDeletionExecution(
 }
 
 export const ACCOUNT_DELETION_EXECUTION_LOCK_DESIGN_NOTE =
-  "Atomic lock uses conditional UPDATE ... WHERE id = ? AND status = 'approved' RETURNING *. Zero rows updated triggers re-read for idempotent in_progress/deleted handling. A SECURITY DEFINER RPC is optional later but not required for single-row compare-and-set.";
+  "Approved → deletion_in_progress + active attempt creation is owned exclusively by "
+  + "acquire_account_deletion_execution_lock(p_request_id, p_initiated_by). "
+  + "Application code must not perform direct request-status transitions for execution.";
