@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   assertAccountDeletionActorCanWrite,
+  assertPrayerVideoResponseMutationTargetsNotFrozen,
+  accountDeletionInProgressErrorMessage,
   createAccountDeletionActorWriteGuardDeps,
 } from "../../../lib/server/accountDeletionActorWriteGuard";
 import {
@@ -13,7 +15,7 @@ import {
 type ResponseRow = {
   id: string;
   story_id: string;
-  user_id: string;
+  user_id: string | null;
   status: string | null;
   removed_at: string | null;
 };
@@ -152,15 +154,32 @@ export async function POST(request: Request) {
     );
   }
 
+  const guardDeps = createAccountDeletionActorWriteGuardDeps(adminClient);
+
   const actorRequiresWriteGuard = isAuthor || isOwner;
   if (actorRequiresWriteGuard) {
     const writeGuard = await assertAccountDeletionActorCanWrite(
       user.id,
-      createAccountDeletionActorWriteGuardDeps(adminClient)
+      guardDeps
     );
     if (writeGuard.blocked) {
       return fail(
         "Account deletion is in progress. Changes are temporarily unavailable.",
+        "account_deletion_in_progress",
+        403
+      );
+    }
+  }
+
+  if (isAdmin) {
+    const targetGuard = await assertPrayerVideoResponseMutationTargetsNotFrozen({
+      responseUserId: response.user_id,
+      storyOwnerUserId: story?.user_id ?? null,
+      deps: guardDeps,
+    });
+    if (targetGuard.blocked) {
+      return fail(
+        accountDeletionInProgressErrorMessage(),
         "account_deletion_in_progress",
         403
       );

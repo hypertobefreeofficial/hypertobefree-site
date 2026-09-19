@@ -172,12 +172,44 @@ export async function assertTargetUserResourceNotFrozen(
   return { blocked: false };
 }
 
+/**
+ * Blocks prayer_video_responses service-role mutations when the response author and/or
+ * parent story owner is deletion_in_progress. Skips null identities (post-detach rows).
+ */
+export async function assertPrayerVideoResponseMutationTargetsNotFrozen(
+  options: {
+    responseUserId: string | null | undefined;
+    storyOwnerUserId: string | null | undefined;
+    deps: AccountDeletionActorWriteGuardDeps;
+  }
+): Promise<AccountDeletionActorWriteBlockResult> {
+  const targetIds: string[] = [];
+  if (isValidActorUserId(options.responseUserId)) {
+    targetIds.push(options.responseUserId);
+  }
+  if (
+    isValidActorUserId(options.storyOwnerUserId) &&
+    options.storyOwnerUserId !== options.responseUserId
+  ) {
+    targetIds.push(options.storyOwnerUserId);
+  }
+
+  for (const targetUserId of targetIds) {
+    const result = await assertTargetUserResourceNotFrozen(targetUserId, options.deps);
+    if (result.blocked) {
+      return result;
+    }
+  }
+
+  return { blocked: false };
+}
+
 /** Service-role routes inspected for story-owner deletion_in_progress stability (Phase 2C.3A). */
 export const ACCOUNT_DELETION_STORY_SERVICE_ROLE_MUTATION_ROUTES = [
   "lib/server/publicVideoResponseRequest.ts → handlePublicVideoResponseRequest (prayer_video_responses insert; stories read-only)",
   "lib/server/submitPublicVideoResponse.ts → submitPublicVideoResponse (source story owner guard)",
-  "app/api/remove-prayer-video-response/route.ts → actor guard when non-admin author",
-  "app/api/moderate-prayer-video-response/route.ts → admin-only prayer_video_responses (no direct stories mutation)",
+  "app/api/remove-prayer-video-response/route.ts → actor guard when non-admin author; target guard on admin branch",
+  "app/api/moderate-prayer-video-response/route.ts → target guard on response author and story owner",
   "lib/server/journeyInboxReply.ts → inbox insert only (stories read-only)",
 ] as const;
 

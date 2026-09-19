@@ -4,6 +4,11 @@ import {
   MANUAL_DURATION_ACK_COPY,
 } from "../../../lib/prayer-connect/responsePublication";
 import {
+  assertPrayerVideoResponseMutationTargetsNotFrozen,
+  accountDeletionInProgressErrorMessage,
+  createAccountDeletionActorWriteGuardDeps,
+} from "../../../lib/server/accountDeletionActorWriteGuard";
+import {
   checkPrayerRateLimit,
   PRAYER_RATE_LIMITS,
   rateLimitKey,
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
   const { data: responseData, error: responseError } = await adminClient
     .from("prayer_video_responses")
     .select(
-      "id, status, duration_verification_status, duration_seconds, removed_at"
+      "id, user_id, story_id, status, duration_verification_status, duration_seconds, removed_at"
     )
     .eq("id", responseId)
     .maybeSingle();
@@ -106,6 +111,8 @@ export async function POST(request: Request) {
 
   const response = responseData as {
     id: string;
+    user_id: string | null;
+    story_id: string;
     status: string | null;
     duration_verification_status: string | null;
     duration_seconds: number | null;
@@ -114,6 +121,32 @@ export async function POST(request: Request) {
 
   if (!response) {
     return fail("This response no longer exists.", "not_found", 404);
+  }
+
+  const { data: storyData, error: storyError } = await adminClient
+    .from("stories")
+    .select("id, user_id")
+    .eq("id", response.story_id)
+    .maybeSingle();
+
+  if (storyError) {
+    console.error("Moderate response: parent story load failed:", storyError);
+    return fail("Could not load the parent prayer.", "parent_load_failed", 500);
+  }
+
+  const storyOwnerUserId = (storyData as { user_id: string | null } | null)?.user_id ?? null;
+  const guardDeps = createAccountDeletionActorWriteGuardDeps(adminClient);
+  const targetGuard = await assertPrayerVideoResponseMutationTargetsNotFrozen({
+    responseUserId: response.user_id,
+    storyOwnerUserId,
+    deps: guardDeps,
+  });
+  if (targetGuard.blocked) {
+    return fail(
+      accountDeletionInProgressErrorMessage(),
+      "account_deletion_in_progress",
+      403
+    );
   }
 
   if (response.removed_at && nextStatus === "approved") {

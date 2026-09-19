@@ -3,6 +3,7 @@ import {
   ACCOUNT_DELETION_IN_PROGRESS_CODE,
   accountDeletionInProgressJsonBody,
   assertAccountDeletionActorCanWrite,
+  assertPrayerVideoResponseMutationTargetsNotFrozen,
   assertTargetUserResourceNotFrozen,
   checkAccountDeletionActorWriteBlock,
   createAccountDeletionActorWriteGuardDeps,
@@ -157,5 +158,51 @@ describe("accountDeletionActorWriteGuard", () => {
     };
     const result = await isTargetUserDeletionInProgress(ACTOR_A, deps);
     expect(result).toEqual({ ok: false });
+  });
+
+  it("assertPrayerVideoResponseMutationTargetsNotFrozen skips null identities", async () => {
+    const targetLookup = vi.fn(async () => ({ ok: true as const, matched: false }));
+    const deps = {
+      hasDeletionInProgressMatch: vi.fn(),
+      isTargetUserDeletionInProgress: targetLookup,
+    };
+    const result = await assertPrayerVideoResponseMutationTargetsNotFrozen({
+      responseUserId: null,
+      storyOwnerUserId: null,
+      deps,
+    });
+    expect(result).toEqual({ blocked: false });
+    expect(targetLookup).not.toHaveBeenCalled();
+  });
+
+  it("assertPrayerVideoResponseMutationTargetsNotFrozen dedupes same responder and story owner", async () => {
+    const targetLookup = vi.fn(async () => ({ ok: true as const, matched: false }));
+    const deps = {
+      hasDeletionInProgressMatch: vi.fn(),
+      isTargetUserDeletionInProgress: targetLookup,
+    };
+    await assertPrayerVideoResponseMutationTargetsNotFrozen({
+      responseUserId: ACTOR_A,
+      storyOwnerUserId: ACTOR_A,
+      deps,
+    });
+    expect(targetLookup).toHaveBeenCalledTimes(1);
+    expect(targetLookup).toHaveBeenCalledWith(ACTOR_A);
+  });
+
+  it("assertPrayerVideoResponseMutationTargetsNotFrozen blocks when either party is frozen", async () => {
+    const deps = {
+      hasDeletionInProgressMatch: vi.fn(),
+      isTargetUserDeletionInProgress: vi.fn(async (id: string) => ({
+        ok: true as const,
+        matched: id === ACTOR_B,
+      })),
+    };
+    const result = await assertPrayerVideoResponseMutationTargetsNotFrozen({
+      responseUserId: ACTOR_A,
+      storyOwnerUserId: ACTOR_B,
+      deps,
+    });
+    expect(result.blocked).toBe(true);
   });
 });
