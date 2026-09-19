@@ -424,6 +424,15 @@ describe("accountDeletionDatabasePlan", () => {
     expect(getAnonymizedStoryIdentityPatch().user_id).toBeNull();
   });
 
+  it("preserves surviving inbox substantive fields — detaches sender_user_id only", () => {
+    const inboxPolicy = classifyDatabaseTablePolicy("inbox_messages").find(
+      (entry) => entry.selector.includes("sender_user_id = targetUserId")
+    );
+    expect(inboxPolicy?.identityFields).toEqual(["sender_user_id"]);
+    expect(inboxPolicy?.identityFields).not.toContain("body");
+    expect(inboxPolicy?.identityFields).not.toContain("title");
+  });
+
   it("rejects browser-supplied database plan targets", () => {
     expect(
       rejectBrowserSuppliedDatabasePlanTargets({ targetUserId: TARGET })

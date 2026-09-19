@@ -174,12 +174,26 @@ export const ACCOUNT_DELETION_ACQUISITION_MIGRATION = {
   phase: "4C.7B.1E.2C.3A",
 } as const;
 
-/** Phase 2C.3B only — nondestructive DB executor RPC contract (not implemented in 2C.3A). */
-export const ACCOUNT_DELETION_FUTURE_NONDESTRUCTIVE_DB_STAGE_NOTE =
-  "Future execute_account_deletion_nondestructive_database_stage(p_request_id, p_attempt_id) "
+export const ACCOUNT_DELETION_NONDESTRUCTIVE_DATABASE_STAGE_MIGRATION = {
+  version: "20260830160000",
+  filename:
+    "20260830160000_account_deletion_nondestructive_database_stage_phase4c7b1e2c3b1.sql",
+  relativePath:
+    "supabase/migrations/20260830160000_account_deletion_nondestructive_database_stage_phase4c7b1e2c3b1.sql",
+  phase: "4C.7B.1E.2C.3B.1",
+} as const;
+
+/** Phase 2C.3B.1 — nondestructive DB executor RPC (disconnected; orchestration in 2C.3B.2). */
+export const ACCOUNT_DELETION_NONDESTRUCTIVE_DB_STAGE_NOTE =
+  "execute_account_deletion_nondestructive_database_stage(p_request_id, p_attempt_id) "
   + "accepts only server-derived request/attempt identifiers; target derived inside DB; no plan JSON; "
   + "one transaction with request FOR UPDATE, advisory lock, readiness, row locks, live reclassification, "
-  + "nondestructive mutations, story.user_id anonymization LAST, row-count assertions, durable database stage marker.";
+  + "nondestructive mutations, story.user_id anonymization LAST, row-count assertions, stage=database_completed. "
+  + "No GUC bypass. content_reports excluded. Admin route guards required before live orchestration (3B.2).";
+
+/** @deprecated Use ACCOUNT_DELETION_NONDESTRUCTIVE_DB_STAGE_NOTE */
+export const ACCOUNT_DELETION_FUTURE_NONDESTRUCTIVE_DB_STAGE_NOTE =
+  ACCOUNT_DELETION_NONDESTRUCTIVE_DB_STAGE_NOTE;
 
 /** Future DB executor accepts narrow identifiers only — never caller-supplied plan JSON or arbitrary table/selector/action. */
 export const ACCOUNT_DELETION_FUTURE_EXECUTOR_API_CONTRACT_NOTE =
@@ -264,10 +278,12 @@ export const PRAYER_UPDATE_ANONYMIZATION_FIELDS = [] as const;
 
 export const PRAYER_UPDATE_IDENTITY_DETACH_FIELDS = ["author_user_id"] as const;
 
-export const INBOX_SURVIVING_COPY_ANONYMIZATION_FIELDS = [
-  "title",
-  "body",
-] as const;
+/** Surviving recipient-owned copies: detach deleting sender identity only — preserve substantive content/media. */
+export const INBOX_SURVIVING_COPY_IDENTITY_DETACH_FIELDS = ["sender_user_id"] as const;
+
+/** @deprecated Use INBOX_SURVIVING_COPY_IDENTITY_DETACH_FIELDS — title/body/media are preserved for surviving users. */
+export const INBOX_SURVIVING_COPY_ANONYMIZATION_FIELDS =
+  INBOX_SURVIVING_COPY_IDENTITY_DETACH_FIELDS;
 
 export const CONTENT_REPORT_DETACH_FIELDS = ["reported_user_id"] as const;
 
@@ -1055,10 +1071,10 @@ export const ACCOUNT_DELETION_DATABASE_TABLE_REGISTRY: AccountDeletionDatabaseTa
       selector: "sender_user_id = targetUserId AND user_id != targetUserId",
       reason:
         "Messages the target sent into another user's inbox must survive; sender association is detached/anonymized.",
-      identityFields: INBOX_SURVIVING_COPY_ANONYMIZATION_FIELDS,
+      identityFields: INBOX_SURVIVING_COPY_IDENTITY_DETACH_FIELDS,
       orderHint: 300,
       fkNotes: [
-        "sender_user_id ON DELETE SET NULL preserves row; executor should anonymize sender-identifying text before auth delete.",
+        "sender_user_id ON DELETE SET NULL preserves row; 3B.1 detaches sender_user_id only — title/body/media preserved for surviving recipient.",
         "prayer_update_id CASCADE on linked updates is unsafe until schema migration — anonymize/detach updates first.",
       ],
       rlsNotes: [
