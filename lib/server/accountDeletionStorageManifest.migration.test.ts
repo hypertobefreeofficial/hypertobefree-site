@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -67,5 +68,49 @@ describe("account deletion storage manifest foundation (Phase 4C.7B.1E.2C.3B.3B.
     expect(outsideFunctions).not.toMatch(/\bDELETE\s+FROM\s+auth\.users\b/i);
     expect(outsideFunctions).not.toMatch(/\bUPDATE\s+public\.profiles\b/i);
     expect(migration).not.toMatch(/signOut/i);
+  });
+
+  it("PC-A/B/C/D: pgcrypto digest is resolved from pg_extension, not hardcoded schemas", () => {
+    const migration = readMigration();
+
+    // PC-A: discovers namespace from pg_extension
+    expect(migration).toContain("pg_catalog.pg_extension");
+    expect(migration).toContain("ext.extname = 'pgcrypto'");
+    expect(migration).toContain("ext.extnamespace");
+    expect(migration).toContain("account_deletion_sha256");
+    expect(migration).toContain("EXECUTE format('SELECT %I.digest($1, $2)', pgcrypto_schema)");
+
+    // PC-B: no hardcoded public.digest / extensions.digest dependency
+    expect(migration).not.toMatch(/public\.digest\s*\(/);
+    expect(migration).not.toMatch(/extensions\.digest\s*\(/);
+    expect(migration).not.toContain("to_regprocedure('public.digest(text, text)')");
+    expect(migration).not.toContain("to_regprocedure('public.digest(bytea, text)')");
+    expect(migration).not.toContain("to_regprocedure('extensions.digest(text, text)')");
+    expect(migration).not.toContain("to_regprocedure('extensions.digest(bytea, text)')");
+    expect(migration).not.toMatch(/search_path\s*=\s*[^;]*extensions/i);
+
+    // PC-C: missing pgcrypto fails closed
+    expect(migration).toContain(
+      "2C.3B.3B.1 precondition failed: pgcrypto extension missing"
+    );
+    expect(migration).toContain(
+      "account_deletion_sha256: pgcrypto extension missing"
+    );
+    expect(migration).toContain("storage_manifest_pgcrypto_sha256_authority");
+
+    // PC-D: only the catalog-derived schema is used (no caller-chosen schema/alg)
+    expect(migration).toContain("USING p_input, 'sha256'");
+    expect(migration).toContain(
+      "REVOKE ALL ON FUNCTION public.account_deletion_sha256(text) FROM service_role"
+    );
+
+    // Fingerprint routes through the portable helper
+    expect(migration).toContain(
+      "encode(public.account_deletion_sha256(canonical::text), 'hex')"
+    );
+
+    // Known SHA-256 of canonical empty JSON array text (Node) for PC-E cross-check docs
+    const emptyCanonicalSha256 = createHash("sha256").update("[]", "utf8").digest("hex");
+    expect(emptyCanonicalSha256).toHaveLength(64);
   });
 });

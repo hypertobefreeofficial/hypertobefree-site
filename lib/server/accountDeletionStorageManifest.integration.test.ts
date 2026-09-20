@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -335,6 +336,117 @@ describeIntegration(
       }
     });
 
+    it("PC-A/D/E/I: pgcrypto namespace from pg_extension; sha256 helper; readiness", async () => {
+      // PC-A: discover real extension namespace (local is typically public)
+      const ext = await client.query<{ nspname: string }>(
+        `
+        SELECT n.nspname
+        FROM pg_catalog.pg_extension e
+        JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace
+        WHERE e.extname = 'pgcrypto'
+        `
+      );
+      expect(ext.rows[0]?.nspname).toBeTruthy();
+      const pgcryptoSchema = ext.rows[0]!.nspname;
+
+      const digestInExt = await client.query<{ ok: boolean }>(
+        `
+        SELECT (
+          to_regprocedure(format('%I.digest(text, text)', $1::text)) IS NOT NULL
+          OR to_regprocedure(format('%I.digest(bytea, text)', $1::text)) IS NOT NULL
+        ) AS ok
+        `,
+        [pgcryptoSchema]
+      );
+      expect(digestInExt.rows[0]?.ok).toBe(true);
+
+      // PC-D: unrelated digest in another schema must not become authority
+      await client.query(`CREATE SCHEMA IF NOT EXISTS account_deletion_digest_decoy`);
+      await client.query(`
+        CREATE OR REPLACE FUNCTION account_deletion_digest_decoy.digest(text, text)
+        RETURNS bytea
+        LANGUAGE sql
+        IMMUTABLE
+        AS $fn$ SELECT '\\xdeadbeef'::bytea $fn$
+      `);
+      try {
+        const helperHex = (
+          await client.query<{ hex: string }>(
+            `SELECT encode(public.account_deletion_sha256('[]'), 'hex') AS hex`
+          )
+        ).rows[0]?.hex;
+        const expected = createHash("sha256").update("[]", "utf8").digest("hex");
+        expect(helperHex).toBe(expected);
+        expect(helperHex).not.toBe("deadbeef");
+
+        // PC-E: deterministic SHA-256
+        const again = (
+          await client.query<{ hex: string }>(
+            `SELECT encode(public.account_deletion_sha256('[]'), 'hex') AS hex`
+          )
+        ).rows[0]?.hex;
+        expect(again).toBe(expected);
+      } finally {
+        await client.query(
+          `DROP FUNCTION IF EXISTS account_deletion_digest_decoy.digest(text, text)`
+        );
+        await client.query(`DROP SCHEMA IF EXISTS account_deletion_digest_decoy`);
+      }
+
+      // service_role must not execute the helper directly
+      await client.query("BEGIN");
+      await client.query("SET LOCAL ROLE service_role");
+      await expect(
+        client.query(`SELECT public.account_deletion_sha256('[]')`)
+      ).rejects.toThrow(/permission denied/i);
+      await client.query("ROLLBACK");
+
+      // PC-I: readiness includes pgcrypto authority
+      const readyPayload = await client.query<{ payload: { ready?: boolean; prerequisites?: Array<{ id?: string; ready?: boolean }> } }>(
+        `SELECT public.verify_account_deletion_storage_manifest_foundation_ready() AS payload`
+      );
+      expect(readyPayload.rows[0]?.payload?.ready).toBe(true);
+      const pgcryptoPrereq = readyPayload.rows[0]?.payload?.prerequisites?.find(
+        (p) => p.id === "storage_manifest_pgcrypto_sha256_authority"
+      );
+      expect(pgcryptoPrereq?.ready).toBe(true);
+    });
+
+    it("PC-C: missing pgcrypto schema resolution fails closed", async () => {
+      // Mirror the helper's resolution against a nonexistent extension name.
+      const missing = await client.query<{ nspname: string | null }>(
+        `
+        SELECT n.nspname
+        FROM pg_catalog.pg_extension e
+        JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace
+        WHERE e.extname = 'pgcrypto_missing_for_pc_c_test'
+        `
+      );
+      expect(missing.rows.length).toBe(0);
+
+      await expect(
+        client.query(`
+          DO $do$
+          DECLARE
+            pgcrypto_schema text;
+          BEGIN
+            SELECT nsp.nspname
+            INTO pgcrypto_schema
+            FROM pg_catalog.pg_extension AS ext
+            JOIN pg_catalog.pg_namespace AS nsp
+              ON nsp.oid = ext.extnamespace
+            WHERE ext.extname = 'pgcrypto_missing_for_pc_c_test';
+
+            IF pgcrypto_schema IS NULL THEN
+              RAISE EXCEPTION 'account_deletion_sha256: pgcrypto extension missing'
+                USING ERRCODE = 'P0001';
+            END IF;
+          END
+          $do$;
+        `)
+      ).rejects.toThrow(/pgcrypto extension missing/i);
+    });
+
     it("MF-B/C/D: authenticated/anon cannot read; service_role cannot direct-write", async () => {
       await cleanup(client);
       await seedUsers(client);
@@ -660,9 +772,12 @@ describeIntegration(
       });
       expect(emptyFinalize?.fingerprint).toHaveLength(64);
       const emptyCanonical = await client.query<{ fp: string }>(
-        `SELECT encode(public.digest(('[]'::jsonb)::text, 'sha256'), 'hex') AS fp`
+        `SELECT encode(public.account_deletion_sha256(('[]'::jsonb)::text), 'hex') AS fp`
       );
       expect(emptyFinalize?.fingerprint).toBe(emptyCanonical.rows[0]?.fp);
+      expect(emptyFinalize?.fingerprint).toBe(
+        createHash("sha256").update("[]", "utf8").digest("hex")
+      );
 
       expect(
         await upsert(client, attemptId, {

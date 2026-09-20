@@ -3,6 +3,10 @@
 -- Does NOT delete Storage objects, call remove(), clear profiles, delete Auth,
 -- wire post-database_completed orchestration, or enable execution.
 --
+-- pgcrypto PORTABILITY: digest() is resolved from pg_extension.extnamespace
+-- (public on many local installs; extensions on Supabase Production). Never
+-- hardcode public.digest or extensions.digest; never widen search_path.
+--
 -- AUTHORITY RULE: Foundation lifecycle RPCs MUST NOT mint disposition=DELETE_PRIVATE.
 -- DELETE_PRIVATE remains in the vocabulary for 3B.3B.2, which will mint it only from
 -- authoritative pre-3B.1 DB ownership + Journey surviving-reference evidence.
@@ -18,6 +22,8 @@
 BEGIN;
 
 DO $$
+DECLARE
+  pgcrypto_schema text;
 BEGIN
   IF to_regclass('public.account_deletion_requests') IS NULL THEN
     RAISE EXCEPTION '2C.3B.3B.1 precondition failed: account_deletion_requests missing';
@@ -31,9 +37,24 @@ BEGIN
     RAISE EXCEPTION '2C.3B.3B.1 precondition failed: verify_account_deletion_schema_execution_ready() missing';
   END IF;
 
-  IF to_regprocedure('public.digest(text, text)') IS NULL
-     AND to_regprocedure('public.digest(bytea, text)') IS NULL THEN
-    RAISE EXCEPTION '2C.3B.3B.1 precondition failed: pgcrypto digest() missing';
+  -- pgcrypto may live in public (local) or extensions (Supabase Production).
+  -- Resolve the authoritative namespace from pg_extension — never hardcode public/extensions.
+  SELECT nsp.nspname
+  INTO pgcrypto_schema
+  FROM pg_catalog.pg_extension AS ext
+  JOIN pg_catalog.pg_namespace AS nsp
+    ON nsp.oid = ext.extnamespace
+  WHERE ext.extname = 'pgcrypto';
+
+  IF pgcrypto_schema IS NULL THEN
+    RAISE EXCEPTION '2C.3B.3B.1 precondition failed: pgcrypto extension missing';
+  END IF;
+
+  IF to_regprocedure(format('%I.digest(text, text)', pgcrypto_schema)) IS NULL
+     AND to_regprocedure(format('%I.digest(bytea, text)', pgcrypto_schema)) IS NULL THEN
+    RAISE EXCEPTION
+      '2C.3B.3B.1 precondition failed: pgcrypto digest() missing in extension schema %',
+      pgcrypto_schema;
   END IF;
 END;
 $$;
@@ -539,6 +560,61 @@ $$;
 ALTER FUNCTION public.account_deletion_storage_manifest_initial_status(text) OWNER TO postgres;
 REVOKE ALL ON FUNCTION public.account_deletion_storage_manifest_initial_status(text) FROM PUBLIC;
 
+-- Portable SHA-256: resolve pgcrypto's real extension namespace from pg_catalog,
+-- then call that schema's digest(text,text) with fixed algorithm 'sha256'.
+-- Does NOT trust search_path and does NOT accept caller-chosen schemas/algorithms.
+CREATE OR REPLACE FUNCTION public.account_deletion_sha256(p_input text)
+RETURNS bytea
+LANGUAGE plpgsql
+STABLE
+STRICT
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  pgcrypto_schema text;
+  digest_bytes bytea;
+BEGIN
+  SELECT nsp.nspname
+  INTO pgcrypto_schema
+  FROM pg_catalog.pg_extension AS ext
+  JOIN pg_catalog.pg_namespace AS nsp
+    ON nsp.oid = ext.extnamespace
+  WHERE ext.extname = 'pgcrypto';
+
+  IF pgcrypto_schema IS NULL THEN
+    RAISE EXCEPTION 'account_deletion_sha256: pgcrypto extension missing'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  IF to_regprocedure(format('%I.digest(text, text)', pgcrypto_schema)) IS NULL THEN
+    RAISE EXCEPTION 'account_deletion_sha256: %.digest(text, text) missing', pgcrypto_schema
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  EXECUTE format('SELECT %I.digest($1, $2)', pgcrypto_schema)
+    INTO digest_bytes
+    USING p_input, 'sha256';
+
+  IF digest_bytes IS NULL THEN
+    RAISE EXCEPTION 'account_deletion_sha256: digest returned NULL'
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN digest_bytes;
+END;
+$$;
+
+ALTER FUNCTION public.account_deletion_sha256(text) OWNER TO postgres;
+REVOKE ALL ON FUNCTION public.account_deletion_sha256(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.account_deletion_sha256(text) FROM authenticated;
+REVOKE ALL ON FUNCTION public.account_deletion_sha256(text) FROM anon;
+REVOKE ALL ON FUNCTION public.account_deletion_sha256(text) FROM service_role;
+
+COMMENT ON FUNCTION public.account_deletion_sha256(text) IS
+  'SHA-256 via pgcrypto digest resolved from pg_extension.extnamespace. '
+  'Not executable by end users or service_role; used by manifest fingerprint.';
+
 -- Injective fingerprint: jsonb array of fixed-position row arrays, then SHA-256 of
 -- jsonb::text. Empty manifest hashes canonical [] (not accidental digest('')).
 CREATE OR REPLACE FUNCTION public.compute_account_deletion_storage_manifest_fingerprint(
@@ -579,7 +655,7 @@ BEGIN
     WHERE manifest_row.execution_attempt_id = p_attempt_id
   ) AS ordered_rows;
 
-  RETURN encode(public.digest(canonical::text, 'sha256'), 'hex');
+  RETURN encode(public.account_deletion_sha256(canonical::text), 'hex');
 END;
 $$;
 
@@ -596,6 +672,7 @@ GRANT EXECUTE ON FUNCTION public.compute_account_deletion_storage_manifest_finge
 
 COMMENT ON FUNCTION public.compute_account_deletion_storage_manifest_fingerprint(uuid) IS
   'Injective SHA-256 over jsonb_agg(jsonb_build_array(...)) ordered by bucket/path. '
+  'Hashes via public.account_deletion_sha256 (pgcrypto namespace from pg_extension). '
   'Empty manifest uses canonical []::jsonb text. Delimiters inside strings cannot collide fields.';
 
 -- ---------------------------------------------------------------------------
@@ -1663,6 +1740,45 @@ BEGIN
       'id', 'storage_manifest_reference_and_attempt_columns',
       'ready', check_ok,
       'detail', 'attempt fingerprint + reference_state columns present'
+    )
+  );
+  all_ready := all_ready AND check_ok;
+
+  check_ok := EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_extension AS ext
+    JOIN pg_catalog.pg_namespace AS nsp
+      ON nsp.oid = ext.extnamespace
+    WHERE ext.extname = 'pgcrypto'
+      AND (
+        to_regprocedure(format('%I.digest(text, text)', nsp.nspname)) IS NOT NULL
+        OR to_regprocedure(format('%I.digest(bytea, text)', nsp.nspname)) IS NOT NULL
+      )
+  )
+  AND to_regprocedure('public.account_deletion_sha256(text)') IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc AS proc
+    JOIN pg_catalog.pg_namespace AS nsp ON nsp.oid = proc.pronamespace
+    WHERE nsp.nspname = 'public'
+      AND proc.oid = to_regprocedure('public.account_deletion_sha256(text)')
+      AND proc.prosecdef = true
+      AND pg_catalog.pg_get_userbyid(proc.proowner) = 'postgres'
+  )
+  AND NOT pg_catalog.has_function_privilege(
+    'authenticated', 'public.account_deletion_sha256(text)', 'EXECUTE'
+  )
+  AND NOT pg_catalog.has_function_privilege(
+    'anon', 'public.account_deletion_sha256(text)', 'EXECUTE'
+  )
+  AND NOT pg_catalog.has_function_privilege(
+    'service_role', 'public.account_deletion_sha256(text)', 'EXECUTE'
+  );
+  prerequisites := prerequisites || jsonb_build_array(
+    jsonb_build_object(
+      'id', 'storage_manifest_pgcrypto_sha256_authority',
+      'ready', check_ok,
+      'detail', 'pgcrypto digest resolved via pg_extension; sha256 helper hardened'
     )
   );
   all_ready := all_ready AND check_ok;
