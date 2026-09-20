@@ -25,6 +25,14 @@ GRANT SELECT
   ON TABLE public.account_deletion_requests
   TO service_role;
 
+DO $$
+BEGIN
+  IF current_setting('server_version_num')::integer >= 170000 THEN
+    EXECUTE 'REVOKE MAINTAIN ON TABLE public.account_deletion_requests FROM service_role';
+  END IF;
+END;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- A) service_role request-table privilege probe (read-only catalog checks)
 -- ---------------------------------------------------------------------------
@@ -41,7 +49,9 @@ DECLARE
   all_ready boolean := true;
   check_ok boolean;
   privilege text;
+  pg17_plus boolean;
 BEGIN
+  pg17_plus := current_setting('server_version_num')::integer >= 170000;
   check_ok := pg_catalog.has_table_privilege(
     'service_role',
     'public.account_deletion_requests',
@@ -79,6 +89,30 @@ BEGIN
     );
     all_ready := all_ready AND check_ok;
   END LOOP;
+
+  IF pg17_plus THEN
+    check_ok := NOT pg_catalog.has_table_privilege(
+      'service_role',
+      'public.account_deletion_requests',
+      'MAINTAIN'
+    );
+    prerequisites := prerequisites || jsonb_build_array(
+      jsonb_build_object(
+        'id', 'service_role_request_table_maintain_revoked',
+        'ready', check_ok,
+        'detail', 'service_role must not hold MAINTAIN on account_deletion_requests (PostgreSQL 17+)'
+      )
+    );
+    all_ready := all_ready AND check_ok;
+  ELSE
+    prerequisites := prerequisites || jsonb_build_array(
+      jsonb_build_object(
+        'id', 'service_role_request_table_maintain_revoked',
+        'ready', true,
+        'detail', 'MAINTAIN privilege not applicable before PostgreSQL 17'
+      )
+    );
+  END IF;
 
   RETURN jsonb_build_object(
     'ready', all_ready,
@@ -141,7 +175,7 @@ GRANT EXECUTE ON FUNCTION public.verify_account_deletion_schema_execution_ready(
 
 COMMENT ON FUNCTION public.verify_account_deletion_schema_execution_ready() IS
   'Live catalog probe for account-deletion execution readiness including service_role '
-  'SELECT-only posture on account_deletion_requests. Composes '
+  'SELECT-only posture on account_deletion_requests (including MAINTAIN revoked on PostgreSQL 17+). Composes '
   'verify_account_deletion_schema_execution_ready_before_3b2f2a1() with '
   'verify_account_deletion_request_table_privileges_ready(). Does not enable execution.';
 

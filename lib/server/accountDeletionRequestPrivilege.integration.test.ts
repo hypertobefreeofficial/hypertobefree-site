@@ -31,6 +31,7 @@ const PRIVILEGES = [
 
 let serviceRoleGrantsApplied = false;
 let authenticatedGrantsApplied = false;
+let serverVersionNum = 0;
 
 async function privilege(
   client: Client,
@@ -41,6 +42,24 @@ async function privilege(
     [name]
   );
   return result.rows[0]?.allowed === true;
+}
+
+type ReadinessPrerequisite = {
+  id?: string;
+  ready?: boolean;
+  detail?: string;
+};
+
+async function maintainReadinessPrerequisite(
+  client: Client
+): Promise<ReadinessPrerequisite | undefined> {
+  const result = await client.query<{ payload: { prerequisites?: ReadinessPrerequisite[] } }>(
+    `SELECT public.verify_account_deletion_request_table_privileges_ready() AS payload`
+  );
+  const prerequisites = result.rows[0]?.payload?.prerequisites ?? [];
+  return prerequisites.find(
+    (entry) => entry.id === "service_role_request_table_maintain_revoked"
+  );
 }
 
 async function ensureHashtextextendedStub(client: Client) {
@@ -175,6 +194,12 @@ describeIntegration(
         hardeningPath,
         readMigrationFile(hardeningPath)
       );
+
+      const versionRow = await client.query<{ num: number }>(
+        `SELECT current_setting('server_version_num')::integer AS num`
+      );
+      serverVersionNum = versionRow.rows[0]?.num ?? 0;
+
       await seedUsers(client);
     }, 300_000);
 
@@ -190,6 +215,22 @@ describeIntegration(
       expect(await privilege(client, "TRUNCATE")).toBe(false);
       expect(await privilege(client, "REFERENCES")).toBe(false);
       expect(await privilege(client, "TRIGGER")).toBe(false);
+    });
+
+    it("reports MAINTAIN readiness according to PostgreSQL version", async () => {
+      const maintain = await maintainReadinessPrerequisite(client);
+      expect(maintain?.id).toBe("service_role_request_table_maintain_revoked");
+      if (serverVersionNum >= 170_000) {
+        expect(maintain?.ready).toBe(true);
+        expect(maintain?.detail).toMatch(/PostgreSQL 17\+/i);
+        const maintainHeld = await client.query<{ allowed: boolean }>(
+          `SELECT pg_catalog.has_table_privilege('service_role', 'public.account_deletion_requests', 'MAINTAIN') AS allowed`
+        );
+        expect(maintainHeld.rows[0]?.allowed).toBe(false);
+      } else {
+        expect(maintain?.ready).toBe(true);
+        expect(maintain?.detail).toMatch(/not applicable before PostgreSQL 17/i);
+      }
     });
 
     it("readiness is true, and a restored UPDATE privilege fails the probe", async () => {
@@ -210,6 +251,29 @@ describeIntegration(
         `SELECT (public.verify_account_deletion_request_table_privileges_ready()->>'ready')::boolean AS ready`
       );
       expect(broken.rows[0]?.ready).toBe(false);
+      await client.query("ROLLBACK");
+
+      const restored = await client.query<{ ready: boolean }>(
+        `SELECT (public.verify_account_deletion_request_table_privileges_ready()->>'ready')::boolean AS ready`
+      );
+      expect(restored.rows[0]?.ready).toBe(true);
+    });
+
+    it("readiness is false when MAINTAIN is temporarily granted on PostgreSQL 17+", async () => {
+      if (serverVersionNum < 170_000) {
+        return;
+      }
+
+      await client.query("BEGIN");
+      await client.query(
+        `GRANT MAINTAIN ON TABLE public.account_deletion_requests TO service_role`
+      );
+      const broken = await client.query<{ ready: boolean }>(
+        `SELECT (public.verify_account_deletion_request_table_privileges_ready()->>'ready')::boolean AS ready`
+      );
+      expect(broken.rows[0]?.ready).toBe(false);
+      const maintain = await maintainReadinessPrerequisite(client);
+      expect(maintain?.ready).toBe(false);
       await client.query("ROLLBACK");
 
       const restored = await client.query<{ ready: boolean }>(

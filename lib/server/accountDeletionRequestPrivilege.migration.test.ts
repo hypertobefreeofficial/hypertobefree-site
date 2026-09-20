@@ -54,5 +54,15 @@ describe("account deletion request privilege hardening (Phase 4C.7B.1E.2C.3B.2F.
     expect(migration).toContain(
       "verify_account_deletion_schema_execution_ready_before_3b2f2a1"
     );
+    expect(migration).toMatch(
+      /current_setting\('server_version_num'\)::integer >= 170000/
+    );
+    expect(migration).toContain(
+      "REVOKE MAINTAIN ON TABLE public.account_deletion_requests FROM service_role"
+    );
+    expect(migration).toContain("service_role_request_table_maintain_revoked");
+    expect(outsideFunctions).not.toMatch(
+      /^\s*REVOKE\s+MAINTAIN\s+ON\s+TABLE/m
+    );
   });
 });
