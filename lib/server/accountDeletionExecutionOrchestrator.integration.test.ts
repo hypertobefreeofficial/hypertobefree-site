@@ -96,6 +96,11 @@ function createPgServiceRoleClient(
             `SELECT public.advance_account_deletion_attempt_to_inventory($1::uuid, $2::uuid) AS payload`,
             [args.p_request_id, args.p_attempt_id]
           );
+        case "capture_account_deletion_storage_manifest":
+          return runServiceRpc(
+            `SELECT public.capture_account_deletion_storage_manifest($1::uuid, $2::uuid) AS payload`,
+            [args.p_request_id, args.p_attempt_id]
+          );
         case "execute_account_deletion_nondestructive_database_stage":
           return runServiceRpc(
             `SELECT public.execute_account_deletion_nondestructive_database_stage($1::uuid, $2::uuid) AS payload`,
@@ -286,7 +291,7 @@ async function seedTargetContentBeforeAcquisition(
     INSERT INTO public.stories (
       id, user_id, name, email, location, story_text, video_url, status
     ) VALUES (
-      $1, $2, 'Target Author', $3, 'City', 'Substantive story body', 'https://example.com/v.mp4', $4
+      $1, $2, 'Target Author', $3, 'City', 'Substantive story body', 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v.mp4', $4
     )
     `,
     [STORY_ID, TARGET, TARGET_EMAIL, storyStatus]
@@ -309,7 +314,7 @@ async function seedTargetContentBeforeAcquisition(
     INSERT INTO public.prayer_video_responses (
       id, story_id, user_id, video_url, body, status
     ) VALUES (
-      $1, $2, $3, 'https://example.com/response.mp4', 'Prayer video body', 'approved'
+      $1, $2, $3, 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/response.mp4', 'Prayer video body', 'approved'
     )
     `,
     [PRAYER_VIDEO_ID, STORY_ID, TARGET]
@@ -342,7 +347,7 @@ async function seedTargetContentBeforeAcquisition(
     INSERT INTO public.inbox_messages (
       id, user_id, sender_user_id, title, body, video_url, image_url
     ) VALUES
-      ($1, $3, $2, 'Someone sent you a private video prayer', 'Surviving inbox body', 'https://example.com/inbox.mp4', 'https://example.com/inbox.png'),
+      ($1, $3, $2, 'Someone sent you a private video prayer', 'Surviving inbox body', 'journey-private-media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/inbox/surviving.mp4', 'journey-private-media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/inbox/surviving.png'),
       ($4, $2, $2, 'Your copy', 'Recipient-owned body', null, null)
     `,
     [INBOX_SURVIVING_ID, TARGET, SURVIVOR, INBOX_RECIPIENT_ID]
@@ -361,6 +366,8 @@ async function seedApprovedDeletionLifecycle(
 
   await client.query(`
     TRUNCATE TABLE
+      public.account_deletion_storage_manifest,
+      public.account_deletion_storage_manifest_capture,
       public.account_deletion_story_freeze_scope,
       public.account_deletion_database_execution_context,
       public.inbox_messages,

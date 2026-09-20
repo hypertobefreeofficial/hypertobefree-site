@@ -14,6 +14,10 @@ export type AccountDeletionNondestructiveDatabaseStageCode =
   | "stale_state"
   | "row_count_mismatch"
   | "invariant_failed"
+  | "storage_manifest_not_finalized"
+  | "storage_manifest_state_drift"
+  | "storage_manifest_blocked"
+  | "storage_manifest_integrity_failed"
   | "rpc_error";
 
 export type AccountDeletionNondestructiveDatabaseStageResult =

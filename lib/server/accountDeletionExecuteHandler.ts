@@ -36,6 +36,12 @@ function orchestrationErrorBody(code: AccountDeletionExecutionOrchestrationHttpC
 function mapOrchestratorFailureCode(
   code: AccountDeletionExecutionOrchestratorFailureCode
 ): AccountDeletionExecutionOrchestrationHttpCode {
+  if (code === "storage_manifest_blocked") {
+    return "manifest_blocked";
+  }
+  if (code === "storage_manifest_capture_failed") {
+    return "database_stage_failed";
+  }
   return code;
 }
 

@@ -443,6 +443,13 @@ async function advanceAttemptThroughSessionStagesToInventory(
     expect(payload.code).toBe("advanced");
     expect(payload.stage).toBe("inventory");
 
+    const capture = await callStageRpc(
+      client,
+      "capture_account_deletion_storage_manifest",
+      attemptId
+    );
+    expect(capture.ok).toBe(true);
+
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -511,7 +518,7 @@ async function seedBaseScenario(client: Client): Promise<SeedScenarioResult> {
     INSERT INTO public.stories (
       id, user_id, name, email, location, story_text, video_url, status
     ) VALUES (
-      $1, $2, 'Target Author', 'target@test.local', 'City', 'Substantive story body', 'https://example.com/v.mp4', 'approved'
+      $1, $2, 'Target Author', 'target@test.local', 'City', 'Substantive story body', 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v.mp4', 'approved'
     )
     `,
     [STORY_ID, TARGET]
@@ -534,7 +541,7 @@ async function seedBaseScenario(client: Client): Promise<SeedScenarioResult> {
     INSERT INTO public.prayer_video_responses (
       id, story_id, user_id, video_url, body, status
     ) VALUES (
-      $1, $2, $3, 'https://example.com/response.mp4', 'Prayer video body', 'approved'
+      $1, $2, $3, 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/response.mp4', 'Prayer video body', 'approved'
     )
     `,
     [PRAYER_VIDEO_ID, STORY_ID, TARGET]
@@ -567,7 +574,7 @@ async function seedBaseScenario(client: Client): Promise<SeedScenarioResult> {
     INSERT INTO public.inbox_messages (
       id, user_id, sender_user_id, title, body, video_url, image_url
     ) VALUES
-      ($1, $3, $2, 'Someone sent you a private video prayer', 'Surviving inbox body', 'https://example.com/inbox.mp4', 'https://example.com/inbox.png'),
+      ($1, $3, $2, 'Someone sent you a private video prayer', 'Surviving inbox body', 'journey-private-media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/inbox/surviving.mp4', 'journey-private-media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/inbox/surviving.png'),
       ($4, $2, $2, 'Your copy', 'Recipient-owned body', null, null)
     `,
     [INBOX_SURVIVING_ID, TARGET, SURVIVOR, INBOX_RECIPIENT_ID]
@@ -586,6 +593,8 @@ async function seedBaseScenario(client: Client): Promise<SeedScenarioResult> {
 async function cleanupScenario(client: Client) {
   await client.query(`
     TRUNCATE TABLE
+      public.account_deletion_storage_manifest,
+      public.account_deletion_storage_manifest_capture,
       public.account_deletion_story_freeze_scope,
       public.inbox_messages,
       public.prayer_updates,
@@ -708,7 +717,7 @@ describeIntegration(
       expect(prayerVideo.rows[0]).toMatchObject({
         user_id: null,
         body: "Prayer video body",
-        video_url: "https://example.com/response.mp4",
+        video_url: "story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/response.mp4",
       });
 
       const prayerWritten = await client.query(
@@ -761,7 +770,7 @@ describeIntegration(
         email: null,
         location: null,
         story_text: "Substantive story body",
-        video_url: "https://example.com/v.mp4",
+        video_url: "story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v.mp4",
         status: "approved",
       });
 
@@ -815,7 +824,7 @@ describeIntegration(
         INSERT INTO public.stories (
           id, user_id, name, email, location, story_text, video_url, status
         ) VALUES (
-          $1, $2, 'Target Author', 'target@test.local', 'City', 'Substantive story body', 'https://example.com/v.mp4', 'pending'
+          $1, $2, 'Target Author', 'target@test.local', 'City', 'Substantive story body', 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v.mp4', 'pending'
         )
         `,
         [STORY_ID, TARGET]
@@ -1237,7 +1246,7 @@ describeIntegration(
         email: null,
         location: null,
         story_text: "Substantive story body",
-        video_url: "https://example.com/v.mp4",
+        video_url: "story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v.mp4",
         status: "approved",
       });
       await assertExecutionContextEmpty(client);
@@ -1306,7 +1315,7 @@ describeIntegration(
             INSERT INTO public.stories (
               id, user_id, name, email, story_text, video_url, status
             ) VALUES (
-              $1, $2, 'Another Story', 'target@test.local', 'Body', 'https://example.com/v2.mp4', 'approved'
+              $1, $2, 'Another Story', 'target@test.local', 'Body', 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v2.mp4', 'approved'
             )
             `,
             ["99999999-9999-4999-8999-999999999999", TARGET]
@@ -1656,7 +1665,7 @@ describeIntegration(
         await client.query(
           `
           INSERT INTO public.stories (id, user_id, name, email, story_text, video_url, status)
-          VALUES ($1, $2, 'Target Author', 'target@test.local', 'Body', 'https://example.com/v.mp4', 'pending')
+          VALUES ($1, $2, 'Target Author', 'target@test.local', 'Body', 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v.mp4', 'pending')
           `,
           [STORY_ID, TARGET]
         );

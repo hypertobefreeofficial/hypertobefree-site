@@ -70,6 +70,18 @@ function createDeps(
     acquire: vi.fn(async () => acquiredContext()),
     runSessionPhase: vi.fn(async () => sessionSuccess("sessions_revoked", "sessions_revoked")),
     advanceToInventory: vi.fn(async () => inventorySuccess()),
+    captureStorageManifest: vi.fn(async () => ({
+      ok: true as const,
+      code: "finalized",
+      requestId: REQUEST,
+      attemptId: ATTEMPT,
+      targetUserId: TARGET,
+      objectCount: 0,
+      fingerprint: "a".repeat(64),
+      blockedCount: 0,
+      deletePrivateCount: 0,
+      hasBlockUnresolved: false,
+    })),
     executeDatabaseStage: vi.fn(async () => databaseSuccess()),
     ...overrides,
   };
@@ -94,6 +106,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(deps.acquire).toHaveBeenCalledWith({ requestId: REQUEST, initiatedBy: OWNER });
     expect(deps.runSessionPhase).toHaveBeenCalledOnce();
     expect(deps.advanceToInventory).toHaveBeenCalledOnce();
+    expect(deps.captureStorageManifest).toHaveBeenCalledOnce();
     expect(deps.executeDatabaseStage).toHaveBeenCalledOnce();
   });
 
@@ -156,6 +169,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
       deps: inventoryResume,
     });
     expect(inventoryResume.advanceToInventory).not.toHaveBeenCalled();
+    expect(inventoryResume.captureStorageManifest).toHaveBeenCalledOnce();
     expect(inventoryResume.executeDatabaseStage).toHaveBeenCalled();
   });
 
@@ -165,6 +179,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
         sessionSuccess("later_stage_reached", "database_completed")
       ),
       advanceToInventory: vi.fn(),
+      captureStorageManifest: vi.fn(),
       executeDatabaseStage: vi.fn(async () => databaseSuccess("already_completed")),
     });
 
@@ -175,6 +190,8 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     });
 
     expect(result).toMatchObject({ ok: true, code: "already_completed" });
+    expect(deps.captureStorageManifest).not.toHaveBeenCalled();
+    expect(deps.advanceToInventory).not.toHaveBeenCalled();
   });
 
   it("EO-G: readiness false → no acquisition", async () => {
@@ -529,6 +546,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(deps.runPreflight).toHaveBeenCalledOnce();
     expect(deps.runSessionPhase).toHaveBeenCalledOnce();
     expect(deps.advanceToInventory).toHaveBeenCalledOnce();
+    expect(deps.captureStorageManifest).toHaveBeenCalledOnce();
     expect(deps.executeDatabaseStage).toHaveBeenCalledOnce();
   });
 

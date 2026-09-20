@@ -273,6 +273,33 @@ export const ACCOUNT_DELETION_STORAGE_MANIFEST_APPROVED_BUCKETS = [
   "journey-private-media",
 ] as const;
 
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_CAPTURE_MIGRATION = {
+  version: "20260919190000",
+  filename:
+    "20260919190000_account_deletion_storage_manifest_capture_phase4c7b1e2c3b3b2.sql",
+  relativePath:
+    "supabase/migrations/20260919190000_account_deletion_storage_manifest_capture_phase4c7b1e2c3b3b2.sql",
+  phase: "4C.7B.1E.2C.3B.3B.2",
+} as const;
+
+/** Authoritative inventory capture that may mint DELETE_PRIVATE from pre-3B.1 DB evidence. */
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_CAPTURE_NOTE =
+  "capture_account_deletion_storage_manifest(request, attempt) derives dispositions via shared "
+  + "account_deletion_storage_manifest_expected_inventory from "
+  + "profiles/stories/prayer_video_responses/inbox_messages (+ storage.objects completeness). "
+  + "Foundation upsert still rejects DELETE_PRIVATE. Capture is the only mint path. "
+  + "Unparseable media fails closed (capture not finalized). "
+  + "3B.1 refuses before identity mutation unless finalized integrity + full inventory recheck pass. "
+  + "DELETE_PRIVATE requires exact storage.objects existence. "
+  + "execute_…_stage_inner is not caller-executable. No Storage remove().";
+
+export const ACCOUNT_DELETION_JOURNEY_SURVIVOR_PREDICATE_NOTE =
+  "Surviving Journey foreign reference (pre-3B.1): inbox media SLOT whose path resolves to the object "
+  + "AND sender_user_id = target AND user_id IS DISTINCT FROM target. "
+  + "3B.1 only SET NULLs sender_user_id on those rows while keeping media URLs — capture must "
+  + "PRESERVE_SHARED them. Fingerprint = [id,user_id,sender_user_id,media_slot,object_path,thread_id]. "
+  + "DELETE_PRIVATE requires path prefix = target, exclusive target-owned refs, zero survivors, "
+  + "total_reference_count >= 1, non-empty reference_fingerprint, and exact storage.objects row.";
 /** Phase 2C.3B.1 — nondestructive DB executor RPC (disconnected; orchestration in 2C.3B.2). */
 export const ACCOUNT_DELETION_NONDESTRUCTIVE_DB_STAGE_NOTE =
   "execute_account_deletion_nondestructive_database_stage(p_request_id, p_attempt_id) "

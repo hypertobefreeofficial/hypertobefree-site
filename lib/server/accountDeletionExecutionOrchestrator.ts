@@ -23,6 +23,10 @@ import {
   type AccountDeletionSessionRevocationOrchestratorResult,
   type AccountDeletionTrustedSessionExecutionContext,
 } from "./accountDeletionSessionRevocationOrchestrator";
+import {
+  captureAccountDeletionStorageManifest,
+  type AccountDeletionStorageManifestCaptureResult,
+} from "./accountDeletionStorageManifestCapture";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -51,6 +55,8 @@ export type AccountDeletionExecutionOrchestratorFailureCode =
   | "session_revocation_failed"
   | "failure_recording_failed"
   | "inventory_transition_failed"
+  | "storage_manifest_capture_failed"
+  | "storage_manifest_blocked"
   | "database_stage_failed"
   | "invariant_failed";
 
@@ -186,6 +192,10 @@ export type AccountDeletionExecutionOrchestratorDeps = {
   advanceToInventory: (
     context: AccountDeletionTrustedSessionExecutionContext
   ) => Promise<AccountDeletionAttemptStageTransitionResult>;
+  captureStorageManifest: (input: {
+    requestId: string;
+    attemptId: string;
+  }) => Promise<AccountDeletionStorageManifestCaptureResult>;
   executeDatabaseStage: (input: {
     requestId: string;
     attemptId: string;
@@ -232,6 +242,13 @@ export function createAccountDeletionExecutionOrchestratorDeps(
         serviceRoleClient,
         requestId: context.requestId,
         attemptId: context.attemptId,
+      });
+    },
+    captureStorageManifest(input) {
+      return captureAccountDeletionStorageManifest({
+        serviceRoleClient,
+        requestId: input.requestId,
+        attemptId: input.attemptId,
       });
     },
     executeDatabaseStage(input) {
@@ -342,12 +359,60 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     }
   }
 
+  // Inventory (or already at inventory): authoritative storage manifest before 3B.1.
+  if (
+    resume.plan.kind === "advance_inventory" ||
+    resume.plan.kind === "at_inventory"
+  ) {
+    const capture = await deps.captureStorageManifest({
+      requestId,
+      attemptId,
+    });
+    if (capture.ok === false) {
+      if (
+        capture.code === "storage_manifest_blocked" ||
+        capture.code === "has_block_unresolved"
+      ) {
+        return { ok: false, code: "storage_manifest_blocked" };
+      }
+      return {
+        ok: false,
+        code: "storage_manifest_capture_failed",
+        retryable: capture.retryable,
+      };
+    }
+    if (capture.hasBlockUnresolved || capture.blockedCount > 0) {
+      return { ok: false, code: "storage_manifest_blocked" };
+    }
+    if (
+      capture.requestId !== requestId ||
+      capture.attemptId !== attemptId ||
+      capture.targetUserId !== targetUserId
+    ) {
+      return { ok: false, code: "invariant_failed" };
+    }
+  }
+
   const database = await deps.executeDatabaseStage({
     requestId,
     attemptId,
   });
 
   if (database.ok === false) {
+    if (
+      database.code === "storage_manifest_not_finalized" ||
+      database.code === "storage_manifest_blocked" ||
+      database.code === "storage_manifest_state_drift" ||
+      database.code === "storage_manifest_integrity_failed"
+    ) {
+      return {
+        ok: false,
+        code:
+          database.code === "storage_manifest_blocked"
+            ? "storage_manifest_blocked"
+            : "storage_manifest_capture_failed",
+      };
+    }
     if (
       database.code === "invalid_stage" ||
       database.code === "attempt_mismatch" ||
@@ -382,7 +447,8 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
 }
 
 export const ACCOUNT_DELETION_EXECUTION_ORCHESTRATOR_SCOPE_NOTE =
-  "runAccountDeletionExecutionOrchestrator stops at database_completed. "
+  "runAccountDeletionExecutionOrchestrator: sessions → inventory → "
+  + "authoritative storage manifest capture/finalize → 3B.1 → database_completed STOP. "
   + "Storage, profile, auth user deletion, and request finalize=deleted are later phases. "
   + "Pre-acquisition preflight reduces predictable failures but does not eliminate TOCTOU; "
-  + "3B.1 in-transaction preflight remains authoritative after acquisition.";
+  + "3B.1 in-transaction preflight + storage-manifest gate remain authoritative after acquisition.";

@@ -74,6 +74,8 @@ async function cleanupScenario(client: Client) {
   }
   await client.query(`
     TRUNCATE TABLE
+      public.account_deletion_storage_manifest,
+      public.account_deletion_storage_manifest_capture,
       public.account_deletion_story_freeze_scope,
       public.account_deletion_database_execution_context,
       public.stories,
@@ -208,7 +210,7 @@ async function insertApprovedStory(client: Client) {
     INSERT INTO public.stories (
       id, user_id, name, email, location, story_text, video_url, status
     ) VALUES (
-      $1, $2, 'Target Author', 'target@test.local', 'City', 'Body', 'https://example.com/v.mp4', 'approved'
+      $1, $2, 'Target Author', 'target@test.local', 'City', 'Body', 'story-videos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/v.mp4', 'approved'
     )
     `,
     [STORY_ID, TARGET]
@@ -425,6 +427,11 @@ describeIntegration(
       });
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE service_role");
+      const capture = await client.query<{ payload: CancelPayload }>(
+        `SELECT public.capture_account_deletion_storage_manifest($1::uuid, $2::uuid) AS payload`,
+        [REQUEST_ID, attemptId]
+      );
+      expect(capture.rows[0]?.payload?.ok).toBe(true);
       const stage = await client.query<{ payload: CancelPayload }>(
         `SELECT public.execute_account_deletion_nondestructive_database_stage($1::uuid, $2::uuid) AS payload`,
         [REQUEST_ID, attemptId]
@@ -599,9 +606,11 @@ describeIntegration(
         [REQUEST_ID, attemptId]
       );
       await client.query("COMMIT");
+      // Gate runs before _inner for all pre-database_completed stages, so a
+      // cancelled attempt without a finalized manifest is refused at the gate.
       expect(stage.rows[0]?.payload).toMatchObject({
         ok: false,
-        code: "request_not_in_progress",
+        code: "storage_manifest_not_finalized",
       });
       expect((await requestState(client))?.status).toBe("approved");
     });
