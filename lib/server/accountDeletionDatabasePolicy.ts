@@ -210,6 +210,69 @@ export const ACCOUNT_DELETION_REQUEST_PRIVILEGE_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.2F.2A.1",
 } as const;
 
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_MIGRATION = {
+  version: "20260919180000",
+  filename:
+    "20260919180000_account_deletion_storage_manifest_foundation_phase4c7b1e2c3b3b1.sql",
+  relativePath:
+    "supabase/migrations/20260919180000_account_deletion_storage_manifest_foundation_phase4c7b1e2c3b3b1.sql",
+  phase: "4C.7B.1E.2C.3B.3B.1",
+} as const;
+
+/** Durable inventory-time storage ownership/policy snapshot — foundation only (no Storage remove). */
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_NOTE =
+  "account_deletion_storage_manifest(+capture) freezes per-attempt object dispositions during inventory "
+  + "before 3B.1 identity detach. service_role SELECT-only; writes via initialize/upsert/finalize RPCs. "
+  + "Foundation upserts MUST NOT mint DELETE_PRIVATE (delete_authority_not_available_in_foundation). "
+  + "3B.3B.2 mints DELETE_PRIVATE only from authoritative pre-detach DB evidence + Journey ref checks. "
+  + "Finalized rows are fully frozen; 3B.3C should record Storage outcomes in a separate result table. "
+  + "Does not delete Storage objects or wire post-database_completed orchestration.";
+
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_FOUNDATION_ALLOWED_DISPOSITIONS = [
+  "PRESERVE_PUBLIC",
+  "PRESERVE_SHARED",
+  "DEFER_PROFILE",
+  "BLOCK_UNRESOLVED",
+] as const;
+
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_DISPOSITIONS = [
+  "DELETE_PRIVATE",
+  "PRESERVE_PUBLIC",
+  "PRESERVE_SHARED",
+  "DEFER_PROFILE",
+  "BLOCK_UNRESOLVED",
+] as const;
+
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_STATUSES = [
+  "pending",
+  "preserved",
+  "deleted",
+  "missing",
+  "failed",
+  "blocked",
+] as const;
+
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_MEDIA_CATEGORIES = [
+  "profile_avatar",
+  "story_image",
+  "story_video",
+  "story_thumbnail",
+  "prayer_video",
+  "prayer_thumbnail",
+  "journey_private_media",
+  "journey_legacy_media",
+  "creator_studio_media",
+  "unknown_legacy",
+] as const;
+
+export const ACCOUNT_DELETION_STORAGE_MANIFEST_APPROVED_BUCKETS = [
+  "profile-avatars",
+  "story-images",
+  "story-thumbnails",
+  "story-videos",
+  "journey-private-media",
+] as const;
+
 /** Phase 2C.3B.1 — nondestructive DB executor RPC (disconnected; orchestration in 2C.3B.2). */
 export const ACCOUNT_DELETION_NONDESTRUCTIVE_DB_STAGE_NOTE =
   "execute_account_deletion_nondestructive_database_stage(p_request_id, p_attempt_id) "
