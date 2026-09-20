@@ -201,6 +201,15 @@ export const ACCOUNT_DELETION_EXECUTION_RECOVERY_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.2F.2A",
 } as const;
 
+export const ACCOUNT_DELETION_REQUEST_PRIVILEGE_MIGRATION = {
+  version: "20260919170000",
+  filename:
+    "20260919170000_account_deletion_request_privilege_hardening_phase4c7b1e2c3b2f2a1.sql",
+  relativePath:
+    "supabase/migrations/20260919170000_account_deletion_request_privilege_hardening_phase4c7b1e2c3b2f2a1.sql",
+  phase: "4C.7B.1E.2C.3B.2F.2A.1",
+} as const;
+
 /** Phase 2C.3B.1 — nondestructive DB executor RPC (disconnected; orchestration in 2C.3B.2). */
 export const ACCOUNT_DELETION_NONDESTRUCTIVE_DB_STAGE_NOTE =
   "execute_account_deletion_nondestructive_database_stage(p_request_id, p_attempt_id) "
