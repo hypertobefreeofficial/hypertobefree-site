@@ -70,6 +70,31 @@ async function asServiceRole<T>(
   }
 }
 
+async function asAuthenticatedOwner<T>(
+  client: Client,
+  sql: string,
+  params: unknown[] = [],
+  options: { aal2?: boolean } = {}
+): Promise<T> {
+  await ensureAuthenticatedGrants(client);
+  await client.query("BEGIN");
+  try {
+    await client.query("SET LOCAL ROLE authenticated");
+    await client.query(`SELECT set_config('request.jwt.claims', $1, true)`, [
+      JSON.stringify({
+        sub: OWNER,
+        ...(options.aal2 ? { aal: "aal2" } : {}),
+      }),
+    ]);
+    const result = await client.query<{ payload: T }>(sql, params);
+    await client.query("COMMIT");
+    return result.rows[0]?.payload as T;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
+}
+
 async function cleanup(client: Client) {
   try {
     await client.query("ROLLBACK");
@@ -451,12 +476,12 @@ describeIntegration(
       );
       const deleteObj = manifest.rows[0]!;
 
-      const hold = await asServiceRole<RpcPayload>(
+      const hold = await asAuthenticatedOwner<RpcPayload>(
         client,
         `SELECT public.create_account_deletion_storage_preservation_hold(
-          $1::uuid,$2::uuid,'manifest_object'::text,'legal_hold'::text,$3::uuid,$4::uuid,NULL
+          $1::uuid,'manifest_object'::text,'legal_hold'::text,$2::uuid,$3::uuid,NULL
         ) AS payload`,
-        [REQUEST_ID, OWNER, attemptId, deleteObj.id]
+        [REQUEST_ID, attemptId, deleteObj.id]
       );
       expect(hold.ok).toBe(true);
 
@@ -475,10 +500,11 @@ describeIntegration(
         )
       ).toMatchObject({ ok: false, code: "preservation_hold_active" });
 
-      const released = await asServiceRole<RpcPayload>(
+      const released = await asAuthenticatedOwner<RpcPayload>(
         client,
-        `SELECT public.release_account_deletion_storage_preservation_hold($1::uuid,$2::uuid) AS payload`,
-        [hold.hold_id, OWNER]
+        `SELECT public.release_account_deletion_storage_preservation_hold($1::uuid) AS payload`,
+        [hold.hold_id],
+        { aal2: true }
       );
       expect(released.ok).toBe(true);
 
@@ -489,12 +515,12 @@ describeIntegration(
       );
       expect(pending.rows[0]?.execution_state).toBe("pending");
 
-      const reqHold = await asServiceRole<RpcPayload>(
+      const reqHold = await asAuthenticatedOwner<RpcPayload>(
         client,
         `SELECT public.create_account_deletion_storage_preservation_hold(
-          $1::uuid,$2::uuid,'request'::text,'litigation_preservation'::text,NULL,NULL,NULL
+          $1::uuid,'request'::text,'litigation_preservation'::text,NULL,NULL,NULL
         ) AS payload`,
-        [REQUEST_ID, OWNER]
+        [REQUEST_ID]
       );
       expect(reqHold.ok).toBe(true);
       expect(
