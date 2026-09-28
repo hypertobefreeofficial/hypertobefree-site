@@ -282,6 +282,24 @@ export const ACCOUNT_DELETION_STORAGE_MANIFEST_CAPTURE_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.3B.2",
 } as const;
 
+export const ACCOUNT_DELETION_STORAGE_EXECUTION_FOUNDATION_MIGRATION = {
+  version: "20260919200000",
+  filename:
+    "20260919200000_account_deletion_storage_execution_foundation_phase4c7b1e2c3b3c.sql",
+  relativePath:
+    "supabase/migrations/20260919200000_account_deletion_storage_execution_foundation_phase4c7b1e2c3b3c.sql",
+  phase: "4C.7B.1E.2C.3B.3C",
+} as const;
+
+/** Durable execution-result + preservation-hold plane; no Storage remove(). */
+export const ACCOUNT_DELETION_STORAGE_EXECUTION_FOUNDATION_NOTE =
+  "account_deletion_storage_execution_results records per-manifest-object execution state "
+  + "after database_completed without mutating finalized manifest rows. "
+  + "account_deletion_storage_preservation_holds overrides DELETE_PRIVATE eligibility. "
+  + "initialize/claim/hold RPCs are postgres-owned; service_role has SELECT-only on control tables. "
+  + "3B.3D will attach external Storage deletion to claim/lease outcomes only. "
+  + "No Storage remove().";
+
 /** Authoritative inventory capture that may mint DELETE_PRIVATE from pre-3B.1 DB evidence. */
 export const ACCOUNT_DELETION_STORAGE_MANIFEST_CAPTURE_NOTE =
   "capture_account_deletion_storage_manifest(request, attempt) derives dispositions via shared "
