@@ -3,7 +3,13 @@
  * Server-only: no bucket/path/disposition from callers.
  */
 
+import "server-only";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  createAccountDeletionSupabaseStorageAdapter,
+  validateAccountDeletionStorageDeleteTarget,
+} from "./accountDeletionSupabaseStorageAdapter";
 import { isAccountDeletionExecutionEnabled } from "./accountDeletionExecutionPolicy";
 import {
   isAccountDeletionPhysicalStorageExecutionEnabled,
@@ -230,6 +236,18 @@ export async function executeAccountDeletionStorageObject(
     return { ok: false, code: "authorize_failed", detail: "incomplete_authority" };
   }
 
+  const targetValidation = validateAccountDeletionStorageDeleteTarget(
+    bucket,
+    objectPath
+  );
+  if (targetValidation.ok === false) {
+    return {
+      ok: false,
+      code: "authorize_failed",
+      detail: targetValidation.code,
+    };
+  }
+
   const existsBefore = await deps.objectExists(bucket, objectPath);
   if (!existsBefore) {
     const completeMissing = await client.rpc(
@@ -325,11 +343,22 @@ export async function executeAccountDeletionStorageObject(
   };
 }
 
+export function createAccountDeletionStorageObjectExecutorDeps(
+  serviceRoleClient: SupabaseClient
+): AccountDeletionStorageObjectExecutorDeps {
+  const adapter = createAccountDeletionSupabaseStorageAdapter(serviceRoleClient);
+  return {
+    serviceRoleClient,
+    removeObjects: adapter.removeObjects,
+    objectExists: adapter.objectExists,
+  };
+}
+
 export const ACCOUNT_DELETION_STORAGE_OBJECT_EXECUTOR_NOTE =
   "executeAccountDeletionStorageObject accepts only requestId/attemptId/resultId. "
   + "Bucket/path/disposition are DB-derived via authorize RPC. "
   + "Requires HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED=true AND "
   + "HTBF_ACCOUNT_DELETION_STORAGE_EXECUTION_ENABLED=true. "
-  + "Uses supabase.storage.from(bucket).remove([path]) via injected adapter — never storage.objects DELETE.";
+  + "Uses supabase.storage.from(bucket).remove([path]) via server adapter — never storage.objects DELETE.";
 
 export { isAccountDeletionPhysicalStorageExecutionEnabled };

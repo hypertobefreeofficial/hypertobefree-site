@@ -300,6 +300,15 @@ export const ACCOUNT_DELETION_STORAGE_EXECUTOR_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.3D",
 } as const;
 
+export const ACCOUNT_DELETION_STORAGE_ADAPTER_MIGRATION = {
+  version: "20260919220000",
+  filename:
+    "supabase/migrations/20260919220000_account_deletion_storage_adapter_validation_phase4c7b1e2c3b3e.sql",
+  relativePath:
+    "supabase/migrations/20260919220000_account_deletion_storage_adapter_validation_phase4c7b1e2c3b3e.sql",
+  phase: "4C.7B.1E.2C.3B.3E",
+} as const;
+
 /** Physical executor DB authority: delete commit token, authorize/complete RPCs, hold actor binding. */
 export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   "authorize_account_deletion_storage_object_delete is the atomic point-of-no-return before Storage remove(). "
@@ -308,6 +317,13 @@ export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   + "Server module executeAccountDeletionStorageObject requires HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED "
   + "AND HTBF_ACCOUNT_DELETION_STORAGE_EXECUTION_ENABLED. "
   + "Destructive bucket allowlist: journey-private-media only. No orchestrator wiring in 3B.3D.";
+
+/** Server Supabase Storage adapter + readiness composition fix (3B.3E). */
+export const ACCOUNT_DELETION_STORAGE_ADAPTER_NOTE =
+  "accountDeletionSupabaseStorageAdapter uses service-role supabase.storage.from(bucket).remove([path]) "
+  + "for exactly one DB-authorized object in journey-private-media. "
+  + "Real Storage E2E is test-only (HTBF_ACCOUNT_DELETION_STORAGE_E2E_TEST_ENABLED) against local Supabase. "
+  + "verify_account_deletion_storage_adapter_ready() checks DB readiness composition, not external Storage.";
 
 /** Durable execution-result + preservation-hold plane; no Storage remove(). */
 export const ACCOUNT_DELETION_STORAGE_EXECUTION_FOUNDATION_NOTE =

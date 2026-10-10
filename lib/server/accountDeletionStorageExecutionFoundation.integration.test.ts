@@ -318,6 +318,20 @@ describeIntegration(
       ).length;
       expect(foundationCount).toBe(1);
 
+      for (const uniqueId of [
+        "storage_execution_tables_present",
+        "storage_execution_service_role_mutation_denied",
+        "storage_execution_rpcs_present",
+      ]) {
+        expect(ids.filter((id) => id === uniqueId).length).toBe(1);
+      }
+
+      const adapterReady = await asServiceRole<{ ready?: boolean }>(
+        client,
+        `SELECT public.verify_account_deletion_storage_adapter_ready() AS payload`
+      );
+      expect(adapterReady.ready).toBe(true);
+
       const privs = await client.query<{
         insert_results: boolean;
         update_results: boolean;

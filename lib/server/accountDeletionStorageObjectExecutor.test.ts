@@ -248,6 +248,50 @@ describe("accountDeletionStorageObjectExecutor (EX-B–J)", () => {
     expect(JSON.stringify(call)).not.toContain("signed");
   });
 
+  it("post-delete verification failure → failed_retryable, not deleted", async () => {
+    const remove = vi.fn(async () => ({ error: null }));
+    const exists = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+    const complete = vi.fn();
+    const client = mockClient({
+      rpc: (name, args) => {
+        if (name.includes("claim")) return { ok: true, claim_token: "tok" };
+        if (name.includes("authorize")) {
+          return {
+            ok: true,
+            bucket: "journey-private-media",
+            object_path: "p",
+            delete_commit_token: "c",
+          };
+        }
+        if (name.includes("complete")) {
+          complete(args);
+          return { ok: true, execution_state: "failed_retryable" };
+        }
+        return {};
+      },
+    });
+
+    const result = await executeAccountDeletionStorageObject(
+      { requestId: "r", attemptId: "a", resultId: "res" },
+      enabledDeps(client, remove, exists)
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      code: "storage_postdelete_verification_failed",
+      retryable: true,
+    });
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_outcome: "failed_retryable",
+        p_error_code: "storage_postdelete_verification_failed",
+        p_error_detail_safe: "postdelete_verification_failed",
+      })
+    );
+  });
+
   it("EX-I: crash after remove — object absent completes missing", async () => {
     const remove = vi.fn(async () => ({ error: null }));
     const exists = vi.fn(async () => false);
@@ -306,6 +350,31 @@ describe("accountDeletionStorageObjectExecutor (EX-B–J)", () => {
     expect(result).toMatchObject({ ok: true, code: "missing" });
     expect(remove).not.toHaveBeenCalled();
     expect(exists).toHaveBeenCalled();
+  });
+
+  it("forbidden bucket from authorize payload → no remove (adapter boundary)", async () => {
+    const remove = vi.fn();
+    const client = mockClient({
+      rpc: (name) => {
+        if (name.includes("claim")) return { ok: true, claim_token: "t" };
+        if (name.includes("authorize")) {
+          return {
+            ok: true,
+            bucket: "story-images",
+            object_path: "x/y.png",
+            delete_commit_token: "c",
+          };
+        }
+        return {};
+      },
+    });
+
+    const result = await executeAccountDeletionStorageObject(
+      { requestId: "r", attemptId: "a", resultId: "res" },
+      enabledDeps(client, remove)
+    );
+    expect(result).toMatchObject({ ok: false, code: "authorize_failed" });
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("EX hold path: authorize refused → no remove", async () => {

@@ -578,30 +578,73 @@ describeIntegration(
       expect(auth.delete_commit_token).toBeTruthy();
     });
 
-    it("SD-F: wrong bucket on result row refuses authorize", async () => {
+    it("BK-A through BK-E: authorization RPC refuses forbidden buckets", async () => {
       await cleanup(client);
       await seedUsers(client);
-      const { attemptId, manifestId, resultId } =
-        await seedDeletePrivateFixture(client);
+      const base = await seedDeletePrivateFixture(client);
 
-      await client.query(
-        `UPDATE public.account_deletion_storage_execution_results SET bucket = 'story-videos' WHERE id = $1`,
-        [resultId]
+      const forbiddenBuckets = [
+        "profile-avatars",
+        "story-images",
+        "story-videos",
+        "story-thumbnails",
+        "unknown-bucket",
+      ] as const;
+
+      for (const bucket of forbiddenBuckets) {
+        const { manifestId, resultId } = await cloneDeletePrivateResult(
+          client,
+          REQUEST_ID,
+          base.attemptId,
+          base.manifestId,
+          `bk-${bucket}`
+        );
+        await client.query(
+          `UPDATE public.account_deletion_storage_execution_results SET bucket = $2 WHERE id = $1`,
+          [resultId, bucket]
+        );
+
+        const claim = await asServiceRole<RpcPayload>(
+          client,
+          `SELECT public.claim_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,900) AS payload`,
+          [REQUEST_ID, base.attemptId, manifestId]
+        );
+        expect(claim.ok).toBe(true);
+        expect(claim.claim_token).toBeTruthy();
+
+        expect(
+          await asServiceRole<RpcPayload>(
+            client,
+            `SELECT public.authorize_account_deletion_storage_object_delete($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS payload`,
+            [REQUEST_ID, base.attemptId, resultId, claim.claim_token]
+          )
+        ).toMatchObject({ ok: false, code: "bucket_not_destructive_allowed" });
+      }
+
+      const allowed = await cloneDeletePrivateResult(
+        client,
+        REQUEST_ID,
+        base.attemptId,
+        base.manifestId,
+        "bk-journey-private-media-ok"
       );
-
-      const claim = await asServiceRole<RpcPayload>(
+      const claimOk = await asServiceRole<RpcPayload>(
         client,
         `SELECT public.claim_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,900) AS payload`,
-        [REQUEST_ID, attemptId, manifestId]
+        [REQUEST_ID, base.attemptId, allowed.manifestId]
       );
-
+      expect(claimOk.ok).toBe(true);
       expect(
         await asServiceRole<RpcPayload>(
           client,
           `SELECT public.authorize_account_deletion_storage_object_delete($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS payload`,
-          [REQUEST_ID, attemptId, resultId, claim.claim_token]
+          [REQUEST_ID, base.attemptId, allowed.resultId, claimOk.claim_token]
         )
-      ).toMatchObject({ ok: false, code: "bucket_not_destructive_allowed" });
+      ).toMatchObject({
+        ok: true,
+        code: "authorized",
+        bucket: "journey-private-media",
+      });
     });
 
     it("SD-J: missing object → precheck_missing without commit", async () => {
@@ -1038,6 +1081,113 @@ describeIntegration(
           [REQUEST_ID, attemptId, resultId, claim.claim_token]
         )
       ).toMatchObject({ ok: false, code: "claim_lease_expired" });
+    });
+
+    it("CE-A: expired commit → reauthorize → new token B completes; token A dead", async () => {
+      await cleanup(client);
+      await seedUsers(client);
+      const { attemptId, manifestId, resultId } =
+        await seedDeletePrivateFixture(client);
+      const claim = await asServiceRole<RpcPayload>(
+        client,
+        `SELECT public.claim_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,900) AS payload`,
+        [REQUEST_ID, attemptId, manifestId]
+      );
+      const auth1 = await asServiceRole<RpcPayload>(
+        client,
+        `SELECT public.authorize_account_deletion_storage_object_delete($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS payload`,
+        [REQUEST_ID, attemptId, resultId, claim.claim_token]
+      );
+      const tokenA = auth1.delete_commit_token as string;
+      expect(tokenA).toBeTruthy();
+
+      await client.query(
+        `UPDATE public.account_deletion_storage_execution_results
+         SET delete_commit_expires_at = now() - interval '2 minutes' WHERE id = $1`,
+        [resultId]
+      );
+
+      expect(
+        await asServiceRole<RpcPayload>(
+          client,
+          `SELECT public.complete_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,NULL,NULL) AS payload`,
+          [REQUEST_ID, attemptId, resultId, tokenA, "deleted"]
+        )
+      ).toMatchObject({ ok: false, code: "delete_commit_expired" });
+
+      const auth2 = await asServiceRole<RpcPayload>(
+        client,
+        `SELECT public.authorize_account_deletion_storage_object_delete($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS payload`,
+        [REQUEST_ID, attemptId, resultId, claim.claim_token]
+      );
+      expect(auth2.ok).toBe(true);
+      const tokenB = auth2.delete_commit_token as string;
+      expect(tokenB).toBeTruthy();
+      expect(tokenB).not.toBe(tokenA);
+
+      expect(
+        await asServiceRole<RpcPayload>(
+          client,
+          `SELECT public.complete_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,NULL,NULL) AS payload`,
+          [REQUEST_ID, attemptId, resultId, tokenA, "deleted"]
+        )
+      ).toMatchObject({ ok: false, code: "delete_commit_token_mismatch" });
+
+      expect(
+        await asServiceRole<RpcPayload>(
+          client,
+          `SELECT public.complete_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,NULL,NULL) AS payload`,
+          [REQUEST_ID, attemptId, resultId, tokenB, "deleted"]
+        )
+      ).toMatchObject({ ok: true, code: "completed", execution_state: "deleted" });
+    });
+
+    it("TR-A: terminal completion replay is idempotent already_terminal", async () => {
+      await cleanup(client);
+      await seedUsers(client);
+      const { attemptId, manifestId, resultId } =
+        await seedDeletePrivateFixture(client);
+      const claim = await asServiceRole<RpcPayload>(
+        client,
+        `SELECT public.claim_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,900) AS payload`,
+        [REQUEST_ID, attemptId, manifestId]
+      );
+      const auth = await asServiceRole<RpcPayload>(
+        client,
+        `SELECT public.authorize_account_deletion_storage_object_delete($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS payload`,
+        [REQUEST_ID, attemptId, resultId, claim.claim_token]
+      );
+      const commit = auth.delete_commit_token as string;
+      const first = await asServiceRole<RpcPayload>(
+        client,
+        `SELECT public.complete_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,NULL,NULL) AS payload`,
+        [REQUEST_ID, attemptId, resultId, commit, "deleted"]
+      );
+      expect(first).toMatchObject({ ok: true, code: "completed" });
+
+      const auditCountBefore = await client.query<{ c: string }>(
+        `SELECT count(*)::text AS c FROM public.account_deletion_storage_execution_audit
+         WHERE result_id = $1 AND event_type = 'delete_completed'`,
+        [resultId]
+      );
+
+      const replay = await asServiceRole<RpcPayload>(
+        client,
+        `SELECT public.complete_account_deletion_storage_execution_object($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,NULL,NULL) AS payload`,
+        [REQUEST_ID, attemptId, resultId, commit, "deleted"]
+      );
+      expect(replay).toMatchObject({
+        ok: true,
+        code: "already_terminal",
+        execution_state: "deleted",
+      });
+
+      const auditCountAfter = await client.query<{ c: string }>(
+        `SELECT count(*)::text AS c FROM public.account_deletion_storage_execution_audit
+         WHERE result_id = $1 AND event_type = 'delete_completed'`,
+        [resultId]
+      );
+      expect(auditCountAfter.rows[0]?.c).toBe(auditCountBefore.rows[0]?.c);
     });
 
     it("commit replay and completion authority LIVE", async () => {
