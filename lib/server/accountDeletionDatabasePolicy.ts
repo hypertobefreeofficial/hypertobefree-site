@@ -327,6 +327,15 @@ export const ACCOUNT_DELETION_STORAGE_STAGE_RUNNER_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.3F.1",
 } as const;
 
+export const ACCOUNT_DELETION_PROFILE_STAGE_FOUNDATION_MIGRATION = {
+  version: "20260919240000",
+  filename:
+    "20260919240000_account_deletion_profile_stage_foundation_phase4c7b1e2c3b4a.sql",
+  relativePath:
+    "supabase/migrations/20260919240000_account_deletion_profile_stage_foundation_phase4c7b1e2c3b4a.sql",
+  phase: "4C.7B.1E.2C.3B.4A",
+} as const;
+
 /** Physical executor DB authority: delete commit token, authorize/complete RPCs, hold actor binding. */
 export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   "authorize_account_deletion_storage_object_delete is the atomic point-of-no-return before Storage remove(). "
@@ -348,6 +357,12 @@ export const ACCOUNT_DELETION_STORAGE_STAGE_RUNNER_NOTE =
   "runAccountDeletionStorageStageTick advances database_completed→storage→storage_completed via service_role RPCs. "
   + "Destructive claim/authorize require attempt.stage=storage. Dual execution flags still gate physical remove(). "
   + "No API/cron/worker wiring in 3B.3F.1.";
+
+/** Profile DB prepare RPC + cleanup snapshot (3B.4A). No profile row DELETE or Storage remove(). */
+export const ACCOUNT_DELETION_PROFILE_STAGE_FOUNDATION_NOTE =
+  "prepare_account_deletion_profile_stage(storage_completed→profile) deletes private account rows and "
+  + "scrubs profiles PII including avatar_url=NULL. No profile row DELETE. deferred_profile execution "
+  + "results are unchanged. Not orchestrator-wired. Physical profile-avatars deletion remains 3B.4B.";
 
 /** Durable execution-result + preservation-hold plane; no Storage remove(). */
 export const ACCOUNT_DELETION_STORAGE_EXECUTION_FOUNDATION_NOTE =

@@ -151,6 +151,10 @@ describe("account deletion rollout safety", () => {
     expect(executeRoute).not.toContain("executeAccountDeletionStorageObject");
     expect(executeHandler).not.toContain("accountDeletionStorageStageRunner");
     expect(executeRoute).not.toContain("accountDeletionStorageStageRunner");
+    expect(executeHandler).not.toContain("accountDeletionProfileStage");
+    expect(executeRoute).not.toContain("accountDeletionProfileStage");
+    expect(executeHandler).not.toContain("prepareAccountDeletionProfileStage");
+    expect(executeRoute).not.toContain("prepare_account_deletion_profile_stage");
     expect(executeHandler).toContain("runAccountDeletionExecutionOrchestrator");
     expect(executeRoute).toContain("handleAccountDeletionExecuteRequest");
     expect(executeHandler).not.toContain(".remove(");
