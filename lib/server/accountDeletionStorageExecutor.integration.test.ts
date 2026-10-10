@@ -236,6 +236,12 @@ async function seedAttempt(client: Client): Promise<string> {
     [REQUEST_ID, attemptId]
   );
 
+  await asServiceRole<RpcPayload>(
+    client,
+    `SELECT public.advance_account_deletion_attempt_to_storage($1::uuid,$2::uuid) AS payload`,
+    [REQUEST_ID, attemptId]
+  );
+
   return attemptId;
 }
 

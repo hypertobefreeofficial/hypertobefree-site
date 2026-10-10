@@ -273,6 +273,18 @@ async function initResults(
   );
 }
 
+async function advanceToStorageStage(
+  client: Client,
+  requestId: string,
+  attemptId: string
+) {
+  return asServiceRole<RpcPayload>(
+    client,
+    `SELECT public.advance_account_deletion_attempt_to_storage($1::uuid,$2::uuid) AS payload`,
+    [requestId, attemptId]
+  );
+}
+
 describeIntegration(
   `account deletion storage execution foundation (${ACCOUNT_DELETION_INTEGRATION_DB_URL_ENV})`,
   () => {
@@ -482,6 +494,7 @@ describeIntegration(
       const attemptId = await seedApprovedAcquiredInventory(client);
       await captureAndMarkDatabaseCompleted(client, REQUEST_ID, attemptId);
       await initResults(client, REQUEST_ID, attemptId);
+      await advanceToStorageStage(client, REQUEST_ID, attemptId);
 
       const manifest = await client.query<{ id: string; object_path: string }>(
         `SELECT id, object_path FROM public.account_deletion_storage_manifest
@@ -664,6 +677,7 @@ describeIntegration(
       const attemptId = await seedApprovedAcquiredInventory(client);
       await captureAndMarkDatabaseCompleted(client, REQUEST_ID, attemptId);
       await initResults(client, REQUEST_ID, attemptId);
+      await advanceToStorageStage(client, REQUEST_ID, attemptId);
 
       const manifest = await client.query<{ id: string }>(
         `SELECT id FROM public.account_deletion_storage_manifest

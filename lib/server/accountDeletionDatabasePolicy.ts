@@ -309,6 +309,24 @@ export const ACCOUNT_DELETION_STORAGE_ADAPTER_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.3E",
 } as const;
 
+export const ACCOUNT_DELETION_HASHTEXTEXTENDED_QUALIFICATION_FIX_MIGRATION = {
+  version: "20260919225000",
+  filename:
+    "20260919225000_account_deletion_hashtextextended_qualification_fix_phase4c7b1e2c3b3f0a.sql",
+  relativePath:
+    "supabase/migrations/20260919225000_account_deletion_hashtextextended_qualification_fix_phase4c7b1e2c3b3f0a.sql",
+  phase: "4C.7B.1E.2C.3B.3F.0A",
+} as const;
+
+export const ACCOUNT_DELETION_STORAGE_STAGE_RUNNER_MIGRATION = {
+  version: "20260919230000",
+  filename:
+    "20260919230000_account_deletion_storage_stage_runner_phase4c7b1e2c3b3f.sql",
+  relativePath:
+    "supabase/migrations/20260919230000_account_deletion_storage_stage_runner_phase4c7b1e2c3b3f.sql",
+  phase: "4C.7B.1E.2C.3B.3F.1",
+} as const;
+
 /** Physical executor DB authority: delete commit token, authorize/complete RPCs, hold actor binding. */
 export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   "authorize_account_deletion_storage_object_delete is the atomic point-of-no-return before Storage remove(). "
@@ -324,6 +342,12 @@ export const ACCOUNT_DELETION_STORAGE_ADAPTER_NOTE =
   + "for exactly one DB-authorized object in journey-private-media. "
   + "Real Storage E2E is test-only (HTBF_ACCOUNT_DELETION_STORAGE_E2E_TEST_ENABLED) against local Supabase. "
   + "verify_account_deletion_storage_adapter_ready() checks DB readiness composition, not external Storage.";
+
+/** Storage stage runner transitions + completion authority (3B.3F.1). Not orchestrator-wired. */
+export const ACCOUNT_DELETION_STORAGE_STAGE_RUNNER_NOTE =
+  "runAccountDeletionStorageStageTick advances database_completed→storage→storage_completed via service_role RPCs. "
+  + "Destructive claim/authorize require attempt.stage=storage. Dual execution flags still gate physical remove(). "
+  + "No API/cron/worker wiring in 3B.3F.1.";
 
 /** Durable execution-result + preservation-hold plane; no Storage remove(). */
 export const ACCOUNT_DELETION_STORAGE_EXECUTION_FOUNDATION_NOTE =
