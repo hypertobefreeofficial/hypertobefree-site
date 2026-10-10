@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -982,17 +982,65 @@ describe("accountDeletionStorageStageRunner.integration guards", () => {
     ).toBe(false);
   });
 
-  it("R-SURFACE: runner not imported by orchestrator or app/api patterns", () => {
+  it("R-SURFACE: runner reachable only via execute handler → orchestrator chain", () => {
     const orchestrator = readFileSync(
       path.join(import.meta.dirname, "accountDeletionExecutionOrchestrator.ts"),
       "utf8"
     );
-    expect(orchestrator).not.toContain("accountDeletionStorageStageRunner");
+    const executeHandler = readFileSync(
+      path.join(import.meta.dirname, "accountDeletionExecuteHandler.ts"),
+      "utf8"
+    );
+    const executeRoute = readFileSync(
+      path.join(
+        import.meta.dirname,
+        "../../app/api/admin/account-deletion/[requestId]/execute/route.ts"
+      ),
+      "utf8"
+    );
+
+    expect(orchestrator).toContain("accountDeletionStorageStageRunner");
+    expect(orchestrator).toContain("runAccountDeletionStorageStageTick");
+    expect(orchestrator).not.toContain("executeAccountDeletionStorageObject");
+
+    expect(executeHandler).not.toContain("accountDeletionStorageStageRunner");
+    expect(executeHandler).not.toContain("runAccountDeletionStorageStageTick");
+    expect(executeHandler).toContain("runAccountDeletionExecutionOrchestrator");
+
+    expect(executeRoute).not.toContain("accountDeletionStorageStageRunner");
+    expect(executeRoute).not.toContain("runAccountDeletionStorageStageTick");
+    expect(executeRoute).toContain("handleAccountDeletionExecuteRequest");
+    expect(executeRoute).not.toContain("runAccountDeletionExecutionOrchestrator");
+
+    const apiRoot = path.join(import.meta.dirname, "../../app/api");
+    const apiFilesWithRunner: string[] = [];
+    const collectApiSources = (dir: string): string[] => {
+      const out: string[] = [];
+      for (const name of readdirSync(dir)) {
+        const full = path.join(dir, name);
+        if (statSync(full).isDirectory()) {
+          out.push(...collectApiSources(full));
+        } else if (/\.(ts|tsx)$/.test(name)) {
+          out.push(full);
+        }
+      }
+      return out;
+    };
+    for (const file of collectApiSources(apiRoot)) {
+      const source = readFileSync(file, "utf8");
+      if (source.includes("accountDeletionStorageStageRunner")) {
+        apiFilesWithRunner.push(file);
+      }
+    }
+    expect(apiFilesWithRunner).toEqual([]);
+
     const runner = readFileSync(
       path.join(import.meta.dirname, "accountDeletionStorageStageRunner.ts"),
       "utf8"
     );
     expect(runner).toContain('import "server-only"');
+    expect(orchestrator).not.toMatch(/\bcron\b/);
+    expect(orchestrator).not.toMatch(/\bqueue\b/);
     expect(ACCOUNT_DELETION_STORAGE_STAGE_RUNNER_BATCH_SIZE).toBe(50);
   });
 });

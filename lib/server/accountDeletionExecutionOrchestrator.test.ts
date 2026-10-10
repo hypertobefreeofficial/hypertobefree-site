@@ -65,6 +65,8 @@ function createDeps(
   overrides: Partial<AccountDeletionExecutionOrchestratorDeps> = {}
 ): AccountDeletionExecutionOrchestratorDeps {
   return {
+    isGlobalExecutionEnabled: vi.fn(() => true),
+    isStorageOrchestrationEnabled: vi.fn(() => false),
     verifySchemaReadiness: vi.fn(async () => true),
     runPreflight: vi.fn(async () => preflightReady()),
     acquire: vi.fn(async () => acquiredContext()),
@@ -83,6 +85,11 @@ function createDeps(
       hasBlockUnresolved: false,
     })),
     executeDatabaseStage: vi.fn(async () => databaseSuccess()),
+    runStorageStageTick: vi.fn(async () => ({
+      ok: true,
+      code: "storage_completed" as const,
+      stage: "storage_completed",
+    })),
     ...overrides,
   };
 }
@@ -108,6 +115,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(deps.advanceToInventory).toHaveBeenCalledOnce();
     expect(deps.captureStorageManifest).toHaveBeenCalledOnce();
     expect(deps.executeDatabaseStage).toHaveBeenCalledOnce();
+    expect(deps.runStorageStageTick).not.toHaveBeenCalled();
   });
 
   it("EO-B: already acquired at lock_acquired resumes session phase", async () => {
@@ -192,6 +200,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(result).toMatchObject({ ok: true, code: "already_completed" });
     expect(deps.captureStorageManifest).not.toHaveBeenCalled();
     expect(deps.advanceToInventory).not.toHaveBeenCalled();
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
   });
 
   it("EO-G: readiness false → no acquisition", async () => {
@@ -548,16 +557,208 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(deps.advanceToInventory).toHaveBeenCalledOnce();
     expect(deps.captureStorageManifest).toHaveBeenCalledOnce();
     expect(deps.executeDatabaseStage).toHaveBeenCalledOnce();
+    expect(deps.runStorageStageTick).not.toHaveBeenCalled();
   });
 
-  it("EO-P: no storage/profile/Auth deletion in orchestrator source", async () => {
+  it("W-GLOBAL-OFF-INTERNAL: orchestrator returns execution_disabled without acquisition", async () => {
+    const acquire = vi.fn();
+    const deps = createDeps({
+      isGlobalExecutionEnabled: vi.fn(() => false),
+      acquire,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "execution_disabled" });
+    expect(acquire).not.toHaveBeenCalled();
+    expect(deps.runStorageStageTick).not.toHaveBeenCalled();
+  });
+
+  it("W-STORAGE-OFF-NEW: reaches database_completed without Storage tick", async () => {
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => false),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "database_completed" });
+    expect(deps.runStorageStageTick).not.toHaveBeenCalled();
+  });
+
+  it("W-STORAGE-OFF-RESUME-DB: database_completed resume skips capture, no Storage tick", async () => {
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => false),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "database_completed")
+      ),
+      advanceToInventory: vi.fn(),
+      captureStorageManifest: vi.fn(),
+      executeDatabaseStage: vi.fn(async () => databaseSuccess("already_completed")),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "already_completed" });
+    expect(deps.captureStorageManifest).not.toHaveBeenCalled();
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
+    expect(deps.runStorageStageTick).not.toHaveBeenCalled();
+  });
+
+  it("W-STORAGE-OFF-RESUME-STORAGE: at storage returns storage_execution_disabled", async () => {
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => false),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "storage")
+      ),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "storage_execution_disabled" });
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
+    expect(deps.runStorageStageTick).not.toHaveBeenCalled();
+  });
+
+  it("W-STORAGE-OFF-ALREADY-COMPLETE: storage_completed idempotent without tick", async () => {
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => false),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "storage_completed")
+      ),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "storage_completed" });
+    expect(deps.runStorageStageTick).not.toHaveBeenCalled();
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
+  });
+
+  it("W-ZERO: dual flags run exactly one Storage tick after database", async () => {
+    const tick = vi.fn(async () => ({
+      ok: true,
+      code: "storage_completed" as const,
+      stage: "storage_completed",
+    }));
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => true),
+      runStorageStageTick: tick,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "storage_completed" });
+    expect(tick).toHaveBeenCalledOnce();
+    expect(tick).toHaveBeenCalledWith({ requestId: REQUEST, attemptId: ATTEMPT });
+  });
+
+  it("W-ONE / W-MANY: orchestrator invokes Storage tick at most once per request", async () => {
+    const tick = vi.fn(async () => ({ ok: true, code: "in_progress" as const }));
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => true),
+      runStorageStageTick: tick,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "storage_in_progress" });
+    expect(tick).toHaveBeenCalledOnce();
+  });
+
+  it("W-RESUME-STORAGE: at storage skips pre-Storage phases and runs one tick", async () => {
+    const tick = vi.fn(async () => ({ ok: true, code: "in_progress" as const }));
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "storage")
+      ),
+      runStorageStageTick: tick,
+    });
+    await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(deps.captureStorageManifest).not.toHaveBeenCalled();
+    expect(deps.executeDatabaseStage).not.toHaveBeenCalled();
+    expect(tick).toHaveBeenCalledOnce();
+  });
+
+  it("W-RETRY: maps runner in_progress to storage_in_progress", async () => {
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => true),
+      runStorageStageTick: vi.fn(async () => ({ ok: true, code: "in_progress" as const })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "storage_in_progress" });
+  });
+
+  it("W-HOLD / W-PRECONDITION: maps runner blocked and precondition_failed", async () => {
+    const blocked = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => true),
+      runStorageStageTick: vi.fn(async () => ({ ok: false, code: "blocked" as const })),
+    });
+    expect(
+      await runAccountDeletionExecutionOrchestrator({
+        requestId: REQUEST,
+        initiatedBy: OWNER,
+        deps: blocked,
+      })
+    ).toEqual({ ok: false, code: "storage_blocked" });
+
+    const precond = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => true),
+      runStorageStageTick: vi.fn(async () => ({
+        ok: false,
+        code: "precondition_failed" as const,
+      })),
+    });
+    expect(
+      await runAccountDeletionExecutionOrchestrator({
+        requestId: REQUEST,
+        initiatedBy: OWNER,
+        deps: precond,
+      })
+    ).toEqual({ ok: false, code: "storage_precondition_failed" });
+  });
+
+  it("W-CONCURRENT-CONTRACT: orchestrator does not call object executor directly", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(
+      "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "utf8"
+    );
+    expect(source).toContain("runAccountDeletionStorageStageTick");
+    expect(source).not.toContain("executeAccountDeletionStorageObject");
+    expect(source).not.toMatch(/\.remove\(/);
+  });
+
+  it("W-NO-PROFILE / W-NO-AUTH: orchestrator source has no profile/auth deletion", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync(
       "lib/server/accountDeletionExecutionOrchestrator.ts",
       "utf8"
     );
     expect(source).not.toContain("deleteUser");
-    expect(source).not.toContain("cleanup_storage");
-    expect(source).not.toMatch(/status.*deleted/);
+    expect(source).not.toContain("auth.admin");
+    expect(source).not.toMatch(/stage.*profile/);
   });
 });

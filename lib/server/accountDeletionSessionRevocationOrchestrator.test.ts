@@ -183,6 +183,42 @@ describe("runAccountDeletionSessionRevocationPhase", () => {
     });
   });
 
+  it("SR-H2: storage → no signOut → later_stage_reached", async () => {
+    const deps = createDeps({
+      loadExecutionSnapshot: vi.fn(async () => ({
+        ok: true,
+        snapshot: activeSnapshot("storage"),
+      })),
+    });
+
+    const result = await runAccountDeletionSessionRevocationPhase({ context: CONTEXT, deps });
+
+    expect(result).toEqual({
+      ok: true,
+      code: "later_stage_reached",
+      stage: "storage",
+    });
+    expect(deps.revokeTargetSessions).not.toHaveBeenCalled();
+  });
+
+  it("SR-H3: storage_completed → no signOut → later_stage_reached", async () => {
+    const deps = createDeps({
+      loadExecutionSnapshot: vi.fn(async () => ({
+        ok: true,
+        snapshot: activeSnapshot("storage_completed"),
+      })),
+    });
+
+    const result = await runAccountDeletionSessionRevocationPhase({ context: CONTEXT, deps });
+
+    expect(result).toEqual({
+      ok: true,
+      code: "later_stage_reached",
+      stage: "storage_completed",
+    });
+    expect(deps.revokeTargetSessions).not.toHaveBeenCalled();
+  });
+
   it("SR-I: malformed target UUID → no signOut", async () => {
     const deps = createDeps();
     const result = await runAccountDeletionSessionRevocationPhase({

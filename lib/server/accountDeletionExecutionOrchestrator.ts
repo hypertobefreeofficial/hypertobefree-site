@@ -7,6 +7,7 @@ import {
   advanceAccountDeletionAttemptToInventory,
   type AccountDeletionAttemptStageTransitionResult,
 } from "./accountDeletionAttemptStageTransitions";
+import { isAccountDeletionExecutionEnabled } from "./accountDeletionExecutionPolicy";
 import { executeAccountDeletionNondestructiveDatabaseStage } from "./accountDeletionNondestructiveDatabaseStage";
 import {
   fetchAccountDeletionSchemaProbe,
@@ -27,16 +28,24 @@ import {
   captureAccountDeletionStorageManifest,
   type AccountDeletionStorageManifestCaptureResult,
 } from "./accountDeletionStorageManifestCapture";
+import { isAccountDeletionPhysicalStorageExecutionEnabled } from "./accountDeletionStorageExecutionPolicy";
+import {
+  runAccountDeletionStorageStageTick,
+  type AccountDeletionStorageStageTickResult,
+} from "./accountDeletionStorageStageRunner";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type AccountDeletionExecutionOrchestratorSuccessCode =
   | "database_completed"
-  | "already_completed";
+  | "already_completed"
+  | "storage_completed"
+  | "storage_in_progress";
 
 export type AccountDeletionExecutionOrchestratorFailureCode =
   | "invalid_arguments"
+  | "execution_disabled"
   | "schema_not_ready"
   | "target_not_found"
   | "blocked_owner"
@@ -58,6 +67,9 @@ export type AccountDeletionExecutionOrchestratorFailureCode =
   | "storage_manifest_capture_failed"
   | "storage_manifest_blocked"
   | "database_stage_failed"
+  | "storage_execution_disabled"
+  | "storage_blocked"
+  | "storage_precondition_failed"
   | "invariant_failed";
 
 export type AccountDeletionExecutionOrchestratorResult =
@@ -178,6 +190,8 @@ function mapPreflightFailure(
 }
 
 export type AccountDeletionExecutionOrchestratorDeps = {
+  isGlobalExecutionEnabled?: () => boolean;
+  isStorageOrchestrationEnabled?: () => boolean;
   verifySchemaReadiness: () => Promise<boolean>;
   runPreflight: (input: {
     requestId: string;
@@ -202,7 +216,23 @@ export type AccountDeletionExecutionOrchestratorDeps = {
   }) => Promise<
     Awaited<ReturnType<typeof executeAccountDeletionNondestructiveDatabaseStage>>
   >;
+  runStorageStageTick: (input: {
+    requestId: string;
+    attemptId: string;
+  }) => Promise<AccountDeletionStorageStageTickResult>;
 };
+
+async function verifyStorageStageRunnerReadiness(
+  serviceRoleClient: SupabaseClient
+): Promise<boolean> {
+  const { data, error } = await serviceRoleClient.rpc(
+    "verify_account_deletion_storage_stage_runner_ready"
+  );
+  if (error || data == null || typeof data !== "object") {
+    return false;
+  }
+  return (data as { ready?: boolean }).ready === true;
+}
 
 export function createAccountDeletionExecutionOrchestratorDeps(
   serviceRoleClient: SupabaseClient
@@ -258,13 +288,28 @@ export function createAccountDeletionExecutionOrchestratorDeps(
         attemptId: input.attemptId,
       });
     },
+    runStorageStageTick(input) {
+      return runAccountDeletionStorageStageTick({
+        requestId: input.requestId,
+        attemptId: input.attemptId,
+        deps: {
+          serviceRoleClient,
+          verifyRunnerReadiness: () =>
+            verifyStorageStageRunnerReadiness(serviceRoleClient),
+          isPhysicalStorageExecutionEnabled:
+            isAccountDeletionPhysicalStorageExecutionEnabled,
+        },
+      });
+    },
   };
 }
 
 type SessionResumePlan =
   | { kind: "advance_inventory" }
   | { kind: "at_inventory" }
-  | { kind: "at_database_completed" };
+  | { kind: "at_database_completed" }
+  | { kind: "at_storage" }
+  | { kind: "at_storage_completed" };
 
 function planAfterSessionPhase(
   session: AccountDeletionSessionRevocationOrchestratorResult
@@ -290,15 +335,73 @@ function planAfterSessionPhase(
       if (session.stage === "database_completed") {
         return { ok: true, plan: { kind: "at_database_completed" } };
       }
+      if (session.stage === "storage") {
+        return { ok: true, plan: { kind: "at_storage" } };
+      }
+      if (session.stage === "storage_completed") {
+        return { ok: true, plan: { kind: "at_storage_completed" } };
+      }
       return { ok: false, code: "stage_conflict" };
     default:
       return { ok: false, code: "invariant_failed" };
   }
 }
 
+function mapStorageTickToOrchestratorResult(
+  tick: AccountDeletionStorageStageTickResult,
+  context: AccountDeletionTrustedSessionExecutionContext
+): AccountDeletionExecutionOrchestratorResult {
+  const base = {
+    requestId: context.requestId,
+    attemptId: context.attemptId,
+    targetUserId: context.targetUserId,
+  };
+
+  switch (tick.code) {
+    case "storage_completed":
+    case "already_completed":
+      return { ok: true, code: "storage_completed", ...base };
+    case "in_progress":
+      return { ok: true, code: "storage_in_progress", ...base };
+    case "blocked":
+      return { ok: false, code: "storage_blocked" };
+    case "disabled":
+      return { ok: false, code: "storage_execution_disabled" };
+    case "precondition_failed":
+      return { ok: false, code: "storage_precondition_failed" };
+    default:
+      return { ok: false, code: "storage_precondition_failed" };
+  }
+}
+
+async function runBoundedStorageStageTick(
+  deps: AccountDeletionExecutionOrchestratorDeps,
+  context: AccountDeletionTrustedSessionExecutionContext
+): Promise<AccountDeletionExecutionOrchestratorResult> {
+  const tick = await deps.runStorageStageTick({
+    requestId: context.requestId,
+    attemptId: context.attemptId,
+  });
+  return mapStorageTickToOrchestratorResult(tick, context);
+}
+
+function resolveGlobalExecutionEnabled(
+  deps: AccountDeletionExecutionOrchestratorDeps
+): boolean {
+  return (deps.isGlobalExecutionEnabled ?? isAccountDeletionExecutionEnabled)();
+}
+
+function resolveStorageOrchestrationEnabled(
+  deps: AccountDeletionExecutionOrchestratorDeps
+): boolean {
+  return (
+    deps.isStorageOrchestrationEnabled ??
+    isAccountDeletionPhysicalStorageExecutionEnabled
+  )();
+}
+
 /**
- * End-to-end orchestration through nondestructive database stage only.
- * Stops at database_completed — no storage/profile/auth deletion.
+ * Controlled execution orchestrator: pre-Storage phases, then at most one Storage stage tick.
  */
 export async function runAccountDeletionExecutionOrchestrator(options: {
   requestId: string;
@@ -309,6 +412,10 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
 
   if (!isValidUuid(requestId) || !isValidUuid(initiatedBy)) {
     return { ok: false, code: "invalid_arguments" };
+  }
+
+  if (!resolveGlobalExecutionEnabled(deps)) {
+    return { ok: false, code: "execution_disabled" };
   }
 
   const schemaReady = await deps.verifySchemaReadiness();
@@ -341,6 +448,8 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     targetUserId,
   };
 
+  const storageOrchestrationEnabled = resolveStorageOrchestrationEnabled(deps);
+
   const session = await deps.runSessionPhase(executionContext);
   const resume = planAfterSessionPhase(session);
   if (resume.ok === false) {
@@ -351,6 +460,36 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     };
   }
 
+  if (resume.plan.kind === "at_storage_completed") {
+    return {
+      ok: true,
+      code: "storage_completed",
+      requestId,
+      attemptId,
+      targetUserId,
+    };
+  }
+
+  if (resume.plan.kind === "at_storage") {
+    if (!storageOrchestrationEnabled) {
+      return { ok: false, code: "storage_execution_disabled" };
+    }
+    return runBoundedStorageStageTick(deps, executionContext);
+  }
+
+  if (resume.plan.kind === "at_database_completed") {
+    if (!storageOrchestrationEnabled) {
+      return {
+        ok: true,
+        code: "already_completed",
+        requestId,
+        attemptId,
+        targetUserId,
+      };
+    }
+    return runBoundedStorageStageTick(deps, executionContext);
+  }
+
   if (resume.plan.kind === "advance_inventory") {
     const inventory = await deps.advanceToInventory(executionContext);
     const inventoryFailure = parseInventoryTransition(inventory, executionContext);
@@ -359,7 +498,6 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     }
   }
 
-  // Inventory (or already at inventory): authoritative storage manifest before 3B.1.
   if (
     resume.plan.kind === "advance_inventory" ||
     resume.plan.kind === "at_inventory"
@@ -434,21 +572,26 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     return { ok: false, code: "invariant_failed" };
   }
 
-  return {
-    ok: true,
-    code:
-      database.code === "already_completed"
-        ? "already_completed"
-        : "database_completed",
-    requestId,
-    attemptId,
-    targetUserId,
-  };
+  const databaseSuccessCode: AccountDeletionExecutionOrchestratorSuccessCode =
+    database.code === "already_completed" ? "already_completed" : "database_completed";
+
+  if (!storageOrchestrationEnabled) {
+    return {
+      ok: true,
+      code: databaseSuccessCode,
+      requestId,
+      attemptId,
+      targetUserId,
+    };
+  }
+
+  return runBoundedStorageStageTick(deps, executionContext);
 }
 
 export const ACCOUNT_DELETION_EXECUTION_ORCHESTRATOR_SCOPE_NOTE =
   "runAccountDeletionExecutionOrchestrator: sessions → inventory → "
-  + "authoritative storage manifest capture/finalize → 3B.1 → database_completed STOP. "
-  + "Storage, profile, auth user deletion, and request finalize=deleted are later phases. "
+  + "authoritative storage manifest capture/finalize → 3B.1 → database_completed; "
+  + "when dual execution flags are true, one bounded Storage stage tick via "
+  + "runAccountDeletionStorageStageTick. Profile/auth deletion remain later phases. "
   + "Pre-acquisition preflight reduces predictable failures but does not eliminate TOCTOU; "
   + "3B.1 in-transaction preflight + storage-manifest gate remain authoritative after acquisition.";

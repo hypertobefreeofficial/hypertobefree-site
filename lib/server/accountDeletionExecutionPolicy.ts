@@ -152,6 +152,11 @@ export type AccountDeletionExecutionOrchestrationHttpCode =
   | "invalid_arguments"
   | "database_completed"
   | "already_completed"
+  | "storage_completed"
+  | "storage_in_progress"
+  | "storage_execution_disabled"
+  | "storage_blocked"
+  | "storage_precondition_failed"
   | "execution_preflight_blocked"
   | "preflight_lookup_failed"
   | "preflight_invariant_failed";
@@ -193,6 +198,16 @@ export function sanitizeAccountDeletionOrchestrationErrorMessage(
       return "Nondestructive database stage completed.";
     case "already_completed":
       return "Nondestructive database stage was already completed.";
+    case "storage_completed":
+      return "Storage stage completed for this deletion attempt.";
+    case "storage_in_progress":
+      return "Storage stage work is in progress; invoke execute again to continue.";
+    case "storage_execution_disabled":
+      return "account_deletion_storage_execution_disabled";
+    case "storage_blocked":
+      return "Storage stage execution is blocked for this attempt.";
+    case "storage_precondition_failed":
+      return "Storage stage prerequisites were not satisfied.";
     default:
       return sanitizeAccountDeletionExecutionErrorMessage(
         code as AccountDeletionExecutionErrorCode
@@ -225,7 +240,14 @@ export function httpStatusForAccountDeletionOrchestrationError(
       return 409;
     case "database_completed":
     case "already_completed":
+    case "storage_completed":
+    case "storage_in_progress":
       return 200;
+    case "storage_execution_disabled":
+    case "storage_precondition_failed":
+      return 503;
+    case "storage_blocked":
+      return 409;
     default:
       return httpStatusForAccountDeletionExecutionError(
         code as AccountDeletionExecutionErrorCode

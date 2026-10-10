@@ -149,9 +149,22 @@ describe("account deletion rollout safety", () => {
     expect(executeRoute).not.toContain("accountDeletionSupabaseStorageAdapter");
     expect(executeHandler).not.toContain("executeAccountDeletionStorageObject");
     expect(executeRoute).not.toContain("executeAccountDeletionStorageObject");
+    expect(executeHandler).not.toContain("accountDeletionStorageStageRunner");
+    expect(executeRoute).not.toContain("accountDeletionStorageStageRunner");
+    expect(executeHandler).toContain("runAccountDeletionExecutionOrchestrator");
+    expect(executeRoute).toContain("handleAccountDeletionExecuteRequest");
     expect(executeHandler).not.toContain(".remove(");
     expect(executeRoute).not.toContain(".remove(");
     expect(storageExecutor).not.toContain("deleteUser");
+    const orchestrator = readFileSync(
+      "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "utf8"
+    );
+    expect(orchestrator).toContain("runAccountDeletionStorageStageTick");
+    expect(orchestrator).not.toContain("executeAccountDeletionStorageObject");
+    expect(orchestrator).not.toContain("deleteUser");
+    expect(orchestrator).not.toContain("cron");
+    expect(orchestrator).not.toContain("queue");
     expect(readFileSync("lib/server/accountDeletionPolicy.ts", "utf8")).toContain(
       "preserve_public"
     );
