@@ -5,6 +5,7 @@ import {
   sanitizeAccountDeletionStorageProviderDetail,
   type StorageObjectExistsFn,
 } from "./accountDeletionStorageObjectExecutor";
+import { ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE } from "./accountDeletionStorageObjectExistence";
 import { isAccountDeletionPhysicalStorageExecutionEnabled } from "./accountDeletionStorageExecutionPolicy";
 
 const FAIL_VALUES = [
@@ -53,10 +54,17 @@ function mockClient(handlers: {
   };
 }
 
+const existsResult = { status: "exists" as const };
+const absentResult = { status: "absent" as const };
+const uncertainResult = {
+  status: "uncertain" as const,
+  code: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
+};
+
 function enabledDeps(
   client: ReturnType<typeof mockClient>,
   remove = vi.fn(),
-  objectExists: StorageObjectExistsFn = async () => true
+  objectExists: StorageObjectExistsFn = async () => existsResult
 ) {
   return {
     serviceRoleClient: client as never,
@@ -175,8 +183,8 @@ describe("accountDeletionStorageObjectExecutor (EX-B–J)", () => {
     const remove = vi.fn(async () => ({ error: null }));
     const exists = vi
       .fn()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
+      .mockResolvedValueOnce(existsResult)
+      .mockResolvedValueOnce(absentResult);
 
     const client = mockClient({
       rpc: (name, args) => {
@@ -252,8 +260,8 @@ describe("accountDeletionStorageObjectExecutor (EX-B–J)", () => {
     const remove = vi.fn(async () => ({ error: null }));
     const exists = vi
       .fn()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(true);
+      .mockResolvedValueOnce(existsResult)
+      .mockResolvedValueOnce(existsResult);
     const complete = vi.fn();
     const client = mockClient({
       rpc: (name, args) => {
@@ -294,7 +302,7 @@ describe("accountDeletionStorageObjectExecutor (EX-B–J)", () => {
 
   it("EX-I: crash after remove — object absent completes missing", async () => {
     const remove = vi.fn(async () => ({ error: null }));
-    const exists = vi.fn(async () => false);
+    const exists = vi.fn(async () => absentResult);
     const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
       if (name === "claim_account_deletion_storage_execution_result") {
         return { data: { ok: false, code: "not_claimable" }, error: null };
@@ -396,6 +404,136 @@ describe("accountDeletionStorageObjectExecutor (EX-B–J)", () => {
 
     expect(result).toMatchObject({ ok: false, code: "authorize_failed" });
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+describe("existence fail-closed (3B.3F.0)", () => {
+  function authSuccessRpc() {
+    return (name: string, args: Record<string, unknown>) => {
+      if (name.includes("claim")) return { ok: true, claim_token: "tok" };
+      if (name.includes("authorize")) {
+        return {
+          ok: true,
+          bucket: "journey-private-media",
+          object_path: "p",
+          delete_commit_token: "c",
+        };
+      }
+      if (name.includes("complete")) {
+        return { ok: true, execution_state: "failed_retryable" };
+      }
+      return {};
+    };
+  }
+
+  it("L: uncertain pre-delete → no remove, failed_retryable via complete RPC", async () => {
+    const remove = vi.fn();
+    const complete = vi.fn();
+    const client = mockClient({
+      rpc: (name, args) => {
+        const payload = authSuccessRpc()(name, args);
+        if (name.includes("complete")) {
+          complete(args);
+        }
+        return payload;
+      },
+    });
+    const exists = vi.fn(async () => uncertainResult);
+
+    const result = await executeAccountDeletionStorageObject(
+      { requestId: "r", attemptId: "a", resultId: "res" },
+      enabledDeps(client, remove, exists)
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "storage_existence_check_failed",
+      retryable: true,
+    });
+    expect(remove).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_outcome: "failed_retryable",
+        p_error_code: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
+        p_error_detail_safe: null,
+      })
+    );
+    expect(JSON.stringify(complete.mock.calls)).not.toContain("Bearer");
+  });
+
+  it("K: confirmed absent pre-delete → missing completion, no remove", async () => {
+    const remove = vi.fn();
+    const complete = vi.fn();
+    const client = mockClient({
+      rpc: (name, args) => {
+        if (name.includes("claim")) return { ok: true, claim_token: "tok" };
+        if (name.includes("authorize")) {
+          return {
+            ok: true,
+            bucket: "journey-private-media",
+            object_path: "p",
+            delete_commit_token: "c",
+          };
+        }
+        if (name.includes("complete")) {
+          complete(args);
+          return { ok: true, execution_state: "missing" };
+        }
+        return {};
+      },
+    });
+
+    const result = await executeAccountDeletionStorageObject(
+      { requestId: "r", attemptId: "a", resultId: "res" },
+      enabledDeps(client, remove, async () => absentResult)
+    );
+
+    expect(result).toMatchObject({ ok: true, code: "missing" });
+    expect(remove).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({ p_outcome: "missing" })
+    );
+  });
+
+  it("M: remove succeeds but post-delete existence uncertain → no deleted/missing", async () => {
+    const remove = vi.fn(async () => ({ error: null }));
+    const complete = vi.fn();
+    const exists = vi
+      .fn()
+      .mockResolvedValueOnce(existsResult)
+      .mockResolvedValueOnce(uncertainResult);
+    const client = mockClient({
+      rpc: (name, args) => {
+        if (name.includes("complete")) {
+          complete(args);
+        }
+        return authSuccessRpc()(name, args);
+      },
+    });
+
+    const result = await executeAccountDeletionStorageObject(
+      { requestId: "r", attemptId: "a", resultId: "res" },
+      enabledDeps(client, remove, exists)
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "storage_existence_check_failed",
+      retryable: true,
+    });
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(complete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_outcome: "failed_retryable",
+        p_error_code: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
+      })
+    );
+    expect(complete).not.toHaveBeenCalledWith(
+      expect.objectContaining({ p_outcome: "deleted" })
+    );
+    expect(complete).not.toHaveBeenCalledWith(
+      expect.objectContaining({ p_outcome: "missing" })
+    );
   });
 });
 

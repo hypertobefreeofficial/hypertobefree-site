@@ -200,7 +200,7 @@ describeE2e("account deletion Supabase Storage adapter (local E2E opt-in)", () =
         ACCOUNT_DELETION_DESTRUCTIVE_STORAGE_BUCKET,
         syntheticPath
       )
-    ).toBe(true);
+    ).toEqual({ status: "exists" });
 
     const removed = await adapter.removeObjects(
       ACCOUNT_DELETION_DESTRUCTIVE_STORAGE_BUCKET,
@@ -212,7 +212,7 @@ describeE2e("account deletion Supabase Storage adapter (local E2E opt-in)", () =
         ACCOUNT_DELETION_DESTRUCTIVE_STORAGE_BUCKET,
         syntheticPath
       )
-    ).toBe(false);
+    ).toEqual({ status: "absent" });
   });
 });
 
@@ -401,7 +401,7 @@ describeE2e(
           ACCOUNT_DELETION_DESTRUCTIVE_STORAGE_BUCKET,
           fixture.objectPath
         )
-      ).toBe(false);
+      ).toEqual({ status: "absent" });
 
       const state = await pg.query<{ execution_state: string }>(
         `SELECT execution_state FROM public.account_deletion_storage_execution_results WHERE id = $1::uuid`,

@@ -10,6 +10,10 @@ import {
   createAccountDeletionSupabaseStorageAdapter,
   validateAccountDeletionStorageDeleteTarget,
 } from "./accountDeletionSupabaseStorageAdapter";
+import {
+  ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
+  type StorageObjectExistsFn,
+} from "./accountDeletionStorageObjectExistence";
 import { isAccountDeletionExecutionEnabled } from "./accountDeletionExecutionPolicy";
 import {
   isAccountDeletionPhysicalStorageExecutionEnabled,
@@ -42,6 +46,7 @@ export type AccountDeletionStorageObjectExecutorResult =
         | "complete_failed"
         | "storage_remove_failed"
         | "storage_postdelete_verification_failed"
+        | "storage_existence_check_failed"
         | "internal_error";
       detail?: string;
       retryable?: boolean;
@@ -52,10 +57,7 @@ export type StorageObjectRemoveFn = (
   paths: string[]
 ) => Promise<{ error: { message: string } | null }>;
 
-export type StorageObjectExistsFn = (
-  bucket: string,
-  objectPath: string
-) => Promise<boolean>;
+export type { AccountDeletionStorageObjectExistence, StorageObjectExistsFn } from "./accountDeletionStorageObjectExistence";
 
 export type AccountDeletionStorageObjectExecutorDeps = {
   serviceRoleClient: SupabaseClient;
@@ -119,6 +121,38 @@ function resolveExecutionFlags(deps: AccountDeletionStorageObjectExecutorDeps): 
     deps.isStorageExecutionEnabled ?? isAccountDeletionStorageExecutionEnabled
   )();
   return { globalEnabled, storageEnabled };
+}
+
+async function recordExistenceUncertainRetryable(
+  client: SupabaseClient,
+  params: {
+    requestId: string;
+    attemptId: string;
+    resultId: string;
+    commitToken: string;
+  }
+): Promise<AccountDeletionStorageObjectExecutorResult | null> {
+  const completeResp = await client.rpc(
+    "complete_account_deletion_storage_execution_object",
+    {
+      p_request_id: params.requestId,
+      p_attempt_id: params.attemptId,
+      p_result_id: params.resultId,
+      p_delete_commit_token: params.commitToken,
+      p_outcome: "failed_retryable",
+      p_error_code: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
+      p_error_detail_safe: null,
+    }
+  );
+  const completePayload = asPayload(completeResp.data);
+  if (completePayload.ok !== true) {
+    return {
+      ok: false,
+      code: "complete_failed",
+      detail: String(completePayload.code),
+    };
+  }
+  return null;
 }
 
 export async function executeAccountDeletionStorageObject(
@@ -249,7 +283,24 @@ export async function executeAccountDeletionStorageObject(
   }
 
   const existsBefore = await deps.objectExists(bucket, objectPath);
-  if (!existsBefore) {
+  if (existsBefore.status === "uncertain") {
+    const completeFailure = await recordExistenceUncertainRetryable(client, {
+      requestId,
+      attemptId,
+      resultId,
+      commitToken,
+    });
+    if (completeFailure) {
+      return completeFailure;
+    }
+    return {
+      ok: false,
+      code: "storage_existence_check_failed",
+      detail: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
+      retryable: true,
+    };
+  }
+  if (existsBefore.status === "absent") {
     const completeMissing = await client.rpc(
       "complete_account_deletion_storage_execution_object",
       {
@@ -297,8 +348,25 @@ export async function executeAccountDeletionStorageObject(
     };
   }
 
-  const stillExists = await deps.objectExists(bucket, objectPath);
-  if (stillExists) {
+  const afterRemoveExistence = await deps.objectExists(bucket, objectPath);
+  if (afterRemoveExistence.status === "uncertain") {
+    const completeFailure = await recordExistenceUncertainRetryable(client, {
+      requestId,
+      attemptId,
+      resultId,
+      commitToken,
+    });
+    if (completeFailure) {
+      return completeFailure;
+    }
+    return {
+      ok: false,
+      code: "storage_existence_check_failed",
+      detail: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
+      retryable: true,
+    };
+  }
+  if (afterRemoveExistence.status === "exists") {
     await client.rpc("complete_account_deletion_storage_execution_object", {
       p_request_id: requestId,
       p_attempt_id: attemptId,
