@@ -228,12 +228,18 @@ export async function seedApprovedAttemptAtInventory(
   try {
     await client.query("SET LOCAL ROLE service_role");
     const acquired = await client.query<{
-      payload: { ok?: boolean; attempt_id?: string };
+      payload: { ok?: boolean; code?: string; attempt_id?: string };
     }>(
       `SELECT public.acquire_account_deletion_execution_lock($1::uuid, $2::uuid) AS payload`,
       [requestId, RUNNER_IT_OWNER]
     );
-    attemptId = acquired.rows[0]?.payload?.attempt_id ?? "";
+    const payload = acquired.rows[0]?.payload;
+    if (payload?.ok !== true || !payload.attempt_id) {
+      throw new Error(
+        `account deletion acquisition failed: ${payload?.code ?? "missing_payload"}`
+      );
+    }
+    attemptId = payload.attempt_id;
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

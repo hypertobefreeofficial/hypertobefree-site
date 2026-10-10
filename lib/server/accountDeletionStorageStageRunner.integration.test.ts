@@ -314,7 +314,10 @@ describeIntegration(
       const requestId = randomUUID();
       await client.query(
         `UPDATE public.profiles SET avatar_url = $2 WHERE id = $1`,
-        [RUNNER_IT_TARGET, `profile-avatars/${avatarPath}`]
+        [
+          RUNNER_IT_TARGET,
+          `https://example.supabase.co/storage/v1/object/public/profile-avatars/${avatarPath}`,
+        ]
       );
       await client.query(
         `INSERT INTO storage.objects (bucket_id, name, owner)

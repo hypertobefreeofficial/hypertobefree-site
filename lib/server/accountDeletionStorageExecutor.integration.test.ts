@@ -962,6 +962,62 @@ describeIntegration(
       );
       expect(pending.rows[0]?.execution_state).toBe("pending");
       expect(pending.rows[0]?.claim_token).toBeNull();
+
+      for (const stage of ["storage_completed", "profile"] as const) {
+        await cleanup(client);
+        await seedUsers(client);
+        const stagedBase = await seedDeletePrivateFixture(client);
+        const stagedResult = await cloneDeletePrivateResult(
+          client,
+          REQUEST_ID,
+          stagedBase.attemptId,
+          stagedBase.manifestId,
+          `mixd-${stage}`
+        );
+        await client.query(
+          `UPDATE public.account_deletion_execution_attempts
+           SET stage = $2
+           WHERE id = $1`,
+          [stagedBase.attemptId, stage]
+        );
+        const stagedHold = await asAuthenticated<RpcPayload>(
+          client,
+          OWNER,
+          `SELECT public.create_account_deletion_storage_preservation_hold(
+            $1::uuid,'request'::text,'litigation_preservation'::text,NULL,NULL,NULL
+          ) AS payload`,
+          [REQUEST_ID]
+        );
+        expect(stagedHold.ok).toBe(true);
+        const stagedBlocked = await client.query<{ execution_state: string }>(
+          `SELECT execution_state
+           FROM public.account_deletion_storage_execution_results
+           WHERE id = $1`,
+          [stagedResult.resultId]
+        );
+        expect(stagedBlocked.rows[0]?.execution_state).toBe("blocked_on_hold");
+
+        await asAuthenticated<RpcPayload>(
+          client,
+          OWNER,
+          `SELECT public.release_account_deletion_storage_preservation_hold($1::uuid) AS payload`,
+          [stagedHold.hold_id],
+          { aal: "aal2" }
+        );
+        const stagedPending = await client.query<{
+          execution_state: string;
+          claim_token: string | null;
+        }>(
+          `SELECT execution_state, claim_token
+           FROM public.account_deletion_storage_execution_results
+           WHERE id = $1`,
+          [stagedResult.resultId]
+        );
+        expect(stagedPending.rows[0]).toEqual({
+          execution_state: "pending",
+          claim_token: null,
+        });
+      }
     });
 
     it("HD-I: release hold after invalidation — old claim dead, fresh claim required", async () => {

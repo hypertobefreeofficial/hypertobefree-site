@@ -7,6 +7,10 @@ export const ACCOUNT_DELETION_INTEGRATION_DB_URL_ENV =
 export const PRODUCTION_BASELINE_MIGRATION_FILENAME =
   "20260816183000_current_production_baseline.sql" as const;
 
+/** Test-only exact origin inserted after migrations; never used by Production. */
+export const INTEGRATION_PROFILE_AVATAR_APPROVED_ORIGIN =
+  "https://example.supabase.co" as const;
+
 export function isProductionBaselineMigration(filePath: string): boolean {
   return path.basename(filePath) === PRODUCTION_BASELINE_MIGRATION_FILENAME;
 }
@@ -158,6 +162,18 @@ export async function applyAccountDeletionMigrations(
       readMigrationFile(filePath)
     );
   }
+  await configureIntegrationProfileAvatarApprovedOrigin(client);
+}
+
+export async function configureIntegrationProfileAvatarApprovedOrigin(
+  client: PgQueryClient
+): Promise<void> {
+  await client.query(
+    `INSERT INTO public.account_deletion_profile_avatar_approved_origins (origin)
+     VALUES ($1)
+     ON CONFLICT (origin) DO NOTHING`,
+    [INTEGRATION_PROFILE_AVATAR_APPROVED_ORIGIN]
+  );
 }
 
 export async function resetAccountDeletionIntegrationSchema(

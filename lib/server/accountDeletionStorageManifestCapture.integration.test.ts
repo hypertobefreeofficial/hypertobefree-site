@@ -554,7 +554,10 @@ describeIntegration(
 
       await client.query(
         `UPDATE public.profiles SET avatar_url = $2 WHERE id = $1`,
-        [TARGET, `profile-avatars/${TARGET}/avatar.png`]
+        [
+          TARGET,
+          `https://example.supabase.co/storage/v1/object/public/profile-avatars/${TARGET}/avatar.png`,
+        ]
       );
       await client.query(
         `INSERT INTO public.stories (id, user_id, name, email, story_text, image_url, video_url, thumbnail_url, status)

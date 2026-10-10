@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   ACCOUNT_DELETION_INTEGRATION_DB_URL_ENV,
   applyOneAccountDeletionMigration,
+  configureIntegrationProfileAvatarApprovedOrigin,
   getAccountDeletionIntegrationDbUrl,
   listAccountDeletionMigrations,
   readMigrationFile,
@@ -194,6 +195,7 @@ describeIntegration(
         hardeningPath,
         readMigrationFile(hardeningPath)
       );
+      await configureIntegrationProfileAvatarApprovedOrigin(client);
 
       const versionRow = await client.query<{ num: number }>(
         `SELECT current_setting('server_version_num')::integer AS num`

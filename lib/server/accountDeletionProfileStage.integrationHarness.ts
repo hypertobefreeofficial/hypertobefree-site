@@ -44,8 +44,9 @@ export const PROFILE_SYNTHETIC = {
   realName: "Real Name PII",
   location: "90210 Radiusville",
   bio: "Bio PII secret phrase",
-  avatarPath: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatar-pii.png",
-  avatarUrl: "profile-avatars/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatar-pii.png",
+  avatarPath: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatar.png",
+  avatarUrl:
+    "https://example.supabase.co/storage/v1/object/public/profile-avatars/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatar.png",
 } as const;
 
 /**

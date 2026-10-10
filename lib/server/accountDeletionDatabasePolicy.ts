@@ -336,6 +336,15 @@ export const ACCOUNT_DELETION_PROFILE_STAGE_FOUNDATION_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.4A",
 } as const;
 
+export const ACCOUNT_DELETION_PROFILE_MEDIA_EXECUTION_FOUNDATION_MIGRATION = {
+  version: "20260919250000",
+  filename:
+    "20260919250000_account_deletion_profile_media_execution_foundation_phase4c7b1e2c3b4b1.sql",
+  relativePath:
+    "supabase/migrations/20260919250000_account_deletion_profile_media_execution_foundation_phase4c7b1e2c3b4b1.sql",
+  phase: "4C.7B.1E.2C.3B.4B.1",
+} as const;
+
 /** Physical executor DB authority: delete commit token, authorize/complete RPCs, hold actor binding. */
 export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   "authorize_account_deletion_storage_object_delete is the atomic point-of-no-return before Storage remove(). "
@@ -363,6 +372,13 @@ export const ACCOUNT_DELETION_PROFILE_STAGE_FOUNDATION_NOTE =
   "prepare_account_deletion_profile_stage(storage_completed→profile) deletes private account rows and "
   + "scrubs profiles PII including avatar_url=NULL. No profile row DELETE. deferred_profile execution "
   + "results are unchanged. Not orchestrator-wired. Physical profile-avatars deletion remains 3B.4B.";
+
+/** Profile-avatar DB authority and reference safety only; no provider executor or wiring. */
+export const ACCOUNT_DELETION_PROFILE_MEDIA_EXECUTION_FOUNDATION_NOTE =
+  "3B.4B.1 adds exact profile-avatars parsing, ownership/reference safety, avatar write guards, "
+  + "and separate profile-stage claim/authorize/complete authority for DEFER_PROFILE. "
+  + "The scrubbed profile shell remains, no Storage/Auth/profile DELETE occurs, and no route or "
+  + "orchestrator invokes this unwired control plane.";
 
 /** Durable execution-result + preservation-hold plane; no Storage remove(). */
 export const ACCOUNT_DELETION_STORAGE_EXECUTION_FOUNDATION_NOTE =
