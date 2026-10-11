@@ -345,6 +345,15 @@ export const ACCOUNT_DELETION_PROFILE_MEDIA_EXECUTION_FOUNDATION_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.4B.1",
 } as const;
 
+export const ACCOUNT_DELETION_PROFILE_MEDIA_RUNNER_FOUNDATION_MIGRATION = {
+  version: "20260919260000",
+  filename:
+    "20260919260000_account_deletion_profile_media_runner_foundation_phase4c7b1e2c3b4b2.sql",
+  relativePath:
+    "supabase/migrations/20260919260000_account_deletion_profile_media_runner_foundation_phase4c7b1e2c3b4b2.sql",
+  phase: "4C.7B.1E.2C.3B.4B.2.1",
+} as const;
+
 /** Physical executor DB authority: delete commit token, authorize/complete RPCs, hold actor binding. */
 export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   "authorize_account_deletion_storage_object_delete is the atomic point-of-no-return before Storage remove(). "
@@ -379,6 +388,12 @@ export const ACCOUNT_DELETION_PROFILE_MEDIA_EXECUTION_FOUNDATION_NOTE =
   + "and separate profile-stage claim/authorize/complete authority for DEFER_PROFILE. "
   + "The scrubbed profile shell remains, no Storage/Auth/profile DELETE occurs, and no route or "
   + "orchestrator invokes this unwired control plane.";
+
+/** Read-only profile-media actionable result-ID selector; no TypeScript runner wiring (3B.4B.2.1). */
+export const ACCOUNT_DELETION_PROFILE_MEDIA_RUNNER_FOUNDATION_NOTE =
+  "select_account_deletion_profile_media_actionable_result_ids returns up to five DEFER_PROFILE "
+  + "profile_avatar result UUIDs only. Claim/authorize remain authoritative. No Storage remove(), "
+  + "no profile_completed transition, and no orchestrator/route wiring in 3B.4B.2.1.";
 
 /** Durable execution-result + preservation-hold plane; no Storage remove(). */
 export const ACCOUNT_DELETION_STORAGE_EXECUTION_FOUNDATION_NOTE =

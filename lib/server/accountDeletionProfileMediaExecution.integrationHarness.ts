@@ -110,6 +110,29 @@ export function completeProfileMedia(
   );
 }
 
+export function selectProfileMediaActionable(
+  client: Client,
+  fixture: Pick<ProfileMediaFixture, "requestId" | "attemptId">,
+  limit?: number | null
+) {
+  if (limit === undefined) {
+    return asServiceRole<ProfileMediaRpcPayload>(
+      client,
+      `SELECT public.select_account_deletion_profile_media_actionable_result_ids(
+         $1::uuid,$2::uuid
+       ) AS payload`,
+      [fixture.requestId, fixture.attemptId]
+    );
+  }
+  return asServiceRole<ProfileMediaRpcPayload>(
+    client,
+    `SELECT public.select_account_deletion_profile_media_actionable_result_ids(
+       $1::uuid,$2::uuid,$3::integer
+     ) AS payload`,
+    [fixture.requestId, fixture.attemptId, limit]
+  );
+}
+
 export async function claimAndAuthorizeProfileMedia(
   client: Client,
   fixture: ProfileMediaFixture

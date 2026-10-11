@@ -253,6 +253,23 @@ describe("account deletion rollout safety", () => {
     );
   });
 
+  it("keeps 3B.4B.2.1 selector migration read-only and unwired", () => {
+    const migration = readFileSync(
+      "supabase/migrations/20260919260000_account_deletion_profile_media_runner_foundation_phase4c7b1e2c3b4b2.sql",
+      "utf8"
+    );
+    expect(migration).toContain(
+      "select_account_deletion_profile_media_actionable_result_ids"
+    );
+    expect(migration).not.toContain("profile_completed");
+    expect(migration).not.toMatch(/\bDELETE\s+FROM\s+storage\.objects\b/i);
+    expect(migration).not.toMatch(/\bDELETE\s+FROM\s+public\.profiles\b/i);
+    expect(migration).not.toMatch(/\bauth\.users\b/i);
+    expect(
+      existsSync("lib/server/accountDeletionProfileMediaStageRunner.ts")
+    ).toBe(false);
+  });
+
   it("adds no profile/Auth row deletion or profile completion transition", () => {
     const productionSources = [
       "lib/server/accountDeletionStorageProviderSafety.ts",
