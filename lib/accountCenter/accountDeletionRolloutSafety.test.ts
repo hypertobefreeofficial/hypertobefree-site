@@ -207,11 +207,37 @@ describe("account deletion rollout safety", () => {
     }
 
     expect(
-      existsSync("lib/server/accountDeletionProfileMediaStageRunner.ts")
-    ).toBe(false);
-    expect(
       existsSync("lib/server/accountDeletionProfileMediaRunner.ts")
     ).toBe(false);
+  });
+
+  it("keeps the 3B.4B.2B.2 profile-media stage runner unwired", () => {
+    expect(
+      existsSync("lib/server/accountDeletionProfileMediaStageRunner.ts")
+    ).toBe(true);
+
+    const protectedEntryPoints = [
+      "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "lib/server/accountDeletionExecuteHandler.ts",
+      "app/api/admin/account-deletion/[requestId]/execute/route.ts",
+    ];
+    for (const file of protectedEntryPoints) {
+      const source = readFileSync(file, "utf8");
+      expect(source).not.toContain("accountDeletionProfileMediaStageRunner");
+      expect(source).not.toContain("runAccountDeletionProfileMediaTick");
+    }
+
+    const runner = readFileSync(
+      "lib/server/accountDeletionProfileMediaStageRunner.ts",
+      "utf8"
+    );
+    expect(runner).toContain('import "server-only"');
+    expect(runner).not.toContain("profile_completed");
+    expect(runner).not.toMatch(/DELETE\s+FROM\s+(?:public\.)?profiles/i);
+    expect(runner).not.toContain("auth.admin.deleteUser");
+    expect(runner).not.toContain(".remove(");
+    expect(runner).not.toMatch(/Promise\.all/);
+    expect(runner).not.toMatch(/\bwhile\s*\(/);
   });
 
   it("keeps profile-avatar destructive authority server-only and adapter-local", () => {
@@ -265,9 +291,6 @@ describe("account deletion rollout safety", () => {
     expect(migration).not.toMatch(/\bDELETE\s+FROM\s+storage\.objects\b/i);
     expect(migration).not.toMatch(/\bDELETE\s+FROM\s+public\.profiles\b/i);
     expect(migration).not.toMatch(/\bauth\.users\b/i);
-    expect(
-      existsSync("lib/server/accountDeletionProfileMediaStageRunner.ts")
-    ).toBe(false);
   });
 
   it("adds no profile/Auth row deletion or profile completion transition", () => {

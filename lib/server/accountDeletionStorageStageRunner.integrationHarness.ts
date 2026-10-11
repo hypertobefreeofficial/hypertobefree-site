@@ -432,6 +432,21 @@ function rpcToSql(call: RpcCall): { sql: string; params: unknown[] } {
           args.p_error_detail_safe ?? null,
         ],
       };
+    case "verify_account_deletion_profile_media_runner_ready":
+      return {
+        sql: `SELECT public.verify_account_deletion_profile_media_runner_ready() AS payload`,
+        params: [],
+      };
+    case "account_deletion_profile_media_progress_snapshot":
+      return {
+        sql: `SELECT public.account_deletion_profile_media_progress_snapshot($1::uuid,$2::uuid) AS payload`,
+        params: [args.p_request_id, args.p_attempt_id],
+      };
+    case "select_account_deletion_profile_media_actionable_result_ids":
+      return {
+        sql: `SELECT public.select_account_deletion_profile_media_actionable_result_ids($1::uuid,$2::uuid,$3::integer) AS payload`,
+        params: [args.p_request_id, args.p_attempt_id, args.p_limit],
+      };
     default:
       throw new Error(`unsupported rpc in integration shim: ${fn}`);
   }
