@@ -6,16 +6,37 @@ import {
   parseAccountDeletionProfileMediaDeleteAuthority,
   parseAccountDeletionProfileMediaProgress,
 } from "./accountDeletionProfileMediaPolicy";
+import { isAccountDeletionExecutionEnabled } from "./accountDeletionExecutionPolicy";
+import { isAccountDeletionProfileExecutionEnabled } from "./accountDeletionProfileStagePolicy";
+import { isAccountDeletionStorageExecutionEnabled } from "./accountDeletionStorageExecutionPolicy";
+
+const NONEXACT_FLAG_VALUES = ["TRUE", "1", "yes", " true ", "", undefined] as const;
+
+const FLAG_HELPERS = [
+  [
+    "HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED",
+    isAccountDeletionExecutionEnabled,
+  ],
+  [
+    "HTBF_ACCOUNT_DELETION_PROFILE_EXECUTION_ENABLED",
+    isAccountDeletionProfileExecutionEnabled,
+  ],
+  [
+    "HTBF_ACCOUNT_DELETION_STORAGE_EXECUTION_ENABLED",
+    isAccountDeletionStorageExecutionEnabled,
+  ],
+] as const;
 
 describe("accountDeletionProfileMediaPolicy", () => {
   it("requires global, profile, and storage flags to be exact true", () => {
-    const env = {
+    const env: NodeJS.ProcessEnv = {
+      NODE_ENV: "test",
       HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED: "true",
       HTBF_ACCOUNT_DELETION_PROFILE_EXECUTION_ENABLED: "true",
       HTBF_ACCOUNT_DELETION_STORAGE_EXECUTION_ENABLED: "true",
     };
     expect(isAccountDeletionPhysicalProfileMediaExecutionEnabled(env)).toBe(true);
-    for (const flag of Object.keys(env)) {
+    for (const [flag] of FLAG_HELPERS) {
       expect(
         isAccountDeletionPhysicalProfileMediaExecutionEnabled({
           ...env,
@@ -23,7 +44,44 @@ describe("accountDeletionProfileMediaPolicy", () => {
         })
       ).toBe(false);
     }
-    expect(isAccountDeletionPhysicalProfileMediaExecutionEnabled({})).toBe(false);
+    expect(
+      isAccountDeletionPhysicalProfileMediaExecutionEnabled({
+        NODE_ENV: "test",
+      })
+    ).toBe(false);
+  });
+
+  for (const [flag, helper] of FLAG_HELPERS) {
+    it(`${flag} enables only for the exact string true`, () => {
+      expect(helper({ NODE_ENV: "test", [flag]: "true" })).toBe(true);
+      for (const value of NONEXACT_FLAG_VALUES) {
+        const env: NodeJS.ProcessEnv = { NODE_ENV: "test" };
+        if (value !== undefined) env[flag] = value;
+        expect(helper(env), `${flag}=${String(value)}`).toBe(false);
+      }
+    });
+  }
+
+  it("physical profile deletion rejects every nonexact value on every flag", () => {
+    const exact: NodeJS.ProcessEnv = {
+      NODE_ENV: "test",
+      HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED: "true",
+      HTBF_ACCOUNT_DELETION_PROFILE_EXECUTION_ENABLED: "true",
+      HTBF_ACCOUNT_DELETION_STORAGE_EXECUTION_ENABLED: "true",
+    };
+    expect(isAccountDeletionPhysicalProfileMediaExecutionEnabled(exact)).toBe(true);
+
+    for (const [flag] of FLAG_HELPERS) {
+      for (const value of NONEXACT_FLAG_VALUES) {
+        const env = { ...exact };
+        if (value === undefined) delete env[flag];
+        else env[flag] = value;
+        expect(
+          isAccountDeletionPhysicalProfileMediaExecutionEnabled(env),
+          `${flag}=${String(value)}`
+        ).toBe(false);
+      }
+    }
   });
 
   it("exposes only the DEFER_PROFILE execution states", () => {

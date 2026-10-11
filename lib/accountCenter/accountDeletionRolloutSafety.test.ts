@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ACCOUNT_DELETION_TRANSITIONAL_DB_STATUSES,
@@ -13,6 +14,14 @@ import {
   buildAccountDeletionInsertRow,
   isOpenAccountDeletionRequest,
 } from "./accountDeletionRequest";
+
+function sourceFilesUnder(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) return sourceFilesUnder(fullPath);
+    return /\.(?:ts|tsx)$/.test(entry.name) ? [fullPath] : [];
+  });
+}
 
 describe("account deletion rollout safety", () => {
   it("transitional migration retains legacy completed writes for old admin bundles", () => {
@@ -181,5 +190,81 @@ describe("account deletion rollout safety", () => {
     const policy = readFileSync("lib/server/accountDeletionPolicy.ts", "utf8");
     expect(policy).toContain('"story-videos": "preserve_public"');
     expect(policy).not.toContain('"story-videos": "hard_delete"');
+  });
+
+  it("keeps the 3B.4B.2A profile-media executor completely unwired", () => {
+    const protectedEntryPoints = [
+      "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "lib/server/accountDeletionExecuteHandler.ts",
+      "app/api/admin/account-deletion/[requestId]/execute/route.ts",
+    ];
+    for (const file of protectedEntryPoints) {
+      const source = readFileSync(file, "utf8");
+      expect(source).not.toContain("accountDeletionProfileMediaObjectExecutor");
+      expect(source).not.toContain("accountDeletionProfileMediaStorageAdapter");
+      expect(source).not.toContain("executeAccountDeletionProfileMediaObject");
+      expect(source).not.toContain("profile_completed");
+    }
+
+    expect(
+      existsSync("lib/server/accountDeletionProfileMediaStageRunner.ts")
+    ).toBe(false);
+    expect(
+      existsSync("lib/server/accountDeletionProfileMediaRunner.ts")
+    ).toBe(false);
+  });
+
+  it("keeps profile-avatar destructive authority server-only and adapter-local", () => {
+    const clientRoots = ["app", "components", "contexts", "hooks"].filter(
+      existsSync
+    );
+    for (const file of clientRoots.flatMap(sourceFilesUnder)) {
+      const source = readFileSync(file, "utf8");
+      expect(source, file).not.toContain(
+        "accountDeletionProfileMediaStorageAdapter"
+      );
+      expect(source, file).not.toContain(
+        "accountDeletionProfileMediaObjectExecutor"
+      );
+    }
+
+    const adapter = readFileSync(
+      "lib/server/accountDeletionProfileMediaStorageAdapter.ts",
+      "utf8"
+    );
+    const executor = readFileSync(
+      "lib/server/accountDeletionProfileMediaObjectExecutor.ts",
+      "utf8"
+    );
+    const ordinaryAdapter = readFileSync(
+      "lib/server/accountDeletionSupabaseStorageAdapter.ts",
+      "utf8"
+    );
+    expect(adapter).toContain(
+      'ACCOUNT_DELETION_PROFILE_MEDIA_STORAGE_BUCKET =\n  "profile-avatars"'
+    );
+    expect(adapter).toMatch(/\.remove\(\[objectPath\]\)/);
+    expect(executor).not.toMatch(/\.remove\s*\(/);
+    expect(ordinaryAdapter).toContain(
+      'ACCOUNT_DELETION_DESTRUCTIVE_STORAGE_BUCKET =\n  "journey-private-media"'
+    );
+    expect(ordinaryAdapter).toContain(
+      '"profile-avatars": "bucket_profile_avatars_forbidden"'
+    );
+  });
+
+  it("adds no profile/Auth row deletion or profile completion transition", () => {
+    const productionSources = [
+      "lib/server/accountDeletionStorageProviderSafety.ts",
+      "lib/server/accountDeletionProfileMediaStorageAdapter.ts",
+      "lib/server/accountDeletionProfileMediaObjectExecutor.ts",
+    ].map((file) => readFileSync(file, "utf8"));
+    for (const source of productionSources) {
+      expect(source).not.toMatch(/DELETE\s+FROM\s+storage\.objects/i);
+      expect(source).not.toMatch(/DELETE\s+FROM\s+(?:public\.)?profiles/i);
+      expect(source).not.toMatch(/DELETE\s+FROM\s+auth\.users/i);
+      expect(source).not.toContain("auth.admin.deleteUser");
+      expect(source).not.toContain("profile_completed");
+    }
   });
 });

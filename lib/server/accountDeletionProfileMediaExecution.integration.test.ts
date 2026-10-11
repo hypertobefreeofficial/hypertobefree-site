@@ -529,6 +529,19 @@ describeIntegration(
       expect((await claimProfileMedia(client, fixture)).code).toBe(
         "profile_media_reference_active"
       );
+
+      // Availability-fail-safe policy: even an unrelated malformed internal
+      // avatar reference blocks physical profile-media authority.
+      fixture = await driveLifecycleToProfileMedia(client);
+      await client.query(`ALTER TABLE public.profiles DISABLE TRIGGER USER`);
+      await client.query(`UPDATE public.profiles SET avatar_url = $2 WHERE id = $1`, [
+        RUNNER_IT_OTHER,
+        `${RUNNER_IT_OTHER}/avatar.png`,
+      ]);
+      await client.query(`ALTER TABLE public.profiles ENABLE TRIGGER USER`);
+      expect((await claimProfileMedia(client, fixture)).code).toBe(
+        "profile_media_reference_active"
+      );
     });
 
     it("B1-WRITE-GUARD: own/external writes survive; cross-user and deletion reattachment fail", async () => {

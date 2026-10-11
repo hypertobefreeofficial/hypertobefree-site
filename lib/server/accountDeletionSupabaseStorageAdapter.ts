@@ -5,84 +5,25 @@
 
 import "server-only";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StorageObjectRemoveFn } from "./accountDeletionStorageObjectExecutor";
 import {
   ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
-  type AccountDeletionStorageObjectExistence,
   type StorageObjectExistsFn,
 } from "./accountDeletionStorageObjectExistence";
+import {
+  classifyAccountDeletionStorageDownloadExistence,
+  createAccountDeletionServiceRoleSupabaseClient,
+  normalizeAccountDeletionStorageHttpStatus,
+} from "./accountDeletionStorageProviderSafety";
 
 export type { AccountDeletionStorageObjectExistence } from "./accountDeletionStorageObjectExistence";
-
-type StorageDownloadErrorLike = {
-  message?: string;
-  statusCode?: string | number;
-  status?: string | number;
-  name?: string;
+export {
+  classifyAccountDeletionStorageDownloadExistence,
+  createAccountDeletionServiceRoleSupabaseClient,
 };
-
-export function classifyAccountDeletionStorageDownloadExistence(
-  data: Blob | null | undefined,
-  error: StorageDownloadErrorLike | null | undefined
-): AccountDeletionStorageObjectExistence {
-  if (data != null) {
-    return { status: "exists" };
-  }
-
-  if (error == null) {
-    return {
-      status: "uncertain",
-      code: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
-    };
-  }
-
-  const statusCode = normalizeHttpStatus(
-    error.statusCode ?? error.status
-  );
-  if (statusCode === 404) {
-    return { status: "absent" };
-  }
-
-  if (
-    statusCode === 400 ||
-    statusCode === 401 ||
-    statusCode === 403 ||
-    statusCode === 409 ||
-    statusCode === 429 ||
-    (statusCode != null && statusCode >= 500)
-  ) {
-    return {
-      status: "uncertain",
-      code: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
-    };
-  }
-
-  // Absence requires structured HTTP 404 on status/statusCode only — never message text.
-  return {
-    status: "uncertain",
-    code: ACCOUNT_DELETION_STORAGE_EXISTENCE_UNCERTAIN_CODE,
-  };
-}
-
-export function normalizeHttpStatus(value: unknown): number | null {
-  if (value === 404) {
-    return 404;
-  }
-  if (value === "404") {
-    return 404;
-  }
-
-  if (typeof value === "number" && Number.isInteger(value)) {
-    return value;
-  }
-
-  if (typeof value === "string" && /^[1-5][0-9]{2}$/.test(value)) {
-    return Number(value);
-  }
-
-  return null;
-}
+export const normalizeHttpStatus =
+  normalizeAccountDeletionStorageHttpStatus;
 
 export const ACCOUNT_DELETION_DESTRUCTIVE_STORAGE_BUCKET =
   "journey-private-media" as const;
@@ -162,19 +103,6 @@ export function validateAccountDeletionStorageDeleteTarget(
     return bucketCheck;
   }
   return validateAccountDeletionStorageObjectPath(objectPath);
-}
-
-export function createAccountDeletionServiceRoleSupabaseClient(
-  env: NodeJS.ProcessEnv = process.env
-): SupabaseClient {
-  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("account_deletion_missing_supabase_service_role_config");
-  }
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 }
 
 export type AccountDeletionSupabaseStorageAdapter = {
