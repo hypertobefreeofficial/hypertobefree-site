@@ -132,7 +132,11 @@ export async function cleanupProfileIntegration(client: Client) {
   ]);
 }
 
-export async function seedSyntheticTargetProfile(client: Client) {
+export async function seedSyntheticTargetProfile(
+  client: Client,
+  options: { withoutAvatar?: boolean } = {}
+) {
+  const withoutAvatar = options.withoutAvatar === true;
   /** Privileged test-only: synthetic PII including an established username for scrub coverage. */
   await client.query(
     `INSERT INTO auth.users (id, email) VALUES ($1,$2) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email`,
@@ -185,18 +189,20 @@ export async function seedSyntheticTargetProfile(client: Client) {
       PROFILE_SYNTHETIC.realName,
       PROFILE_SYNTHETIC.location,
       PROFILE_SYNTHETIC.bio,
-      PROFILE_SYNTHETIC.avatarUrl,
+      withoutAvatar ? null : PROFILE_SYNTHETIC.avatarUrl,
     ]
   );
   await client.query(
     `UPDATE public.profiles SET is_owner = true, is_admin = true WHERE id = $1`,
     [RUNNER_IT_OWNER]
   );
-  await client.query(
-    `INSERT INTO storage.objects (bucket_id, name, owner)
-     VALUES ('profile-avatars', $1, $2) ON CONFLICT DO NOTHING`,
-    [PROFILE_SYNTHETIC.avatarPath, RUNNER_IT_TARGET]
-  );
+  if (!withoutAvatar) {
+    await client.query(
+      `INSERT INTO storage.objects (bucket_id, name, owner)
+       VALUES ('profile-avatars', $1, $2) ON CONFLICT DO NOTHING`,
+      [PROFILE_SYNTHETIC.avatarPath, RUNNER_IT_TARGET]
+    );
+  }
 }
 
 export async function seedCompanionUsers(client: Client) {
@@ -381,12 +387,23 @@ export async function driveLifecycleToStorageCompleted(
     sharedPublicStory?: boolean;
     deletePrivateCount?: number;
     deferProfileHold?: boolean;
+    clearAvatarBeforeCapture?: boolean;
+    neverHadAvatar?: boolean;
   } = {}
 ): Promise<StorageCompletedFixture> {
   await cleanupProfileIntegration(client);
   await seedRunnerIntegrationUsers(client);
   await seedCompanionUsers(client);
-  await seedSyntheticTargetProfile(client);
+  await seedSyntheticTargetProfile(client, {
+    withoutAvatar: options.neverHadAvatar === true,
+  });
+
+  if (options.clearAvatarBeforeCapture && !options.neverHadAvatar) {
+    await client.query(
+      `UPDATE public.profiles SET avatar_url = NULL WHERE id = $1`,
+      [RUNNER_IT_TARGET]
+    );
+  }
 
   if (options.sharedPublicStory) {
     await seedSharedPublicContentBeforeAcquisition(client);

@@ -21,7 +21,11 @@ export type ProfileMediaRpcPayload = Record<string, unknown>;
 
 export async function driveLifecycleToProfileMedia(
   client: Client,
-  options: { deletePrivateCount?: number } = {}
+  options: {
+    deletePrivateCount?: number;
+    sharedPublicStory?: boolean;
+    clearAvatarBeforeCapture?: boolean;
+  } = {}
 ): Promise<ProfileMediaFixture> {
   const fixture = await driveLifecycleToStorageCompleted(client, options);
   const prepared = await prepareProfileStageRpc(

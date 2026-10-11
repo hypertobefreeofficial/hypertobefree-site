@@ -211,6 +211,24 @@ describe("account deletion rollout safety", () => {
     ).toBe(false);
   });
 
+  it("keeps the 3B.4C profile completion finalizer unwired", () => {
+    const protectedEntryPoints = [
+      "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "lib/server/accountDeletionExecuteHandler.ts",
+      "app/api/admin/account-deletion/[requestId]/execute/route.ts",
+      "lib/server/accountDeletionProfileMediaStageRunner.ts",
+    ];
+    for (const file of protectedEntryPoints) {
+      const source = readFileSync(file, "utf8");
+      expect(source).not.toContain("accountDeletionProfileCompletion");
+      expect(source).not.toContain("finalizeAccountDeletionProfileStage");
+      expect(source).not.toContain("finalize_account_deletion_profile_stage");
+    }
+    expect(
+      existsSync("lib/server/accountDeletionProfileCompletion.ts")
+    ).toBe(false);
+  });
+
   it("keeps the 3B.4B.2B.2 profile-media stage runner unwired", () => {
     expect(
       existsSync("lib/server/accountDeletionProfileMediaStageRunner.ts")
