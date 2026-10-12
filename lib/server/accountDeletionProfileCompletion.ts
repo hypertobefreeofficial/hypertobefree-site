@@ -42,8 +42,9 @@ export type AccountDeletionProfileCompletionResult =
 
 export const ACCOUNT_DELETION_PROFILE_COMPLETION_DISCONNECTED_NOTE =
   "finalizeAccountDeletionProfileStage (3B.4C.2) wraps finalize_account_deletion_profile_stage only. "
-  + "Intentionally NOT wired to the account deletion orchestrator, execute handler, admin route, "
-  + "or production execution flow yet.";
+  + "Wired exclusively through runAccountDeletionExecutionOrchestrator when profile execution is enabled; "
+  + "not invoked directly from the execute handler, admin route, UI, or profile-media stage runner. "
+  + "No Auth deletion authority; profile completion stops at profile_completed.";
 
 type FinalizeRpcPayload = {
   ok?: boolean;

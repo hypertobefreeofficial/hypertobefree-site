@@ -244,7 +244,7 @@ describe("account deletion profile-media foundation (3B.4B.1)", () => {
 });
 
 describe("profile-media foundation has no invocation surface", () => {
-  it("is not imported or called by route, handler, or orchestrator", () => {
+  it("is not imported by route/handler; orchestrator delegates ticks only", () => {
     const route = readFileSync(
       "app/api/admin/account-deletion/[requestId]/execute/route.ts",
       "utf8"
@@ -257,15 +257,18 @@ describe("profile-media foundation has no invocation surface", () => {
       "lib/server/accountDeletionExecutionOrchestrator.ts",
       "utf8"
     );
-    const combined = `${route}\n${handler}\n${orchestrator}`;
-    expect(combined).not.toContain("accountDeletionProfileMedia");
-    expect(combined).not.toContain(
+    const entrypoints = `${route}\n${handler}`;
+    expect(entrypoints).not.toContain("accountDeletionProfileMedia");
+    expect(entrypoints).not.toContain(
       "claim_account_deletion_profile_media_execution_result"
     );
-    expect(combined).not.toContain("authorize_account_deletion_profile_media_delete");
-    expect(combined).not.toContain(
+    expect(entrypoints).not.toContain("authorize_account_deletion_profile_media_delete");
+    expect(entrypoints).not.toContain(
       "complete_account_deletion_profile_media_execution_result"
     );
+    expect(orchestrator).toContain("runAccountDeletionProfileMediaTick");
+    expect(orchestrator).not.toContain("accountDeletionProfileMediaObjectExecutor");
+    expect(orchestrator).not.toContain("executeAccountDeletionProfileMediaObject");
   });
 
   it("has no API, cron, worker, queue, or UI caller", () => {

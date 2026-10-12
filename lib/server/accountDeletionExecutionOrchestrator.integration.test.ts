@@ -15,8 +15,16 @@ import {
 import type { AccountDeletionStorageStageTickResult } from "./accountDeletionStorageStageRunner";
 import {
   asServiceRole,
+  createPgSupabaseShim,
   isDedicatedVanillaIntegrationDb,
+  RUNNER_IT_OWNER,
+  RUNNER_IT_TARGET,
 } from "./accountDeletionStorageStageRunner.integrationHarness";
+import {
+  assertFreshMigrationProfileHelperPrivileges,
+  driveLifecycleToStorageCompleted,
+  ensureProfileIntegrationGrants,
+} from "./accountDeletionProfileStage.integrationHarness";
 
 const dbUrl = getAccountDeletionIntegrationDbUrl();
 const describeIntegration =
@@ -1123,5 +1131,111 @@ describeIntegration(
       expect(route).not.toContain("accountDeletionStorageStageRunner");
       expect(route).toContain("handleAccountDeletionExecuteRequest");
     });
+  }
+);
+
+describeIntegration(
+  `3B.4C.3 profile orchestration wiring integration (${ACCOUNT_DELETION_INTEGRATION_DB_URL_ENV} vanilla PG)`,
+  () => {
+    let client: Client;
+
+    beforeAll(async () => {
+      client = new Client({ connectionString: dbUrl! });
+      await client.connect();
+      await resetAccountDeletionIntegrationSchema(client);
+      await applyAccountDeletionMigrations(client);
+      await ensureProfileIntegrationGrants(client);
+      await assertFreshMigrationProfileHelperPrivileges(client);
+    }, 300_000);
+
+    afterAll(async () => {
+      await client?.end();
+    });
+
+    it("W-INT-PROFILE-COMPLETE: storage_completed → prepare → profile → finalize → profile_completed (zero avatar)", async () => {
+      const fixture = await driveLifecycleToStorageCompleted(client, {
+        neverHadAvatar: true,
+        deletePrivateCount: 0,
+      });
+
+      const beforeAuth = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM auth.users WHERE id = $1`,
+        [RUNNER_IT_TARGET]
+      );
+
+      const shim = createPgSupabaseShim(client);
+      const base = createAccountDeletionExecutionOrchestratorDeps(shim);
+      const deps: AccountDeletionExecutionOrchestratorDeps = {
+        ...base,
+        isGlobalExecutionEnabled: () => true,
+        isStorageOrchestrationEnabled: () => false,
+        isProfileOrchestrationEnabled: () => true,
+      };
+
+      const result = await runAccountDeletionExecutionOrchestrator({
+        requestId: fixture.requestId,
+        initiatedBy: RUNNER_IT_OWNER,
+        deps,
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.code).toBe("profile_completed");
+      expect(result.attemptId).toBe(fixture.attemptId);
+      expect(result.targetUserId).toBe(RUNNER_IT_TARGET);
+
+      const attempt = await client.query<{ stage: string }>(
+        `SELECT stage FROM public.account_deletion_execution_attempts WHERE id = $1`,
+        [fixture.attemptId]
+      );
+      expect(attempt.rows[0]?.stage).toBe("profile_completed");
+
+      const request = await client.query<{ status: string }>(
+        `SELECT status FROM public.account_deletion_requests WHERE id = $1`,
+        [fixture.requestId]
+      );
+      expect(request.rows[0]?.status).toBe("deletion_in_progress");
+
+      const profile = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM public.profiles WHERE id = $1`,
+        [RUNNER_IT_TARGET]
+      );
+      expect(Number(profile.rows[0]?.count ?? 0)).toBe(0);
+
+      const audit = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+         FROM public.account_deletion_storage_execution_audit
+         WHERE deletion_request_id = $1
+           AND execution_attempt_id = $2
+           AND event_type = 'profile_shell_deleted'`,
+        [fixture.requestId, fixture.attemptId]
+      );
+      expect(Number(audit.rows[0]?.count)).toBe(1);
+
+      const afterAuth = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM auth.users WHERE id = $1`,
+        [RUNNER_IT_TARGET]
+      );
+      expect(afterAuth.rows[0]?.count).toBe(beforeAuth.rows[0]?.count);
+
+      const second = await runAccountDeletionExecutionOrchestrator({
+        requestId: fixture.requestId,
+        initiatedBy: RUNNER_IT_OWNER,
+        deps,
+      });
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      expect(second.code).toBe("profile_completed");
+
+      const auditRerun = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+         FROM public.account_deletion_storage_execution_audit
+         WHERE deletion_request_id = $1
+           AND execution_attempt_id = $2
+           AND event_type = 'profile_shell_deleted'`,
+        [fixture.requestId, fixture.attemptId]
+      );
+      expect(Number(auditRerun.rows[0]?.count)).toBe(1);
+    }, 180_000);
   }
 );

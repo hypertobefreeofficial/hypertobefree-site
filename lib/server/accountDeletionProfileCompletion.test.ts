@@ -292,7 +292,7 @@ describe("accountDeletionProfileCompletion static guards", () => {
   it("includes server-only and disconnected note", () => {
     expect(source).toContain('import "server-only"');
     expect(ACCOUNT_DELETION_PROFILE_COMPLETION_DISCONNECTED_NOTE).toContain(
-      "NOT wired"
+      "runAccountDeletionExecutionOrchestrator"
     );
   });
 
@@ -311,8 +311,8 @@ describe("accountDeletionProfileCompletion static guards", () => {
   });
 });
 
-describe("3B.4C.2 rollout unwired guards", () => {
-  it("execute handler and orchestrator do not import profile completion wrapper", () => {
+describe("3B.4C.3 rollout wiring guards", () => {
+  it("orchestrator imports profile completion; handler/route do not", () => {
     const handler = readFileSync(
       "lib/server/accountDeletionExecuteHandler.ts",
       "utf8"
@@ -326,7 +326,7 @@ describe("3B.4C.2 rollout unwired guards", () => {
       "utf8"
     );
     expect(handler).not.toContain("accountDeletionProfileCompletion");
-    expect(orchestrator).not.toContain("finalizeAccountDeletionProfileStage");
+    expect(orchestrator).toContain("finalizeAccountDeletionProfileStage");
     expect(route).not.toContain("finalize_account_deletion_profile_stage");
   });
 });

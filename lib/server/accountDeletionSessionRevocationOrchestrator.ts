@@ -65,6 +65,7 @@ const LATER_THAN_SESSION_REVOCATION_STAGES = new Set([
   "storage",
   "storage_completed",
   "profile",
+  "profile_completed",
   "auth_pending",
   "auth",
   "finalize",

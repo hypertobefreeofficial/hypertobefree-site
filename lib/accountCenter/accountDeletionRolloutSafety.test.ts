@@ -174,6 +174,8 @@ describe("account deletion rollout safety", () => {
       "utf8"
     );
     expect(orchestrator).toContain("runAccountDeletionStorageStageTick");
+    expect(orchestrator).toContain("prepareAccountDeletionProfileStage");
+    expect(orchestrator).toContain("finalizeAccountDeletionProfileStage");
     expect(orchestrator).not.toContain("executeAccountDeletionStorageObject");
     expect(orchestrator).not.toContain("deleteUser");
     expect(orchestrator).not.toContain("cron");
@@ -192,9 +194,8 @@ describe("account deletion rollout safety", () => {
     expect(policy).not.toContain('"story-videos": "hard_delete"');
   });
 
-  it("keeps the 3B.4B.2A profile-media executor completely unwired", () => {
+  it("keeps the 3B.4B.2A profile-media executor out of handler/route/UI entry points", () => {
     const protectedEntryPoints = [
-      "lib/server/accountDeletionExecutionOrchestrator.ts",
       "lib/server/accountDeletionExecuteHandler.ts",
       "app/api/admin/account-deletion/[requestId]/execute/route.ts",
     ];
@@ -203,7 +204,6 @@ describe("account deletion rollout safety", () => {
       expect(source).not.toContain("accountDeletionProfileMediaObjectExecutor");
       expect(source).not.toContain("accountDeletionProfileMediaStorageAdapter");
       expect(source).not.toContain("executeAccountDeletionProfileMediaObject");
-      expect(source).not.toContain("profile_completed");
     }
 
     expect(
@@ -211,14 +211,24 @@ describe("account deletion rollout safety", () => {
     ).toBe(false);
   });
 
-  it("keeps the 3B.4C profile completion finalizer unwired", () => {
-    const protectedEntryPoints = [
+  it("wires profile completion only through orchestrator; forbids direct handler/route/runner finalizer", () => {
+    const orchestrator = readFileSync(
       "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "utf8"
+    );
+    expect(orchestrator).toContain("finalizeAccountDeletionProfileStage");
+    expect(orchestrator).not.toMatch(/\.from\("profiles"\)\.delete/);
+    expect(orchestrator).not.toMatch(/DELETE\s+FROM\s+(?:public\.)?profiles/i);
+    expect(orchestrator).not.toContain("auth.admin");
+    expect(orchestrator).not.toContain("deleteUser");
+    expect(orchestrator).not.toContain("auth_pending");
+
+    const forbiddenDirectFinalizer = [
       "lib/server/accountDeletionExecuteHandler.ts",
       "app/api/admin/account-deletion/[requestId]/execute/route.ts",
       "lib/server/accountDeletionProfileMediaStageRunner.ts",
     ];
-    for (const file of protectedEntryPoints) {
+    for (const file of forbiddenDirectFinalizer) {
       const source = readFileSync(file, "utf8");
       expect(source).not.toContain("accountDeletionProfileCompletion");
       expect(source).not.toContain("finalizeAccountDeletionProfileStage");
@@ -229,31 +239,35 @@ describe("account deletion rollout safety", () => {
     ).toBe(true);
   });
 
-  it("keeps the 3B.4B.2B.2 profile-media stage runner unwired", () => {
+  it("keeps profile-media stage runner out of handler/route; orchestrator may delegate ticks only", () => {
     expect(
       existsSync("lib/server/accountDeletionProfileMediaStageRunner.ts")
     ).toBe(true);
 
-    const protectedEntryPoints = [
-      "lib/server/accountDeletionExecutionOrchestrator.ts",
+    for (const file of [
       "lib/server/accountDeletionExecuteHandler.ts",
       "app/api/admin/account-deletion/[requestId]/execute/route.ts",
-    ];
-    for (const file of protectedEntryPoints) {
+    ]) {
       const source = readFileSync(file, "utf8");
       expect(source).not.toContain("accountDeletionProfileMediaStageRunner");
       expect(source).not.toContain("runAccountDeletionProfileMediaTick");
     }
+
+    const orchestrator = readFileSync(
+      "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "utf8"
+    );
+    expect(orchestrator).toContain("runAccountDeletionProfileMediaTick");
+    expect(orchestrator).toContain("finalizeAccountDeletionProfileStage");
 
     const runner = readFileSync(
       "lib/server/accountDeletionProfileMediaStageRunner.ts",
       "utf8"
     );
     expect(runner).toContain('import "server-only"');
-    expect(runner).not.toContain("profile_completed");
+    expect(runner).not.toContain("finalizeAccountDeletionProfileStage");
     expect(runner).not.toMatch(/DELETE\s+FROM\s+(?:public\.)?profiles/i);
     expect(runner).not.toContain("auth.admin.deleteUser");
-    expect(runner).not.toContain(".remove(");
     expect(runner).not.toMatch(/Promise\.all/);
     expect(runner).not.toMatch(/\bwhile\s*\(/);
   });

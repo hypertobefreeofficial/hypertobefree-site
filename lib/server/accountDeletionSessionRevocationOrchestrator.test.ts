@@ -219,6 +219,42 @@ describe("runAccountDeletionSessionRevocationPhase", () => {
     expect(deps.revokeTargetSessions).not.toHaveBeenCalled();
   });
 
+  it("SR-H4: profile → no signOut → later_stage_reached", async () => {
+    const deps = createDeps({
+      loadExecutionSnapshot: vi.fn(async () => ({
+        ok: true,
+        snapshot: activeSnapshot("profile"),
+      })),
+    });
+
+    const result = await runAccountDeletionSessionRevocationPhase({ context: CONTEXT, deps });
+
+    expect(result).toEqual({
+      ok: true,
+      code: "later_stage_reached",
+      stage: "profile",
+    });
+    expect(deps.revokeTargetSessions).not.toHaveBeenCalled();
+  });
+
+  it("SR-H5: profile_completed → no signOut → later_stage_reached", async () => {
+    const deps = createDeps({
+      loadExecutionSnapshot: vi.fn(async () => ({
+        ok: true,
+        snapshot: activeSnapshot("profile_completed"),
+      })),
+    });
+
+    const result = await runAccountDeletionSessionRevocationPhase({ context: CONTEXT, deps });
+
+    expect(result).toEqual({
+      ok: true,
+      code: "later_stage_reached",
+      stage: "profile_completed",
+    });
+    expect(deps.revokeTargetSessions).not.toHaveBeenCalled();
+  });
+
   it("SR-I: malformed target UUID → no signOut", async () => {
     const deps = createDeps();
     const result = await runAccountDeletionSessionRevocationPhase({

@@ -19,6 +19,21 @@ import {
   type AccountDeletionExecutionPreflightResult,
 } from "./accountDeletionExecutionPreflight";
 import {
+  finalizeAccountDeletionProfileStage,
+  type AccountDeletionProfileCompletionResult,
+} from "./accountDeletionProfileCompletion";
+import {
+  prepareAccountDeletionProfileStage,
+  type AccountDeletionProfileStageResult,
+} from "./accountDeletionProfileStage";
+import { isAccountDeletionProfileExecutionEnabled } from "./accountDeletionProfileStagePolicy";
+import {
+  createAccountDeletionProfileMediaStageRunnerDeps,
+  runAccountDeletionProfileMediaTick,
+  verifyAccountDeletionProfileMediaStageRunnerReadiness,
+} from "./accountDeletionProfileMediaStageRunner";
+import type { AccountDeletionProfileMediaStageTickResult } from "./accountDeletionProfileMediaStageRunnerPolicy";
+import {
   createAccountDeletionSessionRevocationOrchestratorDeps,
   runAccountDeletionSessionRevocationPhase,
   type AccountDeletionSessionRevocationOrchestratorResult,
@@ -41,7 +56,9 @@ export type AccountDeletionExecutionOrchestratorSuccessCode =
   | "database_completed"
   | "already_completed"
   | "storage_completed"
-  | "storage_in_progress";
+  | "storage_in_progress"
+  | "profile_completed"
+  | "profile_in_progress";
 
 export type AccountDeletionExecutionOrchestratorFailureCode =
   | "invalid_arguments"
@@ -70,6 +87,10 @@ export type AccountDeletionExecutionOrchestratorFailureCode =
   | "storage_execution_disabled"
   | "storage_blocked"
   | "storage_precondition_failed"
+  | "profile_execution_disabled"
+  | "profile_precondition_failed"
+  | "profile_blocked"
+  | "profile_completion_failed"
   | "invariant_failed";
 
 export type AccountDeletionExecutionOrchestratorResult =
@@ -192,6 +213,7 @@ function mapPreflightFailure(
 export type AccountDeletionExecutionOrchestratorDeps = {
   isGlobalExecutionEnabled?: () => boolean;
   isStorageOrchestrationEnabled?: () => boolean;
+  isProfileOrchestrationEnabled?: () => boolean;
   verifySchemaReadiness: () => Promise<boolean>;
   runPreflight: (input: {
     requestId: string;
@@ -220,6 +242,18 @@ export type AccountDeletionExecutionOrchestratorDeps = {
     requestId: string;
     attemptId: string;
   }) => Promise<AccountDeletionStorageStageTickResult>;
+  prepareProfileStage: (input: {
+    requestId: string;
+    attemptId: string;
+  }) => Promise<AccountDeletionProfileStageResult>;
+  runProfileMediaTick: (input: {
+    requestId: string;
+    attemptId: string;
+  }) => Promise<AccountDeletionProfileMediaStageTickResult>;
+  finalizeProfileStage: (input: {
+    requestId: string;
+    attemptId: string;
+  }) => Promise<AccountDeletionProfileCompletionResult>;
 };
 
 async function verifyStorageStageRunnerReadiness(
@@ -242,6 +276,8 @@ export function createAccountDeletionExecutionOrchestratorDeps(
   );
   const preflightDeps =
     createAccountDeletionExecutionPreflightDeps(serviceRoleClient);
+  const profileMediaRunnerDeps =
+    createAccountDeletionProfileMediaStageRunnerDeps(serviceRoleClient);
 
   return {
     async verifySchemaReadiness() {
@@ -301,6 +337,33 @@ export function createAccountDeletionExecutionOrchestratorDeps(
         },
       });
     },
+    prepareProfileStage(input) {
+      return prepareAccountDeletionProfileStage({
+        serviceRoleClient,
+        requestId: input.requestId,
+        attemptId: input.attemptId,
+      });
+    },
+    runProfileMediaTick(input) {
+      return runAccountDeletionProfileMediaTick({
+        requestId: input.requestId,
+        attemptId: input.attemptId,
+        deps: {
+          ...profileMediaRunnerDeps,
+          verifyRunnerReadiness: () =>
+            verifyAccountDeletionProfileMediaStageRunnerReadiness(
+              serviceRoleClient
+            ),
+        },
+      });
+    },
+    finalizeProfileStage(input) {
+      return finalizeAccountDeletionProfileStage({
+        serviceRoleClient,
+        requestId: input.requestId,
+        attemptId: input.attemptId,
+      });
+    },
   };
 }
 
@@ -309,7 +372,11 @@ type SessionResumePlan =
   | { kind: "at_inventory" }
   | { kind: "at_database_completed" }
   | { kind: "at_storage" }
-  | { kind: "at_storage_completed" };
+  | { kind: "at_storage_completed" }
+  | { kind: "at_profile" }
+  | { kind: "at_profile_completed" };
+
+type ProfileSegmentEntry = "storage_completed" | "profile";
 
 function planAfterSessionPhase(
   session: AccountDeletionSessionRevocationOrchestratorResult
@@ -341,21 +408,201 @@ function planAfterSessionPhase(
       if (session.stage === "storage_completed") {
         return { ok: true, plan: { kind: "at_storage_completed" } };
       }
+      if (session.stage === "profile") {
+        return { ok: true, plan: { kind: "at_profile" } };
+      }
+      if (session.stage === "profile_completed") {
+        return { ok: true, plan: { kind: "at_profile_completed" } };
+      }
       return { ok: false, code: "stage_conflict" };
     default:
       return { ok: false, code: "invariant_failed" };
   }
 }
 
-function mapStorageTickToOrchestratorResult(
-  tick: AccountDeletionStorageStageTickResult,
+function orchestratorSuccessBase(
   context: AccountDeletionTrustedSessionExecutionContext
-): AccountDeletionExecutionOrchestratorResult {
-  const base = {
+) {
+  return {
     requestId: context.requestId,
     attemptId: context.attemptId,
     targetUserId: context.targetUserId,
   };
+}
+
+function mapPrepareFailure(
+  result: Extract<AccountDeletionProfileStageResult, { ok: false }>
+): AccountDeletionExecutionOrchestratorResult {
+  switch (result.code) {
+    case "request_not_in_progress":
+    case "attempt_mismatch":
+    case "invalid_stage":
+    case "irreversible_stage":
+    case "storage_manifest_not_finalized":
+    case "storage_execution_not_complete":
+      return { ok: false, code: "stage_conflict" };
+    case "target_unresolved":
+    case "profile_not_found":
+    case "profile_username_tombstone_unavailable":
+      return { ok: false, code: "profile_precondition_failed" };
+    case "rpc_error":
+      return { ok: false, code: "profile_completion_failed", retryable: true };
+    case "invalid_arguments":
+      return { ok: false, code: "invariant_failed" };
+    default:
+      return { ok: false, code: "profile_completion_failed" };
+  }
+}
+
+function mapProfileMediaTick(
+  tick: AccountDeletionProfileMediaStageTickResult,
+  context: AccountDeletionTrustedSessionExecutionContext
+): AccountDeletionExecutionOrchestratorResult | { proceedToFinalize: true } {
+  const base = orchestratorSuccessBase(context);
+
+  if (tick.code === "profile_media_completed") {
+    return { proceedToFinalize: true };
+  }
+
+  if (tick.code === "profile_media_in_progress") {
+    return { ok: true, code: "profile_in_progress", ...base };
+  }
+
+  if (tick.code === "profile_media_blocked") {
+    return { ok: false, code: "profile_blocked" };
+  }
+
+  if (
+    tick.code === "profile_media_precondition_failed" ||
+    tick.code === "precondition_failed"
+  ) {
+    return {
+      ok: false,
+      code: "profile_precondition_failed",
+      retryable: tick.code === "precondition_failed",
+    };
+  }
+
+  if (
+    tick.code === "execution_disabled" ||
+    tick.code === "profile_execution_disabled" ||
+    tick.code === "profile_storage_execution_disabled"
+  ) {
+    return { ok: false, code: "profile_execution_disabled" };
+  }
+
+  return { ok: false, code: "profile_precondition_failed" };
+}
+
+function mapFinalizeFailure(
+  result: Extract<AccountDeletionProfileCompletionResult, { ok: false }>
+): AccountDeletionExecutionOrchestratorResult {
+  switch (result.code) {
+    case "profile_media_not_complete":
+      return { ok: false, code: "invariant_failed" };
+    case "rpc_error":
+      return { ok: false, code: "profile_completion_failed", retryable: true };
+    case "request_not_in_progress":
+    case "attempt_mismatch":
+    case "invalid_stage":
+    case "storage_manifest_not_finalized":
+    case "irreversible_stage":
+      return { ok: false, code: "stage_conflict" };
+    case "target_unresolved":
+      return { ok: false, code: "profile_precondition_failed" };
+    case "inconsistent_state":
+    case "profile_delete_invariant_failed":
+    case "invariant_failed":
+      return { ok: false, code: "profile_completion_failed" };
+    case "invalid_arguments":
+      return { ok: false, code: "invariant_failed" };
+    default:
+      return { ok: false, code: "profile_completion_failed" };
+  }
+}
+
+function mapFinalizeSuccess(
+  result: Extract<AccountDeletionProfileCompletionResult, { ok: true }>,
+  context: AccountDeletionTrustedSessionExecutionContext
+): AccountDeletionExecutionOrchestratorResult {
+  if (
+    result.requestId !== context.requestId ||
+    result.attemptId !== context.attemptId ||
+    result.targetUserId !== context.targetUserId
+  ) {
+    return { ok: false, code: "invariant_failed" };
+  }
+  return {
+    ok: true,
+    code: "profile_completed",
+    requestId: context.requestId,
+    attemptId: context.attemptId,
+    targetUserId: context.targetUserId,
+  };
+}
+
+async function runBoundedProfileStageSegment(
+  deps: AccountDeletionExecutionOrchestratorDeps,
+  context: AccountDeletionTrustedSessionExecutionContext,
+  entry: ProfileSegmentEntry
+): Promise<AccountDeletionExecutionOrchestratorResult> {
+  if (entry === "storage_completed") {
+    const prepared = await deps.prepareProfileStage({
+      requestId: context.requestId,
+      attemptId: context.attemptId,
+    });
+    if (prepared.ok === false) {
+      return mapPrepareFailure(prepared);
+    }
+    if (
+      prepared.code !== "prepared" &&
+      prepared.code !== "already_prepared"
+    ) {
+      return { ok: false, code: "invariant_failed" };
+    }
+    if (
+      prepared.requestId !== context.requestId ||
+      prepared.attemptId !== context.attemptId ||
+      prepared.targetUserId !== context.targetUserId
+    ) {
+      return { ok: false, code: "invariant_failed" };
+    }
+  }
+
+  const tick = await deps.runProfileMediaTick({
+    requestId: context.requestId,
+    attemptId: context.attemptId,
+  });
+
+  const tickMapped = mapProfileMediaTick(tick, context);
+  if (!("proceedToFinalize" in tickMapped)) {
+    return tickMapped;
+  }
+
+  const finalized = await deps.finalizeProfileStage({
+    requestId: context.requestId,
+    attemptId: context.attemptId,
+  });
+
+  if (finalized.ok === false) {
+    if (finalized.code === "profile_media_not_complete") {
+      return {
+        ok: true,
+        code: "profile_in_progress",
+        ...orchestratorSuccessBase(context),
+      };
+    }
+    return mapFinalizeFailure(finalized);
+  }
+
+  return mapFinalizeSuccess(finalized, context);
+}
+
+function mapStorageTickToOrchestratorResult(
+  tick: AccountDeletionStorageStageTickResult,
+  context: AccountDeletionTrustedSessionExecutionContext
+): AccountDeletionExecutionOrchestratorResult {
+  const base = orchestratorSuccessBase(context);
 
   switch (tick.code) {
     case "storage_completed":
@@ -385,6 +632,20 @@ async function runBoundedStorageStageTick(
   return mapStorageTickToOrchestratorResult(tick, context);
 }
 
+async function continueAfterStorageResult(
+  deps: AccountDeletionExecutionOrchestratorDeps,
+  context: AccountDeletionTrustedSessionExecutionContext,
+  storageResult: AccountDeletionExecutionOrchestratorResult
+): Promise<AccountDeletionExecutionOrchestratorResult> {
+  if (!storageResult.ok || storageResult.code !== "storage_completed") {
+    return storageResult;
+  }
+  if (!resolveProfileOrchestrationEnabled(deps)) {
+    return storageResult;
+  }
+  return runBoundedProfileStageSegment(deps, context, "storage_completed");
+}
+
 function resolveGlobalExecutionEnabled(
   deps: AccountDeletionExecutionOrchestratorDeps
 ): boolean {
@@ -400,8 +661,17 @@ function resolveStorageOrchestrationEnabled(
   )();
 }
 
+function resolveProfileOrchestrationEnabled(
+  deps: AccountDeletionExecutionOrchestratorDeps
+): boolean {
+  return (
+    deps.isProfileOrchestrationEnabled ?? isAccountDeletionProfileExecutionEnabled
+  )();
+}
+
 /**
- * Controlled execution orchestrator: pre-Storage phases, then at most one Storage stage tick.
+ * Controlled execution orchestrator: pre-Storage phases, at most one Storage tick,
+ * then at most one profile prepare / profile-media tick / finalizer when enabled.
  */
 export async function runAccountDeletionExecutionOrchestrator(options: {
   requestId: string;
@@ -449,6 +719,7 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
   };
 
   const storageOrchestrationEnabled = resolveStorageOrchestrationEnabled(deps);
+  const profileOrchestrationEnabled = resolveProfileOrchestrationEnabled(deps);
 
   const session = await deps.runSessionPhase(executionContext);
   const resume = planAfterSessionPhase(session);
@@ -460,21 +731,45 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     };
   }
 
-  if (resume.plan.kind === "at_storage_completed") {
+  if (resume.plan.kind === "at_profile_completed") {
     return {
       ok: true,
-      code: "storage_completed",
-      requestId,
-      attemptId,
-      targetUserId,
+      code: "profile_completed",
+      ...orchestratorSuccessBase(executionContext),
     };
+  }
+
+  if (resume.plan.kind === "at_profile") {
+    if (!profileOrchestrationEnabled) {
+      return { ok: false, code: "profile_execution_disabled" };
+    }
+    return runBoundedProfileStageSegment(deps, executionContext, "profile");
+  }
+
+  if (resume.plan.kind === "at_storage_completed") {
+    if (!profileOrchestrationEnabled) {
+      return {
+        ok: true,
+        code: "storage_completed",
+        ...orchestratorSuccessBase(executionContext),
+      };
+    }
+    return runBoundedProfileStageSegment(
+      deps,
+      executionContext,
+      "storage_completed"
+    );
   }
 
   if (resume.plan.kind === "at_storage") {
     if (!storageOrchestrationEnabled) {
       return { ok: false, code: "storage_execution_disabled" };
     }
-    return runBoundedStorageStageTick(deps, executionContext);
+    const storageResult = await runBoundedStorageStageTick(
+      deps,
+      executionContext
+    );
+    return continueAfterStorageResult(deps, executionContext, storageResult);
   }
 
   if (resume.plan.kind === "at_database_completed") {
@@ -482,12 +777,14 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
       return {
         ok: true,
         code: "already_completed",
-        requestId,
-        attemptId,
-        targetUserId,
+        ...orchestratorSuccessBase(executionContext),
       };
     }
-    return runBoundedStorageStageTick(deps, executionContext);
+    const storageResult = await runBoundedStorageStageTick(
+      deps,
+      executionContext
+    );
+    return continueAfterStorageResult(deps, executionContext, storageResult);
   }
 
   if (resume.plan.kind === "advance_inventory") {
@@ -585,13 +882,16 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     };
   }
 
-  return runBoundedStorageStageTick(deps, executionContext);
+  const storageResult = await runBoundedStorageStageTick(deps, executionContext);
+  return continueAfterStorageResult(deps, executionContext, storageResult);
 }
 
 export const ACCOUNT_DELETION_EXECUTION_ORCHESTRATOR_SCOPE_NOTE =
   "runAccountDeletionExecutionOrchestrator: sessions → inventory → "
   + "authoritative storage manifest capture/finalize → 3B.1 → database_completed; "
   + "when dual execution flags are true, one bounded Storage stage tick via "
-  + "runAccountDeletionStorageStageTick. Profile/auth deletion remain later phases. "
+  + "runAccountDeletionStorageStageTick; when profile execution is enabled, at most "
+  + "one prepare + profile-media tick + finalize_account_deletion_profile_stage per "
+  + "invocation (stops at profile_completed). Auth deletion remains a later phase. "
   + "Pre-acquisition preflight reduces predictable failures but does not eliminate TOCTOU; "
   + "3B.1 in-transaction preflight + storage-manifest gate remain authoritative after acquisition.";

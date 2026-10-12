@@ -90,7 +90,38 @@ function createDeps(
       code: "storage_completed" as const,
       stage: "storage_completed",
     })),
+    isProfileOrchestrationEnabled: vi.fn(() => false),
+    prepareProfileStage: vi.fn(),
+    runProfileMediaTick: vi.fn(),
+    finalizeProfileStage: vi.fn(),
     ...overrides,
+  };
+}
+
+function profilePrepared() {
+  return {
+    ok: true as const,
+    code: "prepared" as const,
+    requestId: REQUEST,
+    attemptId: ATTEMPT,
+    targetUserId: TARGET,
+    stage: "profile" as const,
+  };
+}
+
+function profileMediaCompleted() {
+  return { ok: true as const, code: "profile_media_completed" as const };
+}
+
+function profileFinalized() {
+  return {
+    ok: true as const,
+    code: "finalized" as const,
+    requestId: REQUEST,
+    attemptId: ATTEMPT,
+    targetUserId: TARGET,
+    stage: "profile_completed" as const,
+    profileRowsAffected: { profile_shell_deleted: 1 },
   };
 }
 
@@ -751,7 +782,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(source).not.toMatch(/\.remove\(/);
   });
 
-  it("W-NO-PROFILE / W-NO-AUTH: orchestrator source has no profile/auth deletion", async () => {
+  it("W-NO-AUTH / W-NO-DIRECT-PROFILE-DML: orchestrator has no Auth or direct profile DELETE", async () => {
     const { readFileSync } = await import("node:fs");
     const source = readFileSync(
       "lib/server/accountDeletionExecutionOrchestrator.ts",
@@ -759,6 +790,342 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     );
     expect(source).not.toContain("deleteUser");
     expect(source).not.toContain("auth.admin");
-    expect(source).not.toMatch(/stage.*profile/);
+    expect(source).not.toMatch(/\.from\("profiles"\)\.delete/);
+    expect(source).not.toMatch(/DELETE\s+FROM\s+(?:public\.)?profiles/i);
+    expect(source).not.toContain("auth_pending");
+    expect(source).not.toContain("finalizeAccountDeletionRequest");
+  });
+
+  it("PC-1: profile flag disabled at storage_completed stays storage_completed", async () => {
+    const prepare = vi.fn();
+    const media = vi.fn();
+    const finalize = vi.fn();
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => false),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "storage_completed")
+      ),
+      prepareProfileStage: prepare,
+      runProfileMediaTick: media,
+      finalizeProfileStage: finalize,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "storage_completed" });
+    expect(prepare).not.toHaveBeenCalled();
+    expect(media).not.toHaveBeenCalled();
+    expect(finalize).not.toHaveBeenCalled();
+  });
+
+  it("PC-2: storage_completed + profile enabled prepares once then media tick once", async () => {
+    const prepare = vi.fn(async () => profilePrepared());
+    const media = vi.fn(async () => ({
+      ok: true,
+      code: "profile_media_in_progress" as const,
+    }));
+    const finalize = vi.fn();
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "storage_completed")
+      ),
+      prepareProfileStage: prepare,
+      runProfileMediaTick: media,
+      finalizeProfileStage: finalize,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "profile_in_progress" });
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(media).toHaveBeenCalledOnce();
+    expect(finalize).not.toHaveBeenCalled();
+  });
+
+  it("PC-3: resume at profile skips prepare and runs media tick once", async () => {
+    const prepare = vi.fn();
+    const media = vi.fn(async () => ({
+      ok: true,
+      code: "profile_media_in_progress" as const,
+    }));
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      prepareProfileStage: prepare,
+      runProfileMediaTick: media,
+    });
+    await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(prepare).not.toHaveBeenCalled();
+    expect(media).toHaveBeenCalledOnce();
+  });
+
+  it("PC-4: incomplete media returns profile_in_progress without finalizer", async () => {
+    const finalize = vi.fn();
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => ({
+        ok: true,
+        code: "profile_media_in_progress" as const,
+      })),
+      finalizeProfileStage: finalize,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "profile_in_progress" });
+    expect(finalize).not.toHaveBeenCalled();
+  });
+
+  it("PC-5/6/7: media complete finalizes once → profile_completed", async () => {
+    const finalize = vi.fn(async () => profileFinalized());
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => profileMediaCompleted()),
+      finalizeProfileStage: finalize,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "profile_completed" });
+    expect(finalize).toHaveBeenCalledOnce();
+
+    const already = vi.fn(async () => ({
+      ...profileFinalized(),
+      code: "already_finalized" as const,
+    }));
+    const deps2 = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => profileMediaCompleted()),
+      finalizeProfileStage: already,
+    });
+    const result2 = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps: deps2,
+    });
+    expect(result2).toMatchObject({ ok: true, code: "profile_completed" });
+    expect(already).toHaveBeenCalledOnce();
+  });
+
+  it("PC-8: finalizer profile_media_not_complete race → profile_in_progress, single finalize", async () => {
+    const finalize = vi.fn(async () => ({
+      ok: false as const,
+      code: "profile_media_not_complete" as const,
+    }));
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => profileMediaCompleted()),
+      finalizeProfileStage: finalize,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "profile_in_progress" });
+    expect(finalize).toHaveBeenCalledOnce();
+  });
+
+  it("PC-9: finalizer rpc_error is retryable failure", async () => {
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => profileMediaCompleted()),
+      finalizeProfileStage: vi.fn(async () => ({
+        ok: false as const,
+        code: "rpc_error" as const,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({
+      ok: false,
+      code: "profile_completion_failed",
+      retryable: true,
+    });
+  });
+
+  it("PC-10/11: terminal finalizer and invalid_arguments mapping", async () => {
+    for (const terminal of [
+      "request_not_in_progress",
+      "attempt_mismatch",
+      "invalid_stage",
+      "storage_manifest_not_finalized",
+      "irreversible_stage",
+    ] as const) {
+      const deps = createDeps({
+        isProfileOrchestrationEnabled: vi.fn(() => true),
+        runSessionPhase: vi.fn(async () =>
+          sessionSuccess("later_stage_reached", "profile")
+        ),
+        runProfileMediaTick: vi.fn(async () => profileMediaCompleted()),
+        finalizeProfileStage: vi.fn(async () => ({
+          ok: false as const,
+          code: terminal,
+        })),
+      });
+      const result = await runAccountDeletionExecutionOrchestrator({
+        requestId: REQUEST,
+        initiatedBy: OWNER,
+        deps,
+      });
+      expect(result).toEqual({ ok: false, code: "stage_conflict" });
+    }
+
+    const precond = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => profileMediaCompleted()),
+      finalizeProfileStage: vi.fn(async () => ({
+        ok: false as const,
+        code: "target_unresolved" as const,
+      })),
+    });
+    expect(
+      await runAccountDeletionExecutionOrchestrator({
+        requestId: REQUEST,
+        initiatedBy: OWNER,
+        deps: precond,
+      })
+    ).toEqual({ ok: false, code: "profile_precondition_failed" });
+
+    const invariant = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => profileMediaCompleted()),
+      finalizeProfileStage: vi.fn(async () => ({
+        ok: false as const,
+        code: "invalid_arguments" as const,
+      })),
+    });
+    expect(
+      await runAccountDeletionExecutionOrchestrator({
+        requestId: REQUEST,
+        initiatedBy: OWNER,
+        deps: invariant,
+      })
+    ).toEqual({ ok: false, code: "invariant_failed" });
+  });
+
+  it("PC-12: resume profile_completed is idempotent without profile work", async () => {
+    const prepare = vi.fn();
+    const media = vi.fn();
+    const finalize = vi.fn();
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile_completed")
+      ),
+      prepareProfileStage: prepare,
+      runProfileMediaTick: media,
+      finalizeProfileStage: finalize,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "profile_completed" });
+    expect(prepare).not.toHaveBeenCalled();
+    expect(media).not.toHaveBeenCalled();
+    expect(finalize).not.toHaveBeenCalled();
+  });
+
+  it("PC-14: profile disabled at profile stage returns profile_execution_disabled", async () => {
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => false),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "profile_execution_disabled" });
+  });
+
+  it("PC-17/18: same invocation chains storage_completed into profile when enabled", async () => {
+    const prepare = vi.fn(async () => profilePrepared());
+    const media = vi.fn(async () => profileMediaCompleted());
+    const finalize = vi.fn(async () => profileFinalized());
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => true),
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runStorageStageTick: vi.fn(async () => ({
+        ok: true,
+        code: "storage_completed" as const,
+        stage: "storage_completed",
+      })),
+      prepareProfileStage: prepare,
+      runProfileMediaTick: media,
+      finalizeProfileStage: finalize,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "profile_completed" });
+    expect(deps.runStorageStageTick).toHaveBeenCalledOnce();
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(media).toHaveBeenCalledOnce();
+    expect(finalize).toHaveBeenCalledOnce();
+  });
+
+  it("PC blocked media: profile_media_blocked → profile_blocked", async () => {
+    const deps = createDeps({
+      isProfileOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile")
+      ),
+      runProfileMediaTick: vi.fn(async () => ({
+        ok: false,
+        code: "profile_media_blocked" as const,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "profile_blocked" });
   });
 });

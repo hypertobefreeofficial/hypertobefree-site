@@ -374,6 +374,26 @@ type RpcCall = { fn: string; args: Record<string, unknown> };
 function rpcToSql(call: RpcCall): { sql: string; params: unknown[] } {
   const { fn, args } = call;
   switch (fn) {
+    case "verify_account_deletion_schema_execution_ready":
+      return {
+        sql: `SELECT public.verify_account_deletion_schema_execution_ready() AS payload`,
+        params: [],
+      };
+    case "acquire_account_deletion_execution_lock":
+      return {
+        sql: `SELECT public.acquire_account_deletion_execution_lock($1::uuid, $2::uuid) AS payload`,
+        params: [args.p_request_id, args.p_initiated_by],
+      };
+    case "prepare_account_deletion_profile_stage":
+      return {
+        sql: `SELECT public.prepare_account_deletion_profile_stage($1::uuid, $2::uuid) AS payload`,
+        params: [args.p_request_id, args.p_attempt_id],
+      };
+    case "finalize_account_deletion_profile_stage":
+      return {
+        sql: `SELECT public.finalize_account_deletion_profile_stage($1::uuid, $2::uuid) AS payload`,
+        params: [args.p_request_id, args.p_attempt_id],
+      };
     case "account_deletion_storage_execution_refresh_hold_eligibility":
       return {
         sql: `SELECT public.account_deletion_storage_execution_refresh_hold_eligibility($1::uuid,$2::uuid) AS payload`,

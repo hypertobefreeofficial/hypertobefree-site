@@ -155,8 +155,9 @@ describe("P-A-NO-SURFACE static guards", () => {
       "utf8"
     );
     expect(handler).not.toContain("accountDeletionProfileStage");
-    expect(orchestrator).not.toContain("accountDeletionProfileStage");
+    expect(orchestrator).toContain("prepareAccountDeletionProfileStage");
     expect(route).not.toContain("prepare_account_deletion_profile_stage");
     expect(handler).not.toContain("prepareAccountDeletionProfileStage");
+    expect(route).not.toContain("prepareAccountDeletionProfileStage");
   });
 });
