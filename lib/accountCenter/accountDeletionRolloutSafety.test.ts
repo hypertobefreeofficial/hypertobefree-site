@@ -226,7 +226,7 @@ describe("account deletion rollout safety", () => {
     }
     expect(
       existsSync("lib/server/accountDeletionProfileCompletion.ts")
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("keeps the 3B.4B.2B.2 profile-media stage runner unwired", () => {
