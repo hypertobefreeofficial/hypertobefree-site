@@ -363,6 +363,15 @@ export const ACCOUNT_DELETION_PROFILE_COMPLETION_FOUNDATION_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.4C.1",
 } as const;
 
+export const ACCOUNT_DELETION_PROFILES_PRIVILEGE_HARDENING_MIGRATION = {
+  version: "20260919271000",
+  filename:
+    "20260919271000_account_deletion_profiles_service_role_delete_revoke_phase4c7b1e2c3b4c1a.sql",
+  relativePath:
+    "supabase/migrations/20260919271000_account_deletion_profiles_service_role_delete_revoke_phase4c7b1e2c3b4c1a.sql",
+  phase: "4C.7B.1E.2C.3B.4C.1a",
+} as const;
+
 /** Physical executor DB authority: delete commit token, authorize/complete RPCs, hold actor binding. */
 export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   "authorize_account_deletion_storage_object_delete is the atomic point-of-no-return before Storage remove(). "
