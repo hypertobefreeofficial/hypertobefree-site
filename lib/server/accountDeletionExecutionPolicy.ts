@@ -12,6 +12,7 @@ export type AccountDeletionExecutionErrorCode =
   | "owner_required"
   | "mfa_step_up_required"
   | "execution_disabled"
+  | "execution_request_not_allowed"
   | "request_not_found"
   | "request_not_approved"
   | "already_deleted"
@@ -108,6 +109,8 @@ export function sanitizeAccountDeletionExecutionErrorMessage(
       return "Verify your authenticator app before executing account deletion.";
     case "execution_disabled":
       return "account_deletion_execution_disabled";
+    case "execution_request_not_allowed":
+      return "Account deletion execution is unavailable right now.";
     case "request_not_found":
       return "That account deletion request could not be found.";
     case "request_not_approved":
@@ -348,6 +351,7 @@ export function httpStatusForAccountDeletionExecutionError(
     case "rate_limited":
       return 429;
     case "execution_disabled":
+    case "execution_request_not_allowed":
       return 503;
     case "already_deleted":
       return 200;

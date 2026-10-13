@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { User } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
+import { ACCOUNT_DELETION_EXECUTION_ALLOWED_REQUEST_IDS_ENV } from "./accountDeletionExecutionAllowlist";
 import {
   ACCOUNT_DELETION_EXECUTION_ENV_FLAG,
 } from "./accountDeletionExecutionPolicy";
@@ -83,11 +84,23 @@ function buildRequest(
   return new Request(url, init);
 }
 
+const EXECUTION_REQUEST_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const OTHER_EXECUTION_REQUEST_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+function enableExecutionWithAllowlist(
+  requestIds: string | string[] = EXECUTION_REQUEST_ID
+) {
+  process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+  const list = Array.isArray(requestIds) ? requestIds : [requestIds];
+  process.env[ACCOUNT_DELETION_EXECUTION_ALLOWED_REQUEST_IDS_ENV] = list.join(",");
+}
+
 describe("account deletion execute handler and route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetRateLimitBucketsForTests();
     delete process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG];
+    delete process.env[ACCOUNT_DELETION_EXECUTION_ALLOWED_REQUEST_IDS_ENV];
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
@@ -172,7 +185,7 @@ describe("account deletion execute handler and route", () => {
   });
 
   it("returns mfa_step_up_required for admin AAL1 when execution is enabled", async () => {
-    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+    enableExecutionWithAllowlist();
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
       context: { user: mockUser, accessToken: "admin-token", supabase: {} },
@@ -187,8 +200,8 @@ describe("account deletion execute handler and route", () => {
       "./accountDeletionExecuteHandler"
     );
     const result = await handleAccountDeletionExecuteRequest({
-      request: buildRequest("req-1", { token: "admin-token" }),
-      requestId: "req-1",
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
     });
 
     expect(result.ok).toBe(false);
@@ -295,8 +308,8 @@ describe("account deletion execute handler and route", () => {
     expect(mockRunOrchestrator).not.toHaveBeenCalled();
   });
 
-  it("EH-F/G: env true + owner/AAL2 → orchestrator called with initiatedBy from auth", async () => {
-    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+  it("EH-F/G: env true + allowlist + owner/AAL2 → orchestrator called with initiatedBy from auth", async () => {
+    enableExecutionWithAllowlist();
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
       context: { user: mockUser, accessToken: "admin-token", supabase: {} },
@@ -308,16 +321,117 @@ describe("account deletion execute handler and route", () => {
       "./accountDeletionExecuteHandler"
     );
     const result = await handleAccountDeletionExecuteRequest({
-      request: buildRequest("req-1", { token: "admin-token" }),
-      requestId: "req-1",
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
     });
 
     expect(result.ok).toBe(true);
     expect(mockRunOrchestrator).toHaveBeenCalledWith({
-      requestId: "req-1",
+      requestId: EXECUTION_REQUEST_ID,
       initiatedBy: mockUser.id,
       deps: expect.anything(),
     });
+  });
+
+  it("AL-1: execution enabled without allowlist fails closed before orchestrator", async () => {
+    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+    mockAuthenticateSupabaseRequest.mockResolvedValue({
+      ok: true,
+      context: { user: mockUser, accessToken: "admin-token", supabase: {} },
+    });
+    mockVerifyAdmin.mockResolvedValue(true);
+
+    const { handleAccountDeletionExecuteRequest } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+    const result = await handleAccountDeletionExecuteRequest({
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
+    });
+
+    expect(result.status).toBe(503);
+    expect(result.body).toMatchObject({ code: "execution_request_not_allowed" });
+    expect(JSON.stringify(result.body)).not.toContain(EXECUTION_REQUEST_ID);
+    expect(mockVerifyAdminAal2).not.toHaveBeenCalled();
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+    expect(mockCreateOrchestratorDeps).not.toHaveBeenCalled();
+  });
+
+  it("AL-2: empty or malformed allowlist fails closed", async () => {
+    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+    mockAuthenticateSupabaseRequest.mockResolvedValue({
+      ok: true,
+      context: { user: mockUser, accessToken: "admin-token", supabase: {} },
+    });
+    mockVerifyAdmin.mockResolvedValue(true);
+
+    const { handleAccountDeletionExecuteRequest } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+
+    process.env[ACCOUNT_DELETION_EXECUTION_ALLOWED_REQUEST_IDS_ENV] = "";
+    const empty = await handleAccountDeletionExecuteRequest({
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
+    });
+    expect(empty.body).toMatchObject({ code: "execution_request_not_allowed" });
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+
+    process.env[ACCOUNT_DELETION_EXECUTION_ALLOWED_REQUEST_IDS_ENV] =
+      `${EXECUTION_REQUEST_ID},not-a-uuid`;
+    const malformed = await handleAccountDeletionExecuteRequest({
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
+    });
+    expect(malformed.body).toMatchObject({
+      code: "execution_request_not_allowed",
+    });
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+  });
+
+  it("AL-3: allowlisted UUID mismatch fails closed without orchestrator work", async () => {
+    enableExecutionWithAllowlist(EXECUTION_REQUEST_ID);
+    mockAuthenticateSupabaseRequest.mockResolvedValue({
+      ok: true,
+      context: { user: mockUser, accessToken: "admin-token", supabase: {} },
+    });
+    mockVerifyAdmin.mockResolvedValue(true);
+
+    const { handleAccountDeletionExecuteRequest } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+    const result = await handleAccountDeletionExecuteRequest({
+      request: buildRequest(OTHER_EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: OTHER_EXECUTION_REQUEST_ID,
+    });
+
+    expect(result.status).toBe(503);
+    expect(result.body).toMatchObject({ code: "execution_request_not_allowed" });
+    expect(JSON.stringify(result.body)).not.toContain(OTHER_EXECUTION_REQUEST_ID);
+    expect(JSON.stringify(result.body)).not.toContain(EXECUTION_REQUEST_ID);
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+  });
+
+  it("AL-4: multiple valid allowlist entries authorize only exact members", async () => {
+    enableExecutionWithAllowlist([EXECUTION_REQUEST_ID, OTHER_EXECUTION_REQUEST_ID]);
+    mockAuthenticateSupabaseRequest.mockResolvedValue({
+      ok: true,
+      context: { user: mockUser, accessToken: "admin-token", supabase: {} },
+    });
+    mockVerifyAdmin.mockResolvedValue(true);
+    mockVerifyAdminAal2.mockResolvedValue({ ok: true });
+
+    const { handleAccountDeletionExecuteRequest } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+    const allowed = await handleAccountDeletionExecuteRequest({
+      request: buildRequest(OTHER_EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: OTHER_EXECUTION_REQUEST_ID,
+    });
+    expect(allowed.ok).toBe(true);
+    expect(mockRunOrchestrator).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: OTHER_EXECUTION_REQUEST_ID })
+    );
   });
 
   it("rejects arbitrary userId query and body identity injection", async () => {
@@ -372,7 +486,7 @@ describe("account deletion execute handler and route", () => {
   });
 
   it("EH-I/J: orchestrator success and safe failure mapping", async () => {
-    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+    enableExecutionWithAllowlist();
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
       context: { user: mockUser, accessToken: "admin-token", supabase: {} },
@@ -383,7 +497,7 @@ describe("account deletion execute handler and route", () => {
     mockRunOrchestrator.mockResolvedValueOnce({
       ok: true,
       code: "database_completed",
-      requestId: "req-1",
+      requestId: EXECUTION_REQUEST_ID,
       attemptId: "attempt-1",
       targetUserId: "target-1",
     });
@@ -392,8 +506,8 @@ describe("account deletion execute handler and route", () => {
       "./accountDeletionExecuteHandler"
     );
     const success = await handleAccountDeletionExecuteRequest({
-      request: buildRequest("req-1", { token: "admin-token" }),
-      requestId: "req-1",
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
     });
     expect(success.ok).toBe(true);
     expect(success.body).toMatchObject({ code: "database_completed" });
@@ -404,8 +518,8 @@ describe("account deletion execute handler and route", () => {
       retryable: true,
     });
     const failure = await handleAccountDeletionExecuteRequest({
-      request: buildRequest("req-1", { token: "admin-token" }),
-      requestId: "req-1",
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
     });
     expect(failure.ok).toBe(false);
     expect(failure.body).toMatchObject({ code: "session_revocation_failed" });
@@ -413,7 +527,7 @@ describe("account deletion execute handler and route", () => {
   });
 
   it("applies dedicated execution rate limit per admin", async () => {
-    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+    enableExecutionWithAllowlist();
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
       context: { user: mockUser, accessToken: "admin-token", supabase: {} },
@@ -427,15 +541,15 @@ describe("account deletion execute handler and route", () => {
 
     for (let i = 0; i < PRAYER_RATE_LIMITS.accountDeletionExecute.limit; i += 1) {
       const attempt = await handleAccountDeletionExecuteRequest({
-        request: buildRequest("req-1", { token: "admin-token" }),
-        requestId: "req-1",
+        request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+        requestId: EXECUTION_REQUEST_ID,
       });
       expect(attempt.status).not.toBe(429);
     }
 
     const blocked = await handleAccountDeletionExecuteRequest({
-      request: buildRequest("req-1", { token: "admin-token" }),
-      requestId: "req-1",
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
     });
 
     expect(blocked.ok).toBe(false);
@@ -451,11 +565,13 @@ describe("account deletion execute handler and route", () => {
     );
     expect(handlerSource).not.toContain("NEXT_PUBLIC_HTBF_ACCOUNT_DELETION");
     expect(handlerSource).not.toContain("NEXT_PUBLIC_ACCOUNT_DELETION_EXECUTION");
-    expect(readFileSync(".env.example", "utf8")).not.toContain(
-      ACCOUNT_DELETION_EXECUTION_ENV_FLAG
+    const envExample = readFileSync(".env.example", "utf8");
+    expect(envExample).toContain(ACCOUNT_DELETION_EXECUTION_ALLOWED_REQUEST_IDS_ENV);
+    expect(envExample).not.toMatch(
+      /^HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED=true/m
     );
 
-    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+    enableExecutionWithAllowlist();
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
       context: { user: mockUser, accessToken: "admin-token", supabase: {} },
@@ -467,15 +583,15 @@ describe("account deletion execute handler and route", () => {
       "./accountDeletionExecuteHandler"
     );
     const result = await handleAccountDeletionExecuteRequest({
-      request: buildRequest("req-1", { token: "admin-token" }),
-      requestId: "req-1",
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      requestId: EXECUTION_REQUEST_ID,
     });
 
     expect(JSON.stringify(result)).not.toContain("service-role-key");
   });
 
   it("route returns sanitized JSON without destructive execution", async () => {
-    process.env[ACCOUNT_DELETION_EXECUTION_ENV_FLAG] = "true";
+    enableExecutionWithAllowlist();
     mockAuthenticateSupabaseRequest.mockResolvedValue({
       ok: true,
       context: { user: mockUser, accessToken: "admin-token", supabase: {} },
@@ -488,8 +604,8 @@ describe("account deletion execute handler and route", () => {
     );
 
     const response = await POST(
-      buildRequest("req-1", { token: "admin-token" }),
-      { params: Promise.resolve({ requestId: "req-1" }) }
+      buildRequest(EXECUTION_REQUEST_ID, { token: "admin-token" }),
+      { params: Promise.resolve({ requestId: EXECUTION_REQUEST_ID }) }
     );
 
     expect(response.status).toBe(200);
@@ -506,6 +622,7 @@ describe("account deletion execute handler and route", () => {
     expect(source).not.toContain("deleteUser");
     expect(source).not.toContain(".remove(");
     expect(source).toContain("runAccountDeletionExecutionOrchestrator");
+    expect(source).toContain("evaluateAccountDeletionExecutionRequestAllowlist");
   });
 });
 

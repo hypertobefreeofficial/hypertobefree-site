@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { authenticateSupabaseRequest } from "./authenticateSupabaseRequest";
 import { verifyAdminForAccountDeletionDryRun } from "./accountDeletionManifest";
+import { evaluateAccountDeletionExecutionRequestAllowlist } from "./accountDeletionExecutionAllowlist";
 import {
   httpStatusForAccountDeletionOrchestrationError,
   isAccountDeletionExecutionEnabled,
@@ -206,6 +207,15 @@ export async function handleAccountDeletionExecuteRequest(options: {
       ok: false,
       status: 503,
       body: orchestrationErrorBody("execution_disabled"),
+    };
+  }
+
+  const allowlistGate = evaluateAccountDeletionExecutionRequestAllowlist(requestId);
+  if (allowlistGate.ok === false) {
+    return {
+      ok: false,
+      status: 503,
+      body: orchestrationErrorBody("execution_request_not_allowed"),
     };
   }
 
