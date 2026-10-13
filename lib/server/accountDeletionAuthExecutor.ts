@@ -177,7 +177,10 @@ function parseClaimSuccess(
     return { ok: false, ...mapClaimFailure(payload) };
   }
   const code = payload.code;
-  if (code !== "claimed" && code !== "already_claimed") {
+  if (code === "already_claimed") {
+    return { ok: false, code: "auth_claim_in_progress", retryable: true };
+  }
+  if (code !== "claimed") {
     return { ok: false, code: "claim_invariant_failed" };
   }
   const responseRequestId = payload.request_id;

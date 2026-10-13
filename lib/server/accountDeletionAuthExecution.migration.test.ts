@@ -38,12 +38,13 @@ describe("account deletion auth execution foundation (3B.4D.1)", () => {
     );
   });
 
-  it("does not wire orchestrator or terminal request completion", () => {
+  it("wires orchestrator to Auth stage wrapper and executor without inline claim/complete RPCs", () => {
     const orchestrator = readFileSync(
       "lib/server/accountDeletionExecutionOrchestrator.ts",
       "utf8"
     );
-    expect(orchestrator).not.toContain("prepare_account_deletion_auth_stage");
+    expect(orchestrator).toContain("prepareAccountDeletionAuthStage");
+    expect(orchestrator).toContain("executeAccountDeletionAuthDelete");
     expect(orchestrator).not.toContain("claim_account_deletion_auth_execution");
     expect(orchestrator).not.toContain("complete_account_deletion_auth_execution");
 

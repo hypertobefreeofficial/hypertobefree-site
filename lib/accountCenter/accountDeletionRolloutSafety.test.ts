@@ -221,7 +221,6 @@ describe("account deletion rollout safety", () => {
     expect(orchestrator).not.toMatch(/DELETE\s+FROM\s+(?:public\.)?profiles/i);
     expect(orchestrator).not.toContain("auth.admin");
     expect(orchestrator).not.toContain("deleteUser");
-    expect(orchestrator).not.toContain("auth_pending");
 
     const forbiddenDirectFinalizer = [
       "lib/server/accountDeletionExecuteHandler.ts",
@@ -355,9 +354,17 @@ describe("account deletion rollout safety", () => {
     ).toContain("ACCOUNT_DELETION_AUTH_HARD_DELETE");
   });
 
-  it("keeps Auth executor unwired from orchestrator, handler, route, UI, and legacy executor", () => {
-    const forbiddenImports = [
+  it("wires Auth executor only through orchestrator; handler/route/UI/legacy stay unwired", () => {
+    const orchestrator = readFileSync(
       "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "utf8"
+    );
+    expect(orchestrator).toContain("executeAccountDeletionAuthDelete");
+    expect(orchestrator).not.toMatch(/\bauth\.admin\.deleteUser\s*\(/);
+    expect(orchestrator).not.toContain("claim_account_deletion_auth_execution");
+    expect(orchestrator).not.toContain("complete_account_deletion_auth_execution");
+
+    const forbiddenImports = [
       "lib/server/accountDeletionExecuteHandler.ts",
       "app/api/admin/account-deletion/[requestId]/execute/route.ts",
       "app/admin/page.tsx",

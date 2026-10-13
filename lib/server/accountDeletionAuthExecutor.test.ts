@@ -451,7 +451,11 @@ describe("executeAccountDeletionAuthDelete", () => {
       ),
     });
     const result = await run(deps);
-    expect(result).toEqual({ ok: false, code: "claim_invariant_failed" });
+    expect(result).toEqual({
+      ok: false,
+      code: "auth_claim_in_progress",
+      retryable: true,
+    });
     expect(deps.getUserById).not.toHaveBeenCalled();
     expect(deps.deleteUser).not.toHaveBeenCalled();
   });
@@ -504,6 +508,23 @@ describe("executeAccountDeletionAuthDelete", () => {
       retryable: true,
     });
     expect(deps.getUserById).not.toHaveBeenCalled();
+  });
+
+  it("live already_claimed returns auth_claim_in_progress with zero Auth provider work", async () => {
+    const deps = makeDeps({
+      claimAuthExecution: vi.fn(async () =>
+        claimSuccess({ code: "already_claimed" })
+      ),
+    });
+    const result = await run(deps);
+    expect(result).toEqual({
+      ok: false,
+      code: "auth_claim_in_progress",
+      retryable: true,
+    });
+    expect(deps.getUserById).not.toHaveBeenCalled();
+    expect(deps.deleteUser).not.toHaveBeenCalled();
+    expect(deps.completeAuthExecution).not.toHaveBeenCalled();
   });
 
   it("does not expose provider error payloads in failure results", async () => {

@@ -91,10 +91,34 @@ function createDeps(
       stage: "storage_completed",
     })),
     isProfileOrchestrationEnabled: vi.fn(() => false),
+    isAuthOrchestrationEnabled: vi.fn(() => false),
     prepareProfileStage: vi.fn(),
     runProfileMediaTick: vi.fn(),
     finalizeProfileStage: vi.fn(),
+    prepareAuthStage: vi.fn(),
+    executeAuthDelete: vi.fn(),
     ...overrides,
+  };
+}
+
+function authPrepared() {
+  return {
+    ok: true as const,
+    code: "prepared" as const,
+    requestId: REQUEST,
+    attemptId: ATTEMPT,
+    targetUserId: TARGET,
+    stage: "auth_pending" as const,
+  };
+}
+
+function authExecutorFinalize() {
+  return {
+    ok: true as const,
+    code: "auth_deleted" as const,
+    requestId: REQUEST,
+    attemptId: ATTEMPT,
+    stage: "finalize" as const,
   };
 }
 
@@ -792,8 +816,9 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(source).not.toContain("auth.admin");
     expect(source).not.toMatch(/\.from\("profiles"\)\.delete/);
     expect(source).not.toMatch(/DELETE\s+FROM\s+(?:public\.)?profiles/i);
-    expect(source).not.toContain("auth_pending");
     expect(source).not.toContain("finalizeAccountDeletionRequest");
+    expect(source).not.toContain("attempt_completed");
+    expect(source).not.toMatch(/status\s*=\s*['"]deleted['"]/i);
   });
 
   it("PC-1: profile flag disabled at storage_completed stays storage_completed", async () => {
@@ -1043,18 +1068,23 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     ).toEqual({ ok: false, code: "invariant_failed" });
   });
 
-  it("PC-12: resume profile_completed is idempotent without profile work", async () => {
+  it("PC-12: resume profile_completed with Auth OFF stays profile_completed without profile or auth work", async () => {
     const prepare = vi.fn();
     const media = vi.fn();
     const finalize = vi.fn();
+    const authPrepare = vi.fn();
+    const authExec = vi.fn();
     const deps = createDeps({
       isProfileOrchestrationEnabled: vi.fn(() => true),
+      isAuthOrchestrationEnabled: vi.fn(() => false),
       runSessionPhase: vi.fn(async () =>
         sessionSuccess("later_stage_reached", "profile_completed")
       ),
       prepareProfileStage: prepare,
       runProfileMediaTick: media,
       finalizeProfileStage: finalize,
+      prepareAuthStage: authPrepare,
+      executeAuthDelete: authExec,
     });
     const result = await runAccountDeletionExecutionOrchestrator({
       requestId: REQUEST,
@@ -1065,6 +1095,29 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(prepare).not.toHaveBeenCalled();
     expect(media).not.toHaveBeenCalled();
     expect(finalize).not.toHaveBeenCalled();
+    expect(authPrepare).not.toHaveBeenCalled();
+    expect(authExec).not.toHaveBeenCalled();
+  });
+
+  it("PC-12b: resume profile_completed with Auth ON prepares and executes auth once", async () => {
+    const authPrepare = vi.fn(async () => authPrepared());
+    const authExec = vi.fn(async () => authExecutorFinalize());
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile_completed")
+      ),
+      prepareAuthStage: authPrepare,
+      executeAuthDelete: authExec,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(authPrepare).toHaveBeenCalledOnce();
+    expect(authExec).toHaveBeenCalledOnce();
   });
 
   it("PC-14: profile disabled at profile stage returns profile_execution_disabled", async () => {
@@ -1127,5 +1180,171 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
       deps,
     });
     expect(result).toEqual({ ok: false, code: "profile_blocked" });
+  });
+
+  it("AC-1: auth_pending resume runs executor once without prepare", async () => {
+    const authPrepare = vi.fn();
+    const authExec = vi.fn(async () => authExecutorFinalize());
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "auth_pending")
+      ),
+      prepareAuthStage: authPrepare,
+      executeAuthDelete: authExec,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(authPrepare).not.toHaveBeenCalled();
+    expect(authExec).toHaveBeenCalledOnce();
+  });
+
+  it("AC-2: auth resume with live already_claimed maps to auth_in_progress without provider delegation", async () => {
+    const authExec = vi.fn(async () => ({
+      ok: false as const,
+      code: "auth_claim_in_progress" as const,
+      retryable: true,
+    }));
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "auth")
+      ),
+      executeAuthDelete: authExec,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "auth_in_progress" });
+    expect(authExec).toHaveBeenCalledOnce();
+  });
+
+  it("AC-3: fresh claimed authority from executor completes auth_finalize", async () => {
+    const authExec = vi.fn(async () => authExecutorFinalize());
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "auth_pending")
+      ),
+      executeAuthDelete: authExec,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+  });
+
+  it("AC-4: finalize resume is idempotent auth_finalize without prepare or executor", async () => {
+    const authPrepare = vi.fn();
+    const authExec = vi.fn();
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "finalize")
+      ),
+      prepareAuthStage: authPrepare,
+      executeAuthDelete: authExec,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(authPrepare).not.toHaveBeenCalled();
+    expect(authExec).not.toHaveBeenCalled();
+  });
+
+  it("AC-5: auth_pending with Auth OFF returns auth_execution_disabled", async () => {
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => false),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "auth_pending")
+      ),
+      executeAuthDelete: vi.fn(),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "auth_execution_disabled" });
+    expect(deps.executeAuthDelete).not.toHaveBeenCalled();
+  });
+
+  it("AC-6: preservation hold on prepare maps to auth_blocked", async () => {
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile_completed")
+      ),
+      prepareAuthStage: vi.fn(async () => ({
+        ok: false as const,
+        code: "preservation_hold_active" as const,
+      })),
+      executeAuthDelete: vi.fn(),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "auth_blocked" });
+    expect(deps.executeAuthDelete).not.toHaveBeenCalled();
+  });
+
+  it("AC-7: retryable executor failure maps to auth_execution_failed", async () => {
+    const deps = createDeps({
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "auth_pending")
+      ),
+      executeAuthDelete: vi.fn(async () => ({
+        ok: false as const,
+        code: "claim_rpc_failed" as const,
+        retryable: true,
+      })),
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({
+      ok: false,
+      code: "auth_execution_failed",
+      retryable: true,
+    });
+  });
+
+  it("AC-8: profile+auth chain ignores storage/profile flags when resuming profile_completed", async () => {
+    const authPrepare = vi.fn(async () => authPrepared());
+    const authExec = vi.fn(async () => authExecutorFinalize());
+    const deps = createDeps({
+      isStorageOrchestrationEnabled: vi.fn(() => false),
+      isProfileOrchestrationEnabled: vi.fn(() => false),
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "profile_completed")
+      ),
+      prepareAuthStage: authPrepare,
+      executeAuthDelete: authExec,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(authPrepare).toHaveBeenCalledOnce();
+    expect(authExec).toHaveBeenCalledOnce();
   });
 });

@@ -26,6 +26,13 @@ import {
   prepareAccountDeletionProfileStage,
   type AccountDeletionProfileStageResult,
 } from "./accountDeletionProfileStage";
+import { executeAccountDeletionAuthDelete } from "./accountDeletionAuthExecutor";
+import type { AccountDeletionAuthExecutorResult } from "./accountDeletionAuthExecutor";
+import {
+  prepareAccountDeletionAuthStage,
+  type AccountDeletionAuthStageResult,
+} from "./accountDeletionAuthStage";
+import { isAccountDeletionAuthExecutionEnabled } from "./accountDeletionAuthExecutionPolicy";
 import { isAccountDeletionProfileExecutionEnabled } from "./accountDeletionProfileStagePolicy";
 import {
   createAccountDeletionProfileMediaStageRunnerDeps,
@@ -58,7 +65,9 @@ export type AccountDeletionExecutionOrchestratorSuccessCode =
   | "storage_completed"
   | "storage_in_progress"
   | "profile_completed"
-  | "profile_in_progress";
+  | "profile_in_progress"
+  | "auth_finalize"
+  | "auth_in_progress";
 
 export type AccountDeletionExecutionOrchestratorFailureCode =
   | "invalid_arguments"
@@ -91,6 +100,11 @@ export type AccountDeletionExecutionOrchestratorFailureCode =
   | "profile_precondition_failed"
   | "profile_blocked"
   | "profile_completion_failed"
+  | "auth_execution_disabled"
+  | "auth_execution_failed"
+  | "auth_precondition_failed"
+  | "auth_blocked"
+  | "auth_stage_failed"
   | "invariant_failed";
 
 export type AccountDeletionExecutionOrchestratorResult =
@@ -214,6 +228,7 @@ export type AccountDeletionExecutionOrchestratorDeps = {
   isGlobalExecutionEnabled?: () => boolean;
   isStorageOrchestrationEnabled?: () => boolean;
   isProfileOrchestrationEnabled?: () => boolean;
+  isAuthOrchestrationEnabled?: () => boolean;
   verifySchemaReadiness: () => Promise<boolean>;
   runPreflight: (input: {
     requestId: string;
@@ -254,6 +269,14 @@ export type AccountDeletionExecutionOrchestratorDeps = {
     requestId: string;
     attemptId: string;
   }) => Promise<AccountDeletionProfileCompletionResult>;
+  prepareAuthStage: (input: {
+    requestId: string;
+    attemptId: string;
+  }) => Promise<AccountDeletionAuthStageResult>;
+  executeAuthDelete: (input: {
+    requestId: string;
+    attemptId: string;
+  }) => Promise<AccountDeletionAuthExecutorResult>;
 };
 
 async function verifyStorageStageRunnerReadiness(
@@ -364,6 +387,20 @@ export function createAccountDeletionExecutionOrchestratorDeps(
         attemptId: input.attemptId,
       });
     },
+    prepareAuthStage(input) {
+      return prepareAccountDeletionAuthStage({
+        serviceRoleClient,
+        requestId: input.requestId,
+        attemptId: input.attemptId,
+      });
+    },
+    executeAuthDelete(input) {
+      return executeAccountDeletionAuthDelete({
+        serviceRoleClient,
+        requestId: input.requestId,
+        attemptId: input.attemptId,
+      });
+    },
   };
 }
 
@@ -374,9 +411,13 @@ type SessionResumePlan =
   | { kind: "at_storage" }
   | { kind: "at_storage_completed" }
   | { kind: "at_profile" }
-  | { kind: "at_profile_completed" };
+  | { kind: "at_profile_completed" }
+  | { kind: "at_auth_pending" }
+  | { kind: "at_auth" }
+  | { kind: "at_finalize" };
 
 type ProfileSegmentEntry = "storage_completed" | "profile";
+type AuthSegmentEntry = "profile_completed" | "auth_pending" | "auth";
 
 function planAfterSessionPhase(
   session: AccountDeletionSessionRevocationOrchestratorResult
@@ -413,6 +454,15 @@ function planAfterSessionPhase(
       }
       if (session.stage === "profile_completed") {
         return { ok: true, plan: { kind: "at_profile_completed" } };
+      }
+      if (session.stage === "auth_pending") {
+        return { ok: true, plan: { kind: "at_auth_pending" } };
+      }
+      if (session.stage === "auth") {
+        return { ok: true, plan: { kind: "at_auth" } };
+      }
+      if (session.stage === "finalize") {
+        return { ok: true, plan: { kind: "at_finalize" } };
       }
       return { ok: false, code: "stage_conflict" };
     default:
@@ -632,6 +682,135 @@ async function runBoundedStorageStageTick(
   return mapStorageTickToOrchestratorResult(tick, context);
 }
 
+function mapAuthPrepareFailure(
+  result: Extract<AccountDeletionAuthStageResult, { ok: false }>
+): AccountDeletionExecutionOrchestratorResult {
+  switch (result.code) {
+    case "preservation_hold_active":
+      return { ok: false, code: "auth_blocked" };
+    case "request_not_in_progress":
+    case "attempt_mismatch":
+    case "invalid_stage":
+    case "irreversible_stage":
+    case "storage_manifest_not_finalized":
+    case "profile_completion_not_evidence_backed":
+    case "inconsistent_state":
+      return { ok: false, code: "stage_conflict" };
+    case "target_unresolved":
+      return { ok: false, code: "auth_precondition_failed" };
+    case "rpc_error":
+    case "invariant_failed":
+      return { ok: false, code: "auth_stage_failed", retryable: true };
+    case "invalid_arguments":
+      return { ok: false, code: "invariant_failed" };
+    default:
+      return { ok: false, code: "auth_stage_failed" };
+  }
+}
+
+function mapAuthExecutorResult(
+  result: AccountDeletionAuthExecutorResult,
+  context: AccountDeletionTrustedSessionExecutionContext
+): AccountDeletionExecutionOrchestratorResult {
+  const base = orchestratorSuccessBase(context);
+
+  if (result.ok === true) {
+    if (
+      result.requestId !== context.requestId ||
+      result.attemptId !== context.attemptId ||
+      result.stage !== "finalize"
+    ) {
+      return { ok: false, code: "invariant_failed" };
+    }
+    return { ok: true, code: "auth_finalize", ...base };
+  }
+
+  switch (result.code) {
+    case "auth_execution_disabled":
+      return { ok: false, code: "auth_execution_disabled" };
+    case "auth_claim_in_progress":
+      return { ok: true, code: "auth_in_progress", ...base };
+    case "claim_rpc_failed":
+    case "auth_precheck_failed":
+    case "auth_postcheck_failed":
+    case "complete_rpc_failed":
+      return {
+        ok: false,
+        code: "auth_execution_failed",
+        retryable: result.retryable ?? true,
+      };
+    case "claim_precondition_failed":
+    case "complete_precondition_failed":
+      return { ok: false, code: "auth_precondition_failed" };
+    case "preservation_hold_active":
+      return { ok: false, code: "auth_blocked" };
+    case "stage_conflict":
+      return { ok: false, code: "stage_conflict" };
+    case "invalid_arguments":
+    case "claim_invariant_failed":
+    case "complete_invariant_failed":
+    case "auth_verification_failed":
+      return { ok: false, code: "auth_execution_failed" };
+    default:
+      return {
+        ok: false,
+        code: "auth_execution_failed",
+        retryable: result.retryable,
+      };
+  }
+}
+
+async function runBoundedAuthStageSegment(
+  deps: AccountDeletionExecutionOrchestratorDeps,
+  context: AccountDeletionTrustedSessionExecutionContext,
+  entry: AuthSegmentEntry
+): Promise<AccountDeletionExecutionOrchestratorResult> {
+  if (entry === "profile_completed") {
+    const prepared = await deps.prepareAuthStage({
+      requestId: context.requestId,
+      attemptId: context.attemptId,
+    });
+    if (prepared.ok === false) {
+      return mapAuthPrepareFailure(prepared);
+    }
+    if (
+      prepared.code !== "prepared" &&
+      prepared.code !== "already_prepared"
+    ) {
+      return { ok: false, code: "invariant_failed" };
+    }
+    if (
+      prepared.requestId !== context.requestId ||
+      prepared.attemptId !== context.attemptId ||
+      prepared.targetUserId !== context.targetUserId ||
+      prepared.stage !== "auth_pending"
+    ) {
+      return { ok: false, code: "invariant_failed" };
+    }
+  }
+
+  const authResult = await deps.executeAuthDelete({
+    requestId: context.requestId,
+    attemptId: context.attemptId,
+  });
+
+  return mapAuthExecutorResult(authResult, context);
+}
+
+async function continueAfterProfileResult(
+  deps: AccountDeletionExecutionOrchestratorDeps,
+  context: AccountDeletionTrustedSessionExecutionContext,
+  profileResult: AccountDeletionExecutionOrchestratorResult
+): Promise<AccountDeletionExecutionOrchestratorResult> {
+  if (!profileResult.ok || profileResult.code !== "profile_completed") {
+    return profileResult;
+  }
+  if (!resolveAuthOrchestrationEnabled(deps)) {
+    return profileResult;
+  }
+  return runBoundedAuthStageSegment(deps, context, "profile_completed");
+}
+
 async function continueAfterStorageResult(
   deps: AccountDeletionExecutionOrchestratorDeps,
   context: AccountDeletionTrustedSessionExecutionContext,
@@ -643,7 +822,12 @@ async function continueAfterStorageResult(
   if (!resolveProfileOrchestrationEnabled(deps)) {
     return storageResult;
   }
-  return runBoundedProfileStageSegment(deps, context, "storage_completed");
+  const profileResult = await runBoundedProfileStageSegment(
+    deps,
+    context,
+    "storage_completed"
+  );
+  return continueAfterProfileResult(deps, context, profileResult);
 }
 
 function resolveGlobalExecutionEnabled(
@@ -666,6 +850,14 @@ function resolveProfileOrchestrationEnabled(
 ): boolean {
   return (
     deps.isProfileOrchestrationEnabled ?? isAccountDeletionProfileExecutionEnabled
+  )();
+}
+
+function resolveAuthOrchestrationEnabled(
+  deps: AccountDeletionExecutionOrchestratorDeps
+): boolean {
+  return (
+    deps.isAuthOrchestrationEnabled ?? isAccountDeletionAuthExecutionEnabled
   )();
 }
 
@@ -731,19 +923,53 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
     };
   }
 
-  if (resume.plan.kind === "at_profile_completed") {
+  if (resume.plan.kind === "at_finalize") {
     return {
       ok: true,
-      code: "profile_completed",
+      code: "auth_finalize",
       ...orchestratorSuccessBase(executionContext),
     };
+  }
+
+  if (resume.plan.kind === "at_auth_pending") {
+    if (!resolveAuthOrchestrationEnabled(deps)) {
+      return { ok: false, code: "auth_execution_disabled" };
+    }
+    return runBoundedAuthStageSegment(deps, executionContext, "auth_pending");
+  }
+
+  if (resume.plan.kind === "at_auth") {
+    if (!resolveAuthOrchestrationEnabled(deps)) {
+      return { ok: false, code: "auth_execution_disabled" };
+    }
+    return runBoundedAuthStageSegment(deps, executionContext, "auth");
+  }
+
+  if (resume.plan.kind === "at_profile_completed") {
+    if (!resolveAuthOrchestrationEnabled(deps)) {
+      return {
+        ok: true,
+        code: "profile_completed",
+        ...orchestratorSuccessBase(executionContext),
+      };
+    }
+    return runBoundedAuthStageSegment(
+      deps,
+      executionContext,
+      "profile_completed"
+    );
   }
 
   if (resume.plan.kind === "at_profile") {
     if (!profileOrchestrationEnabled) {
       return { ok: false, code: "profile_execution_disabled" };
     }
-    return runBoundedProfileStageSegment(deps, executionContext, "profile");
+    const profileResult = await runBoundedProfileStageSegment(
+      deps,
+      executionContext,
+      "profile"
+    );
+    return continueAfterProfileResult(deps, executionContext, profileResult);
   }
 
   if (resume.plan.kind === "at_storage_completed") {
@@ -754,11 +980,12 @@ export async function runAccountDeletionExecutionOrchestrator(options: {
         ...orchestratorSuccessBase(executionContext),
       };
     }
-    return runBoundedProfileStageSegment(
+    const profileResult = await runBoundedProfileStageSegment(
       deps,
       executionContext,
       "storage_completed"
     );
+    return continueAfterProfileResult(deps, executionContext, profileResult);
   }
 
   if (resume.plan.kind === "at_storage") {
@@ -892,6 +1119,8 @@ export const ACCOUNT_DELETION_EXECUTION_ORCHESTRATOR_SCOPE_NOTE =
   + "when dual execution flags are true, one bounded Storage stage tick via "
   + "runAccountDeletionStorageStageTick; when profile execution is enabled, at most "
   + "one prepare + profile-media tick + finalize_account_deletion_profile_stage per "
-  + "invocation (stops at profile_completed). Auth deletion remains a later phase. "
+  + "invocation; when Auth execution is enabled after profile_completed, at most one "
+  + "prepare_account_deletion_auth_stage + one executeAccountDeletionAuthDelete per "
+  + "invocation (stops at finalize). Request terminal completion is not in scope. "
   + "Pre-acquisition preflight reduces predictable failures but does not eliminate TOCTOU; "
   + "3B.1 in-transaction preflight + storage-manifest gate remain authoritative after acquisition.";

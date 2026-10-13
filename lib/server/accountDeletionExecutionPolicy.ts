@@ -163,6 +163,13 @@ export type AccountDeletionExecutionOrchestrationHttpCode =
   | "profile_precondition_failed"
   | "profile_blocked"
   | "profile_completion_failed"
+  | "auth_finalize"
+  | "auth_in_progress"
+  | "auth_execution_disabled"
+  | "auth_execution_failed"
+  | "auth_precondition_failed"
+  | "auth_blocked"
+  | "auth_stage_failed"
   | "execution_preflight_blocked"
   | "preflight_lookup_failed"
   | "preflight_invariant_failed";
@@ -226,6 +233,20 @@ export function sanitizeAccountDeletionOrchestrationErrorMessage(
       return "Profile stage execution is blocked for this attempt.";
     case "profile_completion_failed":
       return "Profile completion stage failed.";
+    case "auth_finalize":
+      return "Auth deletion stage completed for this deletion attempt.";
+    case "auth_in_progress":
+      return "Auth deletion stage work is in progress; invoke execute again to continue.";
+    case "auth_execution_disabled":
+      return "account_deletion_auth_execution_disabled";
+    case "auth_execution_failed":
+      return "Auth deletion stage failed.";
+    case "auth_precondition_failed":
+      return "Auth stage prerequisites were not satisfied.";
+    case "auth_blocked":
+      return "Auth stage execution is blocked for this attempt.";
+    case "auth_stage_failed":
+      return "Auth stage preparation failed.";
     default:
       return sanitizeAccountDeletionExecutionErrorMessage(
         code as AccountDeletionExecutionErrorCode
@@ -262,15 +283,23 @@ export function httpStatusForAccountDeletionOrchestrationError(
     case "storage_in_progress":
     case "profile_completed":
     case "profile_in_progress":
+    case "auth_finalize":
+    case "auth_in_progress":
       return 200;
     case "storage_execution_disabled":
     case "storage_precondition_failed":
     case "profile_execution_disabled":
     case "profile_precondition_failed":
     case "profile_completion_failed":
+    case "auth_execution_disabled":
+    case "auth_precondition_failed":
+    case "auth_stage_failed":
+      return 503;
+    case "auth_execution_failed":
       return 503;
     case "storage_blocked":
     case "profile_blocked":
+    case "auth_blocked":
       return 409;
     default:
       return httpStatusForAccountDeletionExecutionError(
