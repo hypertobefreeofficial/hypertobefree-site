@@ -45,6 +45,7 @@ describe("account deletion auth execution foundation (3B.4D.1)", () => {
     );
     expect(orchestrator).toContain("prepareAccountDeletionAuthStage");
     expect(orchestrator).toContain("executeAccountDeletionAuthDelete");
+    expect(orchestrator).toContain("finalizeAccountDeletionExecution");
     expect(orchestrator).not.toContain("claim_account_deletion_auth_execution");
     expect(orchestrator).not.toContain("complete_account_deletion_auth_execution");
 

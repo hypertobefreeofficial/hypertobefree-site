@@ -97,7 +97,23 @@ function createDeps(
     finalizeProfileStage: vi.fn(),
     prepareAuthStage: vi.fn(),
     executeAuthDelete: vi.fn(),
+    finalizeExecutionTerminal: vi.fn(async () => terminalCompleted()),
     ...overrides,
+  };
+}
+
+function terminalCompleted(
+  code: "completed" | "already_completed" = "completed"
+) {
+  return {
+    ok: true as const,
+    code,
+    requestId: REQUEST,
+    attemptId: ATTEMPT,
+    targetUserId: TARGET,
+    attemptStage: "completed" as const,
+    attemptStatus: "completed" as const,
+    requestStatus: "deleted" as const,
   };
 }
 
@@ -1115,9 +1131,10 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
       initiatedBy: OWNER,
       deps,
     });
-    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(result).toMatchObject({ ok: true, code: "deletion_completed" });
     expect(authPrepare).toHaveBeenCalledOnce();
     expect(authExec).toHaveBeenCalledOnce();
+    expect(deps.finalizeExecutionTerminal).toHaveBeenCalledOnce();
   });
 
   it("PC-14: profile disabled at profile stage returns profile_execution_disabled", async () => {
@@ -1198,9 +1215,10 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
       initiatedBy: OWNER,
       deps,
     });
-    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(result).toMatchObject({ ok: true, code: "deletion_completed" });
     expect(authPrepare).not.toHaveBeenCalled();
     expect(authExec).toHaveBeenCalledOnce();
+    expect(deps.finalizeExecutionTerminal).toHaveBeenCalledOnce();
   });
 
   it("AC-2: auth resume with live already_claimed maps to auth_in_progress without provider delegation", async () => {
@@ -1225,7 +1243,7 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
     expect(authExec).toHaveBeenCalledOnce();
   });
 
-  it("AC-3: fresh claimed authority from executor completes auth_finalize", async () => {
+  it("AC-3: fresh claimed authority chains to deletion_completed", async () => {
     const authExec = vi.fn(async () => authExecutorFinalize());
     const deps = createDeps({
       isAuthOrchestrationEnabled: vi.fn(() => true),
@@ -1239,12 +1257,14 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
       initiatedBy: OWNER,
       deps,
     });
-    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(result).toMatchObject({ ok: true, code: "deletion_completed" });
+    expect(deps.finalizeExecutionTerminal).toHaveBeenCalledOnce();
   });
 
-  it("AC-4: finalize resume is idempotent auth_finalize without prepare or executor", async () => {
+  it("AC-4: finalize resume invokes terminal once without prepare or auth executor", async () => {
     const authPrepare = vi.fn();
     const authExec = vi.fn();
+    const terminal = vi.fn(async () => terminalCompleted());
     const deps = createDeps({
       isAuthOrchestrationEnabled: vi.fn(() => true),
       runSessionPhase: vi.fn(async () =>
@@ -1252,14 +1272,55 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
       ),
       prepareAuthStage: authPrepare,
       executeAuthDelete: authExec,
+      finalizeExecutionTerminal: terminal,
     });
     const result = await runAccountDeletionExecutionOrchestrator({
       requestId: REQUEST,
       initiatedBy: OWNER,
       deps,
     });
-    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(result).toMatchObject({ ok: true, code: "deletion_completed" });
     expect(authPrepare).not.toHaveBeenCalled();
+    expect(authExec).not.toHaveBeenCalled();
+    expect(terminal).toHaveBeenCalledOnce();
+  });
+
+  it("AC-4b: global execution disabled fails closed before terminal segment", async () => {
+    const terminal = vi.fn();
+    const deps = createDeps({
+      isGlobalExecutionEnabled: vi.fn(() => false),
+      isAuthOrchestrationEnabled: vi.fn(() => true),
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "finalize")
+      ),
+      finalizeExecutionTerminal: terminal,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toEqual({ ok: false, code: "execution_disabled" });
+    expect(terminal).not.toHaveBeenCalled();
+  });
+
+  it("TC-1: completed resume returns deletion_completed with zero terminal RPC", async () => {
+    const terminal = vi.fn();
+    const authExec = vi.fn();
+    const deps = createDeps({
+      runSessionPhase: vi.fn(async () =>
+        sessionSuccess("later_stage_reached", "completed")
+      ),
+      finalizeExecutionTerminal: terminal,
+      executeAuthDelete: authExec,
+    });
+    const result = await runAccountDeletionExecutionOrchestrator({
+      requestId: REQUEST,
+      initiatedBy: OWNER,
+      deps,
+    });
+    expect(result).toMatchObject({ ok: true, code: "deletion_completed" });
+    expect(terminal).not.toHaveBeenCalled();
     expect(authExec).not.toHaveBeenCalled();
   });
 
@@ -1343,8 +1404,9 @@ describe("runAccountDeletionExecutionOrchestrator", () => {
       initiatedBy: OWNER,
       deps,
     });
-    expect(result).toMatchObject({ ok: true, code: "auth_finalize" });
+    expect(result).toMatchObject({ ok: true, code: "deletion_completed" });
     expect(authPrepare).toHaveBeenCalledOnce();
     expect(authExec).toHaveBeenCalledOnce();
+    expect(deps.finalizeExecutionTerminal).toHaveBeenCalledOnce();
   });
 });

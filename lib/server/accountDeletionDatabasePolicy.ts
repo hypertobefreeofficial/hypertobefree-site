@@ -381,6 +381,21 @@ export const ACCOUNT_DELETION_AUTH_EXECUTION_FOUNDATION_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.4D.1",
 } as const;
 
+export const ACCOUNT_DELETION_TERMINAL_COMPLETION_FOUNDATION_MIGRATION = {
+  version: "20260919273000",
+  filename:
+    "20260919273000_account_deletion_terminal_completion_foundation_phase4c7b1e2c3b4d4.sql",
+  relativePath:
+    "supabase/migrations/20260919273000_account_deletion_terminal_completion_foundation_phase4c7b1e2c3b4d4.sql",
+  phase: "4C.7B.1E.2C.3B.4D.4",
+} as const;
+
+/** Terminal bookkeeping RPC (3B.4D.4). Non-destructive; request status deleted only here. */
+export const ACCOUNT_DELETION_TERMINAL_COMPLETION_FOUNDATION_NOTE =
+  "Non-destructive finalize_account_deletion_execution marks attempt completed and request "
+  + "deleted using authoritative Auth/Profile/Storage evidence only. Preservation holds do not "
+  + "block terminal bookkeeping at finalize. No auth.users or Storage remove().";
+
 /** Auth delete claim/complete DB authority (3B.4D.1). No auth.users mutation; not orchestrator-wired. */
 export const ACCOUNT_DELETION_AUTH_EXECUTION_FOUNDATION_NOTE =
   "prepare_account_deletion_auth_stage / claim_account_deletion_auth_execution / "

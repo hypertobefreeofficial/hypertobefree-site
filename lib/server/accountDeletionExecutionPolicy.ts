@@ -165,11 +165,15 @@ export type AccountDeletionExecutionOrchestrationHttpCode =
   | "profile_completion_failed"
   | "auth_finalize"
   | "auth_in_progress"
+  | "deletion_completed"
   | "auth_execution_disabled"
   | "auth_execution_failed"
   | "auth_precondition_failed"
   | "auth_blocked"
   | "auth_stage_failed"
+  | "terminal_completion_failed"
+  | "terminal_precondition_failed"
+  | "terminal_invariant_failed"
   | "execution_preflight_blocked"
   | "preflight_lookup_failed"
   | "preflight_invariant_failed";
@@ -237,6 +241,8 @@ export function sanitizeAccountDeletionOrchestrationErrorMessage(
       return "Auth deletion stage completed for this deletion attempt.";
     case "auth_in_progress":
       return "Auth deletion stage work is in progress; invoke execute again to continue.";
+    case "deletion_completed":
+      return "Account deletion execution completed.";
     case "auth_execution_disabled":
       return "account_deletion_auth_execution_disabled";
     case "auth_execution_failed":
@@ -247,6 +253,12 @@ export function sanitizeAccountDeletionOrchestrationErrorMessage(
       return "Auth stage execution is blocked for this attempt.";
     case "auth_stage_failed":
       return "Auth stage preparation failed.";
+    case "terminal_completion_failed":
+      return "Terminal deletion completion failed.";
+    case "terminal_precondition_failed":
+      return "Terminal completion prerequisites were not satisfied.";
+    case "terminal_invariant_failed":
+      return "Account deletion execution is unavailable right now.";
     default:
       return sanitizeAccountDeletionExecutionErrorMessage(
         code as AccountDeletionExecutionErrorCode
@@ -285,6 +297,7 @@ export function httpStatusForAccountDeletionOrchestrationError(
     case "profile_in_progress":
     case "auth_finalize":
     case "auth_in_progress":
+    case "deletion_completed":
       return 200;
     case "storage_execution_disabled":
     case "storage_precondition_failed":
@@ -296,7 +309,11 @@ export function httpStatusForAccountDeletionOrchestrationError(
     case "auth_stage_failed":
       return 503;
     case "auth_execution_failed":
+    case "terminal_completion_failed":
       return 503;
+    case "terminal_precondition_failed":
+    case "terminal_invariant_failed":
+      return 409;
     case "storage_blocked":
     case "profile_blocked":
     case "auth_blocked":

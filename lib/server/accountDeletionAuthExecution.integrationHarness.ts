@@ -67,3 +67,40 @@ export function completeAuthExecutionRpc(
     [requestId, attemptId, deleteCommitToken, outcome]
   );
 }
+
+/** Full pipeline through Auth complete at attempt.stage = finalize (non-terminal). */
+export async function driveLifecycleToAuthFinalize(client: Client) {
+  const fixture = await driveLifecycleToProfileCompleted(client);
+  await prepareAuthStageRpc(client, fixture.requestId, fixture.attemptId);
+  const claim = await claimAuthExecutionRpc(
+    client,
+    fixture.requestId,
+    fixture.attemptId
+  );
+  if (claim.ok !== true || claim.code !== "claimed") {
+    throw new Error(`auth claim failed: ${String(claim.code)}`);
+  }
+  const complete = await completeAuthExecutionRpc(
+    client,
+    fixture.requestId,
+    fixture.attemptId,
+    String(claim.delete_commit_token),
+    "deleted"
+  );
+  if (complete.ok !== true || complete.code !== "completed") {
+    throw new Error(`auth complete failed: ${String(complete.code)}`);
+  }
+  return fixture;
+}
+
+export function finalizeAccountDeletionExecutionRpc(
+  client: Client,
+  requestId: string,
+  attemptId: string
+) {
+  return asServiceRole<AuthExecutionRpcPayload>(
+    client,
+    `SELECT public.finalize_account_deletion_execution($1::uuid,$2::uuid) AS payload`,
+    [requestId, attemptId]
+  );
+}
