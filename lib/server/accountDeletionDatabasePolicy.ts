@@ -372,6 +372,21 @@ export const ACCOUNT_DELETION_PROFILES_PRIVILEGE_HARDENING_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.4C.1a",
 } as const;
 
+export const ACCOUNT_DELETION_AUTH_EXECUTION_FOUNDATION_MIGRATION = {
+  version: "20260919272000",
+  filename:
+    "20260919272000_account_deletion_auth_execution_foundation_phase4c7b1e2c3b4d.sql",
+  relativePath:
+    "supabase/migrations/20260919272000_account_deletion_auth_execution_foundation_phase4c7b1e2c3b4d.sql",
+  phase: "4C.7B.1E.2C.3B.4D.1",
+} as const;
+
+/** Auth delete claim/complete DB authority (3B.4D.1). No auth.users mutation; not orchestrator-wired. */
+export const ACCOUNT_DELETION_AUTH_EXECUTION_FOUNDATION_NOTE =
+  "prepare_account_deletion_auth_stage / claim_account_deletion_auth_execution / "
+  + "complete_account_deletion_auth_execution provide lease-bound Auth-stage authority only. "
+  + "External Supabase Auth admin deletion remains a later executor phase.";
+
 /** Physical executor DB authority: delete commit token, authorize/complete RPCs, hold actor binding. */
 export const ACCOUNT_DELETION_STORAGE_EXECUTOR_NOTE =
   "authorize_account_deletion_storage_object_delete is the atomic point-of-no-return before Storage remove(). "

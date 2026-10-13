@@ -394,6 +394,31 @@ function rpcToSql(call: RpcCall): { sql: string; params: unknown[] } {
         sql: `SELECT public.finalize_account_deletion_profile_stage($1::uuid, $2::uuid) AS payload`,
         params: [args.p_request_id, args.p_attempt_id],
       };
+    case "prepare_account_deletion_auth_stage":
+      return {
+        sql: `SELECT public.prepare_account_deletion_auth_stage($1::uuid, $2::uuid) AS payload`,
+        params: [args.p_request_id, args.p_attempt_id],
+      };
+    case "claim_account_deletion_auth_execution":
+      return {
+        sql: `SELECT public.claim_account_deletion_auth_execution($1::uuid, $2::uuid, $3::integer) AS payload`,
+        params: [args.p_request_id, args.p_attempt_id, args.p_lease_seconds ?? 900],
+      };
+    case "complete_account_deletion_auth_execution":
+      return {
+        sql: `SELECT public.complete_account_deletion_auth_execution($1::uuid, $2::uuid, $3::uuid, $4::text) AS payload`,
+        params: [
+          args.p_request_id,
+          args.p_attempt_id,
+          args.p_delete_commit_token,
+          args.p_outcome,
+        ],
+      };
+    case "verify_account_deletion_auth_execution_ready":
+      return {
+        sql: `SELECT public.verify_account_deletion_auth_execution_ready() AS payload`,
+        params: [],
+      };
     case "account_deletion_storage_execution_refresh_hold_eligibility":
       return {
         sql: `SELECT public.account_deletion_storage_execution_refresh_hold_eligibility($1::uuid,$2::uuid) AS payload`,
