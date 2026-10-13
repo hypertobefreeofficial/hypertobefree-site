@@ -325,6 +325,57 @@ describe("account deletion rollout safety", () => {
     expect(migration).not.toMatch(/\bauth\.users\b/i);
   });
 
+  it("isolates auth.admin.deleteUser to the Auth executor only", () => {
+    const allowedAuthDeleteFile = "lib/server/accountDeletionAuthExecutor.ts";
+    const productionRoots = ["lib/server", "app", "components"].filter(
+      existsSync
+    );
+    const violations: string[] = [];
+
+    for (const root of productionRoots) {
+      for (const file of sourceFilesUnder(root)) {
+        if (/\.test\.(?:ts|tsx)$/.test(file)) continue;
+        if (file.endsWith(".integration.test.ts")) continue;
+        if (file.endsWith(".e2e.test.ts")) continue;
+        if (file.endsWith(".migration.test.ts")) continue;
+        const source = readFileSync(file, "utf8");
+        const hasAuthAdminDeleteCall =
+          /\bauth\.admin\.deleteUser\s*\(/.test(source) ||
+          (/\bdeleteUser\s*\(/.test(source) &&
+            source.includes("ACCOUNT_DELETION_AUTH_HARD_DELETE"));
+        if (hasAuthAdminDeleteCall && file !== allowedAuthDeleteFile) {
+          violations.push(`${file}: destructive auth.admin.deleteUser call`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+    expect(
+      readFileSync(allowedAuthDeleteFile, "utf8")
+    ).toContain("ACCOUNT_DELETION_AUTH_HARD_DELETE");
+  });
+
+  it("keeps Auth executor unwired from orchestrator, handler, route, UI, and legacy executor", () => {
+    const forbiddenImports = [
+      "lib/server/accountDeletionExecutionOrchestrator.ts",
+      "lib/server/accountDeletionExecuteHandler.ts",
+      "app/api/admin/account-deletion/[requestId]/execute/route.ts",
+      "app/admin/page.tsx",
+      "lib/server/accountDeletionExecutor.ts",
+      "lib/server/accountDeletionProfileCompletion.ts",
+      "lib/server/accountDeletionProfileMediaObjectExecutor.ts",
+      "lib/server/accountDeletionProfileMediaStageRunner.ts",
+      "lib/server/accountDeletionStorageObjectExecutor.ts",
+      "lib/server/accountDeletionStorageStageRunner.ts",
+      "lib/server/accountDeletionSessionRevocation.ts",
+    ];
+    for (const file of forbiddenImports) {
+      const source = readFileSync(file, "utf8");
+      expect(source, file).not.toContain("accountDeletionAuthExecutor");
+      expect(source, file).not.toContain("executeAccountDeletionAuthDelete");
+    }
+  });
+
   it("adds no profile/Auth row deletion or profile completion transition", () => {
     const productionSources = [
       "lib/server/accountDeletionStorageProviderSafety.ts",
