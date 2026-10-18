@@ -382,7 +382,7 @@ export async function verifyAdminAal2ForAccountDeletionExecution(
   });
 
   const { data, error } =
-    await client.auth.mfa.getAuthenticatorAssuranceLevel();
+    await client.auth.mfa.getAuthenticatorAssuranceLevel(accessToken);
 
   if (error || !data) {
     return { ok: false, code: "auth_error" };

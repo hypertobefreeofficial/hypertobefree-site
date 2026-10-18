@@ -211,7 +211,38 @@ describe("account deletion execute handler and route", () => {
       code: "mfa_step_up_required",
       error: expect.stringContaining("authenticator"),
     });
+    expect(mockVerifyAdminAal2).toHaveBeenCalledWith("admin-token");
     expect(mockRunOrchestrator).not.toHaveBeenCalled();
+    expect(mockCreateOrchestratorDeps).not.toHaveBeenCalled();
+  });
+
+  it("returns internal_error and skips deletion when AAL verification is rejected", async () => {
+    enableExecutionWithAllowlist();
+    mockAuthenticateSupabaseRequest.mockResolvedValue({
+      ok: true,
+      context: { user: mockUser, accessToken: "rejected-token", supabase: {} },
+    });
+    mockVerifyAdmin.mockResolvedValue(true);
+    mockVerifyAdminAal2.mockResolvedValue({
+      ok: false,
+      code: "auth_error",
+    });
+
+    const { handleAccountDeletionExecuteRequest } = await import(
+      "./accountDeletionExecuteHandler"
+    );
+    const result = await handleAccountDeletionExecuteRequest({
+      request: buildRequest(EXECUTION_REQUEST_ID, { token: "rejected-token" }),
+      requestId: EXECUTION_REQUEST_ID,
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.status).toBe(503);
+    expect(result.body).toMatchObject({ code: "internal_error" });
+    expect(mockVerifyAdminAal2).toHaveBeenCalledWith("rejected-token");
+    expect(mockRunOrchestrator).not.toHaveBeenCalled();
+    expect(mockCreateOrchestratorDeps).not.toHaveBeenCalled();
   });
 
   it("EH-A: env false → execution_disabled and orchestrator not called", async () => {
