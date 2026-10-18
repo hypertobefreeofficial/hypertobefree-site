@@ -21,6 +21,7 @@ import {
 import {
   resolveStorageReference,
   resolveInboxJourneyOwnershipSource,
+  isRecipientOwnedInboxOwnershipSource,
   PATH_PREFIX_DISCOVERY_SOURCE_PREFIX,
 } from "./accountDeletionStorageReferenceRules";
 import {
@@ -347,12 +348,20 @@ function resolveManifestStorageClassification(input: {
   "plannedClassification" | "requiresReferencesCleared" | "ownershipSource" | "ownershipSources"
 > {
   const ownershipSources = input.refs.map((ref) => ref.ownershipSource);
+  const inboxRef = input.refs.find(
+    (ref) =>
+      ref.referencingTable === "inbox_messages" &&
+      ref.referencingRowId &&
+      isRecipientOwnedInboxOwnershipSource(ref.ownershipSource)
+  );
+
   const classified = classifyAccountDeletionStorageObject({
     bucket: input.bucket,
     path: input.path,
     targetUserId: input.targetUserId,
     ownershipSources,
-    referencingTable: input.refs[0]?.referencingTable ?? null,
+    referencingTable: inboxRef?.referencingTable ?? input.refs[0]?.referencingTable ?? null,
+    referencingRowId: inboxRef?.referencingRowId ?? null,
     journeyReferenceInventoryComplete: input.journeyReferenceInventoryComplete,
   });
 

@@ -97,6 +97,48 @@ describe("account deletion manifest and storage plan contract", () => {
     );
   });
 
+  it("manifest preserves foreign-prefix journey media referenced by target inbox rows", async () => {
+    const foreignPath = `${OTHER}/thread-foreign/uploader-object.mp4`;
+    const result = await buildAccountDeletionDryRunManifest(
+      "req-1",
+      buildDeps({
+        listInboxMediaReferences: vi.fn(async () => ({
+          ok: true as const,
+          rows: [
+            {
+              id: "msg-foreign-prefix",
+              user_id: TARGET,
+              sender_user_id: OTHER,
+              video_url: `journey-private-media/${foreignPath}`,
+              image_url: null,
+            },
+          ],
+        })),
+        listStorageObjectsForUser: vi.fn(async (bucket, userId) =>
+          bucket === "journey-private-media" && userId === TARGET
+            ? [{ path: `${TARGET}/orphan-only.mp4` }]
+            : [{ path: `${userId}/avatar.png` }]
+        ),
+      })
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const foreignObject = result.manifest.storage.objects.find(
+      (object) =>
+        object.bucket === "journey-private-media" && object.path === foreignPath
+    );
+    expect(foreignObject?.plannedClassification).toBe("PRESERVE_SHARED");
+    expect(
+      result.manifest.storage.objects.filter(
+        (object) =>
+          object.bucket === "journey-private-media" &&
+          object.plannedClassification === "BLOCK_UNRESOLVED"
+      )
+    ).toHaveLength(1);
+  });
+
   it("manifest preserves story and prayer response media instead of hard_delete", async () => {
     const result = await buildAccountDeletionDryRunManifest("req-1", buildDeps());
     expect(result.ok).toBe(true);

@@ -57,6 +57,60 @@ describe("accountDeletionStoragePolicy", () => {
     expect(result.reason).toContain(PREFIX_DISCOVERY_NOT_DELETION_AUTHORITY_NOTE);
   });
 
+  it("classifies foreign-prefix inbox-linked journey media as PRESERVE_SHARED", () => {
+    const other = "22222222-2222-4222-8222-222222222222";
+    const result = classifyAccountDeletionStorageObject({
+      bucket: "journey-private-media",
+      path: `${other}/thread-1/foreign-object.mp4`,
+      targetUserId: TARGET,
+      ownershipSources: ["inbox_messages.user_id (recipient-owned)"],
+      referencingTable: "inbox_messages",
+      referencingRowId: "msg-foreign-1",
+      journeyReferenceInventoryComplete: true,
+    });
+
+    expect(result.classification).toBe("PRESERVE_SHARED");
+    expect(result.classification).not.toBe("BLOCK_UNRESOLVED");
+    expect(result.classification).not.toBe("DELETE_PRIVATE");
+  });
+
+  it("does not preserve foreign-prefix journey media without an inbox row binding", () => {
+    const other = "22222222-2222-4222-8222-222222222222";
+    expect(
+      classifyAccountDeletionStorageObject({
+        bucket: "journey-private-media",
+        path: `${other}/thread-1/foreign-object.mp4`,
+        targetUserId: TARGET,
+        ownershipSources: ["inbox_messages.user_id (recipient-owned)"],
+        journeyReferenceInventoryComplete: true,
+      }).classification
+    ).toBe("BLOCK_UNRESOLVED");
+
+    expect(
+      classifyAccountDeletionStorageObject({
+        bucket: "journey-private-media",
+        path: `${other}/thread-1/foreign-object.mp4`,
+        targetUserId: TARGET,
+        ownershipSources: ["inbox_messages.user_id (recipient-owned)"],
+        referencingTable: "inbox_messages",
+        journeyReferenceInventoryComplete: true,
+      }).classification
+    ).toBe("BLOCK_UNRESOLVED");
+  });
+
+  it("does not preserve foreign-prefix journey media from prefix discovery alone", () => {
+    const other = "22222222-2222-4222-8222-222222222222";
+    const result = classifyAccountDeletionStorageObject({
+      bucket: "journey-private-media",
+      path: `${other}/thread-1/foreign-object.mp4`,
+      targetUserId: TARGET,
+      ownershipSources: [`${PATH_PREFIX_DISCOVERY_SOURCE_PREFIX}${TARGET}`],
+      journeyReferenceInventoryComplete: true,
+    });
+
+    expect(result.classification).toBe("BLOCK_UNRESOLVED");
+  });
+
   it("classifies shared journey private media as PRESERVE_SHARED", () => {
     const result = classifyAccountDeletionStorageObject({
       bucket: "journey-private-media",

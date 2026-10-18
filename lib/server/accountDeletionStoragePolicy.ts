@@ -40,6 +40,7 @@ export type AccountDeletionStorageClassificationInput = {
   targetUserId: string;
   ownershipSources: string[];
   referencingTable?: string | null;
+  referencingRowId?: string | null;
   journeyReferenceInventoryComplete?: boolean;
 };
 
@@ -117,6 +118,9 @@ export const PUBLIC_STORY_MEDIA_PRESERVATION_NOTE = REFERENCE_PUBLIC_NOTE;
 
 export const JOURNEY_SHARED_MEDIA_PRESERVATION_NOTE =
   "Journey private media referenced by a surviving inbox copy in another user's inbox must be preserved until that reference is cleared.";
+
+export const JOURNEY_FOREIGN_PREFIX_PRESERVATION_NOTE =
+  "Journey private media stored under another account's path prefix must be preserved when the deletion target still has authoritative inbox references to that object.";
 
 export function mapStorageActionToClassification(
   action: AccountDeletionStorageAction
@@ -517,6 +521,24 @@ export function classifyAccountDeletionStorageObject(
       classification: "PRESERVE_SHARED",
       reason: JOURNEY_SHARED_MEDIA_PRESERVATION_NOTE,
     };
+  }
+
+  if (input.bucket === "journey-private-media") {
+    const ownerSegment = normalizeStorageObjectPath(input.path).split("/")[0] ?? "";
+    const hasRecipientOwnedInboxRowForThisObject =
+      input.ownershipSources.some(isRecipientOwnedInboxOwnershipSource) &&
+      input.referencingTable === "inbox_messages" &&
+      Boolean(input.referencingRowId?.trim());
+    if (
+      UUID_PATTERN.test(ownerSegment) &&
+      !uuidEquals(ownerSegment, input.targetUserId) &&
+      hasRecipientOwnedInboxRowForThisObject
+    ) {
+      return {
+        classification: "PRESERVE_SHARED",
+        reason: JOURNEY_FOREIGN_PREFIX_PRESERVATION_NOTE,
+      };
+    }
   }
 
   const deleteEligibility = canClassifyAsDeletePrivate(input);
