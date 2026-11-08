@@ -31,17 +31,60 @@ export type AccountDeletionExecutionPreflightFailureCode =
   | "preflight_invariant_failed"
   | "execution_in_progress";
 
+export type AccountDeletionExecutionPreflightSanitizedSummary = {
+  operation:
+    | "deletion_request_lookup"
+    | "profile_lookup"
+    | "story_safety_inventory"
+    | "story_lifecycle"
+    | "preflight_complete";
+  blockerCodes: readonly string[];
+  childTablesWithQueryFailures: readonly string[];
+  expectedStoryCount: number | null;
+  nonAuthoritativeStoryCount: number | null;
+};
+
 export type AccountDeletionExecutionPreflightResult =
   | {
       ok: true;
       code: AccountDeletionExecutionPreflightSuccessCode;
       requestId: string;
       targetUserId: string;
+      summary: AccountDeletionExecutionPreflightSanitizedSummary;
     }
   | {
       ok: false;
       code: AccountDeletionExecutionPreflightFailureCode;
+      summary: AccountDeletionExecutionPreflightSanitizedSummary;
     };
+
+function preflightCompleteSummary(
+  batch: TargetStorySafetyInventoryBatch
+): AccountDeletionExecutionPreflightSanitizedSummary {
+  return {
+    operation: "preflight_complete",
+    blockerCodes: [],
+    childTablesWithQueryFailures: [],
+    expectedStoryCount: batch.expectedStoryIds.length,
+    nonAuthoritativeStoryCount: 0,
+  };
+}
+
+function preflightFailureSummary(input: {
+  operation: AccountDeletionExecutionPreflightSanitizedSummary["operation"];
+  blockerCodes?: readonly string[];
+  childTablesWithQueryFailures?: readonly string[];
+  expectedStoryCount?: number | null;
+  nonAuthoritativeStoryCount?: number | null;
+}): AccountDeletionExecutionPreflightSanitizedSummary {
+  return {
+    operation: input.operation,
+    blockerCodes: input.blockerCodes ?? [],
+    childTablesWithQueryFailures: input.childTablesWithQueryFailures ?? [],
+    expectedStoryCount: input.expectedStoryCount ?? null,
+    nonAuthoritativeStoryCount: input.nonAuthoritativeStoryCount ?? null,
+  };
+}
 
 export type AccountDeletionExecutionPreflightDeps = {
   loadDeletionRequest: (
@@ -174,11 +217,20 @@ export async function runAccountDeletionExecutionPreflight(options: {
   const eligibility = validateExecutionEligibility(request);
   if (eligibility.ok === false) {
     if (eligibility.code === "request_not_found") {
-      logPreflightFailure({
-        preflightCode: "preflight_lookup_failed",
+      const summary = preflightFailureSummary({
         operation: "deletion_request_lookup",
         blockerCodes: ["request_not_found"],
       });
+      logPreflightFailure({
+        preflightCode: "preflight_lookup_failed",
+        operation: "deletion_request_lookup",
+        blockerCodes: summary.blockerCodes,
+      });
+      return {
+        ok: false,
+        code: "preflight_lookup_failed",
+        summary,
+      };
     }
     if (eligibility.code === "execution_in_progress" && request) {
       const targetUserId = resolveDeletionRequestTargetUserId({
@@ -186,54 +238,92 @@ export async function runAccountDeletionExecutionPreflight(options: {
         target_user_id_snapshot: request.target_user_id_snapshot,
       });
       if (!targetUserId) {
-        logPreflightFailure({
-          preflightCode: "target_not_found",
+        const summary = preflightFailureSummary({
           operation: "deletion_request_lookup",
           blockerCodes: ["target_not_found"],
         });
-        return { ok: false, code: "target_not_found" };
+        logPreflightFailure({
+          preflightCode: "target_not_found",
+          operation: "deletion_request_lookup",
+          blockerCodes: summary.blockerCodes,
+        });
+        return { ok: false, code: "target_not_found", summary };
       }
       return {
         ok: true,
         code: "preflight_ready",
         requestId,
         targetUserId,
+        summary: {
+          operation: "preflight_complete",
+          blockerCodes: [],
+          childTablesWithQueryFailures: [],
+          expectedStoryCount: null,
+          nonAuthoritativeStoryCount: null,
+        },
       };
     }
-    return { ok: false, code: mapEligibilityFailure(eligibility.code) };
+    const eligibilityCode = mapEligibilityFailure(eligibility.code);
+    return {
+      ok: false,
+      code: eligibilityCode,
+      summary: preflightFailureSummary({
+        operation: "deletion_request_lookup",
+        blockerCodes: [eligibility.code],
+      }),
+    };
   }
 
   const profile = await deps.loadProfile(eligibility.targetUserId);
   const privileged = validatePrivilegedTarget(profile);
   if (privileged.ok === false) {
-    logPreflightFailure({
-      preflightCode: privileged.code,
+    const summary = preflightFailureSummary({
       operation: "profile_lookup",
       blockerCodes: [privileged.code],
     });
-    return { ok: false, code: privileged.code };
+    logPreflightFailure({
+      preflightCode: privileged.code,
+      operation: "profile_lookup",
+      blockerCodes: summary.blockerCodes,
+    });
+    return { ok: false, code: privileged.code, summary };
   }
 
   const storyBatch = await deps.loadTargetStorySafetyBatch(eligibility.targetUserId);
   if (storyBatch.ok === false || storyBatch.blockers.length > 0) {
+    const storyDiagnostics =
+      summarizeStorySafetyInventoryPreflightDiagnostics(storyBatch);
+    const summary = preflightFailureSummary({
+      operation: "story_safety_inventory",
+      blockerCodes: storyDiagnostics.blockerCodes,
+      childTablesWithQueryFailures: storyDiagnostics.childTablesWithQueryFailures,
+      expectedStoryCount: storyDiagnostics.expectedStoryCount,
+      nonAuthoritativeStoryCount: storyDiagnostics.nonAuthoritativeStoryCount,
+    });
     logPreflightFailure({
       preflightCode: "preflight_lookup_failed",
       operation: "story_safety_inventory",
-      ...summarizeStorySafetyInventoryPreflightDiagnostics(storyBatch),
+      ...storyDiagnostics,
     });
-    return { ok: false, code: "preflight_lookup_failed" };
+    return { ok: false, code: "preflight_lookup_failed", summary };
   }
 
   const storyBlock = evaluateTargetOwnedStoriesForExecution(storyBatch);
   if (storyBlock) {
-    logPreflightFailure({
-      preflightCode: storyBlock,
+    const summary = preflightFailureSummary({
       operation: "story_lifecycle",
       blockerCodes: [storyBlock],
       expectedStoryCount: storyBatch.expectedStoryIds.length,
       nonAuthoritativeStoryCount: 0,
     });
-    return { ok: false, code: storyBlock };
+    logPreflightFailure({
+      preflightCode: storyBlock,
+      operation: "story_lifecycle",
+      blockerCodes: summary.blockerCodes,
+      expectedStoryCount: summary.expectedStoryCount,
+      nonAuthoritativeStoryCount: summary.nonAuthoritativeStoryCount,
+    });
+    return { ok: false, code: storyBlock, summary };
   }
 
   return {
@@ -241,6 +331,7 @@ export async function runAccountDeletionExecutionPreflight(options: {
     code: "preflight_ready",
     requestId,
     targetUserId: eligibility.targetUserId,
+    summary: preflightCompleteSummary(storyBatch),
   };
 }
 

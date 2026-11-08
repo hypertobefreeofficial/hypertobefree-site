@@ -27,6 +27,8 @@ export const PRAYER_RATE_LIMITS = {
   accountDeletionDryRun: { limit: 30, windowMs: 60 * 1000 },
   /** Admin-only account deletion execution gate — per authenticated admin. */
   accountDeletionExecute: { limit: 5, windowMs: 60 * 60 * 1000 },
+  /** Read-only execution preflight (schema + story inventory) — per authenticated owner. */
+  accountDeletionExecutionPreflight: { limit: 15, windowMs: 60 * 1000 },
 } as const satisfies Record<string, PrayerRateLimitConfig>;
 
 export type MultiWindowRateLimitConfig = {
