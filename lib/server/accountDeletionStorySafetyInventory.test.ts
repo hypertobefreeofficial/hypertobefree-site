@@ -15,11 +15,13 @@ import {
   createStorySafetyInventoryQueryDeps,
   loadStoryDeletionSafetyInventory,
   loadTargetOwnedStorySafetyInventories,
+  TARGET_STORY_SAFETY_INVENTORY_LOAD_CONCURRENCY,
   STORY_LINKED_DEPENDENCY_TABLES,
   STORY_SAFETY_INVENTORY_FINGERPRINT_NOTE,
   validateTargetStorySafetyInventoryBatchForPlanning,
   type StorySafetyInventoryQueryDeps,
   type TargetStorySafetyInventoryBatch,
+  type TargetStorySafetyInventoryBatchValidationResult,
 } from "./accountDeletionStorySafetyInventory";
 import {
   emptyStoryDeletionChildInventory,
@@ -85,15 +87,51 @@ function queryError() {
   return { ok: false as const, error: true as const };
 }
 
+type StoryOwnershipResult = Awaited<
+  ReturnType<StorySafetyInventoryQueryDeps["loadStoryOwnership"]>
+>;
+type ListTargetStoriesResult = Awaited<
+  ReturnType<StorySafetyInventoryQueryDeps["listTargetOwnedStoryIds"]>
+>;
+
+function mockStoryOwnershipOk(
+  rowOverrides: Record<string, unknown> = {}
+): StoryOwnershipResult {
+  return { ok: true, row: storyRow(rowOverrides) };
+}
+
+function mockStoryOwnershipFail(
+  reason: Extract<StoryOwnershipResult, { ok: false }>["reason"]
+): StoryOwnershipResult {
+  return { ok: false, reason };
+}
+
+function mockListTargetStoriesFail(): ListTargetStoriesResult {
+  return { ok: false };
+}
+
+function isFailedValidationResult(
+  result: TargetStorySafetyInventoryBatchValidationResult
+): result is Extract<TargetStorySafetyInventoryBatchValidationResult, { ok: false }> {
+  return result.ok === false;
+}
+
+function assertValidationFailed(
+  result: TargetStorySafetyInventoryBatchValidationResult
+): Extract<TargetStorySafetyInventoryBatchValidationResult, { ok: false }> {
+  expect(isFailedValidationResult(result)).toBe(true);
+  if (!isFailedValidationResult(result)) {
+    throw new Error("expected validation failure");
+  }
+  return result;
+}
+
 function createDeps(
   overrides: Partial<StorySafetyInventoryQueryDeps> = {}
 ): StorySafetyInventoryQueryDeps {
   const empty = () => okRows([]);
   return {
-    loadStoryOwnership: vi.fn(async () => ({
-      ok: true as const,
-      row: storyRow(),
-    })),
+    loadStoryOwnership: vi.fn(async () => mockStoryOwnershipOk()),
     loadPrayerVideoResponses: vi.fn(async () => empty()),
     loadPrayerWrittenResponses: vi.fn(async () => empty()),
     loadPrayerUpdates: vi.fn(async () => empty()),
@@ -201,10 +239,7 @@ describe("loadStoryDeletionSafetyInventory ownership", () => {
       STORY,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: true,
-          row: storyRow({ user_id: OTHER }),
-        })),
+        loadStoryOwnership: vi.fn(async () => mockStoryOwnershipOk({ user_id: OTHER })),
       })
     );
     expect(inventory.ownershipVerified).toBe(false);
@@ -219,10 +254,7 @@ describe("loadStoryDeletionSafetyInventory ownership", () => {
       STORY,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: true,
-          row: storyRow({ user_id: null }),
-        })),
+        loadStoryOwnership: vi.fn(async () => mockStoryOwnershipOk({ user_id: null })),
       })
     );
     expect(inventory.blockers.some((b) => b.code === "STORY_NULL_OWNER")).toBe(true);
@@ -233,10 +265,7 @@ describe("loadStoryDeletionSafetyInventory ownership", () => {
       STORY,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: false,
-          reason: "not_found",
-        })),
+        loadStoryOwnership: vi.fn(async () => mockStoryOwnershipFail("not_found")),
       })
     );
     expect(inventory.blockers.some((b) => b.code === "STORY_NOT_FOUND")).toBe(true);
@@ -249,10 +278,7 @@ describe("loadStoryDeletionSafetyInventory ownership", () => {
       STORY,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: false,
-          reason: "query_error",
-        })),
+        loadStoryOwnership: vi.fn(async () => mockStoryOwnershipFail("query_error")),
         loadPrayerVideoResponses,
       })
     );
@@ -269,10 +295,9 @@ describe("loadStoryDeletionSafetyInventory lifecycle", () => {
       STORY,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: true,
-          row: storyRow({ status: "approved", removed_at: null }),
-        })),
+        loadStoryOwnership: vi.fn(async () =>
+          mockStoryOwnershipOk({ status: "approved", removed_at: null })
+        ),
       })
     );
     expect(inventory.lifecycle).toBe("LIVE_PUBLIC");
@@ -288,13 +313,12 @@ describe("loadStoryDeletionSafetyInventory lifecycle", () => {
       STORY,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: true,
-          row: storyRow({
+        loadStoryOwnership: vi.fn(async () =>
+          mockStoryOwnershipOk({
             status: "removed",
             removed_at: "2026-01-01T00:00:00.000Z",
-          }),
-        })),
+          })
+        ),
       })
     );
     expect(inventory.lifecycle).toBe("PREVIOUSLY_PUBLIC_OR_REMOVED");
@@ -321,10 +345,9 @@ describe("loadStoryDeletionSafetyInventory lifecycle", () => {
       STORY,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: true,
-          row: storyRow({ status: "legacy-unknown" }),
-        })),
+        loadStoryOwnership: vi.fn(async () =>
+          mockStoryOwnershipOk({ status: "legacy-unknown" })
+        ),
       })
     );
     expect(inventory.lifecycle).toBe("UNKNOWN");
@@ -560,7 +583,7 @@ describe("inventory fingerprint and authoritative batch loader", () => {
 
   it("list-target-stories query error => batch ok=false, not empty success", async () => {
     const batch = await loadAuthoritativeBatch({
-      listTargetOwnedStoryIds: vi.fn(async () => ({ ok: false })),
+      listTargetOwnedStoryIds: vi.fn(async () => mockListTargetStoriesFail()),
     });
     expect(batch.ok).toBe(false);
     expect(batch.expectedStoryIds).toEqual([]);
@@ -603,6 +626,59 @@ describe("inventory fingerprint and authoritative batch loader", () => {
     });
     expect(batch.inventories).toHaveLength(2);
   });
+
+  it("limits concurrent per-story inventory loads for large story lists", async () => {
+    const storyIds = Array.from({ length: 12 }, (_, index) => {
+      const suffix = String(index).padStart(12, "0");
+      return `aaaaaaaa-aaaa-4aaa-8aaa-${suffix}`;
+    });
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    const batch = await loadTargetOwnedStorySafetyInventories(TARGET, {
+      ...createDeps(),
+      listTargetOwnedStoryIds: vi.fn(async () => ({ ok: true, storyIds })),
+      loadStoryOwnership: vi.fn(async (storyId: string) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        inFlight -= 1;
+        return {
+          ok: true as const,
+          row: {
+            id: storyId,
+            user_id: TARGET,
+            status: "approved",
+            removed_at: null,
+          },
+        };
+      }),
+    });
+
+    expect(batch.inventories).toHaveLength(12);
+    expect(maxInFlight).toBeLessThanOrEqual(
+      TARGET_STORY_SAFETY_INVENTORY_LOAD_CONCURRENCY
+    );
+    expect(maxInFlight).toBeGreaterThan(1);
+  });
+
+  it("fail-closed: many stories with one child query failure blocks entire batch", async () => {
+    const storyIds = Array.from({ length: 8 }, (_, index) => {
+      const suffix = String(index).padStart(12, "0");
+      return `aaaaaaaa-aaaa-4aaa-8aaa-${suffix}`;
+    });
+    const batch = await loadTargetOwnedStorySafetyInventories(TARGET, {
+      ...createDeps(),
+      listTargetOwnedStoryIds: vi.fn(async () => ({ ok: true, storyIds })),
+      loadPrayerVideoResponses: vi.fn(async (storyId) =>
+        storyId === storyIds[3] ? queryError() : okRows([])
+      ),
+    });
+    expect(batch.ok).toBe(false);
+    expect(batch.blockers.some((b) => b.code === "STORY_INVENTORY_NOT_AUTHORITATIVE")).toBe(
+      true
+    );
+  });
 });
 
 describe("batch validation and database plan integration", () => {
@@ -627,11 +703,11 @@ describe("batch validation and database plan integration", () => {
         ok: true,
         storyIds: [STORY, STORY_B],
       })),
-      loadStoryOwnership: vi.fn(async (storyId) => {
+      loadStoryOwnership: vi.fn(async (storyId: string) => {
         if (storyId === STORY_B) {
-          return { ok: false, reason: "not_found" as const };
+          return mockStoryOwnershipFail("not_found");
         }
-        return { ok: true as const, row: storyRow() };
+        return mockStoryOwnershipOk();
       }),
     });
 
@@ -726,12 +802,10 @@ describe("batch validation and database plan integration", () => {
       batch: forged,
       manifestTargetUserId: TARGET,
     });
-    expect(validation.ok).toBe(false);
-    if (!validation.ok) {
-      expect(validation.blockers.some((b) => b.code === "STORY_INVENTORY_BATCH_UNTRUSTED")).toBe(
-        true
-      );
-    }
+    const failedValidation = assertValidationFailed(validation);
+    expect(
+      failedValidation.blockers.some((b) => b.code === "STORY_INVENTORY_BATCH_UNTRUSTED")
+    ).toBe(true);
 
     const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
@@ -897,7 +971,7 @@ describe("trust-boundary security regressions", () => {
       ...buildForgedInventory(),
       __htbfStorySafetyInventoryProvenance: "authoritative.v1",
     };
-    const forgedBatch: TargetStorySafetyInventoryBatch = {
+    const forgedBatch = {
       ok: true,
       targetUserId: TARGET,
       expectedStoryIds: [STORY],
@@ -905,21 +979,19 @@ describe("trust-boundary security regressions", () => {
       blockers: [],
       fingerprint: "forged",
       __htbfTargetStorySafetyInventoryBatchProvenance: "authoritative.v1",
-    };
+    } as unknown as TargetStorySafetyInventoryBatch;
 
     const validation = validateTargetStorySafetyInventoryBatchForPlanning({
       batch: forgedBatch,
       manifestTargetUserId: TARGET,
     });
-    expect(validation.ok).toBe(false);
-    if (!validation.ok) {
-      expect(validation.blockers.some((b) => b.code === "STORY_INVENTORY_BATCH_UNTRUSTED")).toBe(
-        true
-      );
-      expect(validation.blockers.some((b) => b.code === "STORY_INVENTORY_UNTRUSTED")).toBe(
-        true
-      );
-    }
+    const failedValidation = assertValidationFailed(validation);
+    expect(
+      failedValidation.blockers.some((b) => b.code === "STORY_INVENTORY_BATCH_UNTRUSTED")
+    ).toBe(true);
+    expect(failedValidation.blockers.some((b) => b.code === "STORY_INVENTORY_UNTRUSTED")).toBe(
+      true
+    );
   });
 
   it("rejects JSON-parsed lookalike batch", async () => {
@@ -943,17 +1015,15 @@ describe("trust-boundary security regressions", () => {
       batch: tampered,
       manifestTargetUserId: TARGET,
     });
-    expect(validation.ok).toBe(false);
-    if (!validation.ok) {
-      expect(
-        validation.blockers.some(
-          (b) =>
-            b.code === "STORY_INVENTORY_BATCH_UNTRUSTED" ||
-            b.code === "STORY_INVENTORY_BATCH_TAMPERED" ||
-            b.code === "STORY_INVENTORY_UNTRUSTED"
-        )
-      ).toBe(true);
-    }
+    const failedValidation = assertValidationFailed(validation);
+    expect(
+      failedValidation.blockers.some(
+        (b) =>
+          b.code === "STORY_INVENTORY_BATCH_UNTRUSTED" ||
+          b.code === "STORY_INVENTORY_BATCH_TAMPERED" ||
+          b.code === "STORY_INVENTORY_UNTRUSTED"
+      )
+    ).toBe(true);
   });
 
   it("rejects spread-cloned authoritative batch", async () => {
@@ -963,12 +1033,10 @@ describe("trust-boundary security regressions", () => {
       batch: cloned,
       manifestTargetUserId: TARGET,
     });
-    expect(validation.ok).toBe(false);
-    if (!validation.ok) {
-      expect(validation.blockers.some((b) => b.code === "STORY_INVENTORY_BATCH_UNTRUSTED")).toBe(
-        true
-      );
-    }
+    const failedValidation = assertValidationFailed(validation);
+    expect(
+      failedValidation.blockers.some((b) => b.code === "STORY_INVENTORY_BATCH_UNTRUSTED")
+    ).toBe(true);
   });
 
   it("rejects forged expectedStoryIds subset when canonical list includes two stories", async () => {
@@ -988,17 +1056,15 @@ describe("trust-boundary security regressions", () => {
       batch: subsetForgery,
       manifestTargetUserId: TARGET,
     });
-    expect(validation.ok).toBe(false);
-    if (!validation.ok) {
-      expect(
-        validation.blockers.some(
-          (b) =>
-            b.code === "STORY_INVENTORY_BATCH_UNTRUSTED" ||
-            b.code === "STORY_INVENTORY_BATCH_TAMPERED" ||
-            b.code === "STORY_INVENTORY_MISSING_COVERAGE"
-        )
-      ).toBe(true);
-    }
+    const failedValidation = assertValidationFailed(validation);
+    expect(
+      failedValidation.blockers.some(
+        (b) =>
+          b.code === "STORY_INVENTORY_BATCH_UNTRUSTED" ||
+          b.code === "STORY_INVENTORY_BATCH_TAMPERED" ||
+          b.code === "STORY_INVENTORY_MISSING_COVERAGE"
+      )
+    ).toBe(true);
 
     const plan = await buildDatabasePlan({
       manifest: minimalManifest(),
@@ -1018,12 +1084,10 @@ describe("trust-boundary security regressions", () => {
       batch,
       manifestTargetUserId: TARGET,
     });
-    expect(validation.ok).toBe(false);
-    if (!validation.ok) {
-      expect(validation.blockers.some((b) => b.code === "STORY_INVENTORY_EXPECTED_DUPLICATES")).toBe(
-        true
-      );
-    }
+    const failedValidation = assertValidationFailed(validation);
+    expect(
+      failedValidation.blockers.some((b) => b.code === "STORY_INVENTORY_EXPECTED_DUPLICATES")
+    ).toBe(true);
   });
 
   it("rejects duplicate inventory story ids", async () => {
@@ -1055,10 +1119,9 @@ describe("trust-boundary security regressions", () => {
       STORY_B,
       TARGET,
       createDeps({
-        loadStoryOwnership: vi.fn(async () => ({
-          ok: true,
-          row: storyRow({ id: STORY_B, status: "approved" }),
-        })),
+        loadStoryOwnership: vi.fn(async () =>
+          mockStoryOwnershipOk({ id: STORY_B, status: "approved" })
+        ),
       })
     );
     const tampered: TargetStorySafetyInventoryBatch = {
@@ -1136,7 +1199,7 @@ describe("trust-boundary security regressions", () => {
     });
 
     expect(() => {
-      (batch as { expectedStoryIds: string[] }).expectedStoryIds = [STORY];
+      (batch as unknown as { expectedStoryIds: string[] }).expectedStoryIds = [STORY];
     }).toThrow();
 
     const validation = validateTargetStorySafetyInventoryBatchForPlanning({

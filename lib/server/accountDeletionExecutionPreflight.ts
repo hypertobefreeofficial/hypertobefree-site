@@ -10,6 +10,10 @@ import {
   loadTargetOwnedStorySafetyInventoriesWithClient,
   type TargetStorySafetyInventoryBatch,
 } from "./accountDeletionStorySafetyInventory";
+import {
+  logAccountDeletionPreflightFailure,
+  summarizeStorySafetyInventoryPreflightDiagnostics,
+} from "./accountDeletionExecutionPreflightDiagnostics";
 import { targetOwnedStoryBlocksNondestructiveDatabaseStage } from "./accountDeletionStoryLifecycle";
 
 const EXECUTION_REQUEST_COLUMNS =
@@ -105,6 +109,29 @@ function mapEligibilityFailure(
   }
 }
 
+function logPreflightFailure(input: {
+  preflightCode: AccountDeletionExecutionPreflightFailureCode;
+  operation:
+    | "deletion_request_lookup"
+    | "profile_lookup"
+    | "story_safety_inventory"
+    | "story_lifecycle";
+  blockerCodes?: readonly string[];
+  childTablesWithQueryFailures?: readonly string[];
+  expectedStoryCount?: number | null;
+  nonAuthoritativeStoryCount?: number | null;
+}): void {
+  logAccountDeletionPreflightFailure({
+    phase: "execution_preflight",
+    preflightCode: input.preflightCode,
+    operation: input.operation,
+    blockerCodes: input.blockerCodes ?? [],
+    childTablesWithQueryFailures: input.childTablesWithQueryFailures ?? [],
+    expectedStoryCount: input.expectedStoryCount ?? null,
+    nonAuthoritativeStoryCount: input.nonAuthoritativeStoryCount ?? null,
+  });
+}
+
 function evaluateTargetOwnedStoriesForExecution(
   batch: TargetStorySafetyInventoryBatch
 ): AccountDeletionExecutionPreflightFailureCode | null {
@@ -146,12 +173,24 @@ export async function runAccountDeletionExecutionPreflight(options: {
   const request = await deps.loadDeletionRequest(requestId);
   const eligibility = validateExecutionEligibility(request);
   if (eligibility.ok === false) {
+    if (eligibility.code === "request_not_found") {
+      logPreflightFailure({
+        preflightCode: "preflight_lookup_failed",
+        operation: "deletion_request_lookup",
+        blockerCodes: ["request_not_found"],
+      });
+    }
     if (eligibility.code === "execution_in_progress" && request) {
       const targetUserId = resolveDeletionRequestTargetUserId({
         user_id: request.user_id,
         target_user_id_snapshot: request.target_user_id_snapshot,
       });
       if (!targetUserId) {
+        logPreflightFailure({
+          preflightCode: "target_not_found",
+          operation: "deletion_request_lookup",
+          blockerCodes: ["target_not_found"],
+        });
         return { ok: false, code: "target_not_found" };
       }
       return {
@@ -167,16 +206,33 @@ export async function runAccountDeletionExecutionPreflight(options: {
   const profile = await deps.loadProfile(eligibility.targetUserId);
   const privileged = validatePrivilegedTarget(profile);
   if (privileged.ok === false) {
+    logPreflightFailure({
+      preflightCode: privileged.code,
+      operation: "profile_lookup",
+      blockerCodes: [privileged.code],
+    });
     return { ok: false, code: privileged.code };
   }
 
   const storyBatch = await deps.loadTargetStorySafetyBatch(eligibility.targetUserId);
   if (storyBatch.ok === false || storyBatch.blockers.length > 0) {
+    logPreflightFailure({
+      preflightCode: "preflight_lookup_failed",
+      operation: "story_safety_inventory",
+      ...summarizeStorySafetyInventoryPreflightDiagnostics(storyBatch),
+    });
     return { ok: false, code: "preflight_lookup_failed" };
   }
 
   const storyBlock = evaluateTargetOwnedStoriesForExecution(storyBatch);
   if (storyBlock) {
+    logPreflightFailure({
+      preflightCode: storyBlock,
+      operation: "story_lifecycle",
+      blockerCodes: [storyBlock],
+      expectedStoryCount: storyBatch.expectedStoryIds.length,
+      nonAuthoritativeStoryCount: 0,
+    });
     return { ok: false, code: storyBlock };
   }
 

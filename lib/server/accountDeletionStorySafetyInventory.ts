@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mapInBoundedConcurrency } from "./mapInBoundedConcurrency";
 import {
   classifyStoryLifecycle,
   storySafetyInventoryToPlanningInput,
@@ -19,6 +20,9 @@ import {
 
 export const STORY_SAFETY_INVENTORY_FINGERPRINT_NOTE =
   "Fingerprint is a drift hint only — future execution must rebuild authoritative inventory after write-freeze; fingerprint comparison alone can never authorize deletion." as const;
+
+/** Caps parallel per-story dependency reads during execution preflight (PostgREST). */
+export const TARGET_STORY_SAFETY_INVENTORY_LOAD_CONCURRENCY = 4;
 
 export type TargetStorySafetyInventoryBatch = {
   ok: boolean;
@@ -957,10 +961,10 @@ export async function loadTargetOwnedStorySafetyInventories(
   }
 
   const canonicalExpectedStoryIds = listed.storyIds;
-  const inventories = await Promise.all(
-    canonicalExpectedStoryIds.map((storyId) =>
-      loadStoryDeletionSafetyInventory(storyId, targetUserId, deps)
-    )
+  const inventories = await mapInBoundedConcurrency(
+    canonicalExpectedStoryIds,
+    TARGET_STORY_SAFETY_INVENTORY_LOAD_CONCURRENCY,
+    (storyId) => loadStoryDeletionSafetyInventory(storyId, targetUserId, deps)
   );
 
   const batchBlockers: StoryDeletionSafetyBlocker[] = [];
