@@ -88,12 +88,20 @@ describe("runAccountDeletionExecutionPreflight", () => {
       requestId: REQUEST,
       deps: createDeps(),
     });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       code: "preflight_ready",
       requestId: REQUEST,
       targetUserId: TARGET,
     });
+    if (result.ok === true) {
+      expect(result.summary).toMatchObject({
+        operation: "preflight_complete",
+        blockerCodes: [],
+        expectedStoryCount: 1,
+        nonAuthoritativeStoryCount: 0,
+      });
+    }
   });
 
   it("PF-B2: deletion_in_progress → preflight_ready for orchestration resume", async () => {
@@ -109,7 +117,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         loadTargetStorySafetyBatch,
       }),
     });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: true,
       code: "preflight_ready",
       requestId: REQUEST,
@@ -128,7 +136,10 @@ describe("runAccountDeletionExecutionPreflight", () => {
         ),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "request_not_approved" });
+    expect(result).toMatchObject({ ok: false, code: "request_not_approved" });
+    expect(result.ok === false && result.summary.blockerCodes).toContain(
+      "request_not_approved"
+    );
   });
 
   it("PF-C: target missing → target_not_found", async () => {
@@ -143,7 +154,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         ),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "target_not_found" });
+    expect(result).toMatchObject({ ok: false, code: "target_not_found" });
   });
 
   it("PF-D: target owner/founder → blocked_owner", async () => {
@@ -157,7 +168,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         })),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "blocked_owner" });
+    expect(result).toMatchObject({ ok: false, code: "blocked_owner" });
   });
 
   it("PF-E: target admin → blocked_admin", async () => {
@@ -171,7 +182,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         })),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "blocked_admin" });
+    expect(result).toMatchObject({ ok: false, code: "blocked_admin" });
   });
 
   it("PF-F: pending never-published story → unsupported_story_lifecycle", async () => {
@@ -185,7 +196,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         ),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "unsupported_story_lifecycle" });
+    expect(result).toMatchObject({ ok: false, code: "unsupported_story_lifecycle" });
   });
 
   it("PF-G: submitted never-published story → unsupported_story_lifecycle", async () => {
@@ -199,7 +210,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         ),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "unsupported_story_lifecycle" });
+    expect(result).toMatchObject({ ok: false, code: "unsupported_story_lifecycle" });
   });
 
   it("PF-H: removed pending/submitted story allowed per 3B.1 semantics", async () => {
@@ -249,7 +260,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         ),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "unsupported_story_lifecycle" });
+    expect(result).toMatchObject({ ok: false, code: "unsupported_story_lifecycle" });
   });
 
   it("PF-K: DB lookup failure → fail closed", async () => {
@@ -259,7 +270,10 @@ describe("runAccountDeletionExecutionPreflight", () => {
         loadDeletionRequest: vi.fn(async () => null),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "preflight_lookup_failed" });
+    expect(result).toMatchObject({ ok: false, code: "preflight_lookup_failed" });
+    expect(result.ok === false && result.summary.blockerCodes).toContain(
+      "request_not_found"
+    );
   });
 
   it("PF-L: story batch not authoritative → preflight_lookup_failed", async () => {
@@ -279,7 +293,7 @@ describe("runAccountDeletionExecutionPreflight", () => {
         })),
       }),
     });
-    expect(result).toEqual({ ok: false, code: "preflight_lookup_failed" });
+    expect(result).toMatchObject({ ok: false, code: "preflight_lookup_failed" });
     expect(logSpy).toHaveBeenCalledOnce();
     expect(logSpy.mock.calls[0]?.[0]).toMatchObject({
       operation: "story_safety_inventory",
