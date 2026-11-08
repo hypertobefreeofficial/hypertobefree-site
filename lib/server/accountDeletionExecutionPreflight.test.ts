@@ -6,6 +6,7 @@ import {
   runAccountDeletionExecutionPreflight,
   type AccountDeletionExecutionPreflightDeps,
 } from "./accountDeletionExecutionPreflight";
+import * as preflightDiagnostics from "./accountDeletionExecutionPreflightDiagnostics";
 import type { TargetStorySafetyInventoryBatch } from "./accountDeletionStorySafetyInventory";
 import type { StoryDeletionSafetyInventory } from "./accountDeletionStoryLifecycle";
 import { emptyStoryDeletionChildInventory } from "./accountDeletionStoryLifecycle";
@@ -262,6 +263,9 @@ describe("runAccountDeletionExecutionPreflight", () => {
   });
 
   it("PF-L: story batch not authoritative → preflight_lookup_failed", async () => {
+    const logSpy = vi
+      .spyOn(preflightDiagnostics, "logAccountDeletionPreflightFailure")
+      .mockImplementation(() => {});
     const result = await runAccountDeletionExecutionPreflight({
       requestId: REQUEST,
       deps: createDeps({
@@ -276,6 +280,12 @@ describe("runAccountDeletionExecutionPreflight", () => {
       }),
     });
     expect(result).toEqual({ ok: false, code: "preflight_lookup_failed" });
+    expect(logSpy).toHaveBeenCalledOnce();
+    expect(logSpy.mock.calls[0]?.[0]).toMatchObject({
+      operation: "story_safety_inventory",
+      blockerCodes: ["TARGET_STORY_LIST_QUERY_FAILED"],
+    });
+    logSpy.mockRestore();
   });
 
   it("PF-M: preflight resolves target only from deletion request", async () => {
