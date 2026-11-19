@@ -57,25 +57,58 @@ function transitionFailure(
   };
 }
 
+type RevokeTargetSessionsRpcPayload = {
+  ok?: boolean;
+  code?: string;
+  target_user_id?: string;
+};
+
 /**
- * Global session revocation for a deletion target via Supabase Admin API.
- * Does NOT call auth.admin.deleteUser. Target must come from acquisition context.
+ * Global session revocation for a deletion target.
+ *
+ * Supabase documents auth.admin.signOut(jwt, scope) with a logged-in JWT, not a user id.
+ * Server-side revocation uses the narrow revoke_account_deletion_target_auth_sessions RPC,
+ * which mirrors GoTrue global logout (DELETE auth.sessions for the attempt-resolved target only).
  */
 export async function revokeAccountDeletionTargetSessions(options: {
   serviceRoleClient: SupabaseClient;
+  requestId: string;
+  attemptId: string;
   targetUserId: string;
 }): Promise<AccountDeletionSessionRevocationResult> {
   if (!isValidSessionRevocationTargetUserId(options.targetUserId)) {
     return { ok: false, code: "invalid_target" };
   }
 
+  if (
+    !isValidAttemptId(options.attemptId) ||
+    !isValidAttemptId(options.requestId)
+  ) {
+    return { ok: false, code: "session_revocation_failed" };
+  }
+
   try {
-    const { error } = await options.serviceRoleClient.auth.admin.signOut(
-      options.targetUserId,
-      "global"
+    const { data, error } = await options.serviceRoleClient.rpc(
+      "revoke_account_deletion_target_auth_sessions",
+      {
+        p_request_id: options.requestId,
+        p_attempt_id: options.attemptId,
+      }
     );
 
     if (error) {
+      return { ok: false, code: "session_revocation_failed" };
+    }
+
+    const payload = data as RevokeTargetSessionsRpcPayload | null;
+    if (payload?.ok !== true) {
+      return { ok: false, code: "session_revocation_failed" };
+    }
+
+    if (
+      typeof payload.target_user_id === "string" &&
+      payload.target_user_id !== options.targetUserId
+    ) {
       return { ok: false, code: "session_revocation_failed" };
     }
 

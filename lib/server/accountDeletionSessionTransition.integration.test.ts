@@ -452,6 +452,106 @@ describeIntegration(
       }
     });
 
+    it("ST-R1: revoke RPC removes only target sessions at sessions_pending", async () => {
+      await cleanupScenario(client);
+      const attemptId = await seedApprovedAndAcquire(client);
+      await callStageRpc(
+        client,
+        "advance_account_deletion_attempt_to_sessions_pending",
+        REQUEST_ID,
+        attemptId
+      );
+
+      const targetSession = "11111111-1111-4111-8111-111111111111";
+      const ownerSession = "22222222-2222-4222-8222-222222222222";
+      await client.query(
+        `INSERT INTO auth.sessions (id, user_id) VALUES ($1::uuid, $2::uuid), ($3::uuid, $4::uuid)`,
+        [targetSession, TARGET, ownerSession, OWNER]
+      );
+
+      const revoked = await callStageRpc(
+        client,
+        "revoke_account_deletion_target_auth_sessions",
+        REQUEST_ID,
+        attemptId
+      );
+      expect(revoked).toMatchObject({
+        ok: true,
+        code: "revoked",
+        target_user_id: TARGET,
+        sessions_removed: 1,
+      });
+
+      const remaining = await client.query<{ user_id: string }>(
+        `SELECT user_id FROM auth.sessions ORDER BY user_id`
+      );
+      expect(remaining.rows).toEqual([{ user_id: OWNER }]);
+    });
+
+    it("ST-R2: revoke RPC fails from lock_acquired (retry after failure path uses pending)", async () => {
+      await cleanupScenario(client);
+      const attemptId = await seedApprovedAndAcquire(client);
+      const payload = await callStageRpc(
+        client,
+        "revoke_account_deletion_target_auth_sessions",
+        REQUEST_ID,
+        attemptId
+      );
+      expect(payload).toMatchObject({ ok: false, code: "stage_conflict" });
+    });
+
+    it("ST-R3: authenticated cannot execute revoke RPC", async () => {
+      await cleanupScenario(client);
+      const attemptId = await seedApprovedAndAcquire(client);
+      await callStageRpc(
+        client,
+        "advance_account_deletion_attempt_to_sessions_pending",
+        REQUEST_ID,
+        attemptId
+      );
+      await client.query("BEGIN");
+      try {
+        await client.query("SET LOCAL ROLE authenticated");
+        await expect(
+          client.query(
+            `SELECT public.revoke_account_deletion_target_auth_sessions($1::uuid, $2::uuid)`,
+            [REQUEST_ID, attemptId]
+          )
+        ).rejects.toThrow(/permission denied/i);
+      } finally {
+        await client.query("ROLLBACK");
+      }
+    });
+
+    it("ST-R4: retry revocation after recorded failure succeeds at sessions_pending", async () => {
+      await cleanupScenario(client);
+      const attemptId = await seedApprovedAndAcquire(client);
+      await callStageRpc(
+        client,
+        "advance_account_deletion_attempt_to_sessions_pending",
+        REQUEST_ID,
+        attemptId
+      );
+      await client.query("BEGIN");
+      await client.query("SET LOCAL ROLE service_role");
+      await client.query(
+        `
+        SELECT public.record_account_deletion_session_revocation_failure(
+          $1::uuid, $2::uuid, 'auth_signout_failed', 'retry-test'
+        )
+        `,
+        [REQUEST_ID, attemptId]
+      );
+      await client.query("COMMIT");
+      const second = await callStageRpc(
+        client,
+        "revoke_account_deletion_target_auth_sessions",
+        REQUEST_ID,
+        attemptId
+      );
+      expect(second).toMatchObject({ ok: true, code: "revoked" });
+    });
+
     it("ST-O: session-revocation failure RPC records metadata and stays pending", async () => {
       await cleanupScenario(client);
       const attemptId = await seedApprovedAndAcquire(client);

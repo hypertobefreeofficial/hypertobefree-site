@@ -10,48 +10,59 @@ const ATTEMPT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const REQUEST = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 describe("accountDeletionSessionRevocation", () => {
-  it("revokes global sessions for target without deleteUser", async () => {
-    const signOut = vi.fn().mockResolvedValue({ error: null });
-    const client = {
-      auth: { admin: { signOut } },
-    };
+  it("revokes sessions via narrow RPC without auth.admin.signOut", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        ok: true,
+        code: "revoked",
+        target_user_id: TARGET,
+        sessions_removed: 2,
+      },
+      error: null,
+    });
+    const client = { rpc };
 
     const result = await revokeAccountDeletionTargetSessions({
       serviceRoleClient: client as never,
+      requestId: REQUEST,
+      attemptId: ATTEMPT,
       targetUserId: TARGET,
     });
 
     expect(result).toEqual({ ok: true });
-    expect(signOut).toHaveBeenCalledWith(TARGET, "global");
-    expect(signOut).not.toHaveBeenCalledWith(expect.anything(), "local");
+    expect(rpc).toHaveBeenCalledWith(
+      "revoke_account_deletion_target_auth_sessions",
+      {
+        p_request_id: REQUEST,
+        p_attempt_id: ATTEMPT,
+      }
+    );
+    expect(client).not.toHaveProperty("auth");
   });
 
-  it("fails closed when auth.admin.signOut throws", async () => {
+  it("fails closed when revocation RPC throws", async () => {
     const result = await revokeAccountDeletionTargetSessions({
       serviceRoleClient: {
-        auth: {
-          admin: {
-            signOut: vi.fn().mockRejectedValue(new Error("network down")),
-          },
-        },
+        rpc: vi.fn().mockRejectedValue(new Error("network down")),
       } as never,
+      requestId: REQUEST,
+      attemptId: ATTEMPT,
       targetUserId: TARGET,
     });
 
     expect(result).toEqual({ ok: false, code: "session_revocation_failed" });
   });
 
-  it("fails closed on auth admin signOut error", async () => {
+  it("fails closed on revocation RPC transport error", async () => {
     const result = await revokeAccountDeletionTargetSessions({
       serviceRoleClient: {
-        auth: {
-          admin: {
-            signOut: vi.fn().mockResolvedValue({
-              error: { message: "upstream failure" },
-            }),
-          },
-        },
+        rpc: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: "upstream failure" },
+        }),
       } as never,
+      requestId: REQUEST,
+      attemptId: ATTEMPT,
       targetUserId: TARGET,
     });
 
@@ -61,17 +72,67 @@ describe("accountDeletionSessionRevocation", () => {
     });
   });
 
-  it("rejects invalid target UUID", async () => {
-    const signOut = vi.fn();
+  it("fails closed when RPC reports failure", async () => {
     const result = await revokeAccountDeletionTargetSessions({
       serviceRoleClient: {
-        auth: { admin: { signOut } },
+        rpc: vi.fn().mockResolvedValue({
+          data: { ok: false, code: "stage_conflict" },
+          error: null,
+        }),
       } as never,
+      requestId: REQUEST,
+      attemptId: ATTEMPT,
+      targetUserId: TARGET,
+    });
+
+    expect(result).toEqual({ ok: false, code: "session_revocation_failed" });
+  });
+
+  it("fails closed when RPC target_user_id mismatches trusted context", async () => {
+    const rpc = vi.fn();
+    const result = await revokeAccountDeletionTargetSessions({
+      serviceRoleClient: {
+        rpc: rpc.mockResolvedValue({
+          data: {
+            ok: true,
+            code: "revoked",
+            target_user_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          },
+          error: null,
+        }),
+      } as never,
+      requestId: REQUEST,
+      attemptId: ATTEMPT,
+      targetUserId: TARGET,
+    });
+
+    expect(result).toEqual({ ok: false, code: "session_revocation_failed" });
+  });
+
+  it("rejects invalid target UUID", async () => {
+    const rpc = vi.fn();
+    const result = await revokeAccountDeletionTargetSessions({
+      serviceRoleClient: { rpc } as never,
+      requestId: REQUEST,
+      attemptId: ATTEMPT,
       targetUserId: "not-a-uuid",
     });
 
     expect(result).toEqual({ ok: false, code: "invalid_target" });
-    expect(signOut).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid request/attempt UUIDs without RPC", async () => {
+    const rpc = vi.fn();
+    const result = await revokeAccountDeletionTargetSessions({
+      serviceRoleClient: { rpc } as never,
+      requestId: "bad",
+      attemptId: ATTEMPT,
+      targetUserId: TARGET,
+    });
+
+    expect(result).toEqual({ ok: false, code: "session_revocation_failed" });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("marks attempt sessions_revoked via narrow RPC only", async () => {

@@ -192,6 +192,15 @@ export const ACCOUNT_DELETION_SESSION_TRANSITION_MIGRATION = {
   phase: "4C.7B.1E.2C.3B.2B",
 } as const;
 
+export const ACCOUNT_DELETION_SESSION_REVOCATION_MIGRATION = {
+  version: "20261108120000",
+  filename:
+    "20261108120000_account_deletion_target_session_revocation_phase3b4d5.sql",
+  relativePath:
+    "supabase/migrations/20261108120000_account_deletion_target_session_revocation_phase3b4d5.sql",
+  phase: "3B.4D.5",
+} as const;
+
 export const ACCOUNT_DELETION_EXECUTION_RECOVERY_MIGRATION = {
   version: "20260919160000",
   filename:

@@ -241,6 +241,8 @@ export function createAccountDeletionSessionRevocationOrchestratorDeps(
 
       const revoked = await revokeAccountDeletionTargetSessions({
         serviceRoleClient,
+        requestId: context.requestId,
+        attemptId: context.attemptId,
         targetUserId: context.targetUserId,
       });
       return revoked.ok ? { ok: true as const } : { ok: false as const };
@@ -412,6 +414,7 @@ export const ACCOUNT_DELETION_SESSION_REVOCATION_ORCHESTRATOR_DISCONNECTED_NOTE 
   + "when HTBF_ACCOUNT_DELETION_EXECUTION_ENABLED is true. Global signOut does not replace DB/RLS stale-JWT write barriers.";
 
 export const ACCOUNT_DELETION_STALE_JWT_SESSION_REVOCATION_NOTE =
-  "auth.admin.signOut(global) invalidates refresh/session state but access JWTs may remain "
-  + "valid until expiry. Deletion safety still requires current_user_account_write_blocked(), "
-  + "shared write-freeze triggers, and service-role target guards while deletion_in_progress.";
+  "revoke_account_deletion_target_auth_sessions (GoTrue-equivalent global logout) removes "
+  + "auth.sessions rows but access JWTs may remain valid until expiry. Deletion safety still "
+  + "requires current_user_account_write_blocked(), shared write-freeze triggers, and "
+  + "service-role target guards while deletion_in_progress.";

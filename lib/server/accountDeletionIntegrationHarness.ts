@@ -253,6 +253,12 @@ export async function ensureMinimalSupabaseSchemas(
       created_at timestamptz DEFAULT now(),
       raw_user_meta_data jsonb DEFAULT '{}'::jsonb
     );
+    CREATE TABLE IF NOT EXISTS auth.sessions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now()
+    );
 
     CREATE SCHEMA IF NOT EXISTS storage;
     CREATE TABLE IF NOT EXISTS storage.buckets (

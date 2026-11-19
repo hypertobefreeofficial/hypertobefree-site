@@ -95,6 +95,11 @@ function createPgServiceRoleClient(
             `SELECT public.advance_account_deletion_attempt_to_sessions_revoked($1::uuid, $2::uuid) AS payload`,
             [args.p_request_id, args.p_attempt_id]
           );
+        case "revoke_account_deletion_target_auth_sessions":
+          return runServiceRpc(
+            `SELECT public.revoke_account_deletion_target_auth_sessions($1::uuid, $2::uuid) AS payload`,
+            [args.p_request_id, args.p_attempt_id]
+          );
         case "record_account_deletion_session_revocation_failure":
           return runServiceRpc(
             `SELECT public.record_account_deletion_session_revocation_failure($1::uuid, $2::uuid, $3::text, $4::text) AS payload`,
